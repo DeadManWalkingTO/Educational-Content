@@ -1,12 +1,11 @@
 // --- Versions
-const JS_VERSION = "v3.1.4";
+const JS_VERSION = "v3.2.4";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- State
 let players = [];
 let videoListMain = [];   // κύρια λίστα (list.txt)
 let videoListAlt = [];    // δευτερεύουσα λίστα (random.txt)
-let videoList = [];       // συμβατότητα με υπάρχουσα λογική
 let isMutedAll = true;
 let listSource = "Internal"; // Local | Web | Internal
 const stats = { 
@@ -71,7 +70,7 @@ function updateStats() {
 }
 const rndInt = (min, max) => Math.floor(min + Math.random() * (max - min + 1));
 const rndDelayMs = (minS, maxS) => (minS + Math.random() * (maxS - minS)) * 1000;
-function getRandomVideos(n) { return [...videoList].sort(() => Math.random() - 0.5).slice(0, n); }
+function getRandomVideos(n) { return [...videoListMain].sort(() => Math.random() - 0.5).slice(0, n); }
 
 function getRandomIdFromList(list) {
   const src = list && list.length ? list : internalList;
@@ -124,7 +123,6 @@ Promise.all([loadVideoList(), loadAltList()])
   .then(([mainList, altList]) => {
     videoListMain = mainList;
     videoListAlt = altList;
-    videoList = videoListMain; // για συμβατότητα με υπάρχουσες συναρτήσεις
     log(`[${ts()}] 🚀 Project start — HTML ${HTML_VERSION} | JS ${JS_VERSION}`);
     if (typeof YT !== "undefined" && YT.Player) initPlayers();
   })
