@@ -1,5 +1,5 @@
 // --- Versions
-const JS_VERSION = "v3.3.5";
+const JS_VERSION = "v3.3.6";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- State
@@ -100,26 +100,19 @@ function onYouTubeIframeAPIReady(){
 
 // --- Initialize players
 function initPlayers(){
-  if(videoListAlt.length<10){
-    const ids = [...videoListMain].sort(()=>Math.random()-0.5).slice(0,8);
-    ids.forEach((id,i)=>{
-      playerSources[i]="Main";
-      players[i]=new YT.Player(`player${i+1}`,{
-        videoId:id,
-        events:{onReady:e=>onPlayerReady(e,i),onStateChange:e=>onPlayerStateChange(e,i),onError:e=>onPlayerError(e,i)}
-      });
-    });
-    log(`[${ts()}] ✅ Players initialized (8) — Source: ${listSource} (Alt list <10 IDs, ignored)`);
-    return;
-  }
-  for(let i=0;i<8;i++){
+  const totalPlayers = 8;
+  for(let i=0;i<totalPlayers;i++){
     let sourceList=(i<4)?videoListMain:videoListAlt;
     if(!sourceList.length) sourceList=internalList;
     const id=sourceList[Math.floor(Math.random()*sourceList.length)];
     playerSources[i]=sourceList===videoListMain?"Main":sourceList===videoListAlt?"Alt":"Internal";
     players[i]=new YT.Player(`player${i+1}`,{
       videoId:id,
-      events:{onReady:e=>onPlayerReady(e,i),onStateChange:e=>onPlayerStateChange(e,i),onError:e=>onPlayerError(e,i)}
+      events:{
+        onReady:e=>onPlayerReady(e,i),
+        onStateChange:e=>onPlayerStateChange(e,i),
+        onError:e=>onPlayerError(e,i)
+      }
     });
     logPlayer(i,`Initialized from ${playerSources[i]} list`,id);
   }
@@ -131,22 +124,26 @@ function onPlayerReady(e,i){
   const p = e.target;
   const startDelay = rndDelayMs(START_DELAY_MIN_S, START_DELAY_MAX_S);
 
-  setTimeout(() => {
+  setTimeout(()=>{
     const seek = rndInt(0, INIT_SEEK_MAX_S);
     p.seekTo(seek,true);
     p.playVideo();
     p.setPlaybackQuality('small');
     logPlayer(i, `▶ Start after ${Math.round(startDelay/1000)}s, seek=${seek}s`, p.getVideoData().video_id);
 
-    // --- Auto-unmute + random volume for EACH player
-    try {
-      p.unMute();  // ξε-κλειδώνει ήχο για τον player
-      const vol = playerStartupVolume[i];
-      p.setVolume(vol);
-      logPlayer(i, `🔊 Auto-unmute -> ${vol}%`, p.getVideoData().video_id);
-    } catch(err){
-      logPlayer(i, `⚠ Auto-unmute failed`, p.getVideoData().video_id);
-    }
+    // --- Schedule unMute 30s after startDelay
+    setTimeout(()=>{
+      try {
+        if(p.isMuted && p.isMuted()){
+          p.unMute();
+          const vol = playerStartupVolume[i];
+          p.setVolume(vol);
+          logPlayer(i, `🔊 Auto-unmute after delay -> ${vol}%`, p.getVideoData().video_id);
+        }
+      } catch(err){
+        logPlayer(i, `⚠ Auto-unmute failed`, p.getVideoData().video_id);
+      }
+    },30000);
 
     scheduleRandomPauses(p,i);
     scheduleMidSeek(p,i);
@@ -156,9 +153,8 @@ function onPlayerReady(e,i){
 // --- Player state change
 function onPlayerStateChange(e,i){
   const p = e.target;
-
   if(e.data===YT.PlayerState.PLAYING && !players[i].volumeSet){
-    const vol=playerStartupVolume[i];
+    const vol = playerStartupVolume[i];
     p.setVolume(vol);
     players[i].volumeSet=true;
     logPlayer(i,`🔊 Startup random volume -> ${vol}%`,p.getVideoData().video_id);
@@ -166,17 +162,11 @@ function onPlayerStateChange(e,i){
 
   if(e.data===YT.PlayerState.ENDED){
     clearPlayerTimers(i);
-    const afterEndPauseMs = rndInt(2000,5000);
+    const afterEndPauseMs=rndInt(2000,5000);
     logPlayer(i,`⏸ End pause ${Math.round(afterEndPauseMs/1000)}s`,p.getVideoData().video_id);
     setTimeout(()=>{
       if(Math.random()<0.1){ p.seekTo(0); p.playVideo(); stats.replay++; logPlayer(i,"🔁 Replay video",p.getVideoData().video_id); }
-      else {
-        const newId = getRandomIdForPlayer(i); 
-        p.loadVideoById(newId); 
-        stats.autoNext++;
-        logPlayer(i,"⏭ AutoNext",newId);
-        scheduleRandomPauses(p,i); scheduleMidSeek(p,i);
-      }
+      else { const newId=getRandomIdForPlayer(i); p.loadVideoById(newId); stats.autoNext++; logPlayer(i,"⏭ AutoNext",newId); scheduleRandomPauses(p,i); scheduleMidSeek(p,i); }
       setTimeout(()=>{
         const state=p.getPlayerState();
         if(state!==YT.PlayerState.PLAYING){ p.playVideo(); stats.watchdog++; logPlayer(i,`🛠 Watchdog kick (state=${state})`,p.getVideoData().video_id); }
@@ -205,9 +195,9 @@ function onPlayerError(e,i){
 const playerTimers=Array.from({length:8},()=>({midSeek:null,pauseSmall:null,pauseLarge:null}));
 function clearPlayerTimers(i){ ['midSeek','pauseSmall','pauseLarge'].forEach(k=>{if(playerTimers[i][k]){clearTimeout(playerTimers[i][k]);playerTimers[i][k]=null;}}); logPlayer(i,"🧹 Timers cleared"); }
 
-// --- Placeholder natural behaviors (implement as πριν)
-function scheduleRandomPauses(p,i){ /* ... existing logic ... */ }
-function scheduleMidSeek(p,i){ /* ... existing logic ... */ }
+// --- Placeholder natural behaviors
+function scheduleRandomPauses(p,i){ /* ... */ }
+function scheduleMidSeek(p,i){ /* ... */ }
 
 // --- Player controls
 function playAll(){ players.forEach(p=>p.playVideo()); log(`[${ts()}] ▶ Play All`); }
@@ -216,14 +206,14 @@ function stopAll(){ players.forEach(p=>p.stopVideo()); log(`[${ts()}] ⏹ Stop A
 function nextAll(){ players.forEach((p,i)=>{ const newId=getRandomIdForPlayer(i); p.loadVideoById(newId); p.playVideo(); logPlayer(i,"⏭ Next",newId); }); log(`[${ts()}] ⏭ Next All`); }
 function shuffleAll(){ players.forEach((p,i)=>{ const newId=getRandomIdForPlayer(i); p.loadVideoById(newId); p.playVideo(); logPlayer(i,"🎲 Shuffle",newId); }); log(`[${ts()}] 🎲 Shuffle All`); }
 function restartAll(){ players.forEach((p,i)=>{ const newId=getRandomIdForPlayer(i); p.stopVideo(); p.loadVideoById(newId); p.playVideo(); logPlayer(i,"🔁 Restart",newId); }); log(`[${ts()}] 🔁 Restart All`); }
-function toggleMuteAll(){ /* ... όπως πριν ... */ }
-function randomizeVolumeAll(){ /* ... όπως πριν ... */ }
-function normalizeVolumeAll(){ /* ... όπως πριν ... */ }
+function toggleMuteAll(){ /* ... */ }
+function randomizeVolumeAll(){ /* ... */ }
+function normalizeVolumeAll(){ /* ... */ }
 function toggleTheme(){ document.body.classList.toggle("light"); log(`[${ts()}] 🌓 Theme toggled`); }
 function clearLogs(){ const panel=document.getElementById("activityPanel"); if(panel) panel.innerHTML=""; log(`[${ts()}] 🧹 Logs cleared`); }
 function reloadList(){ Promise.all([loadVideoList(),loadAltList()]).then(([mainList,altList])=>{ videoListMain=mainList; videoListAlt=altList; log(`[${ts()}] 🔄 Lists reloaded — Main:${videoListMain.length} | Alt:${videoListAlt.length}`); }).catch(err=>log(`[${ts()}] ❌ Reload failed: ${err}`)); }
 
-// --- Helper: random video ID for player
+// --- Helper: random video ID
 function getRandomIdFromList(list){ const src=list&&list.length?list:internalList; return src[Math.floor(Math.random()*src.length)]; }
 function getRandomIdForPlayer(i){
   const src = playerSources[i];
