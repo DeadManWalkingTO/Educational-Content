@@ -1,5 +1,5 @@
 // --- Versions
-const JS_VERSION = "v3.4.0";
+const JS_VERSION = "v3.4.2";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- State
@@ -121,7 +121,7 @@ function initPlayers(){
   log(`[${ts()}] ✅ Players initialized (8) — Main:${videoListMain.length} | Alt:${videoListAlt.length}`);
 }
 
-// --- Player pipeline flow with 30s unMute delay
+// --- Player pipeline flow with 30s unMute delay but autoplay physics timers
 function startPlayerFlow(i){
   const p = players[i];
   clearPlayerTimers(i);
@@ -132,22 +132,20 @@ function startPlayerFlow(i){
   p.loadVideoById(videoId);
   p.playVideo();
 
-  // 2. Delay unMute + random volume by 30+ sec
+  // 2. Start physics timers immediately after muted play
+  scheduleRandomPauses(p,i);
+  scheduleMidSeek(p,i);
+  logPlayer(i,`▶ Physics timers activated immediately (muted)`,videoId);
+
+  // 3. Delay unMute + random volume by 30+ sec
   setTimeout(()=>{
     if(p.isMuted && p.isMuted()){
       p.unMute();
       const vol = playerStartupVolume[i];
       p.setVolume(vol);
       logPlayer(i, `🔊 Unmute & volume -> ${vol}% after 30+ sec`, videoId);
-
-      // 3. Start physics timers after unMute
-      scheduleRandomPauses(p,i);
-      scheduleMidSeek(p,i);
-      logPlayer(i,`▶ Physics timers activated post unMute`,videoId);
     }
   }, UNMUTE_DELAY_MS);
 }
-
-// --- Other functions (onPlayerStateChange, onPlayerError, scheduleRandomPauses, scheduleMidSeek, controls, helpers) remain as in v3.3.9 but now use startPlayerFlow with 30s unMute delay.
 
 // ---End Of File---
