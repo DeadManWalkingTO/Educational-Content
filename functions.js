@@ -1,5 +1,5 @@
 // --- Versions
-const JS_VERSION = "v3.4.3";
+const JS_VERSION = "v3.4.4";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- State
@@ -57,8 +57,7 @@ const rndDelayMs=(minS,maxS)=>(minS+Math.random()*(maxS-minS))*1000;
 
 // --- Load lists
 function loadVideoList(){
-  return fetch("list.txt")
-    .then(r=>r.ok?r.text():Promise.reject("local-not-found"))
+  return fetch("list.txt").then(r=>r.ok?r.text():Promise.reject("local-not-found"))
     .then(text=>{
       const arr=text.trim().split("\n").map(s=>s.trim()).filter(Boolean);
       if(arr.length){ listSource="Local"; return arr; }
@@ -123,9 +122,24 @@ function initPlayers(){
 
 function onPlayerReady(e,i){
   const p=e.target;
-  p.mute(); // ξεκινά muted για autoplay
-  p.setVolume(0); // χαμηλή ένταση ώστε να ξεκινήσει το browser
+  p.mute();
+  p.setVolume(0);
   p.playVideo();
+
+  // --- Watchdog για forced playback, κάθε 500ms για τα πρώτα 5s
+  let attempts = 0;
+  const maxAttempts = 10;
+  const watchdog = setInterval(()=>{
+    const state = p.getPlayerState();
+    if(state!==YT.PlayerState.PLAYING){
+      p.playVideo();
+      attempts++;
+      stats.watchdog++;
+      if(attempts>=maxAttempts){ clearInterval(watchdog); }
+    } else {
+      clearInterval(watchdog);
+    }
+  }, 500);
 
   // Physics timers ξεκινούν αμέσως
   scheduleRandomPauses(p,i);
@@ -138,7 +152,7 @@ function onPlayerReady(e,i){
     const vol=playerStartupVolume[i];
     p.setVolume(vol);
     logPlayer(i,`🔊 Unmute & volume -> ${vol}% after 30+ sec`,p.getVideoData().video_id);
-  },30000);
+  },UNMUTE_DELAY_MS);
 }
 
 // ---End Of File---
