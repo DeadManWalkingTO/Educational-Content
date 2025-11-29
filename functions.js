@@ -1,12 +1,12 @@
 // --- Versions
-const JS_VERSION = "v3.4.2";
+const JS_VERSION = "v3.4.3";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- State
 let players = [];
 let videoListMain = [];
 let videoListAlt = [];
-let isMutedAll = false;
+let isMutedAll = true;
 let listSource = "Internal";
 const stats = { autoNext:0, replay:0, pauses:0, midSeeks:0, watchdog:0, errors:0, volumeChanges:0 };
 const playerSources = Array.from({length: 8}, () => null);
@@ -57,7 +57,8 @@ const rndDelayMs=(minS,maxS)=>(minS+Math.random()*(maxS-minS))*1000;
 
 // --- Load lists
 function loadVideoList(){
-  return fetch("list.txt").then(r=>r.ok?r.text():Promise.reject("local-not-found"))
+  return fetch("list.txt")
+    .then(r=>r.ok?r.text():Promise.reject("local-not-found"))
     .then(text=>{
       const arr=text.trim().split("\n").map(s=>s.trim()).filter(Boolean);
       if(arr.length){ listSource="Local"; return arr; }
@@ -87,31 +88,30 @@ let playersInitialized = false;
 Promise.all([loadVideoList(),loadAltList()]).then(([mainList,altList])=>{
   videoListMain=mainList; videoListAlt=altList;
   log(`[${ts()}] 🚀 Project start — HTML ${HTML_VERSION} | JS ${JS_VERSION}`);
-  if(typeof YT!="undefined" && YT.Player && !playersInitialized) {
+  if(typeof YT!="undefined" && YT.Player && !playersInitialized){
     initPlayers();
-    playersInitialized = true;
+    playersInitialized=true;
   }
 }).catch(err=>log(`[${ts()}] ❌ List load error: ${err}`));
 
 // --- YouTube API ready
 function onYouTubeIframeAPIReady(){
-  if((videoListMain.length||videoListAlt.length) && !playersInitialized){
+  if((videoListMain.length||videoListAlt.length)&&!playersInitialized){
     initPlayers();
-    playersInitialized = true;
+    playersInitialized=true;
   }
 }
 
 // --- Initialize players
 function initPlayers(){
   for(let i=0;i<8;i++){
-    let sourceList=(i<4)?videoListMain:videoListAlt;
-    if(!sourceList.length) sourceList=internalList;
-    const id=sourceList[Math.floor(Math.random()*sourceList.length)];
-    playerSources[i]=sourceList===videoListMain?"Main":sourceList===videoListAlt?"Alt":"Internal";
+    const sourceList=(i<4)?videoListMain:videoListAlt;
+    const id=sourceList.length?sourceList[Math.floor(Math.random()*sourceList.length)]:internalList[Math.floor(Math.random()*internalList.length)];
+    playerSources[i]=(sourceList===videoListMain)?"Main":(sourceList===videoListAlt)?"Alt":"Internal";
     players[i]=new YT.Player(`player${i+1}`,{
       videoId:id,
       events:{
-        onReady:e=>startPlayerFlow(i),
+        onReady:e=>onPlayerReady(e,i),
         onStateChange:e=>onPlayerStateChange(e,i),
         onError:e=>onPlayerError(e,i)
       }
@@ -121,31 +121,24 @@ function initPlayers(){
   log(`[${ts()}] ✅ Players initialized (8) — Main:${videoListMain.length} | Alt:${videoListAlt.length}`);
 }
 
-// --- Player pipeline flow with 30s unMute delay but autoplay physics timers
-function startPlayerFlow(i){
-  const p = players[i];
-  clearPlayerTimers(i);
-  const videoId = getRandomIdForPlayer(i);
-
-  // 1. Start video immediately in muted mode
-  p.mute();
-  p.loadVideoById(videoId);
+function onPlayerReady(e,i){
+  const p=e.target;
+  p.mute(); // ξεκινά muted για autoplay
+  p.setVolume(0); // χαμηλή ένταση ώστε να ξεκινήσει το browser
   p.playVideo();
 
-  // 2. Start physics timers immediately after muted play
+  // Physics timers ξεκινούν αμέσως
   scheduleRandomPauses(p,i);
   scheduleMidSeek(p,i);
-  logPlayer(i,`▶ Physics timers activated immediately (muted)`,videoId);
+  logPlayer(i,`▶ Physics timers activated (muted)`,p.getVideoData().video_id);
 
-  // 3. Delay unMute + random volume by 30+ sec
+  // 30+ sec μετά: unMute + τυχαίο volume
   setTimeout(()=>{
-    if(p.isMuted && p.isMuted()){
-      p.unMute();
-      const vol = playerStartupVolume[i];
-      p.setVolume(vol);
-      logPlayer(i, `🔊 Unmute & volume -> ${vol}% after 30+ sec`, videoId);
-    }
-  }, UNMUTE_DELAY_MS);
+    p.unMute();
+    const vol=playerStartupVolume[i];
+    p.setVolume(vol);
+    logPlayer(i,`🔊 Unmute & volume -> ${vol}% after 30+ sec`,p.getVideoData().video_id);
+  },30000);
 }
 
 // ---End Of File---
