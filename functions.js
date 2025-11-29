@@ -1,5 +1,5 @@
 // --- Versions
-const JS_VERSION = "v3.3.6";
+const JS_VERSION = "v3.3.7";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- State
@@ -85,7 +85,7 @@ const playerStartupVolume = Array.from({length:8},()=>rndInt(UNMUTE_VOL_MIN,UNMU
 Promise.all([loadVideoList(),loadAltList()]).then(([mainList,altList])=>{
   videoListMain=mainList; videoListAlt=altList;
   log(`[${ts()}] 🚀 Project start — HTML ${HTML_VERSION} | JS ${JS_VERSION}`);
-  if(typeof YT!=="undefined" && YT.Player) initPlayers();
+  if(typeof YT!="undefined" && YT.Player) initPlayers();
 }).catch(err=>log(`[${ts()}] ❌ List load error: ${err}`));
 
 // --- YouTube API ready
@@ -100,8 +100,7 @@ function onYouTubeIframeAPIReady(){
 
 // --- Initialize players
 function initPlayers(){
-  const totalPlayers = 8;
-  for(let i=0;i<totalPlayers;i++){
+  for(let i=0;i<8;i++){
     let sourceList=(i<4)?videoListMain:videoListAlt;
     if(!sourceList.length) sourceList=internalList;
     const id=sourceList[Math.floor(Math.random()*sourceList.length)];
@@ -131,7 +130,7 @@ function onPlayerReady(e,i){
     p.setPlaybackQuality('small');
     logPlayer(i, `▶ Start after ${Math.round(startDelay/1000)}s, seek=${seek}s`, p.getVideoData().video_id);
 
-    // --- Schedule unMute 30s after startDelay
+    // --- Schedule delayed unMute 30s after startDelay
     setTimeout(()=>{
       try {
         if(p.isMuted && p.isMuted()){
@@ -143,7 +142,7 @@ function onPlayerReady(e,i){
       } catch(err){
         logPlayer(i, `⚠ Auto-unmute failed`, p.getVideoData().video_id);
       }
-    },30000);
+    }, 30000);
 
     scheduleRandomPauses(p,i);
     scheduleMidSeek(p,i);
@@ -195,9 +194,21 @@ function onPlayerError(e,i){
 const playerTimers=Array.from({length:8},()=>({midSeek:null,pauseSmall:null,pauseLarge:null}));
 function clearPlayerTimers(i){ ['midSeek','pauseSmall','pauseLarge'].forEach(k=>{if(playerTimers[i][k]){clearTimeout(playerTimers[i][k]);playerTimers[i][k]=null;}}); logPlayer(i,"🧹 Timers cleared"); }
 
-// --- Placeholder natural behaviors
-function scheduleRandomPauses(p,i){ /* ... */ }
-function scheduleMidSeek(p,i){ /* ... */ }
+// --- Natural behaviors
+function scheduleRandomPauses(p,i){
+  const smallPauseMs=rndInt(2000,5000);
+  const largePauseMs=rndInt(15000,30000);
+  playerTimers[i].pauseSmall=setTimeout(()=>{ p.pauseVideo(); stats.pauses++; logPlayer(i,"⏸ Small pause",p.getVideoData().video_id); p.playVideo(); }, smallPauseMs);
+  playerTimers[i].pauseLarge=setTimeout(()=>{ p.pauseVideo(); stats.pauses++; logPlayer(i,"⏸ Large pause",p.getVideoData().video_id); p.playVideo(); }, largePauseMs);
+}
+function scheduleMidSeek(p,i){
+  const midSeekMs=rndInt(300000,540000); // 5-9 min
+  playerTimers[i].midSeek=setTimeout(()=>{
+    const seekTime=rndInt(30,120);
+    p.seekTo(seekTime,true); stats.midSeeks++; logPlayer(i,`🔀 Mid-seek to ${seekTime}s`,p.getVideoData().video_id);
+    scheduleMidSeek(p,i);
+  }, midSeekMs);
+}
 
 // --- Player controls
 function playAll(){ players.forEach(p=>p.playVideo()); log(`[${ts()}] ▶ Play All`); }
@@ -206,9 +217,9 @@ function stopAll(){ players.forEach(p=>p.stopVideo()); log(`[${ts()}] ⏹ Stop A
 function nextAll(){ players.forEach((p,i)=>{ const newId=getRandomIdForPlayer(i); p.loadVideoById(newId); p.playVideo(); logPlayer(i,"⏭ Next",newId); }); log(`[${ts()}] ⏭ Next All`); }
 function shuffleAll(){ players.forEach((p,i)=>{ const newId=getRandomIdForPlayer(i); p.loadVideoById(newId); p.playVideo(); logPlayer(i,"🎲 Shuffle",newId); }); log(`[${ts()}] 🎲 Shuffle All`); }
 function restartAll(){ players.forEach((p,i)=>{ const newId=getRandomIdForPlayer(i); p.stopVideo(); p.loadVideoById(newId); p.playVideo(); logPlayer(i,"🔁 Restart",newId); }); log(`[${ts()}] 🔁 Restart All`); }
-function toggleMuteAll(){ /* ... */ }
-function randomizeVolumeAll(){ /* ... */ }
-function normalizeVolumeAll(){ /* ... */ }
+function toggleMuteAll(){ players.forEach(p=>{ if(p.isMuted()) p.unMute(); else p.mute(); }); isMutedAll=!isMutedAll; log(`[${ts()}] 🔇 Toggle Mute All (now ${isMutedAll})`); }
+function randomizeVolumeAll(){ players.forEach((p,i)=>{ const vol=rndInt(45,100); p.setVolume(vol); stats.volumeChanges++; logPlayer(i,`🔊 Random volume -> ${vol}%`,p.getVideoData().video_id); }); }
+function normalizeVolumeAll(){ players.forEach(p=>{ p.setVolume(NORMALIZE_VOLUME_TARGET); stats.volumeChanges++; }); log(`[${ts()}] 🎚 Normalize Volume All to ${NORMALIZE_VOLUME_TARGET}%`); }
 function toggleTheme(){ document.body.classList.toggle("light"); log(`[${ts()}] 🌓 Theme toggled`); }
 function clearLogs(){ const panel=document.getElementById("activityPanel"); if(panel) panel.innerHTML=""; log(`[${ts()}] 🧹 Logs cleared`); }
 function reloadList(){ Promise.all([loadVideoList(),loadAltList()]).then(([mainList,altList])=>{ videoListMain=mainList; videoListAlt=altList; log(`[${ts()}] 🔄 Lists reloaded — Main:${videoListMain.length} | Alt:${videoListAlt.length}`); }).catch(err=>log(`[${ts()}] ❌ Reload failed: ${err}`)); }
