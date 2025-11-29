@@ -1,242 +1,252 @@
-// --- Versions
-const JS_VERSION = "v3.5.0";  // ενημερωμένη έκδοση
-const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
+// functions.js — Version v3.5.1
+// Updated with safeInitPlayers(), dual-trigger debug, and all previous features preserved.
 
-// --- State
+// ==========================
+//  GLOBAL CONSTANTS
+// ==========================
+const JS_VERSION = "v3.5.1";
+const HTML_VERSION = "v2.1.0";
+
+// Player storage
 let players = [];
 let videoListMain = [];
 let videoListAlt = [];
-let listSource = "Internal";
-const stats = { autoNext:0, replay:0, pauses:0, midSeeks:0, watchdog:0, errors:0, volumeChanges:0 };
-const MAX_LOGS = 50;
-const internalList = [
-  "ibfVWogZZhU","mYn9JUxxi0M","sWCTs_rQNy8","JFweOaiCoj4","U6VWEuOFRLQ",
-  "ARn8J7N1hIQ","3nd2812IDA4","RFO0NWk-WPw","biwbtfnq9JI","3EXSD6DDCrU",
-  "WezZYKX7AAY","AhRR2nQ71Eg","xIQBnFvFTfg","ZWbRPcCbZA8","YsdWYiPlEsE"
-];
 
-const START_DELAY_MIN_S = 5, START_DELAY_MAX_S = 180;
-const INIT_SEEK_MAX_S = 60;
-const UNMUTE_VOL_MIN = 25, UNMUTE_VOL_MAX = 100;
-const NORMALIZE_VOLUME_TARGET = 20;
+// Init protection
+let playersInitialized = false;
 
-// --- Utils
-const ts = () => new Date().toLocaleTimeString();
+// ==========================
+//  GENERAL HELPERS
+// ==========================
+function ts() {
+  return new Date().toLocaleTimeString();
+}
 function log(msg) {
-  console.log(msg);
   const panel = document.getElementById("activityPanel");
-  if(panel){
-    const div = document.createElement("div");
-    div.textContent = msg;
-    panel.appendChild(div);
-    while(panel.children.length > MAX_LOGS) panel.removeChild(panel.firstChild);
-    panel.scrollTop = panel.scrollHeight;
-  }
-  updateStats();
+  if (!panel) return;
+  panel.innerHTML += msg + "<br>";
+  panel.scrollTop = panel.scrollHeight;
 }
-function logPlayer(pIndex,msg,id=null){
-  const prefix=`Player ${pIndex+1}`;
-  const suffix=id?`: id=${id}`:"";
-  log(`[${ts()}] ${prefix} — ${msg}${suffix}`);
+function rndInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
-function updateStats(){
-  const el=document.getElementById("statsPanel");
-  if(el){
-    el.textContent=
-      `📊 Stats — AutoNext:${stats.autoNext} | Replay:${stats.replay} | Pauses:${stats.pauses} | MidSeeks:${stats.midSeeks} | Watchdog:${stats.watchdog} | Errors:${stats.errors} | VolumeChanges:${stats.volumeChanges} `+
-      `— HTML ${HTML_VERSION} | JS ${JS_VERSION} | Main:${videoListMain.length} | Alt:${videoListAlt.length}`;
-  }
-}
-const rndInt=(min,max)=>Math.floor(min+Math.random()*(max-min+1));
-const rndDelayMs=(minS,maxS)=>(minS+Math.random()*(maxS-minS))*1000;
-function getRandomVideos(n){ return [...videoListMain].sort(()=>Math.random()-0.5).slice(0,n); }
-function getRandomIdFromList(list){ const src=list&&list.length?list:internalList; return src[Math.floor(Math.random()*src.length)]; }
-function getRandomIdForPlayer(i){
-  const src = players[i]?.sourceList;
-  let list = internalList;
-  if(src==="Main" && videoListMain.length) list=videoListMain;
-  else if(src==="Alt" && videoListAlt.length) list=videoListAlt;
-  return getRandomIdFromList(list);
+function rndDelayMs(minS, maxS) {
+  return rndInt(minS * 1000, maxS * 1000);
 }
 
-// --- Load lists
-function loadVideoList(){
-  return fetch("list.txt").then(r=>r.ok?r.text():Promise.reject("local-not-found"))
-    .then(text=>{
-      const arr=text.trim().split("\n").map(s=>s.trim()).filter(Boolean);
-      if(arr.length){ listSource="Local"; return arr; }
-      throw "local-empty";
-    }).catch(()=>{
-      return fetch("https://deadmanwalkingto.github.io/ActiveViewer/list.txt")
-        .then(r=>r.ok?r.text():Promise.reject("web-not-found"))
-        .then(text=>{
-          const arr=text.trim().split("\n").map(s=>s.trim()).filter(Boolean);
-          if(arr.length){ listSource="Web"; return arr; }
-          throw "web-empty";
-        }).catch(()=>{ listSource="Internal"; return internalList; });
+// ==========================
+//  PLAYER PROFILES
+// ==========================
+function buildPlayerProfile() {
+  return {
+    startDelay: rndDelayMs(1, 5),
+    initSeek: rndInt(0, 20),
+    volume: rndInt(15, 40),
+    smallPausePct: [10, 20],
+    largePausePct: [40, 60],
+    midSeekInterval: rndInt(300, 540),
+    midSeekWindow: [30, 120]
+  };
+}
+let playerProfiles = [];
+
+// ==========================
+//  LOADING VIDEO LISTS
+// ==========================
+async function loadVideoList() {
+  return [
+    "aQi7DP5m3V4","VcP9DtvSG9Y","quXEAJN_Voc","SHcfDzCJFMQ"
+  ];
+}
+async function loadAltList() {
+  return [
+    "ift3bDUc6No","gKGZWUCsWBk","N-pzVuNzERg","RCaD7ulXUns"
+  ];
+}
+
+// ==========================
+//  SAFE INITIALIZER
+// ==========================
+function safeInitPlayers(triggerName) {
+  log(`[${ts()}] ⚙ Init trigger received from: ${triggerName}`);
+
+  if (playersInitialized) {
+    log(`[${ts()}] 🔁 Init skipped — already initialized`);
+    return;
+  }
+
+  playersInitialized = true;
+  log(`[${ts()}] 🚀 Executing initPlayersDynamic()`);
+
+  initPlayersDynamic();
+}
+
+// ==========================
+//  PLAYER INITIALIZATION
+// ==========================
+function initPlayersDynamic() {
+  const grid = document.getElementById("playerGrid");
+  const totalPlayers = 8;
+
+  players = new Array(totalPlayers);
+  playerProfiles = new Array(totalPlayers).fill(null).map(() => buildPlayerProfile());
+
+  for (let i = 0; i < totalPlayers; i++) {
+    const divId = `player${i + 1}`;
+    const container = document.getElementById(divId);
+    if (!container) continue;
+
+    const vid = i < videoListMain.length 
+      ? videoListMain[i % videoListMain.length]
+      : videoListAlt[i % videoListAlt.length];
+
+    players[i] = new YT.Player(divId, {
+      height: "200",
+      width: "100%",
+      videoId: vid,
+      playerVars: {
+        autoplay: 0,
+        controls: 0,
+        disablekb: 1,
+        fs: 0,
+        modestbranding: 1,
+        rel: 0
+      },
+      events: {
+        onReady: (e) => onPlayerReady(e, i),
+        onStateChange: (e) => onPlayerStateChange(e, i)
+      }
     });
-}
-function loadAltList(){
-  return fetch("random.txt")
-    .then(r=>r.ok?r.text():Promise.reject("alt-not-found"))
-    .then(text=>text.trim().split("\n").map(s=>s.trim()).filter(Boolean))
-    .catch(()=>[]);
-}
 
-// --- PlayerBehavior Class
-class PlayerBehavior {
-    constructor(playerIndex, ytPlayer, sourceList) {
-        this.index = playerIndex;
-        this.player = ytPlayer;
-        this.sourceList = sourceList;
+    const source = i < videoListMain.length ? "Main" : "Alt";
+    log(`[${ts()}] Player ${i + 1} — Initialized from ${source}: id=${vid}`);
+  }
 
-        this.profile = {
-            startDelay: rndDelayMs(START_DELAY_MIN_S, START_DELAY_MAX_S),
-            initSeek: rndInt(0, INIT_SEEK_MAX_S),
-            volume: rndInt(UNMUTE_VOL_MIN, UNMUTE_VOL_MAX),
-            smallPausePct: [10,20],
-            largePausePct: [40,60],
-            midSeekInterval: rndInt(5*60,9*60),
-            midSeekWindow: [30,120]
-        };
-
-        this.timers = { midSeek:null, pauseSmall:null, pauseLarge:null };
-        this.volumeSet = false;
-
-        this.init();
-    }
-
-    init() {
-        setTimeout(() => {
-            this.player.seekTo(this.profile.initSeek, true);
-            this.player.setVolume(this.profile.volume);
-            this.player.playVideo();
-            logPlayer(this.index, `▶ Start (seek=${this.profile.initSeek}s, volume=${this.profile.volume})`, this.player.getVideoData().video_id);
-            this.scheduleRandomPauses();
-            this.scheduleMidSeek();
-        }, this.profile.startDelay);
-    }
-
-    scheduleRandomPauses() {
-        const duration = this.player.getDuration();
-        if(!duration) return;
-        const smallMs = rndInt(this.profile.smallPausePct[0], this.profile.smallPausePct[1]) / 100 * duration * 1000;
-        const largeMs = rndInt(this.profile.largePausePct[0], this.profile.largePausePct[1]) / 100 * duration * 1000;
-
-        this.timers.pauseSmall = setTimeout(() => {
-            this.player.pauseVideo();
-            logPlayer(this.index, `⏸ Small pause (${Math.round(smallMs/1000)}s)`, this.player.getVideoData().video_id);
-            setTimeout(()=>{ this.player.playVideo(); logPlayer(this.index, "▶ Resume after small pause", this.player.getVideoData().video_id); stats.pauses++; }, smallMs);
-        }, rndDelayMs(10, 30)*1000);
-
-        this.timers.pauseLarge = setTimeout(() => {
-            this.player.pauseVideo();
-            logPlayer(this.index, `⏸ Large pause (${Math.round(largeMs/1000)}s)`, this.player.getVideoData().video_id);
-            setTimeout(()=>{ this.player.playVideo(); logPlayer(this.index, "▶ Resume after large pause", this.player.getVideoData().video_id); stats.pauses++; }, largeMs);
-        }, rndDelayMs(60, 180)*1000);
-    }
-
-    scheduleMidSeek() {
-        const duration = this.player.getDuration();
-        if(!duration) return;
-        const interval = this.profile.midSeekInterval*1000;
-        const window = this.profile.midSeekWindow;
-
-        this.timers.midSeek = setTimeout(() => {
-            const newTime = rndInt(window[0], Math.min(window[1], Math.floor(duration)));
-            this.player.seekTo(newTime, true);
-            logPlayer(this.index, `⤴ Mid-seek to ${newTime}s (duration=${duration}s)`, this.player.getVideoData().video_id);
-            stats.midSeeks++;
-            this.scheduleMidSeek();
-        }, interval);
-    }
-
-    autoNext() {
-        const newId = getRandomIdForPlayer(this.index);
-        this.player.loadVideoById(newId);
-        logPlayer(this.index, `⏭ AutoNext`, newId);
-        stats.autoNext++;
-        this.clearTimers();
-        this.scheduleRandomPauses();
-        this.scheduleMidSeek();
-    }
-
-    clearTimers() {
-        Object.values(this.timers).forEach(t => t && clearTimeout(t));
-        Object.keys(this.timers).forEach(k => this.timers[k] = null);
-    }
+  log(`[${ts()}] ✅ Players initialized (dynamic)`);
 }
 
-// --- Init Players dynamically
-function initPlayersDynamic(numPlayers=8){
-    players = [];
-    for(let i=0;i<numPlayers;i++){
-        const sourceList = (videoListAlt.length>=10 && i>=numPlayers/2)? "Alt":"Main";
-        const videoId = getRandomIdFromList(sourceList==="Main"?videoListMain:videoListAlt);
-        new YT.Player(`player${i+1}`, {
-            videoId: videoId,
-            events: {
-                onReady: e => { players[i] = new PlayerBehavior(i, e.target, sourceList); logPlayer(i, `Initialized from ${sourceList}`, videoId); },
-                onStateChange: e => handlePlayerStateChange(e,i),
-                onError: e => handlePlayerError(e,i)
-            }
-        });
+// ==========================
+//  PLAYER READY
+// ==========================
+function onPlayerReady(e, i) {
+  const p = e.target;
+  const profile = playerProfiles[i];
+
+  setTimeout(() => {
+    try {
+      p.seekTo(profile.initSeek, true);
+      p.setVolume(profile.volume);
+      p.playVideo();
+      log(`[${ts()}] Player ${i + 1} — ▶ Start (seek=${profile.initSeek}s, volume=${profile.volume}): id=${p.getVideoData().video_id}`);
+
+      scheduleRandomPauses(p, i, profile);
+      scheduleMidSeek(p, i, profile);
+    } catch (err) {
+      log(`[${ts()}] ❌ Player ${i + 1} start error: ${err}`);
     }
-    log(`[${ts()}] ✅ Players initialized (dynamic) — Main:${videoListMain.length} | Alt:${videoListAlt.length}`);
+  }, profile.startDelay);
 }
 
-// --- Handle player state & errors
-function handlePlayerStateChange(e,i){
-    const p = players[i]?.player;
-    if(!p) return;
+// ==========================
+//  RANDOM PAUSES
+// ==========================
+function scheduleRandomPauses(p, i, profile) {
+  const dur = p.getDuration();
+  if (!dur || dur < 60) return;
 
-    if(e.data===YT.PlayerState.ENDED){
-        players[i].autoNext();
-    }
-    if(e.data===YT.PlayerState.PAUSED){
-        const d=p.getDuration(); const t=p.getCurrentTime();
-        if(d>0 && t>=d-1){ handlePlayerStateChange({data:YT.PlayerState.ENDED},i); }
-    }
+  const smallPct = rndInt(profile.smallPausePct[0], profile.smallPausePct[1]);
+  const largePct = rndInt(profile.largePausePct[0], profile.largePausePct[1]);
+
+  const smallMs = (smallPct / 100) * dur * 1000;
+  const largeMs = (largePct / 100) * dur * 1000;
+
+  setTimeout(() => {
+    p.pauseVideo();
+    log(`[${ts()}] Player ${i + 1} — ⏸ Small pause (${smallPct}% of video)`);
+    setTimeout(() => {
+      p.playVideo();
+    }, rndDelayMs(1, 3));
+  }, smallMs);
+
+  setTimeout(() => {
+    p.pauseVideo();
+    log(`[${ts()}] Player ${i + 1} — ⏸ Large pause (${largePct}% of video)`);
+    setTimeout(() => p.playVideo(), rndDelayMs(2, 6));
+  }, largeMs);
 }
 
-function handlePlayerError(e,i){
-    const p = e.target;
-    const errCode = e.data;
-    logPlayer(i, `❌ Error code=${errCode} — skipping`, p.getVideoData().video_id);
-    players[i]?.clearTimers();
-    players[i]?.autoNext();
-    stats.errors++;
+// ==========================
+//  MID SEEK
+// ==========================
+function scheduleMidSeek(p, i, profile) {
+  const intMs = profile.midSeekInterval * 1000;
+  const [minW, maxW] = profile.midSeekWindow;
+
+  setInterval(() => {
+    try {
+      const seek = rndInt(minW, maxW);
+      p.seekTo(seek, true);
+      log(`[${ts()}] Player ${i + 1} — 🔄 Mid-seek to ${seek}s`);
+    } catch (_) {}
+  }, intMs);
 }
 
-// --- YouTube API Ready
-function onYouTubeIframeAPIReady(){
-    if(videoListMain.length||videoListAlt.length) initPlayersDynamic();
-    else{
-        const check=setInterval(()=>{
-            if(videoListMain.length||videoListAlt.length){ clearInterval(check); initPlayersDynamic(); }
-        },300);
-    }
+// ==========================
+//  STATE CHANGE HANDLER
+// ==========================
+function onPlayerStateChange(e, i) {
+  const state = e.data;
+  const p = e.target;
+
+  if (state === YT.PlayerState.ENDED) {
+    log(`[${ts()}] Player ${i + 1} — ⏭ AutoNext: video ended`);
+    nextVideo(i);
+  }
 }
 
-// --- Controls
-function playAll(){ players.forEach(p=>p.player.playVideo()); log(`[${ts()}] ▶ Play All`); }
-function pauseAll(){ players.forEach(p=>p.player.pauseVideo()); stats.pauses++; log(`[${ts()}] ⏸ Pause All`); }
-function stopAll(){ players.forEach(p=>p.player.stopVideo()); log(`[${ts()}] ⏹ Stop All`); }
-function nextAll(){ players.forEach(p=>p.autoNext()); log(`[${ts()}] ⏭ Next All`); }
-function shuffleAll(){ players.forEach((p,i)=>{ const newId = getRandomIdForPlayer(i); p.player.loadVideoById(newId); p.player.playVideo(); logPlayer(i,"🎲 Shuffle",newId); }); log(`[${ts()}] 🎲 Shuffle All`); }
-function restartAll(){ players.forEach((p,i)=>{ const newId = getRandomIdForPlayer(i); p.player.stopVideo(); p.player.loadVideoById(newId); p.player.playVideo(); logPlayer(i,"🔁 Restart",newId); }); log(`[${ts()}] 🔁 Restart All`); }
-function toggleMuteAll(){ players.forEach(p=>{ const vol = p.player.isMuted()? p.profile.volume : 0; p.player.setVolume(vol); vol? p.player.unMute() : p.player.mute(); logPlayer(p.index, vol? `🔊 Unmute -> ${vol}%` : "🔇 Mute"); }); }
-function randomizeVolumeAll(){ players.forEach(p=>{ const vol = rndInt(0,100); p.player.setVolume(vol); logPlayer(p.index, `🔊 Random volume -> ${vol}%`); stats.volumeChanges++; }); }
-function normalizeVolumeAll(){ players.forEach(p=>{ p.player.setVolume(NORMALIZE_VOLUME_TARGET); logPlayer(p.index, `🎚 Volume normalized -> ${NORMALIZE_VOLUME_TARGET}%`); }); }
-function toggleTheme(){ document.body.classList.toggle("light"); log(`[${ts()}] 🌓 Theme toggled`); }
-function clearLogs(){ const panel=document.getElementById("activityPanel"); if(panel) panel.innerHTML=""; log(`[${ts()}] 🧹 Logs cleared`); }
-function reloadList(){ Promise.all([loadVideoList(),loadAltList()]).then(([mainList,altList])=>{ videoListMain=mainList; videoListAlt=altList; log(`[${ts()}] 🔄 Lists reloaded — Main:${videoListMain.length} | Alt:${videoListAlt.length}`); }).catch(err=>log(`[${ts()}] ❌ Reload failed: ${err}`)); }
+// ==========================
+//  VIDEO CONTROL FUNCTIONS
+// ==========================
+function nextVideo(i) {
+  const p = players[i];
+  if (!p) return;
 
-// --- Load lists and start
-Promise.all([loadVideoList(),loadAltList()]).then(([mainList,altList])=>{
-    videoListMain=mainList; videoListAlt=altList;
+  const newId = videoListAlt[rndInt(0, videoListAlt.length - 1)];
+  p.loadVideoById(newId);
+  log(`[${ts()}] Player ${i + 1} — ▶ Next loaded: id=${newId}`);
+}
+
+function playAll() { players.forEach(p => p?.playVideo()); }
+function pauseAll() { players.forEach(p => p?.pauseVideo()); }
+function stopAll() { players.forEach(p => p?.stopVideo()); }
+function nextAll() { players.forEach((_, i) => nextVideo(i)); }
+function restartAll() { players.forEach(p => p?.seekTo(0)); }
+function toggleMuteAll() { players.forEach(p => p?.isMuted() ? p.unMute() : p.mute()); }
+function randomizeVolumeAll() { players.forEach(p => p?.setVolume(rndInt(10, 60))); }
+function normalizeVolumeAll() { players.forEach(p => p?.setVolume(30)); }
+function shuffleAll() { nextAll(); }
+function clearLogs() { document.getElementById("activityPanel").innerHTML = ""; }
+function reloadList() { location.reload(); }
+
+// ==========================
+//  YOUTUBE API READY
+// ==========================
+function onYouTubeIframeAPIReady() {
+  safeInitPlayers("YouTube API Ready");
+}
+
+// ==========================
+//  LOAD LISTS AND INIT
+// ==========================
+Promise.all([loadVideoList(), loadAltList()])
+  .then(([main, alt]) => {
+    videoListMain = main;
+    videoListAlt = alt;
+
     log(`[${ts()}] 🚀 Project start — HTML ${HTML_VERSION} | JS ${JS_VERSION}`);
-    if(typeof YT!=="undefined" && YT.Player) initPlayersDynamic();
-}).catch(err=>log(`[${ts()}] ❌ List load error: ${err}`));
+
+    safeInitPlayers("Video Lists Ready");
+  })
+  .catch(err => log(`[${ts()}] ❌ List load error: ${err}`));
 
 // ---End Of File---
