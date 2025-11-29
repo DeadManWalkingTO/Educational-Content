@@ -1,5 +1,5 @@
 // --- Versions
-const JS_VERSION = "v3.3.4";
+const JS_VERSION = "v3.3.5";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- State
@@ -11,7 +11,6 @@ let listSource = "Internal";
 const stats = { autoNext:0, replay:0, pauses:0, midSeeks:0, watchdog:0, errors:0, volumeChanges:0 };
 const playerSources = Array.from({length: 8}, () => null);
 const MAX_LOGS = 50;
-let initialUnmuteDone = false;
 
 const internalList = [
   "ibfVWogZZhU","mYn9JUxxi0M","sWCTs_rQNy8","JFweOaiCoj4","U6VWEuOFRLQ",
@@ -22,7 +21,7 @@ const internalList = [
 // --- Config
 const START_DELAY_MIN_S = 5, START_DELAY_MAX_S = 180;
 const INIT_SEEK_MAX_S = 60;
-const UNMUTE_VOL_MIN = 25, UNMUTE_VOL_MAX = 100;
+const UNMUTE_VOL_MIN = 45, UNMUTE_VOL_MAX = 100;
 const NORMALIZE_VOLUME_TARGET = 20;
 
 // --- Utils
@@ -139,17 +138,14 @@ function onPlayerReady(e,i){
     p.setPlaybackQuality('small');
     logPlayer(i, `▶ Start after ${Math.round(startDelay/1000)}s, seek=${seek}s`, p.getVideoData().video_id);
 
-    // --- Auto-unmute first player
-    if(!initialUnmuteDone){
-      try {
-        p.unMute();
-        const vol = playerStartupVolume[i];
-        p.setVolume(vol);
-        logPlayer(i, `🔊 Auto-unmute -> ${vol}%`, p.getVideoData().video_id);
-        initialUnmuteDone = true;
-      } catch(err){
-        logPlayer(i, `⚠ Auto-unmute failed`, p.getVideoData().video_id);
-      }
+    // --- Auto-unmute + random volume for EACH player
+    try {
+      p.unMute();  // ξε-κλειδώνει ήχο για τον player
+      const vol = playerStartupVolume[i];
+      p.setVolume(vol);
+      logPlayer(i, `🔊 Auto-unmute -> ${vol}%`, p.getVideoData().video_id);
+    } catch(err){
+      logPlayer(i, `⚠ Auto-unmute failed`, p.getVideoData().video_id);
     }
 
     scheduleRandomPauses(p,i);
