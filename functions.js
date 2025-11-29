@@ -1,16 +1,17 @@
-// functions.js — Version v3.5.2
-// Updated with safeInitPlayers(), dual-trigger debug, and all previous features preserved.
+// functions.js — Version v3.5.3
+// Updated: list management (local, remote, internal), reload behavior, safe init, timer cleanup, stats.
 
 // ==========================
 //  GLOBAL CONSTANTS
 // ==========================
-const JS_VERSION = "v3.5.2";
+const JS_VERSION = "v3.5.3";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "Unknown";
 
 // Player storage
 let players = [];
 let videoListMain = [];
 let videoListAlt = [];
+let videoListMainSource = "Internal";
 
 // Timers storage per player to avoid leaks
 let playerTimers = [];
@@ -27,6 +28,13 @@ const stats = {
   pauses: 0,
   volumeChanges: 0
 };
+
+// --- Internal list (τελικό fallback)
+const internalList = [
+  "ibfVWogZZhU","mYn9JUxxi0M","sWCTs_rQNy8","JFweOaiCoj4","U6VWEuOFRLQ",
+  "ARn8J7N1hIQ","3nd2812IDA4","RFO0NWk-WPw","biwbtfnq9JI","3EXSD6DDCrU",
+  "WezZYKX7AAY","AhRR2nQ71Eg","xIQBnFvFTfg","ZWbRPcCbZA8","YsdWYiPlEsE"
+];
 
 // ==========================
 //  GENERAL HELPERS
@@ -74,10 +82,49 @@ let playerProfiles = [];
 //  LOADING VIDEO LISTS
 // ==========================
 async function loadVideoList() {
-  return [
-    "aQi7DP5m3V4","VcP9DtvSG9Y","quXEAJN_Voc","SHcfDzCJFMQ"
-  ];
+  const remoteUrl = 'https://raw.githubusercontent.com/DeadManWalkingTO/Educational-Content/refs/heads/main/list.txt';
+
+  // Helper to parse text into array of IDs
+  function parseListText(text) {
+    return text
+      .split(/\r?\n/)
+      .map(s => s.trim())
+      .filter(s => s && !s.startsWith('#'));
+  }
+
+  // 1) Try local list.txt
+  try {
+    const res = await fetch('list.txt', {cache: 'no-store'});
+    if (res && res.ok) {
+      const text = await res.text();
+      const ids = parseListText(text);
+      if (ids.length > 0) {
+        return { list: ids, source: 'Local' };
+      }
+    }
+  } catch (err) {
+    // fallthrough to next
+  }
+
+  // 2) Try remote raw file
+  try {
+    const res = await fetch(remoteUrl, {cache: 'no-store'});
+    if (res && res.ok) {
+      const text = await res.text();
+      const ids = parseListText(text);
+      if (ids.length > 0) {
+        return { list: ids, source: 'Remote' };
+      }
+    }
+  } catch (err) {
+    // fallthrough to internal
+  }
+
+  // 3) Fallback to internal list
+  return { list: internalList.slice(), source: 'Internal' };
 }
+
+// Alt list stays internal for now
 async function loadAltList() {
   return [
     "ift3bDUc6No","gKGZWUCsWBk","N-pzVuNzERg","RCaD7ulXUns"
@@ -122,7 +169,7 @@ function initPlayersDynamic() {
     const container = document.getElementById(divId);
     if (!container) continue;
 
-    const vid = i < videoListMain.length
+    const vid = (videoListMain && videoListMain.length > 0)
       ? videoListMain[i % videoListMain.length]
       : videoListAlt[i % videoListAlt.length];
 
@@ -144,7 +191,7 @@ function initPlayersDynamic() {
       }
     });
 
-    const source = i < videoListMain.length ? "Main" : "Alt";
+    const source = (videoListMain && videoListMain.length > 0) ? videoListMainSource : 'Alt';
     log(`[${ts()}] Player ${i + 1} — Initialized from ${source}: id=${vid}`);
   }
 
@@ -160,6 +207,24 @@ function clearPlayerTimers(i) {
   t.intervals.forEach(clearInterval);
   t.timeouts.length = 0;
   t.intervals.length = 0;
+}
+
+// Destroy all players and clear state
+function destroyPlayers() {
+  if (!players || players.length === 0) return;
+  players.forEach((p, i) => {
+    try {
+      clearPlayerTimers(i);
+      if (p && typeof p.destroy === 'function') p.destroy();
+    } catch (err) {
+      // ignore
+    }
+  });
+  players = [];
+  playerProfiles = [];
+  playerTimers = [];
+  playersInitialized = false;
+  log(`[${ts()}] 🧹 Players destroyed`);
 }
 
 // ==========================
@@ -296,8 +361,28 @@ function toggleMuteAll() { players.forEach(p => p?.isMuted() ? p.unMute() : p.mu
 function randomizeVolumeAll() { players.forEach(p => p?.setVolume(rndInt(10, 60))); stats.volumeChanges += players.length; updateStatsPanel(); }
 function normalizeVolumeAll() { players.forEach(p => p?.setVolume(30)); stats.volumeChanges += players.length; updateStatsPanel(); }
 function shuffleAll() { nextAll(); stats.shuffle += 1; updateStatsPanel(); }
-function clearLogs() { document.getElementById("activityPanel").innerHTML = ""; }
-function reloadList() { location.reload(); }
+function clearLogs() { document.getElementById("activityPanel").innerHTML = ""; updateStatsPanel(); }
+
+// Reload list: re-fetch list, show source and count, destroy & reinit players
+async function reloadList() {
+  try {
+    const result = await loadVideoList();
+    videoListMain = result.list;
+    videoListMainSource = result.source;
+
+    log(`🔄 List reloaded — Source: ${videoListMainSource} (Total IDs = ${videoListMain.length})`);
+
+    // Reinitialize players with new list
+    if (playersInitialized) {
+      destroyPlayers();
+      safeInitPlayers('List Reloaded');
+    } else {
+      // Not yet initialized — it will pick up the new list when init runs
+    }
+  } catch (err) {
+    log(`[${ts()}] ❌ Reload list error: ${err}`);
+  }
+}
 
 // ==========================
 //  YOUTUBE API READY
@@ -310,11 +395,13 @@ function onYouTubeIframeAPIReady() {
 //  LOAD LISTS AND INIT
 // ==========================
 Promise.all([loadVideoList(), loadAltList()])
-  .then(([main, alt]) => {
-    videoListMain = main;
+  .then(([mainObj, alt]) => {
+    videoListMain = mainObj.list;
+    videoListMainSource = mainObj.source;
     videoListAlt = alt;
 
     log(`[${ts()}] 🚀 Project start — HTML ${HTML_VERSION} | JS ${JS_VERSION}`);
+    log(`🔄 Initial list — Source: ${videoListMainSource} (Total IDs = ${videoListMain.length})`);
 
     // Attempt to init; safeInitPlayers checks YT readiness internally.
     safeInitPlayers("Video Lists Ready");
