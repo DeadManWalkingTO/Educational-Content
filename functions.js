@@ -1,10 +1,14 @@
-// functions.js — Version v3.5.3
-// Updated: list management (local, remote, internal), reload behavior, safe init, timer cleanup, stats.
+// functions.js — Version v3.5.4
+// Updates:
+// - Robust init synchronization (wait for both YouTube API and lists)
+// - toggleTheme implementation
+// - reloadList improvements (sets source, destroys & re-inits safely)
+// - timer cleanup, stats updates, and all previous features preserved
 
 // ==========================
 //  GLOBAL CONSTANTS
 // ==========================
-const JS_VERSION = "v3.5.3";
+const JS_VERSION = "v3.5.4";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "Unknown";
 
 // Player storage
@@ -16,8 +20,10 @@ let videoListMainSource = "Internal";
 // Timers storage per player to avoid leaks
 let playerTimers = [];
 
-// Init protection
+// Init protection & readiness flags
 let playersInitialized = false;
+let ytReady = false;
+let listsReady = false;
 
 // Simple stats object (keeps UI counters in sync)
 const stats = {
@@ -124,7 +130,7 @@ async function loadVideoList() {
   return { list: internalList.slice(), source: 'Internal' };
 }
 
-// Alt list stays internal for now
+// Alt list stays internal for now (can be extended to same hierarchy if desired)
 async function loadAltList() {
   return [
     "ift3bDUc6No","gKGZWUCsWBk","N-pzVuNzERg","RCaD7ulXUns"
@@ -132,21 +138,16 @@ async function loadAltList() {
 }
 
 // ==========================
-//  SAFE INITIALIZER
+//  INIT COORDINATION
 // ==========================
-function safeInitPlayers(triggerName) {
-  log(`[${ts()}] ⚙ Init trigger received from: ${triggerName}`);
-
+// Attempt to initialize only when both YT API and lists are ready.
+function tryInit(triggerName) {
+  log(`[${ts()}] tryInit triggered by: ${triggerName} (YT=${ytReady} Lists=${listsReady})`);
   if (playersInitialized) {
     log(`[${ts()}] 🔁 Init skipped — already initialized`);
     return;
   }
-
-  // Ensure YouTube API is available before attempting to create players.
-  if (typeof YT === 'undefined' || typeof YT.Player !== 'function') {
-    log(`[${ts()}] ⏳ YouTube IFrame API not ready yet — deferring init`);
-    return;
-  }
+  if (!ytReady || !listsReady) return;
 
   playersInitialized = true;
   log(`[${ts()}] 🚀 Executing initPlayersDynamic()`);
@@ -171,7 +172,7 @@ function initPlayersDynamic() {
 
     const vid = (videoListMain && videoListMain.length > 0)
       ? videoListMain[i % videoListMain.length]
-      : videoListAlt[i % videoListAlt.length];
+      : (videoListAlt && videoListAlt.length > 0 ? videoListAlt[i % videoListAlt.length] : internalList[i % internalList.length]);
 
     players[i] = new YT.Player(divId, {
       height: "200",
@@ -191,7 +192,7 @@ function initPlayersDynamic() {
       }
     });
 
-    const source = (videoListMain && videoListMain.length > 0) ? videoListMainSource : 'Alt';
+    const source = (videoListMain && videoListMain.length > 0) ? videoListMainSource : 'Alt/Internal';
     log(`[${ts()}] Player ${i + 1} — Initialized from ${source}: id=${vid}`);
   }
 
@@ -343,7 +344,8 @@ function nextVideo(i, isManual = true) {
     updateStatsPanel();
   }
 
-  const newId = videoListAlt[rndInt(0, videoListAlt.length - 1)];
+  const altList = (videoListAlt && videoListAlt.length > 0) ? videoListAlt : internalList;
+  const newId = altList[rndInt(0, altList.length - 1)];
   try {
     p.loadVideoById(newId);
     log(`[${ts()}] Player ${i + 1} — ▶ Next loaded: id=${newId}`);
@@ -363,21 +365,26 @@ function normalizeVolumeAll() { players.forEach(p => p?.setVolume(30)); stats.vo
 function shuffleAll() { nextAll(); stats.shuffle += 1; updateStatsPanel(); }
 function clearLogs() { document.getElementById("activityPanel").innerHTML = ""; updateStatsPanel(); }
 
-// Reload list: re-fetch list, show source and count, destroy & reinit players
+// ==========================
+//  LIST RELOAD & UI
+// ==========================
 async function reloadList() {
   try {
     const result = await loadVideoList();
     videoListMain = result.list;
     videoListMainSource = result.source;
+    listsReady = true;
 
     log(`🔄 List reloaded — Source: ${videoListMainSource} (Total IDs = ${videoListMain.length})`);
 
     // Reinitialize players with new list
     if (playersInitialized) {
       destroyPlayers();
-      safeInitPlayers('List Reloaded');
+      // tryInit will initialize only if ytReady && listsReady
+      tryInit('List Reloaded');
     } else {
-      // Not yet initialized — it will pick up the new list when init runs
+      // Not initialized yet — tryInit will run when YT/list readiness occur
+      tryInit('List Reloaded');
     }
   } catch (err) {
     log(`[${ts()}] ❌ Reload list error: ${err}`);
@@ -385,10 +392,19 @@ async function reloadList() {
 }
 
 // ==========================
-//  YOUTUBE API READY
+//  THEME TOGGLE
+// ==========================
+function toggleTheme() {
+  document.body.classList.toggle('light');
+  log(`[${ts()}] Theme toggled — light=${document.body.classList.contains('light')}`);
+}
+
+// ==========================
+//  YOUTUBE API READY (global callback)
 // ==========================
 function onYouTubeIframeAPIReady() {
-  safeInitPlayers("YouTube API Ready");
+  ytReady = true;
+  tryInit("YouTube API Ready");
 }
 
 // ==========================
@@ -399,12 +415,12 @@ Promise.all([loadVideoList(), loadAltList()])
     videoListMain = mainObj.list;
     videoListMainSource = mainObj.source;
     videoListAlt = alt;
+    listsReady = true;
 
     log(`[${ts()}] 🚀 Project start — HTML ${HTML_VERSION} | JS ${JS_VERSION}`);
     log(`🔄 Initial list — Source: ${videoListMainSource} (Total IDs = ${videoListMain.length})`);
 
-    // Attempt to init; safeInitPlayers checks YT readiness internally.
-    safeInitPlayers("Video Lists Ready");
+    tryInit("Video Lists Ready");
   })
   .catch(err => log(`[${ts()}] ❌ List load error: ${err}`));
 
