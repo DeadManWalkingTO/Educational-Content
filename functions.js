@@ -1,11 +1,11 @@
-// functions.js — Version v3.5.1
+// functions.js — Version v3.5.2
 // Updated with safeInitPlayers(), dual-trigger debug, and all previous features preserved.
 
 // ==========================
 //  GLOBAL CONSTANTS
 // ==========================
 const JS_VERSION = "v3.5.1";
-const HTML_VERSION = "v2.1.0";
+const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "Unknown";
 
 // Player storage
 let players = [];
