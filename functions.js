@@ -1,5 +1,5 @@
 // --- Versions
-const JS_VERSION = "v3.3.9";
+const JS_VERSION = "v3.4.0";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- State
@@ -22,6 +22,7 @@ const internalList = [
 const START_DELAY_MIN_S = 5, START_DELAY_MAX_S = 180;
 const INIT_SEEK_MAX_S = 60;
 const UNMUTE_VOL_MIN = 45, UNMUTE_VOL_MAX = 100;
+const UNMUTE_DELAY_MS = 30000; // 30 sec before unMute
 const NORMALIZE_VOLUME_TARGET = 20;
 
 // --- Utils
@@ -120,36 +121,33 @@ function initPlayers(){
   log(`[${ts()}] ✅ Players initialized (8) — Main:${videoListMain.length} | Alt:${videoListAlt.length}`);
 }
 
-// --- Player pipeline flow
+// --- Player pipeline flow with 30s unMute delay
 function startPlayerFlow(i){
   const p = players[i];
   clearPlayerTimers(i);
   const videoId = getRandomIdForPlayer(i);
 
-  // 1. Load video
+  // 1. Start video immediately in muted mode
+  p.mute();
   p.loadVideoById(videoId);
+  p.playVideo();
 
-  // 2. Wait until video starts playing
-  const checkPlay = setInterval(()=>{
-    if(p.getPlayerState()===YT.PlayerState.PLAYING){
-      clearInterval(checkPlay);
+  // 2. Delay unMute + random volume by 30+ sec
+  setTimeout(()=>{
+    if(p.isMuted && p.isMuted()){
+      p.unMute();
+      const vol = playerStartupVolume[i];
+      p.setVolume(vol);
+      logPlayer(i, `🔊 Unmute & volume -> ${vol}% after 30+ sec`, videoId);
 
-      // 3. Unmute & random volume
-      if(p.isMuted && p.isMuted()){
-        p.unMute();
-        const vol = playerStartupVolume[i];
-        p.setVolume(vol);
-        logPlayer(i, `🔊 Unmute & volume -> ${vol}%`, videoId);
-      }
-
-      // 4. Start physics timers
+      // 3. Start physics timers after unMute
       scheduleRandomPauses(p,i);
       scheduleMidSeek(p,i);
-      logPlayer(i,`▶ Playback started and physics timers activated`,videoId);
+      logPlayer(i,`▶ Physics timers activated post unMute`,videoId);
     }
-  },200);
+  }, UNMUTE_DELAY_MS);
 }
 
-// --- The rest of the functions (onPlayerStateChange, onPlayerError, scheduleRandomPauses, scheduleMidSeek, controls, helpers) remain as in v3.3.8, using startPlayerFlow for synchronized execution.
+// --- Other functions (onPlayerStateChange, onPlayerError, scheduleRandomPauses, scheduleMidSeek, controls, helpers) remain as in v3.3.9 but now use startPlayerFlow with 30s unMute delay.
 
 // ---End Of File---
