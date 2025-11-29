@@ -4,7 +4,7 @@
 // ==========================
 //  GLOBAL CONSTANTS
 // ==========================
-const JS_VERSION = "v3.5.1";
+const JS_VERSION = "v3.5.2";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "Unknown";
 
 // Player storage
@@ -12,8 +12,21 @@ let players = [];
 let videoListMain = [];
 let videoListAlt = [];
 
+// Timers storage per player to avoid leaks
+let playerTimers = [];
+
 // Init protection
 let playersInitialized = false;
+
+// Simple stats object (keeps UI counters in sync)
+const stats = {
+  autoNext: 0,
+  manualNext: 0,
+  shuffle: 0,
+  restart: 0,
+  pauses: 0,
+  volumeChanges: 0
+};
 
 // ==========================
 //  GENERAL HELPERS
@@ -32,6 +45,13 @@ function rndInt(min, max) {
 }
 function rndDelayMs(minS, maxS) {
   return rndInt(minS * 1000, maxS * 1000);
+}
+
+// Update stats panel UI
+function updateStatsPanel() {
+  const p = document.getElementById("statsPanel");
+  if (!p) return;
+  p.textContent = `📊 Stats — AutoNext:${stats.autoNext} | ManualNext:${stats.manualNext} | Shuffle:${stats.shuffle} | Restart:${stats.restart} | Pauses:${stats.pauses} | VolumeChanges:${stats.volumeChanges}`;
 }
 
 // ==========================
@@ -75,9 +95,14 @@ function safeInitPlayers(triggerName) {
     return;
   }
 
+  // Ensure YouTube API is available before attempting to create players.
+  if (typeof YT === 'undefined' || typeof YT.Player !== 'function') {
+    log(`[${ts()}] ⏳ YouTube IFrame API not ready yet — deferring init`);
+    return;
+  }
+
   playersInitialized = true;
   log(`[${ts()}] 🚀 Executing initPlayersDynamic()`);
-
   initPlayersDynamic();
 }
 
@@ -90,13 +115,14 @@ function initPlayersDynamic() {
 
   players = new Array(totalPlayers);
   playerProfiles = new Array(totalPlayers).fill(null).map(() => buildPlayerProfile());
+  playerTimers = new Array(totalPlayers).fill(null).map(() => ({ timeouts: [], intervals: [] }));
 
   for (let i = 0; i < totalPlayers; i++) {
     const divId = `player${i + 1}`;
     const container = document.getElementById(divId);
     if (!container) continue;
 
-    const vid = i < videoListMain.length 
+    const vid = i < videoListMain.length
       ? videoListMain[i % videoListMain.length]
       : videoListAlt[i % videoListAlt.length];
 
@@ -123,6 +149,17 @@ function initPlayersDynamic() {
   }
 
   log(`[${ts()}] ✅ Players initialized (dynamic)`);
+  updateStatsPanel();
+}
+
+// Clear timers for a player
+function clearPlayerTimers(i) {
+  const t = playerTimers[i];
+  if (!t) return;
+  t.timeouts.forEach(clearTimeout);
+  t.intervals.forEach(clearInterval);
+  t.timeouts.length = 0;
+  t.intervals.length = 0;
 }
 
 // ==========================
@@ -151,6 +188,9 @@ function onPlayerReady(e, i) {
 //  RANDOM PAUSES
 // ==========================
 function scheduleRandomPauses(p, i, profile) {
+  // clear previous timers for safety
+  clearPlayerTimers(i);
+
   const dur = p.getDuration();
   if (!dur || dur < 60) return;
 
@@ -160,19 +200,35 @@ function scheduleRandomPauses(p, i, profile) {
   const smallMs = (smallPct / 100) * dur * 1000;
   const largeMs = (largePct / 100) * dur * 1000;
 
-  setTimeout(() => {
-    p.pauseVideo();
-    log(`[${ts()}] Player ${i + 1} — ⏸ Small pause (${smallPct}% of video)`);
-    setTimeout(() => {
-      p.playVideo();
-    }, rndDelayMs(1, 3));
+  const t1 = setTimeout(() => {
+    try {
+      p.pauseVideo();
+      stats.pauses++;
+      updateStatsPanel();
+      log(`[${ts()}] Player ${i + 1} — ⏸ Small pause (${smallPct}% of video)`);
+      const r = setTimeout(() => {
+        try { p.playVideo(); } catch (_) {}
+      }, rndDelayMs(1, 3));
+      playerTimers[i].timeouts.push(r);
+    } catch (err) {
+      // ignore
+    }
   }, smallMs);
+  playerTimers[i].timeouts.push(t1);
 
-  setTimeout(() => {
-    p.pauseVideo();
-    log(`[${ts()}] Player ${i + 1} — ⏸ Large pause (${largePct}% of video)`);
-    setTimeout(() => p.playVideo(), rndDelayMs(2, 6));
+  const t2 = setTimeout(() => {
+    try {
+      p.pauseVideo();
+      stats.pauses++;
+      updateStatsPanel();
+      log(`[${ts()}] Player ${i + 1} — ⏸ Large pause (${largePct}% of video)`);
+      const r2 = setTimeout(() => {
+        try { p.playVideo(); } catch (_) {}
+      }, rndDelayMs(2, 6));
+      playerTimers[i].timeouts.push(r2);
+    } catch (err) {}
   }, largeMs);
+  playerTimers[i].timeouts.push(t2);
 }
 
 // ==========================
@@ -182,13 +238,14 @@ function scheduleMidSeek(p, i, profile) {
   const intMs = profile.midSeekInterval * 1000;
   const [minW, maxW] = profile.midSeekWindow;
 
-  setInterval(() => {
+  const id = setInterval(() => {
     try {
       const seek = rndInt(minW, maxW);
       p.seekTo(seek, true);
       log(`[${ts()}] Player ${i + 1} — 🔄 Mid-seek to ${seek}s`);
     } catch (_) {}
   }, intMs);
+  playerTimers[i].intervals.push(id);
 }
 
 // ==========================
@@ -199,32 +256,46 @@ function onPlayerStateChange(e, i) {
   const p = e.target;
 
   if (state === YT.PlayerState.ENDED) {
+    stats.autoNext++;
+    updateStatsPanel();
     log(`[${ts()}] Player ${i + 1} — ⏭ AutoNext: video ended`);
-    nextVideo(i);
+    nextVideo(i, /*isManual=*/false);
   }
 }
 
 // ==========================
 //  VIDEO CONTROL FUNCTIONS
 // ==========================
-function nextVideo(i) {
+function nextVideo(i, isManual = true) {
   const p = players[i];
   if (!p) return;
 
+  // clear timers so new video won't be affected by old timers
+  clearPlayerTimers(i);
+
+  if (isManual) {
+    stats.manualNext = (stats.manualNext || 0) + 1;
+    updateStatsPanel();
+  }
+
   const newId = videoListAlt[rndInt(0, videoListAlt.length - 1)];
-  p.loadVideoById(newId);
-  log(`[${ts()}] Player ${i + 1} — ▶ Next loaded: id=${newId}`);
+  try {
+    p.loadVideoById(newId);
+    log(`[${ts()}] Player ${i + 1} — ▶ Next loaded: id=${newId}`);
+  } catch (err) {
+    log(`[${ts()}] ❌ Player ${i + 1} nextVideo error: ${err}`);
+  }
 }
 
 function playAll() { players.forEach(p => p?.playVideo()); }
-function pauseAll() { players.forEach(p => p?.pauseVideo()); }
-function stopAll() { players.forEach(p => p?.stopVideo()); }
-function nextAll() { players.forEach((_, i) => nextVideo(i)); }
-function restartAll() { players.forEach(p => p?.seekTo(0)); }
+function pauseAll() { players.forEach(p => p?.pauseVideo()); stats.pauses += players.length; updateStatsPanel(); }
+function stopAll() { players.forEach((p, i) => { p?.stopVideo(); clearPlayerTimers(i); }); }
+function nextAll() { players.forEach((_, i) => nextVideo(i, true)); }
+function restartAll() { players.forEach(p => p?.seekTo(0)); stats.restart += 1; updateStatsPanel(); }
 function toggleMuteAll() { players.forEach(p => p?.isMuted() ? p.unMute() : p.mute()); }
-function randomizeVolumeAll() { players.forEach(p => p?.setVolume(rndInt(10, 60))); }
-function normalizeVolumeAll() { players.forEach(p => p?.setVolume(30)); }
-function shuffleAll() { nextAll(); }
+function randomizeVolumeAll() { players.forEach(p => p?.setVolume(rndInt(10, 60))); stats.volumeChanges += players.length; updateStatsPanel(); }
+function normalizeVolumeAll() { players.forEach(p => p?.setVolume(30)); stats.volumeChanges += players.length; updateStatsPanel(); }
+function shuffleAll() { nextAll(); stats.shuffle += 1; updateStatsPanel(); }
 function clearLogs() { document.getElementById("activityPanel").innerHTML = ""; }
 function reloadList() { location.reload(); }
 
@@ -245,6 +316,7 @@ Promise.all([loadVideoList(), loadAltList()])
 
     log(`[${ts()}] 🚀 Project start — HTML ${HTML_VERSION} | JS ${JS_VERSION}`);
 
+    // Attempt to init; safeInitPlayers checks YT readiness internally.
     safeInitPlayers("Video Lists Ready");
   })
   .catch(err => log(`[${ts()}] ❌ List load error: ${err}`));
