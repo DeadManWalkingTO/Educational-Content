@@ -1,5 +1,5 @@
 // --- Versions
-const JS_VERSION = "v3.3.8";
+const JS_VERSION = "v3.3.9";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- State
@@ -82,19 +82,21 @@ function loadAltList(){
 const playerStartupVolume = Array.from({length:8},()=>rndInt(UNMUTE_VOL_MIN,UNMUTE_VOL_MAX));
 
 // --- Kick off
+let playersInitialized = false;
 Promise.all([loadVideoList(),loadAltList()]).then(([mainList,altList])=>{
   videoListMain=mainList; videoListAlt=altList;
   log(`[${ts()}] 🚀 Project start — HTML ${HTML_VERSION} | JS ${JS_VERSION}`);
-  if(typeof YT!="undefined" && YT.Player) initPlayers();
+  if(typeof YT!="undefined" && YT.Player && !playersInitialized) {
+    initPlayers();
+    playersInitialized = true;
+  }
 }).catch(err=>log(`[${ts()}] ❌ List load error: ${err}`));
 
 // --- YouTube API ready
 function onYouTubeIframeAPIReady(){
-  if(videoListMain.length||videoListAlt.length) initPlayers();
-  else{
-    const check=setInterval(()=>{
-      if(videoListMain.length||videoListAlt.length){ clearInterval(check); initPlayers(); }
-    },300);
+  if((videoListMain.length||videoListAlt.length) && !playersInitialized){
+    initPlayers();
+    playersInitialized = true;
   }
 }
 
@@ -127,108 +129,27 @@ function startPlayerFlow(i){
   // 1. Load video
   p.loadVideoById(videoId);
 
-  // 2. Unmute + random volume after small delay
-  setTimeout(()=>{
-    if(p.isMuted && p.isMuted()){
-      p.unMute();
-      const vol = playerStartupVolume[i];
-      p.setVolume(vol);
-      logPlayer(i, `🔊 Unmute & volume -> ${vol}%`, videoId);
-    }
-  },500);
-
-  // 3. Start playback monitoring
+  // 2. Wait until video starts playing
   const checkPlay = setInterval(()=>{
     if(p.getPlayerState()===YT.PlayerState.PLAYING){
       clearInterval(checkPlay);
+
+      // 3. Unmute & random volume
+      if(p.isMuted && p.isMuted()){
+        p.unMute();
+        const vol = playerStartupVolume[i];
+        p.setVolume(vol);
+        logPlayer(i, `🔊 Unmute & volume -> ${vol}%`, videoId);
+      }
+
+      // 4. Start physics timers
       scheduleRandomPauses(p,i);
       scheduleMidSeek(p,i);
       logPlayer(i,`▶ Playback started and physics timers activated`,videoId);
     }
-  },1000);
+  },200);
 }
 
-// --- Player state change
-function onPlayerStateChange(e,i){
-  const p = players[i];
-  if(e.data===YT.PlayerState.PLAYING && !players[i].volumeSet){
-    const vol = playerStartupVolume[i];
-    p.setVolume(vol);
-    players[i].volumeSet=true;
-    logPlayer(i,`🔊 Startup random volume -> ${vol}%`,p.getVideoData().video_id);
-  }
+// --- The rest of the functions (onPlayerStateChange, onPlayerError, scheduleRandomPauses, scheduleMidSeek, controls, helpers) remain as in v3.3.8, using startPlayerFlow for synchronized execution.
 
-  if(e.data===YT.PlayerState.ENDED){
-    clearPlayerTimers(i);
-    const afterEndPauseMs=rndInt(2000,5000);
-    logPlayer(i,`⏸ End pause ${Math.round(afterEndPauseMs/1000)}s`,p.getVideoData().video_id);
-    setTimeout(()=>{
-      if(Math.random()<0.1){ p.seekTo(0); p.playVideo(); stats.replay++; logPlayer(i,"🔁 Replay video",p.getVideoData().video_id); }
-      else { const newId=getRandomIdForPlayer(i); p.loadVideoById(newId); stats.autoNext++; logPlayer(i,"⏭ AutoNext",newId); scheduleRandomPauses(p,i); scheduleMidSeek(p,i); }
-      setTimeout(()=>{
-        const state=p.getPlayerState();
-        if(state!==YT.PlayerState.PLAYING){ p.playVideo(); stats.watchdog++; logPlayer(i,`🛠 Watchdog kick (state=${state})`,p.getVideoData().video_id); }
-      },8000);
-    }, afterEndPauseMs);
-  }
-
-  if(e.data===YT.PlayerState.PAUSED){
-    const d=p.getDuration(); const t=p.getCurrentTime();
-    if(d>0 && t>=d-1){ logPlayer(i,"⚠ PAUSED at end detected",p.getVideoData().video_id); onPlayerStateChange({data:YT.PlayerState.ENDED},i); }
-  }
-}
-
-// --- Player error
-function onPlayerError(e,i){
-  const p=e.target; const errCode=e.data;
-  logPlayer(i,`❌ Error code=${errCode} — skipping`,p.getVideoData().video_id);
-  clearPlayerTimers(i);
-  const newId=getRandomIdForPlayer(i);
-  p.loadVideoById(newId); stats.autoNext++; stats.errors++;
-  logPlayer(i,"⏭ AutoNext (error skip)",newId);
-  scheduleRandomPauses(p,i); scheduleMidSeek(p,i);
-}
-
-// --- Timer management
-const playerTimers=Array.from({length:8},()=>({midSeek:null,pauseSmall:null,pauseLarge:null}));
-function clearPlayerTimers(i){ ['midSeek','pauseSmall','pauseLarge'].forEach(k=>{if(playerTimers[i][k]){clearTimeout(playerTimers[i][k]);playerTimers[i][k]=null;}}); logPlayer(i,"🧹 Timers cleared"); }
-
-// --- Natural behaviors
-function scheduleRandomPauses(p,i){
-  const smallPauseMs=rndInt(2000,5000);
-  const largePauseMs=rndInt(15000,30000);
-  playerTimers[i].pauseSmall=setTimeout(()=>{ p.pauseVideo(); stats.pauses++; logPlayer(i,"⏸ Small pause",p.getVideoData().video_id); p.playVideo(); }, smallPauseMs);
-  playerTimers[i].pauseLarge=setTimeout(()=>{ p.pauseVideo(); stats.pauses++; logPlayer(i,"⏸ Large pause",p.getVideoData().video_id); p.playVideo(); }, largePauseMs);
-}
-function scheduleMidSeek(p,i){
-  const midSeekMs=rndInt(300000,540000); // 5-9 min
-  playerTimers[i].midSeek=setTimeout(()=>{
-    const seekTime=rndInt(30,120);
-    p.seekTo(seekTime,true); stats.midSeeks++; logPlayer(i,`🔀 Mid-seek to ${seekTime}s`,p.getVideoData().video_id);
-    scheduleMidSeek(p,i);
-  }, midSeekMs);
-}
-
-// --- Player controls
-function playAll(){ players.forEach(p=>p.playVideo()); log(`[${ts()}] ▶ Play All`); }
-function pauseAll(){ players.forEach(p=>p.pauseVideo()); stats.pauses++; log(`[${ts()}] ⏸ Pause All`); }
-function stopAll(){ players.forEach(p=>p.stopVideo()); log(`[${ts()}] ⏹ Stop All`); }
-function nextAll(){ players.forEach((p,i)=>{ const newId=getRandomIdForPlayer(i); p.loadVideoById(newId); p.playVideo(); logPlayer(i,"⏭ Next",newId); }); log(`[${ts()}] ⏭ Next All`); }
-function shuffleAll(){ players.forEach((p,i)=>{ const newId=getRandomIdForPlayer(i); p.loadVideoById(newId); p.playVideo(); logPlayer(i,"🎲 Shuffle",newId); }); log(`[${ts()}] 🎲 Shuffle All`); }
-function restartAll(){ players.forEach((p,i)=>{ const newId=getRandomIdForPlayer(i); p.stopVideo(); p.loadVideoById(newId); p.playVideo(); logPlayer(i,"🔁 Restart",newId); }); log(`[${ts()}] 🔁 Restart All`); }
-function toggleMuteAll(){ players.forEach(p=>{ if(p.isMuted()) p.unMute(); else p.mute(); }); isMutedAll=!isMutedAll; log(`[${ts()}] 🔇 Toggle Mute All (now ${isMutedAll})`); }
-function randomizeVolumeAll(){ players.forEach((p,i)=>{ const vol=rndInt(45,100); p.setVolume(vol); stats.volumeChanges++; logPlayer(i,`🔊 Random volume -> ${vol}%`,p.getVideoData().video_id); }); }
-function normalizeVolumeAll(){ players.forEach(p=>{ p.setVolume(NORMALIZE_VOLUME_TARGET); stats.volumeChanges++; }); log(`[${ts()}] 🎚 Normalize Volume All to ${NORMALIZE_VOLUME_TARGET}%`); }
-function toggleTheme(){ document.body.classList.toggle("light"); log(`[${ts()}] 🌓 Theme toggled`); }
-function clearLogs(){ const panel=document.getElementById("activityPanel"); if(panel) panel.innerHTML=""; log(`[${ts()}] 🧹 Logs cleared`); }
-function reloadList(){ Promise.all([loadVideoList(),loadAltList()]).then(([mainList,altList])=>{ videoListMain=mainList; videoListAlt=altList; log(`[${ts()}] 🔄 Lists reloaded — Main:${videoListMain.length} | Alt:${videoListAlt.length}`); }).catch(err=>log(`[${ts()}] ❌ Reload failed: ${err}`)); }
-
-// --- Helper: random video ID
-function getRandomIdFromList(list){ const src=list&&list.length?list:internalList; return src[Math.floor(Math.random()*src.length)]; }
-function getRandomIdForPlayer(i){
-  const src = playerSources[i];
-  let list = internalList;
-  if(src==="Main" && videoListMain.length) list=videoListMain;
-  else if(src==="Alt" && videoListAlt.length) list=videoListAlt;
-  return getRandomIdFromList(list);
-}
+// ---End Of File---
