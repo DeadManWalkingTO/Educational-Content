@@ -1,5 +1,5 @@
 // --- Versions
-const JS_VERSION = "v3.3.7";
+const JS_VERSION = "v3.3.8";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- State
@@ -108,7 +108,7 @@ function initPlayers(){
     players[i]=new YT.Player(`player${i+1}`,{
       videoId:id,
       events:{
-        onReady:e=>onPlayerReady(e,i),
+        onReady:e=>startPlayerFlow(i),
         onStateChange:e=>onPlayerStateChange(e,i),
         onError:e=>onPlayerError(e,i)
       }
@@ -118,40 +118,39 @@ function initPlayers(){
   log(`[${ts()}] ✅ Players initialized (8) — Main:${videoListMain.length} | Alt:${videoListAlt.length}`);
 }
 
-// --- Player ready
-function onPlayerReady(e,i){
-  const p = e.target;
-  const startDelay = rndDelayMs(START_DELAY_MIN_S, START_DELAY_MAX_S);
+// --- Player pipeline flow
+function startPlayerFlow(i){
+  const p = players[i];
+  clearPlayerTimers(i);
+  const videoId = getRandomIdForPlayer(i);
 
+  // 1. Load video
+  p.loadVideoById(videoId);
+
+  // 2. Unmute + random volume after small delay
   setTimeout(()=>{
-    const seek = rndInt(0, INIT_SEEK_MAX_S);
-    p.seekTo(seek,true);
-    p.playVideo();
-    p.setPlaybackQuality('small');
-    logPlayer(i, `▶ Start after ${Math.round(startDelay/1000)}s, seek=${seek}s`, p.getVideoData().video_id);
+    if(p.isMuted && p.isMuted()){
+      p.unMute();
+      const vol = playerStartupVolume[i];
+      p.setVolume(vol);
+      logPlayer(i, `🔊 Unmute & volume -> ${vol}%`, videoId);
+    }
+  },500);
 
-    // --- Schedule delayed unMute 30s after startDelay
-    setTimeout(()=>{
-      try {
-        if(p.isMuted && p.isMuted()){
-          p.unMute();
-          const vol = playerStartupVolume[i];
-          p.setVolume(vol);
-          logPlayer(i, `🔊 Auto-unmute after delay -> ${vol}%`, p.getVideoData().video_id);
-        }
-      } catch(err){
-        logPlayer(i, `⚠ Auto-unmute failed`, p.getVideoData().video_id);
-      }
-    }, 30000);
-
-    scheduleRandomPauses(p,i);
-    scheduleMidSeek(p,i);
-  }, startDelay);
+  // 3. Start playback monitoring
+  const checkPlay = setInterval(()=>{
+    if(p.getPlayerState()===YT.PlayerState.PLAYING){
+      clearInterval(checkPlay);
+      scheduleRandomPauses(p,i);
+      scheduleMidSeek(p,i);
+      logPlayer(i,`▶ Playback started and physics timers activated`,videoId);
+    }
+  },1000);
 }
 
 // --- Player state change
 function onPlayerStateChange(e,i){
-  const p = e.target;
+  const p = players[i];
   if(e.data===YT.PlayerState.PLAYING && !players[i].volumeSet){
     const vol = playerStartupVolume[i];
     p.setVolume(vol);
