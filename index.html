@@ -5,7 +5,7 @@
   <title>Educational Content</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- Έκδοση HTML -->
-  <meta name="html-version" content="v2.1.0" />
+  <meta name="html-version" content="v2.0.1" />
   <style>
     body {
       margin:0;
@@ -41,30 +41,30 @@
   body {
     display:flex;
     flex-direction:column;
-    height:100vh;
+    height:100vh; /* όλο το viewport */
   }
   .main {
     flex:1 1 auto;
     display:flex;
     flex-direction:column;
-    min-height:0;
+    min-height:0; /* αποτρέπει overflow */
   }
   .grid {
-    flex:7;
+    flex:7; /* 70% του διαθέσιμου χώρου */
     display:grid;
-    grid-template-columns:repeat(auto-fill, minmax(250px, 1fr));
+    grid-template-columns:repeat(4,1fr);
     gap:10px;
     padding:10px;
-    min-height:0;
+    min-height:0; /* επιτρέπει shrink */
   }
   .activity {
-    flex:3;
+    flex:3; /* 30% του διαθέσιμου χώρου */
     background:#1a1a1a;
     border-top:1px solid #333;
     padding:10px;
     font-size:13px;
     overflow-y:auto;
-    min-height:0;
+    min-height:0; /* επιτρέπει scroll αντί για αύξηση ύψους */
   }
   .stats {
     flex:0 0 auto;
@@ -75,22 +75,23 @@
   }
 }
 
-/* --- Mobile/Tablet layout --- */
-@media (max-width:768px){
-  .grid { grid-template-columns:repeat(2,1fr); height:auto; }
-  iframe { height:220px; }
-  .activity { height:20vh; }
-  .stats { font-size:12px; }
-}
+    /* --- Mobile/Tablet layout --- */
+    @media (max-width:768px){
+      .grid { grid-template-columns:repeat(2,1fr); height:auto; }
+      iframe { height:220px; }
+      .activity { height:20vh; }
+      .stats { font-size:12px; }
+    }
 
-/* Light theme */
-body.light { background:#f9f9f9; color:#222; }
-body.light .controls { background:#eaeaea; border-bottom-color:#ccc; }
-body.light button { background:#fff; color:#222; border-color:#ccc; }
-body.light button:hover { background:#ddd; border-color:#999; }
-body.light .activity { background:#eaeaea; border-top-color:#ccc; }
-body.light .stats { background:#ddd; border-top-color:#ccc; }
+    /* Light theme */
+    body.light { background:#f9f9f9; color:#222; }
+    body.light .controls { background:#eaeaea; border-bottom-color:#ccc; }
+    body.light button { background:#fff; color:#222; border-color:#ccc; }
+    body.light button:hover { background:#ddd; border-color:#999; }
+    body.light .activity { background:#eaeaea; border-top-color:#ccc; }
+    body.light .stats { background:#ddd; border-top-color:#ccc; }
   </style>
+
 </head>
 <body>
   <div class="controls">
@@ -111,30 +112,24 @@ body.light .stats { background:#ddd; border-top-color:#ccc; }
     </div>
   </div>
 
+  <!-- Main wrapper: Grid + Activity -->
   <div class="main">
-    <div class="grid" id="playerGrid">
-      <!-- Players θα προστεθούν δυναμικά από το JS -->
-      <div id="player1"></div>
-      <div id="player2"></div>
-      <div id="player3"></div>
-      <div id="player4"></div>
-      <div id="player5"></div>
-      <div id="player6"></div>
-      <div id="player7"></div>
-      <div id="player8"></div>
+    <div class="grid">
+      <div id="player1"></div><div id="player2"></div><div id="player3"></div><div id="player4"></div>
+      <div id="player5"></div><div id="player6"></div><div id="player7"></div><div id="player8"></div>
     </div>
 
     <div class="activity" id="activityPanel"></div>
   </div>
 
+  <!-- Stats Panel -->
   <div class="stats" id="statsPanel">
     📊 Stats — AutoNext:0 | ManualNext:0 | Shuffle:0 | Restart:0 | Pauses:0 | VolumeChanges:0
   </div>
 
   <!-- YouTube API -->
   <script src="https://www.youtube.com/iframe_api"></script>
+  <!-- Συνδέουμε το εξωτερικό αρχείο με τις συναρτήσεις -->
   <script src="functions.js"></script>
-  
-  <!--End Of File-->
 </body>
 </html>
