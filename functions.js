@@ -2,7 +2,7 @@
 // Κύριες λειτουργίες για τον έλεγχο των YouTube players και του UI
 
 // --- Versions ---
-const JS_VERSION = "v3.9.0"; // Νέα έκδοση με υποστήριξη ελάχιστου χρόνου παρακολούθησης
+const JS_VERSION = "v3.9.1"; // Νέα έκδοση με υποστήριξη ελάχιστου χρόνου παρακολούθησης
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- Player Settings ---
@@ -34,7 +34,7 @@ function log(msg) {
         const div = document.createElement("div");
         div.textContent = msg;
         panel.appendChild(div);
-        while (panel.children.length > 50) panel.removeChild(panel.firstChild);
+        while (panel.children.length > 250) panel.removeChild(panel.firstChild);
         panel.scrollTop = panel.scrollHeight;
     }
     updateStats();
