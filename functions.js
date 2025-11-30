@@ -1,15 +1,15 @@
-
 // --- functions.js ---
 // Κύριες λειτουργίες για τον έλεγχο των YouTube players και του UI
-// Έκδοση: v4.0.0 (βελτιώσεις για εγκυρότητα views και φυσική συμπεριφορά)
+// Έκδοση: v4.1.0 (επιλογή λίστας σε κάθε AutoNext για ποικιλία)
 
 // --- Versions ---
-const JS_VERSION = "v4.0.0"; // Νέα έκδοση με βελτιώσεις για watch time και AutoNext
+const JS_VERSION = "v4.1.0";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- Player Settings ---
 const PLAYER_COUNT = 8;
-const MAIN_SOURCE_COUNT = 4;
+const MAIN_PROBABILITY = 0.5; // Πιθανότητα επιλογής main λίστας
+const ALT_PROBABILITY = 0.5;  // Πιθανότητα επιλογής alt λίστας
 
 // --- Global State ---
 let controllers = [];
@@ -58,7 +58,7 @@ class PlayerController {
         this.player = null;
         this.timers = { midSeek: null, pauseSmall: null };
         this.config = config;
-        this.startTime = null; // ΝΕΟ: για υπολογισμό watchTime
+        this.startTime = null;
     }
 
     init(videoId) {
@@ -110,46 +110,26 @@ class PlayerController {
             const duration = p.getDuration();
             const watchTime = (Date.now() - this.startTime) / 1000;
 
-            // ΝΕΟ: Ελάχιστη καθυστέρηση πριν AutoNext (15–60s)
-            const afterEndPauseMs = rndInt(15000, 60000);
-
+            const afterEndPauseMs = rndInt(15000, 60000); // 15–60s καθυστέρηση πριν AutoNext
             setTimeout(() => {
-                // ΝΕΟ: Αν το βίντεο είναι μικρό (<5 λεπτά), να παίζει ολόκληρο
                 if (duration < 300) {
                     log(`[${ts()}] Player ${this.index + 1} ✅ Small video played fully (${duration}s)`);
-                    const newId = this.getRandomId();
-                    p.loadVideoById(newId);
-                    p.playVideo();
-                    stats.autoNext++;
-                    log(`[${ts()}] Player ${this.index + 1} ⏭ AutoNext -> ${newId}`);
-                    this.schedulePauses();
-                    return; // Απενεργοποίηση mid-seek για μικρά βίντεο
+                    this.loadNextVideo(p);
+                    return;
                 }
 
-                // Αν έχει παιχτεί >70% του βίντεο
                 if (watchTime >= duration * 0.7) {
-                    // ΝΕΟ: Replay μόνο αν duration > 120s
                     if (duration > 120 && Math.random() < 0.1) {
                         p.seekTo(0);
                         p.playVideo();
                         stats.replay++;
                         log(`[${ts()}] Player ${this.index + 1} 🔁 Replay`);
                     } else {
-                        const newId = this.getRandomId();
-                        p.loadVideoById(newId);
-                        p.playVideo();
-                        stats.autoNext++;
-                        log(`[${ts()}] Player ${this.index + 1} ⏭ AutoNext -> ${newId}`);
-                        this.schedulePauses();
-                        this.scheduleMidSeek();
+                        this.loadNextVideo(p);
                     }
                 } else {
                     log(`[${ts()}] Player ${this.index + 1} ⏳ Waiting extra time before AutoNext`);
-                    setTimeout(() => {
-                        const newId = this.getRandomId();
-                        p.loadVideoById(newId);
-                        p.playVideo();
-                    }, rndInt(15000, 30000));
+                    setTimeout(() => this.loadNextVideo(p), rndInt(15000, 30000));
                 }
             }, afterEndPauseMs);
         }
@@ -157,11 +137,22 @@ class PlayerController {
 
     onError(e) {
         const p = this.player;
-        const newId = this.getRandomId();
-        p.loadVideoById(newId);
-        stats.autoNext++;
+        this.loadNextVideo(p);
         stats.errors++;
-        log(`[${ts()}] Player ${this.index + 1} ❌ Error -> AutoNext ${newId}`);
+        log(`[${ts()}] Player ${this.index + 1} ❌ Error -> AutoNext`);
+    }
+
+    // ΝΕΟ: Επιλογή λίστας σε κάθε AutoNext
+    loadNextVideo(player) {
+        const useMain = Math.random() < MAIN_PROBABILITY;
+        const list = useMain ? videoListMain : videoListAlt;
+        const newId = list[Math.floor(Math.random() * list.length)];
+        player.loadVideoById(newId);
+        player.playVideo();
+        stats.autoNext++;
+        log(`[${ts()}] Player ${this.index + 1} ⏭ AutoNext -> ${newId} (Source:${useMain ? "main" : "alt"})`);
+        this.schedulePauses();
+        this.scheduleMidSeek();
     }
 
     schedulePauses() {
@@ -182,7 +173,7 @@ class PlayerController {
     scheduleMidSeek() {
         const p = this.player;
         const duration = p.getDuration();
-        if (duration < 300) return; // ΝΕΟ: Απενεργοποίηση mid-seek για μικρά βίντεο
+        if (duration < 300) return;
         const interval = rndInt(MID_SEEK_INTERVAL_MIN[0], MID_SEEK_INTERVAL_MIN[1]) * 60000;
         this.timers.midSeek = setTimeout(() => {
             if (duration > 0) {
@@ -202,11 +193,6 @@ class PlayerController {
             if (this.timers[k]) clearTimeout(this.timers[k]);
             this.timers[k] = null;
         });
-    }
-
-    getRandomId() {
-        const list = this.sourceList.length ? this.sourceList : internalList;
-        return list[Math.floor(Math.random() * list.length)];
     }
 }
 
@@ -239,9 +225,11 @@ function playAll() {
                 c.player.playVideo();
                 log(`[${ts()}] Player ${c.index + 1} ▶ Play (step ${i + 1})`);
             } else {
-                const newId = c.getRandomId();
+                const useMain = Math.random() < MAIN_PROBABILITY;
+                const list = useMain ? videoListMain : videoListAlt;
+                const newId = list[Math.floor(Math.random() * list.length)];
                 c.init(newId);
-                log(`[${ts()}] Player ${c.index + 1} ▶ Initializing for Play`);
+                log(`[${ts()}] Player ${c.index + 1} ▶ Initializing for Play (Source:${useMain ? "main" : "alt"})`);
             }
         }, delay);
     });
@@ -273,10 +261,12 @@ function stopAll() {
 function nextAll() {
     controllers.forEach(c => {
         if (c.player) {
-            const newId = c.getRandomId();
+            const useMain = Math.random() < MAIN_PROBABILITY;
+            const list = useMain ? videoListMain : videoListAlt;
+            const newId = list[Math.floor(Math.random() * list.length)];
             c.player.loadVideoById(newId);
             c.player.playVideo();
-            log(`[${ts()}] Player ${c.index + 1} ⏭ Next -> ${newId}`);
+            log(`[${ts()}] Player ${c.index + 1} ⏭ Next -> ${newId} (Source:${useMain ? "main" : "alt"})`);
         }
     });
     log(`[${ts()}] ⏭ Next All`);
@@ -285,11 +275,13 @@ function nextAll() {
 function restartAll() {
     controllers.forEach(c => {
         if (c.player) {
-            const newId = c.getRandomId();
+            const useMain = Math.random() < MAIN_PROBABILITY;
+            const list = useMain ? videoListMain : videoListAlt;
+            const newId = list[Math.floor(Math.random() * list.length)];
             c.player.stopVideo();
             c.player.loadVideoById(newId);
             c.player.playVideo();
-            log(`[${ts()}] Player ${c.index + 1} 🔁 Restart -> ${newId}`);
+            log(`[${ts()}] Player ${c.index + 1} 🔁 Restart -> ${newId} (Source:${useMain ? "main" : "alt"})`);
         }
     });
     log(`[${ts()}] 🔁 Restart All`);
