@@ -1,16 +1,19 @@
+// --- functions.js ---
+// Κύριες λειτουργίες για τον έλεγχο των YouTube players και του UI
+
 // --- Versions ---
-const JS_VERSION = "v3.7.0"; // Νέα έκδοση λόγω βελτίωσης Play All και ακύρωσης Stop All
+const JS_VERSION = "v3.8.0"; // Νέα έκδοση λόγω προσθήκης Copy Logs και βελτιώσεων Play All / Stop All
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- Player Settings ---
-const PLAYER_COUNT = 8; // Συνολικός αριθμός players
-const MAIN_SOURCE_COUNT = 4; // Πόσοι παίκτες θα έχουν προτεραιότητα στη main list (αν χρειαστεί)
+const PLAYER_COUNT = 8;
+const MAIN_SOURCE_COUNT = 4;
 
 // --- Global State ---
 let controllers = [];
 let isMutedAll = true;
-let isStopping = false; // Flag για ακύρωση αρχικοποίησης
-let stopTimers = []; // Πίνακας για timeouts του Stop All
+let isStopping = false;
+let stopTimers = [];
 const stats = { autoNext: 0, replay: 0, pauses: 0, midSeeks: 0, watchdog: 0, errors: 0, volumeChanges: 0 };
 
 // --- Constants ---
@@ -308,4 +311,17 @@ function clearLogs() {
   log(`[${ts()}] 🧹 Logs cleared`);
 }
 
-// ---End Of File---
+// --- Copy Logs ---
+function copyLogs() {
+  const panel = document.getElementById("activityPanel");
+  if (panel) {
+    const text = Array.from(panel.children).map(div => div.textContent).join("\n");
+    navigator.clipboard.writeText(text)
+      .then(() => log(`[${ts()}] 📋 Logs copied to clipboard`))
+      .catch(err => log(`[${ts()}] ❌ Failed to copy logs: ${err}`));
+  } else {
+    log(`[${ts()}] ❌ No logs to copy`);
+  }
+}
+
+// --- End Of File ---
