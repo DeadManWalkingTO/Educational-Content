@@ -1,14 +1,13 @@
-
 // --- humanMode.js ---
 // Human Mode: Προσομοίωση ανθρώπινης συμπεριφοράς με τυχαίες καθυστερήσεις, αλλαγές έντασης, ποιότητας, παύσεις, ταχύτητα και προφίλ συμπεριφοράς
-// Έκδοση: v3.4.1 (αφαίρεση διπλών δηλώσεων MAIN_PROBABILITY & ALT_PROBABILITY)
+// Έκδοση: v3.5.0 (βελτίωση Behavior Profiles + ρεαλιστικές πιθανότητες)
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v3.4.1";
+const HUMAN_MODE_VERSION = "v3.5.0";
 
 // --- Behavior Profiles ---
 const BEHAVIOR_PROFILES = [
   {
-    name: "Explorer", // Κάνει πολλά mid-seeks και αλλαγές
+    name: "Explorer", // Πολλά mid-seeks και αλλαγές
     pauseChance: 0.5,
     seekChance: 0.6,
     volumeChangeChance: 0.4,
