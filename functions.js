@@ -1,6 +1,6 @@
 
 // --- Versions ---
-const JS_VERSION = "v3.2.5"; // Updated version
+const JS_VERSION = "v3.2.6"; // Updated version
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- Configurable Player Count ---
@@ -150,36 +150,33 @@ function onYouTubeIframeAPIReady() {
     }
 }
 
-// --- Init players ---
+// --- Init players with async delay ---
 function initPlayers() {
-    if (videoListAlt.length < 10) {
-        const ids = [...videoListMain].sort(() => Math.random() - 0.5).slice(0, PLAYER_COUNT);
-        ids.forEach((id, i) => {
-            playerSources[i] = "Main";
+    for (let i = 0; i < PLAYER_COUNT; i++) {
+        const initDelay = rndDelayMs(0, 60); // 0–60s delay for natural behavior
+        setTimeout(() => {
+            let sourceList;
+            if (videoListAlt.length >= 10) {
+                sourceList = (Math.random() < 0.5) ? videoListMain : videoListAlt;
+            } else {
+                sourceList = videoListMain.length ? videoListMain : internalList;
+            }
+            const id = sourceList[Math.floor(Math.random() * sourceList.length)];
+            playerSources[i] = sourceList === videoListMain ? "Main" : (sourceList === videoListAlt ? "Alt" : "Internal");
+
             players[i] = new YT.Player(`player${i + 1}`, {
                 videoId: id,
-                events: { onReady: e => onPlayerReady(e, i), onStateChange: e => onPlayerStateChange(e, i) }
+                events: {
+                    onReady: e => onPlayerReady(e, i),
+                    onStateChange: e => onPlayerStateChange(e, i),
+                    onError: e => onPlayerError(e, i)
+                }
             });
-        });
-        log(`[${ts()}] ✅ Players initialized (${PLAYER_COUNT}) — Source: ${listSource} (Alt list <10 IDs, ignored)`);
-        return;
+
+            logPlayer(i, `Initialized after ${Math.round(initDelay / 1000)}s from ${playerSources[i]} list`, id);
+        }, initDelay);
     }
-    for (let i = 0; i < PLAYER_COUNT; i++) {
-        let sourceList = (i < PLAYER_COUNT / 2) ? videoListMain : videoListAlt;
-        if (!sourceList.length) sourceList = internalList;
-        const id = sourceList[Math.floor(Math.random() * sourceList.length)];
-        playerSources[i] = sourceList === videoListMain ? "Main" : "Alt";
-        players[i] = new YT.Player(`player${i + 1}`, {
-            videoId: id,
-            events: {
-                onReady: e => onPlayerReady(e, i),
-                onStateChange: e => onPlayerStateChange(e, i),
-                onError: e => onPlayerError(e, i)
-            }
-        });
-        logPlayer(i, `Initialized from ${playerSources[i]} list`, id);
-    }
-    log(`[${ts()}] ✅ Players initialized (${PLAYER_COUNT}) — Main:${videoListMain.length} Alt:${videoListAlt.length}`);
+    log(`[${ts()}] ✅ Async initialization started for ${PLAYER_COUNT} players`);
 }
 
 // --- Error handler ---
