@@ -1,9 +1,12 @@
 // --- uiControls.js ---
-// Έκδοση: v1.0.0
-// Περιέχει τις συναρτήσεις για τα κουμπιά της εφαρμογής από το functions.js.
-// Οι συναρτήσεις παραμένουν ακριβώς όπως είναι για να μην επηρεαστεί η λειτουργία.
+// Έκδοση: v1.1.0
+// Περιέχει τις συναρτήσεις για τα κουμπιά της εφαρμογής (Play All, Stop All, Next All, Restart All, Mute/Unmute, Volume Randomize, Theme Toggle, Logs).
+// Οι συναρτήσεις παραμένουν ακριβώς όπως ήταν στο functions.js για να μην επηρεαστεί η λειτουργία.
 // Προστέθηκαν περιγραφικά σχόλια για κάθε συνάρτηση.
-// Απαιτεί πρόσβαση σε global μεταβλητές: controllers, isStopping, stopTimers, isMutedAll, stats, MAIN_PROBABILITY, videoListMain, videoListAlt, UNMUTE_VOL_MIN, UNMUTE_VOL_MAX, log(), ts(), rndInt().
+
+
+// --- Versions ---
+const UICONTROLS_VERSION = "v1.1.0";
 
 // ▶ Εκκινεί όλους τους players με τυχαία καθυστέρηση
 function playAll() {
@@ -72,7 +75,7 @@ function nextAll() {
     log(`[${ts()}] ⏭ Next All`);
 }
 
-// 🔄 Επανεκκινεί όλους τους players με νέο βίντεο
+// 🔁 Επανεκκινεί όλους τους players με νέο βίντεο
 function restartAll() {
     controllers.forEach(c => {
         if (c.player) {
@@ -82,10 +85,10 @@ function restartAll() {
             c.player.stopVideo();
             c.player.loadVideoById(newId);
             c.player.playVideo();
-            log(`[${ts()}] Player ${c.index + 1} 🔄 Restart -> ${newId} (Source:${useMain ? "main" : "alt"})`);
+            log(`[${ts()}] Player ${c.index + 1} 🔁 Restart -> ${newId} (Source:${useMain ? "main" : "alt"})`);
         }
     });
-    log(`[${ts()}] 🔄 Restart All`);
+    log(`[${ts()}] 🔁 Restart All`);
 }
 
 // 🔇 Εναλλαγή Mute/Unmute για όλους τους players
@@ -123,30 +126,10 @@ function randomizeVolumeAll() {
     log(`[${ts()}] 🔊 Randomize Volume All`);
 }
 
-// 🌗 Εναλλαγή Dark/Light mode
+// 🌓 Εναλλαγή Dark/Light mode
 function toggleTheme() {
     document.body.classList.toggle("light");
-    log(`[${ts()}] 🌗 Theme toggled`);
+    log(`[${ts()}] 🌓 Theme toggled`);
 }
 
 // 🧹 Καθαρίζει το activity panel
-function clearLogs() {
-    const panel = document.getElementById("activityPanel");
-    if (panel) panel.innerHTML = "";
-    log(`[${ts()}] 🧹 Logs cleared`);
-}
-
-// 📋 Αντιγράφει τα logs στο clipboard
-function copyLogs() {
-    const panel = document.getElementById("activityPanel");
-    if (panel) {
-        const text = Array.from(panel.children).map(div => div.textContent).join("\n");
-        navigator.clipboard.writeText(text)
-            .then(() => log(`[${ts()}] 📋 Logs copied to clipboard`))
-            .catch(err => log(`[${ts()}] ❌ Failed to copy logs: ${err}`));
-    } else {
-        log(`[${ts()}] ❌ No logs to copy`);
-    }
-}
-
-// --- End Of File ---
