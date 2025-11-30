@@ -1,5 +1,5 @@
 // --- Versions ---
-const JS_VERSION = "v3.4.0"; // Νέα έκδοση λόγω αλλαγών στη λογική δημιουργίας players
+const JS_VERSION = "v3.5.1"; // Νέα έκδοση λόγω αλλαγών στη λογική δημιουργίας players
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- Player Settings ---
@@ -186,12 +186,6 @@ function playAll() {
     log(`[${ts()}] ▶ Play All`);
 }
 
-function pauseAll() {
-    controllers.forEach(c => { if (c.player) c.player.pauseVideo(); });
-    stats.pauses++;
-    log(`[${ts()}] ⏸ Pause All`);
-}
-
 function stopAll() {
     controllers.forEach(c => { if (c.player) c.player.stopVideo(); });
     log(`[${ts()}] ⏹ Stop All`);
@@ -207,18 +201,6 @@ function nextAll() {
         }
     });
     log(`[${ts()}] ⏭ Next All`);
-}
-
-function shuffleAll() {
-    controllers.forEach(c => {
-        if (c.player) {
-            const newId = c.getRandomId();
-            c.player.loadVideoById(newId);
-            c.player.playVideo();
-            log(`[${ts()}] Player ${c.index + 1} 🎲 Shuffle -> ${newId}`);
-        }
-    });
-    log(`[${ts()}] 🎲 Shuffle All`);
 }
 
 function restartAll() {
@@ -265,17 +247,6 @@ function randomizeVolumeAll() {
     });
     stats.volumeChanges++;
     log(`[${ts()}] 🔊 Randomize Volume All`);
-}
-
-function normalizeVolumeAll() {
-    controllers.forEach(c => {
-        if (c.player) {
-            c.player.setVolume(NORMALIZE_VOLUME_TARGET);
-            log(`[${ts()}] Player ${c.index + 1} 🎚 Volume normalize -> ${NORMALIZE_VOLUME_TARGET}%`);
-        }
-    });
-    stats.volumeChanges++;
-    log(`[${ts()}] 🎚 Normalize Volume All`);
 }
 
 function toggleTheme() {
