@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-// Human Mode: Ασύγχρονη εκκίνηση με μοναδικά χαρακτηριστικά ανά player και αλλαγή έντασης σε μεγάλα διαστήματα
+// Human Mode: Ασύγχρονη εκκίνηση με μοναδικά χαρακτηριστικά ανά player και αλλαγή έντασης σε μεγάλα διαστήματα με διακυμάνσεις ±5%
 
 function createRandomPlayerConfig() {
   return {
@@ -46,14 +46,17 @@ async function initPlayersSequentially() {
     controllers.push(controller);
     controller.init(videoId);
 
-    // Αν το session επιτρέπει αλλαγή έντασης, προγραμματίζουμε αλλαγές κάθε 20-90 λεπτά
+    // Αν το session επιτρέπει αλλαγή έντασης, προγραμματίζουμε αλλαγές κάθε 20-90 λεπτά με διακυμάνσεις ±5%
     if (session.volumeChangeChance) {
       const volumeChangeInterval = rndInt(1200, 5400) * 1000; // 20-90 λεπτά
       setInterval(() => {
         if (controller.player) {
-          const newVolume = rndInt(config.volumeRange[0], config.volumeRange[1]);
+          let newVolume = rndInt(config.volumeRange[0], config.volumeRange[1]);
+          // Προσθέτουμε τυχαία διακύμανση ±5%
+          const variation = rndInt(-5, 5);
+          newVolume = Math.min(100, Math.max(0, newVolume + variation));
           controller.player.setVolume(newVolume);
-          log(`[${ts()}] Player ${i + 1} 🔊 Volume changed to ${newVolume}%`);
+          log(`[${ts()}] Player ${i + 1} 🔊 Volume changed to ${newVolume}% (variation ${variation}%)`);
         }
       }, volumeChangeInterval);
     }
