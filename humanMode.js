@@ -1,6 +1,10 @@
 // --- humanMode.js ---
 // Human Mode: Προσομοίωση ανθρώπινης συμπεριφοράς με τυχαίες καθυστερήσεις, αλλαγές έντασης, ποιότητας και παύσεις
 
+const HUMAN_MODE_VERSION = "v3.1.0"; // Δηλωμένη έκδοση για χρήση σε logs και UI
+const MAIN_PROBABILITY = 0.7; // Πιθανότητα επιλογής main λίστας
+const ALT_PROBABILITY = 0.3;  // Πιθανότητα επιλογής alt λίστας
+
 function createRandomPlayerConfig() {
     return {
         startDelay: rndInt(5, 180),
@@ -27,15 +31,29 @@ function createSessionPlan(index) {
 
 // Αρχικοποίηση players με μεγαλύτερες καθυστερήσεις για αποφυγή συγχρονισμού
 async function initPlayersSequentially() {
+    // Έλεγχος λιστών πριν την εκτέλεση
+    if (videoListMain.length === 0) {
+        log(`[${ts()}] ❌ Δεν υπάρχουν διαθέσιμα βίντεο στη main λίστα. Η εκτέλεση σταματά.`);
+        return;
+    }
+    if (videoListMain.length === 0 && videoListAlt.length === 0) {
+        log(`[${ts()}] ❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκτέλεση σταματά.`);
+        return;
+    }
+
     for (let i = 0; i < PLAYER_COUNT; i++) {
         const delay = i === 0 ? 0 : rndInt(30, 180) * 1000; // ΝΕΟ εύρος 30-180s
         await new Promise(resolve => setTimeout(resolve, delay));
 
-        let sourceList = videoListMain;
-        let sourceType = "main";
-        if (videoListAlt.length > 100) {
-            sourceList = (i % 2 === 0) ? videoListMain : videoListAlt;
-            sourceType = (i % 2 === 0) ? "main" : "alt";
+        // Επιλογή λίστας με πιθανότητες
+        let sourceList, sourceType;
+        if (videoListAlt.length > 0) {
+            const useMain = Math.random() < MAIN_PROBABILITY;
+            sourceList = useMain ? videoListMain : videoListAlt;
+            sourceType = useMain ? "main" : "alt";
+        } else {
+            sourceList = videoListMain;
+            sourceType = "main";
         }
 
         const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
@@ -54,7 +72,7 @@ async function initPlayersSequentially() {
 
         log(`[${ts()}] 👤 HumanMode: Player ${i + 1} initialized after ${Math.round(delay / 1000)}s with session plan: ${JSON.stringify(session)} (Source:${sourceType})`);
 
-        // Προγραμματισμένες αλλαγές έντασης και ποιότητας
+        // Προγραμματισμένες αλλαγές ποιότητας και έντασης
         setTimeout(() => {
             if (controller.player) {
                 const duration = controller.player.getDuration();
@@ -107,7 +125,7 @@ Promise.all([loadVideoList(), loadAltList()])
         videoListMain = mainList;
         videoListAlt = altList;
         createPlayerContainers();
-        log(`[${ts()}] 🚀 HumanMode start — HTML ${HTML_VERSION} JS ${JS_VERSION} HumanMode v3.0.0`);
+        log(`[${ts()}] 🚀 HumanMode start — HTML ${HTML_VERSION} JS ${JS_VERSION} HumanMode ${HUMAN_MODE_VERSION}`);
         initPlayersSequentially();
     })
     .catch(err => log(`[${ts()}] ❌ List load error: ${err}`));
