@@ -243,4 +243,140 @@ function createPlayerContainers() {
     }
 }
 
+
+function playAll() {
+    if (isStopping) {
+        isStopping = false;
+        stopTimers.forEach(t => clearTimeout(t));
+        stopTimers = [];
+        log(`[${ts()}] ▶ Stop All canceled, starting Play All`);
+    }
+    const shuffled = [...controllers].sort(() => Math.random() - 0.5);
+    let delay = 0;
+    shuffled.forEach((c, i) => {
+        const randomDelay = rndInt(5000, 15000);
+        delay += randomDelay;
+        setTimeout(() => {
+            if (c.player) {
+                c.player.playVideo();
+                log(`[${ts()}] Player ${c.index + 1} ▶ Play (step ${i + 1})`);
+            } else {
+                const useMain = Math.random() < MAIN_PROBABILITY;
+                const list = useMain ? videoListMain : videoListAlt;
+                const newId = list[Math.floor(Math.random() * list.length)];
+                c.init(newId);
+                log(`[${ts()}] Player ${c.index + 1} ▶ Initializing for Play (Source:${useMain ? "main" : "alt"})`);
+            }
+        }, delay);
+    });
+    log(`[${ts()}] ▶ Play All (sequential mode started, estimated duration ~${Math.round(delay / 1000)}s)`);
+}
+
+function stopAll() {
+    isStopping = true;
+    stopTimers.forEach(t => clearTimeout(t));
+    stopTimers = [];
+    const shuffled = [...controllers].sort(() => Math.random() - 0.5);
+    let delay = 0;
+    shuffled.forEach((c, i) => {
+        const randomDelay = rndInt(30000, 60000);
+        delay += randomDelay;
+        const timer = setTimeout(() => {
+            if (c.player) {
+                c.player.stopVideo();
+                log(`[${ts()}] Player ${c.index + 1} ⏹ Stopped (step ${i + 1})`);
+            } else {
+                log(`[${ts()}] Player ${c.index + 1} not initialized, skipped`);
+            }
+        }, delay);
+        stopTimers.push(timer);
+    });
+    log(`[${ts()}] ⏹ Stop All (sequential mode started, estimated duration ~${Math.round(delay / 1000)}s)`);
+}
+
+function nextAll() {
+    controllers.forEach(c => {
+        if (c.player) {
+            const useMain = Math.random() < MAIN_PROBABILITY;
+            const list = useMain ? videoListMain : videoListAlt;
+            const newId = list[Math.floor(Math.random() * list.length)];
+            c.player.loadVideoById(newId);
+            c.player.playVideo();
+            log(`[${ts()}] Player ${c.index + 1} ⏭ Next -> ${newId} (Source:${useMain ? "main" : "alt"})`);
+        }
+    });
+    log(`[${ts()}] ⏭ Next All`);
+}
+
+function restartAll() {
+    controllers.forEach(c => {
+        if (c.player) {
+            const useMain = Math.random() < MAIN_PROBABILITY;
+            const list = useMain ? videoListMain : videoListAlt;
+            const newId = list[Math.floor(Math.random() * list.length)];
+            c.player.stopVideo();
+            c.player.loadVideoById(newId);
+            c.player.playVideo();
+            log(`[${ts()}] Player ${c.index + 1} 🔁 Restart -> ${newId} (Source:${useMain ? "main" : "alt"})`);
+        }
+    });
+    log(`[${ts()}] 🔁 Restart All`);
+}
+
+function toggleMuteAll() {
+    if (isMutedAll) {
+        controllers.forEach(c => {
+            if (c.player) {
+                c.player.unMute();
+                const v = rndInt(UNMUTE_VOL_MIN, UNMUTE_VOL_MAX);
+                c.player.setVolume(v);
+                log(`[${ts()}] Player ${c.index + 1} 🔊 Unmute -> ${v}%`);
+            }
+        });
+    } else {
+        controllers.forEach(c => {
+            if (c.player) {
+                c.player.mute();
+                log(`[${ts()}] Player ${c.index + 1} 🔇 Mute`);
+            }
+        });
+    }
+    isMutedAll = !isMutedAll;
+}
+
+function randomizeVolumeAll() {
+    controllers.forEach(c => {
+        if (c.player) {
+            const v = rndInt(0, 100);
+            c.player.setVolume(v);
+            log(`[${ts()}] Player ${c.index + 1} 🔊 Volume random -> ${v}%`);
+        }
+    });
+    stats.volumeChanges++;
+    log(`[${ts()}] 🔊 Randomize Volume All`);
+}
+
+function toggleTheme() {
+    document.body.classList.toggle("light");
+    log(`[${ts()}] 🌐 Theme toggled`);
+}
+
+function clearLogs() {
+    const panel = document.getElementById("activityPanel");
+    if (panel) panel.innerHTML = "";
+    log(`[${ts()}] 🧹 Logs cleared`);
+}
+
+function copyLogs() {
+    const panel = document.getElementById("activityPanel");
+    if (panel) {
+        const text = Array.from(panel.children).map(div => div.textContent).join("\n");
+        navigator.clipboard.writeText(text)
+            .then(() => log(`[${ts()}] 📋 Logs copied to clipboard`))
+            .catch(err => log(`[${ts()}] ❌ Failed to copy logs: ${err}`));
+    } else {
+        log(`[${ts()}] ❌ No logs to copy`);
+    }
+}
+
 // --- End Of File ---
