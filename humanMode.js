@@ -45,4 +45,16 @@ async function initPlayersSequentially() {
   }
   log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
+
+// Εκκίνηση Human Mode από προεπιλογή μετά τη φόρτωση λιστών
+Promise.all([loadVideoList(), loadAltList()])
+  .then(([mainList, altList]) => {
+    videoListMain = mainList;
+    videoListAlt = altList;
+    createPlayerContainers();
+    log(`[${ts()}] 🚀 HumanMode start — HTML ${HTML_VERSION} JS ${JS_VERSION}`);
+    initPlayersSequentially();
+  })
+  .catch(err => log(`[${ts()}] ❌ List load error: ${err}`));
+
 // --- End Of File ---
