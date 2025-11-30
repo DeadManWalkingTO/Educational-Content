@@ -26,7 +26,7 @@ function createSessionPlan() {
 // Κύρια συνάρτηση για Human Mode
 async function initPlayersSequentially() {
   for (let i = 0; i < PLAYER_COUNT; i++) {
-    const delay = i === 0 ? 0 : rndInt(10, 60) * 1000; // 10-60s για επόμενους
+    const delay = i === 0 ? 0 : rndInt(10, 60) * 1000; // Ο πρώτος ξεκινάει αμέσως, οι άλλοι με 10-60s καθυστέρηση
     await new Promise(resolve => setTimeout(resolve, delay));
 
     const sourceList = videoListAlt.length >= 10 && Math.random() < 0.5
@@ -35,6 +35,12 @@ async function initPlayersSequentially() {
 
     const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
     const config = createRandomPlayerConfig();
+
+    // Αν είναι ο πρώτος player, μηδενίζουμε το startDelay για να παίξει αμέσως
+    if (i === 0) {
+      config.startDelay = 0;
+    }
+
     const session = createSessionPlan();
 
     const controller = new PlayerController(i, sourceList, config);
