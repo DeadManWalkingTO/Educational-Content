@@ -1,16 +1,26 @@
-// --- Lists.js ---
+// --- lists.js ---
+// Έκδοση: v2.0.0
+// Περιέχει τις συναρτήσεις για φόρτωση λιστών βίντεο (main και alt) από τοπικά αρχεία, GitHub ή εσωτερική λίστα.
+// Προστέθηκαν σχόλια και διατηρήθηκαν όλες οι προηγούμενες λειτουργίες.
+
+// Πηγή λίστας (Local, Web ή Internal)
 let listSource = "Internal";
+
+// Εσωτερική λίστα fallback
 const internalList = [
   "ibfVWogZZhU","mYn9JUxxi0M","sWCTs_rQNy8","JFweOaiCoj4","U6VWEuOFRLQ",
   "ARn8J7N1hIQ","3nd2812IDA4","RFO0NWk-WPw","biwbtfnq9JI","3EXSD6DDCrU",
   "WezZYKX7AAY","AhRR2nQ71Eg","xIQBnFvFTfg","ZWbRPcCbZA8","YsdWYiPlEsE"
 ];
+
+// Λίστες που θα χρησιμοποιηθούν από την εφαρμογή
 let videoListMain = [];
 let videoListAlt = [];
 
-// Χρησιμοποιούμε διαφορετικό όνομα για να αποφύγουμε conflict με functions.js
+// Χρησιμοποιούμε διαφορετικό όνομα για timestamp ώστε να μην υπάρχει conflict με functions.js
 function tsList() { return new Date().toLocaleTimeString(); }
 
+// Καταγραφή μηνυμάτων στο activity panel
 function log(msg) {
   console.log(msg);
   const panel = document.getElementById("activityPanel");
@@ -24,6 +34,7 @@ function log(msg) {
   updateStats();
 }
 
+// Ενημέρωση στατιστικών στο stats panel
 function updateStats() {
   const el = document.getElementById("statsPanel");
   if (el) {
@@ -31,6 +42,7 @@ function updateStats() {
   }
 }
 
+// Φόρτωση κύριας λίστας (main)
 function loadVideoList() {
   return fetch("list.txt")
     .then(r => r.ok ? r.text() : Promise.reject("local-not-found"))
@@ -51,6 +63,7 @@ function loadVideoList() {
     });
 }
 
+// Φόρτωση εναλλακτικής λίστας (alt)
 function loadAltList() {
   return fetch("random.txt")
     .then(r => r.ok ? r.text() : Promise.reject("alt-not-found"))
@@ -58,6 +71,7 @@ function loadAltList() {
     .catch(() => []);
 }
 
+// Επαναφόρτωση λιστών
 function reloadList() {
   Promise.all([loadVideoList(), loadAltList()])
     .then(([mainList, altList]) => {
@@ -70,4 +84,4 @@ function reloadList() {
     });
 }
 
-// ---End Of File---
+// --- End Of File ---
