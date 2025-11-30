@@ -1,5 +1,5 @@
 // --- Versions ---
-const JS_VERSION = "v3.5.5"; // Νέα έκδοση λόγω αλλαγών στη λογική δημιουργίας players
+const JS_VERSION = "v3.5.6"; // Νέα έκδοση λόγω αλλαγών στη λογική δημιουργίας players
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- Player Settings ---
@@ -15,7 +15,6 @@ const stats = { autoNext: 0, replay: 0, pauses: 0, midSeeks: 0, watchdog: 0, err
 const START_DELAY_MIN_S = 5, START_DELAY_MAX_S = 180;
 const INIT_SEEK_MAX_S = 60;
 const UNMUTE_VOL_MIN = 10, UNMUTE_VOL_MAX = 30;
-const NORMALIZE_VOLUME_TARGET = 20;
 const MID_SEEK_INTERVAL_MIN = [5, 9];
 
 // --- Utility Functions ---
