@@ -1,8 +1,8 @@
 // --- functions.js ---
 // Κύριες λειτουργίες για τον έλεγχο των YouTube players και του UI
-// Έκδοση: v4.4.0 (Logs + Stats: AvgWatch%, Behavior Profile, Watchdog, AutoNext Limit)
+// Έκδοση: v4.4.1 (Logs + Stats: AvgWatch%, Behavior Profile, Watchdog, AutoNext Limit + createPlayerContainers)
 // --- Versions ---
-const JS_VERSION = "v4.4.0";
+const JS_VERSION = "v4.4.1";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- Player Settings ---
@@ -230,5 +230,17 @@ setInterval(() => {
         }
     });
 }, 60000);
+
+// --- UI Controls ---
+function createPlayerContainers() {
+    const container = document.getElementById("playersContainer");
+    if (!container) return;
+    container.innerHTML = "";
+    for (let i = 0; i < PLAYER_COUNT; i++) {
+        const div = document.createElement("div");
+        div.id = `player${i + 1}`;
+        container.appendChild(div);
+    }
+}
 
 // --- End Of File ---
