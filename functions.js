@@ -1,14 +1,19 @@
 // --- functions.js ---
 // Κύριες λειτουργίες για τον έλεγχο των YouTube players και του UI
-// Έκδοση: v4.2.0 (βελτίωση watch time + mid-seek logic)
+// Έκδοση: v4.3.0 (watch time + mid-seek + Anti-Spam + Watchdog)
 // --- Versions ---
-const JS_VERSION = "v4.2.0";
+const JS_VERSION = "v4.3.0";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- Player Settings ---
 const PLAYER_COUNT = 8;
 const MAIN_PROBABILITY = 0.5;
 const ALT_PROBABILITY = 0.5;
+
+// --- Anti-Spam Settings ---
+const MAX_VIEWS_PER_HOUR = 50; // Όριο AutoNext ανά ώρα
+let autoNextCounter = 0;
+let lastResetTime = Date.now();
 
 // --- Global State ---
 let controllers = [];
@@ -148,12 +153,24 @@ class PlayerController {
     }
 
     loadNextVideo(player) {
+        // Anti-Spam check
+        const now = Date.now();
+        if (now - lastResetTime >= 3600000) { // Reset κάθε ώρα
+            autoNextCounter = 0;
+            lastResetTime = now;
+        }
+        if (autoNextCounter >= MAX_VIEWS_PER_HOUR) {
+            log(`[${ts()}] ⏳ AutoNext limit reached (${MAX_VIEWS_PER_HOUR}/hour). Pausing new loads.`);
+            return;
+        }
+
         const useMain = Math.random() < MAIN_PROBABILITY;
         const list = useMain ? videoListMain : videoListAlt;
         const newId = list[Math.floor(Math.random() * list.length)];
         player.loadVideoById(newId);
         player.playVideo();
         stats.autoNext++;
+        autoNextCounter++;
         log(`[${ts()}] Player ${this.index + 1} ⏭ AutoNext -> ${newId} (Source:${useMain ? "main" : "alt"})`);
         this.schedulePauses();
         this.scheduleMidSeek();
@@ -200,6 +217,17 @@ class PlayerController {
         });
     }
 }
+
+// --- Watchdog ---
+setInterval(() => {
+    controllers.forEach(c => {
+        if (c.player && c.player.getPlayerState() === YT.PlayerState.BUFFERING) {
+            log(`[${ts()}] ⚠ Watchdog reset Player ${c.index + 1}`);
+            c.loadNextVideo(c.player);
+            stats.watchdog++;
+        }
+    });
+}, 60000); // Έλεγχος κάθε 60s
 
 // --- UI Controls ---
 function createPlayerContainers() {
