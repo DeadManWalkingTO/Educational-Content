@@ -1,11 +1,11 @@
 // --- functions.js ---
-// Έκδοση: v4.4.2
+// Έκδοση: v4.4.3
 // Περιέχει τη βασική λογική για τους YouTube players, στατιστικά, watchdog και βοηθητικές συναρτήσεις.
-// Οι συναρτήσεις UI έχουν μεταφερθεί στο uiControls.js.
-// Απαιτεί πρόσβαση σε global μεταβλητές: videoListMain, videoListAlt, controllers, stats, MAIN_PROBABILITY, PLAYER_COUNT.
+// Οι συναρτήσεις UI έχουν μεταφερθεί στο uiControls.js για καλύτερη οργάνωση.
+
 
 // --- Versions ---
-const JS_VERSION = "v4.4.2";
+const JS_VERSION = "v4.4.3";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- Player Settings ---
