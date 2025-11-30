@@ -40,7 +40,7 @@ function loadVideoList() {
       throw "local-empty";
     })
     .catch(() => {
-      return fetch("https://deadmanwalkingto.github.io/ActiveViewer/list.txt")
+      return fetch("https://raw.githubusercontent.com/DeadManWalkingTO/Educational-Content/refs/heads/main/list.txt")
         .then(r => r.ok ? r.text() : Promise.reject("web-not-found"))
         .then(text => {
           const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
