@@ -1,45 +1,129 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="el">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- HTML Version -->
-  <meta name="html-version" content="v3.3.1">
+  <meta charset="utf-8" />
   <title>Educational Content</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Έκδοση HTML -->
+  <meta name="html-version" content="v3.3.1" />
   <style>
-    /* Προαιρετικά: βασικό styling για light/dark mode */
-    body.light { background: #f9f9f9; color: #333; }
-    body { background: #222; color: #fff; font-family: Arial, sans-serif; }
-    #activityPanel { max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 5px; }
-    #statsPanel { margin-top: 10px; font-weight: bold; }
-    #playersContainer { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 20px; }
+    body {
+      margin:0;
+      font-family:system-ui,sans-serif;
+      background:#111;
+      color:#eee;
+    }
+
+    .controls {
+      background:#1a1a1a;
+      padding:12px;
+      text-align:center;
+      position:sticky;
+      top:0;
+      z-index:10;
+      border-bottom:1px solid #333;
+    }
+    .controls h1 { margin:0 0 8px; font-size:20px; }
+    .controls .row { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+
+    button {
+      background:#222; color:#eee; border:1px solid #444;
+      padding:8px 14px; border-radius:6px; cursor:pointer;
+    }
+    button:hover { background:#2b2b2b; border-color:#666; }
+
+    iframe {
+      width:100%; height:100%; border:none; border-radius:8px; background:#000;
+    }
+
+    /* --- Desktop layout --- */
+    @media (min-width:1024px){
+      body {
+        display:flex;
+        flex-direction:column;
+        height:100vh;
+      }
+      .main {
+        flex:1 1 auto;
+        display:flex;
+        flex-direction:column;
+        min-height:0;
+      }
+      .grid {
+        flex:7;
+        display:grid;
+        grid-template-columns:repeat(4,1fr);
+        gap:10px;
+        padding:10px;
+        min-height:0;
+      }
+      .activity {
+        flex:3;
+        background:#1a1a1a;
+        border-top:1px solid #333;
+        padding:10px;
+        font-size:13px;
+        overflow-y:auto;
+        min-height:0;
+      }
+      .stats {
+        flex:0 0 auto;
+        background:#222;
+        padding:8px;
+        font-size:12px;
+        border-top:1px solid #333;
+      }
+    }
+
+    /* --- Mobile/Tablet layout --- */
+    @media (max-width:768px){
+      .grid { grid-template-columns:repeat(2,1fr); height:auto; }
+      iframe { height:220px; }
+      .activity { height:20vh; }
+      .stats { font-size:12px; }
+    }
+
+    /* Light theme */
+    body.light { background:#f9f9f9; color:#222; }
+    body.light .controls { background:#eaeaea; border-bottom-color:#ccc; }
+    body.light button { background:#fff; color:#222; border-color:#ccc; }
+    body.light button:hover { background:#ddd; border-color:#999; }
+    body.light .activity { background:#eaeaea; border-top-color:#ccc; }
+    body.light .stats { background:#ddd; border-top-color:#ccc; }
   </style>
 </head>
 <body>
-  <h1>Educational Content</h1>
-  <div>
-    <!-- Global Controls -->
-    <button onclick="playAll()">▶ Play All</button>
-    <button onclick="pauseAll()">⏸ Pause All</button>
-    <button onclick="stopAll()">⏹ Stop All</button>
-    <button onclick="nextAll()">⏭ Next All</button>
-    <button onclick="shuffleAll()">🎲 Shuffle All</button>
-    <button onclick="restartAll()">🔁 Restart All</button>
-    <button onclick="toggleMuteAll()">🔇 Mute/Unmute All</button>
-    <button onclick="randomizeVolumeAll()">🔊 Volume Randomize All</button>
-    <button onclick="normalizeVolumeAll()">🎚 Volume Normalize All</button>
-    <button onclick="toggleTheme()">🌗 Dark/Light Mode</button>
-    <button onclick="clearLogs()">🧹 Clear Logs</button>
-    <button onclick="reloadList()">🔄 Reload List</button>
+  <div class="controls">
+    <h1>Educational Content</h1>
+    <div class="row">
+      <button onclick="playAll()">▶ Play All</button>
+      <button onclick="pauseAll()">⏸ Pause All</button>
+      <button onclick="stopAll()">⏹ Stop All</button>
+      <button onclick="nextAll()">⏭ Next All</button>
+      <button onclick="shuffleAll()">🎲 Shuffle All</button>
+      <button onclick="restartAll()">🔁 Restart All</button>
+      <button onclick="toggleMuteAll()">🔇 Mute/Unmute All</button>
+      <button onclick="randomizeVolumeAll()">🔊 Volume Randomize All</button>
+      <button onclick="normalizeVolumeAll()">🎚 Volume Normalize All</button>
+      <button onclick="toggleTheme()">🌓 Dark/Light Mode</button>
+      <button onclick="clearLogs()">🧹 Clear Logs</button>
+      <button onclick="reloadList()">🔄 Reload List</button>
+    </div>
   </div>
 
-  <!-- Panels -->
-  <div id="statsPanel">📊 Stats — Loading...</div>
-  <div id="activityPanel"></div>
+  <!-- Main wrapper: Grid + Activity -->
+  <div class="main">
+    <div class="grid" id="playersContainer">
+      <!-- Τα div για τους players θα δημιουργηθούν δυναμικά από functions.js -->
+    </div>
+    <div class="activity" id="activityPanel"></div>
+  </div>
 
-  <!-- Players Container -->
-  <div id="playersContainer"></div>
+  <!-- Stats Panel -->
+  <div class="stats" id="statsPanel">
+    📊 Stats — Loading...
+  </div>
 
   <!-- Scripts -->
   https://www.youtube.com/iframe_api</script>
