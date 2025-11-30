@@ -1,19 +1,19 @@
-// --- humanMode.js ---
 
-// Δημιουργεί τυχαία χαρακτηριστικά για κάθε player
+// --- humanMode.js ---
+// Human Mode: Ασύγχρονη εκκίνηση με μοναδικά χαρακτηριστικά ανά player
+
 function createRandomPlayerConfig() {
   return {
-    startDelay: rndInt(5, 180), // καθυστέρηση πριν το πρώτο seek
-    initSeekMax: rndInt(30, 90), // μέγιστο αρχικό seek
-    unmuteDelay: rndInt(60, 300), // καθυστέρηση πριν το unmute
-    volumeRange: [rndInt(5, 15), rndInt(20, 40)], // min-max έντασης
-    midSeekInterval: rndInt(4, 10) * 60000, // κάθε 4-10 λεπτά mid-seek
-    pauseChance: Math.random() < 0.6, // πιθανότητα να κάνει pause
-    replayChance: Math.random() < 0.15 // πιθανότητα replay
+    startDelay: rndInt(5, 180),
+    initSeekMax: rndInt(30, 90),
+    unmuteDelay: rndInt(60, 300),
+    volumeRange: [rndInt(5, 15), rndInt(20, 40)],
+    midSeekInterval: rndInt(4, 10) * 60000,
+    pauseChance: Math.random() < 0.6,
+    replayChance: Math.random() < 0.15
   };
 }
 
-// Δημιουργεί ένα session plan για πιο φυσική συμπεριφορά
 function createSessionPlan() {
   return {
     videosToWatch: rndInt(3, 8),
@@ -24,15 +24,17 @@ function createSessionPlan() {
   };
 }
 
-// Αρχικοποιεί τους players έναν-έναν με τυχαία καθυστέρηση
+// Κύρια συνάρτηση για Human Mode
 async function initPlayersSequentially() {
   for (let i = 0; i < PLAYER_COUNT; i++) {
     const delay = i === 0 ? 0 : rndInt(10, 60) * 1000; // 10-60s για επόμενους
     await new Promise(resolve => setTimeout(resolve, delay));
 
-    const sourceList = videoListAlt.length >= 10 && Math.random() < 0.5 ? videoListAlt : videoListMain.length ? videoListMain : internalList;
-    const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
+    const sourceList = videoListAlt.length >= 10 && Math.random() < 0.5
+      ? videoListAlt
+      : videoListMain.length ? videoListMain : internalList;
 
+    const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
     const config = createRandomPlayerConfig();
     const session = createSessionPlan();
 
@@ -44,5 +46,4 @@ async function initPlayersSequentially() {
   }
   log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
-
 // --- End Of File ---
