@@ -1,5 +1,5 @@
 // --- Versions ---
-const JS_VERSION = "v3.6.0"; // Νέα έκδοση λόγω αλλαγών στη λογική Stop All και ακύρωσης αρχικοποίησης
+const JS_VERSION = "v3.7.0"; // Νέα έκδοση λόγω βελτίωσης Play All και ακύρωσης Stop All
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- Player Settings ---
@@ -9,7 +9,8 @@ const MAIN_SOURCE_COUNT = 4; // Πόσοι παίκτες θα έχουν προ
 // --- Global State ---
 let controllers = [];
 let isMutedAll = true;
-let isStopping = false; // Νέο flag για ακύρωση αρχικοποίησης
+let isStopping = false; // Flag για ακύρωση αρχικοποίησης
+let stopTimers = []; // Πίνακας για timeouts του Stop All
 const stats = { autoNext: 0, replay: 0, pauses: 0, midSeeks: 0, watchdog: 0, errors: 0, volumeChanges: 0 };
 
 // --- Constants ---
@@ -48,10 +49,10 @@ class PlayerController {
   constructor(index, sourceList, config = null, sourceType = "main") {
     this.index = index;
     this.sourceList = sourceList;
-    this.sourceType = sourceType; // "main" ή "alt"
+    this.sourceType = sourceType;
     this.player = null;
     this.timers = { midSeek: null, pauseSmall: null };
-    this.config = config; // HumanMode config (προαιρετικό)
+    this.config = config;
   }
 
   init(videoId) {
@@ -184,19 +185,47 @@ function createPlayerContainers() {
   }
 }
 
+// --- Play All with sequential logic ---
 function playAll() {
-  controllers.forEach(c => { if (c.player) c.player.playVideo(); });
-  log(`[${ts()}] ▶ Play All`);
+  if (isStopping) {
+    isStopping = false;
+    stopTimers.forEach(t => clearTimeout(t));
+    stopTimers = [];
+    log(`[${ts()}] ▶ Stop All canceled, starting Play All`);
+  }
+
+  const shuffled = [...controllers].sort(() => Math.random() - 0.5);
+  let delay = 0;
+  shuffled.forEach((c, i) => {
+    const randomDelay = rndInt(5000, 15000); // 5-15 sec για πιο φυσική εκκίνηση
+    delay += randomDelay;
+    setTimeout(() => {
+      if (c.player) {
+        c.player.playVideo();
+        log(`[${ts()}] Player ${c.index + 1} ▶ Play (step ${i + 1})`);
+      } else {
+        const newId = c.getRandomId();
+        c.init(newId);
+        log(`[${ts()}] Player ${c.index + 1} ▶ Initializing for Play`);
+      }
+    }, delay);
+  });
+
+  log(`[${ts()}] ▶ Play All (sequential mode started, estimated duration ~${Math.round(delay / 1000)}s)`);
 }
 
+// --- Stop All with sequential logic ---
 function stopAll() {
-  isStopping = true; // Ενεργοποίηση του flag για ακύρωση αρχικοποίησης
+  isStopping = true;
+  stopTimers.forEach(t => clearTimeout(t));
+  stopTimers = [];
+
   const shuffled = [...controllers].sort(() => Math.random() - 0.5);
   let delay = 0;
   shuffled.forEach((c, i) => {
     const randomDelay = rndInt(30000, 60000); // 30-60 sec
     delay += randomDelay;
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       if (c.player) {
         c.player.stopVideo();
         log(`[${ts()}] Player ${c.index + 1} ⏹ Stopped (step ${i + 1})`);
@@ -204,7 +233,9 @@ function stopAll() {
         log(`[${ts()}] Player ${c.index + 1} not initialized, skipped`);
       }
     }, delay);
+    stopTimers.push(timer);
   });
+
   log(`[${ts()}] ⏹ Stop All (sequential mode started, estimated duration ~${Math.round(delay / 1000)}s)`);
 }
 
