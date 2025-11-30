@@ -1,4 +1,3 @@
-
 // --- Lists.js ---
 let listSource = "Internal";
 const internalList = [
