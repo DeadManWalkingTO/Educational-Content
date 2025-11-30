@@ -1,15 +1,14 @@
 // --- functions.js ---
 // Κύριες λειτουργίες για τον έλεγχο των YouTube players και του UI
-// Έκδοση: v4.1.0 (επιλογή λίστας σε κάθε AutoNext για ποικιλία)
-
+// Έκδοση: v4.2.0 (βελτίωση watch time + mid-seek logic)
 // --- Versions ---
-const JS_VERSION = "v4.1.0";
+const JS_VERSION = "v4.2.0";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- Player Settings ---
 const PLAYER_COUNT = 8;
-const MAIN_PROBABILITY = 0.5; // Πιθανότητα επιλογής main λίστας
-const ALT_PROBABILITY = 0.5;  // Πιθανότητα επιλογής alt λίστας
+const MAIN_PROBABILITY = 0.5;
+const ALT_PROBABILITY = 0.5;
 
 // --- Global State ---
 let controllers = [];
@@ -22,7 +21,6 @@ const stats = { autoNext: 0, replay: 0, pauses: 0, midSeeks: 0, watchdog: 0, err
 const START_DELAY_MIN_S = 5, START_DELAY_MAX_S = 180;
 const INIT_SEEK_MAX_S = 60;
 const UNMUTE_VOL_MIN = 10, UNMUTE_VOL_MAX = 30;
-const MID_SEEK_INTERVAL_MIN = [5, 9];
 
 // --- Utility Functions ---
 const ts = () => new Date().toLocaleTimeString();
@@ -84,7 +82,6 @@ class PlayerController {
         const startDelay = this.config && this.config.startDelay !== undefined
             ? this.config.startDelay * 1000
             : rndDelayMs(START_DELAY_MIN_S, START_DELAY_MAX_S);
-
         setTimeout(() => {
             const seek = rndInt(0, this.config?.initSeekMax || INIT_SEEK_MAX_S);
             p.seekTo(seek, true);
@@ -93,7 +90,6 @@ class PlayerController {
             this.schedulePauses();
             this.scheduleMidSeek();
         }, startDelay);
-
         const unmuteDelay = this.config?.unmuteDelay ? this.config.unmuteDelay * 1000 : rndDelayMs(60, 300);
         setTimeout(() => {
             p.unMute();
@@ -109,9 +105,18 @@ class PlayerController {
             this.clearTimers();
             const duration = p.getDuration();
             const watchTime = (Date.now() - this.startTime) / 1000;
-
+            const percentWatched = Math.round((watchTime / duration) * 100);
             const afterEndPauseMs = rndInt(15000, 60000); // 15–60s καθυστέρηση πριν AutoNext
+
+            log(`[${ts()}] Player ${this.index + 1} ✅ Watched ${percentWatched}% (duration: ${duration}s, watchTime: ${Math.round(watchTime)}s)`);
+
             setTimeout(() => {
+                let requiredPercent = duration < 300 ? 100 : 70;
+                if (percentWatched < requiredPercent) {
+                    log(`[${ts()}] Player ${this.index + 1} ⏳ Not enough watch time (required: ${requiredPercent}%, actual: ${percentWatched}%). AutoNext blocked.`);
+                    return; // Δεν προχωρά σε AutoNext
+                }
+
                 if (duration < 300) {
                     log(`[${ts()}] Player ${this.index + 1} ✅ Small video played fully (${duration}s)`);
                     this.loadNextVideo(p);
@@ -142,7 +147,6 @@ class PlayerController {
         log(`[${ts()}] Player ${this.index + 1} ❌ Error -> AutoNext`);
     }
 
-    // ΝΕΟ: Επιλογή λίστας σε κάθε AutoNext
     loadNextVideo(player) {
         const useMain = Math.random() < MAIN_PROBABILITY;
         const list = useMain ? videoListMain : videoListAlt;
@@ -173,16 +177,17 @@ class PlayerController {
     scheduleMidSeek() {
         const p = this.player;
         const duration = p.getDuration();
-        if (duration < 300) return;
-        const interval = rndInt(MID_SEEK_INTERVAL_MIN[0], MID_SEEK_INTERVAL_MIN[1]) * 60000;
+        if (duration < 300) {
+            log(`[${ts()}] Player ${this.index + 1} ⏳ Mid-seek disabled for short video (${duration}s)`);
+            return;
+        }
+        const interval = rndInt(8, 12) * 60000; // 8–12 λεπτά
         this.timers.midSeek = setTimeout(() => {
-            if (duration > 0) {
+            if (duration > 0 && p.getPlayerState() === YT.PlayerState.PLAYING) {
                 const seek = rndInt(Math.floor(duration * 0.2), Math.floor(duration * 0.6));
-                if (p.getPlayerState() === YT.PlayerState.PLAYING) {
-                    p.seekTo(seek, true);
-                    stats.midSeeks++;
-                    log(`[${ts()}] Player ${this.index + 1} ⤴ Mid-seek to ${seek}s`);
-                }
+                p.seekTo(seek, true);
+                stats.midSeeks++;
+                log(`[${ts()}] Player ${this.index + 1} ⤴ Mid-seek to ${seek}s (interval ${Math.round(interval / 60000)} min)`);
             }
             this.scheduleMidSeek();
         }, interval);
