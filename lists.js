@@ -1,7 +1,10 @@
 // --- lists.js ---
-// Έκδοση: v2.0.1
+// Έκδοση: v2.1.0
 // Περιέχει τις συναρτήσεις για φόρτωση λιστών βίντεο (main και alt) από τοπικά αρχεία, GitHub ή εσωτερική λίστα.
 // Προστέθηκαν σχόλια και διατηρήθηκαν όλες οι προηγούμενες λειτουργίες.
+
+// --- Versions ---
+const LISTS_VERSION = "v2.1.0";
 
 // Πηγή λίστας (Local, Web ή Internal)
 let listSource = "Internal";
@@ -38,7 +41,7 @@ function log(msg) {
 function updateStats() {
   const el = document.getElementById("statsPanel");
   if (el) {
-    el.textContent = `📊 Stats — AutoNext:${stats.autoNext} Replay:${stats.replay} Pauses:${stats.pauses} MidSeeks:${stats.midSeeks} Watchdog:${stats.watchdog} Errors:${stats.errors} VolumeChanges:${stats.volumeChanges} — HTML ${HTML_VERSION} JS ${JS_VERSION} Main:${videoListMain.length} Alt:${videoListAlt.length}`;
+    el.textContent = `📊 Stats — AutoNext:${stats.autoNext} Replay:${stats.replay} Pauses:${stats.pauses} MidSeeks:${stats.midSeeks} Watchdog:${stats.watchdog} Errors:${stats.errors} VolumeChanges:${stats.volumeChanges} — HTML ${HTML_VERSION} JS ${JS_VERSION} Lists:${LISTS_VERSION} Main:${videoListMain.length} Alt:${videoListAlt.length}`;
   }
 }
 
