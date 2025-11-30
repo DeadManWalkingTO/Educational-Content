@@ -1,8 +1,11 @@
 // --- functions.js ---
-// Κύριες λειτουργίες για τον έλεγχο των YouTube players και του UI
-// Έκδοση: v4.4.1 (Logs + Stats: AvgWatch%, Behavior Profile, Watchdog, AutoNext Limit + createPlayerContainers)
+// Έκδοση: v4.4.2
+// Περιέχει τη βασική λογική για τους YouTube players, στατιστικά, watchdog και βοηθητικές συναρτήσεις.
+// Οι συναρτήσεις UI έχουν μεταφερθεί στο uiControls.js.
+// Απαιτεί πρόσβαση σε global μεταβλητές: videoListMain, videoListAlt, controllers, stats, MAIN_PROBABILITY, PLAYER_COUNT.
+
 // --- Versions ---
-const JS_VERSION = "v4.4.1";
+const JS_VERSION = "v4.4.2";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- Player Settings ---
@@ -115,22 +118,18 @@ class PlayerController {
             const percentWatched = Math.round((watchTime / duration) * 100);
             watchPercentages[this.index] = percentWatched;
             const afterEndPauseMs = rndInt(15000, 60000);
-
             log(`[${ts()}] ✅ Player ${this.index + 1} Watched ${percentWatched}% (duration: ${duration}s, watchTime: ${Math.round(watchTime)}s)`);
-
             setTimeout(() => {
                 let requiredPercent = duration < 300 ? 100 : 70;
                 if (percentWatched < requiredPercent) {
                     log(`[${ts()}] ⏳ Player ${this.index + 1} Not enough watch time (required: ${requiredPercent}%, actual: ${percentWatched}%). AutoNext blocked.`);
                     return;
                 }
-
                 if (duration < 300) {
                     log(`[${ts()}] ✅ Player ${this.index + 1} Small video played fully (${duration}s)`);
                     this.loadNextVideo(p);
                     return;
                 }
-
                 if (watchTime >= duration * 0.7) {
                     if (duration > 120 && Math.random() < 0.1) {
                         p.seekTo(0);
@@ -165,7 +164,6 @@ class PlayerController {
             log(`[${ts()}] ⚠ AutoNext limit reached (${MAX_VIEWS_PER_HOUR}/hour). Pausing new loads.`);
             return;
         }
-
         const useMain = Math.random() < MAIN_PROBABILITY;
         const list = useMain ? videoListMain : videoListAlt;
         const newId = list[Math.floor(Math.random() * list.length)];
@@ -230,153 +228,5 @@ setInterval(() => {
         }
     });
 }, 60000);
-
-// --- UI Controls ---
-function createPlayerContainers() {
-    const container = document.getElementById("playersContainer");
-    if (!container) return;
-    container.innerHTML = "";
-    for (let i = 0; i < PLAYER_COUNT; i++) {
-        const div = document.createElement("div");
-        div.id = `player${i + 1}`;
-        container.appendChild(div);
-    }
-}
-
-
-function playAll() {
-    if (isStopping) {
-        isStopping = false;
-        stopTimers.forEach(t => clearTimeout(t));
-        stopTimers = [];
-        log(`[${ts()}] ▶ Stop All canceled, starting Play All`);
-    }
-    const shuffled = [...controllers].sort(() => Math.random() - 0.5);
-    let delay = 0;
-    shuffled.forEach((c, i) => {
-        const randomDelay = rndInt(5000, 15000);
-        delay += randomDelay;
-        setTimeout(() => {
-            if (c.player) {
-                c.player.playVideo();
-                log(`[${ts()}] Player ${c.index + 1} ▶ Play (step ${i + 1})`);
-            } else {
-                const useMain = Math.random() < MAIN_PROBABILITY;
-                const list = useMain ? videoListMain : videoListAlt;
-                const newId = list[Math.floor(Math.random() * list.length)];
-                c.init(newId);
-                log(`[${ts()}] Player ${c.index + 1} ▶ Initializing for Play (Source:${useMain ? "main" : "alt"})`);
-            }
-        }, delay);
-    });
-    log(`[${ts()}] ▶ Play All (sequential mode started, estimated duration ~${Math.round(delay / 1000)}s)`);
-}
-
-function stopAll() {
-    isStopping = true;
-    stopTimers.forEach(t => clearTimeout(t));
-    stopTimers = [];
-    const shuffled = [...controllers].sort(() => Math.random() - 0.5);
-    let delay = 0;
-    shuffled.forEach((c, i) => {
-        const randomDelay = rndInt(30000, 60000);
-        delay += randomDelay;
-        const timer = setTimeout(() => {
-            if (c.player) {
-                c.player.stopVideo();
-                log(`[${ts()}] Player ${c.index + 1} ⏹ Stopped (step ${i + 1})`);
-            } else {
-                log(`[${ts()}] Player ${c.index + 1} not initialized, skipped`);
-            }
-        }, delay);
-        stopTimers.push(timer);
-    });
-    log(`[${ts()}] ⏹ Stop All (sequential mode started, estimated duration ~${Math.round(delay / 1000)}s)`);
-}
-
-function nextAll() {
-    controllers.forEach(c => {
-        if (c.player) {
-            const useMain = Math.random() < MAIN_PROBABILITY;
-            const list = useMain ? videoListMain : videoListAlt;
-            const newId = list[Math.floor(Math.random() * list.length)];
-            c.player.loadVideoById(newId);
-            c.player.playVideo();
-            log(`[${ts()}] Player ${c.index + 1} ⏭ Next -> ${newId} (Source:${useMain ? "main" : "alt"})`);
-        }
-    });
-    log(`[${ts()}] ⏭ Next All`);
-}
-
-function restartAll() {
-    controllers.forEach(c => {
-        if (c.player) {
-            const useMain = Math.random() < MAIN_PROBABILITY;
-            const list = useMain ? videoListMain : videoListAlt;
-            const newId = list[Math.floor(Math.random() * list.length)];
-            c.player.stopVideo();
-            c.player.loadVideoById(newId);
-            c.player.playVideo();
-            log(`[${ts()}] Player ${c.index + 1} 🔁 Restart -> ${newId} (Source:${useMain ? "main" : "alt"})`);
-        }
-    });
-    log(`[${ts()}] 🔁 Restart All`);
-}
-
-function toggleMuteAll() {
-    if (isMutedAll) {
-        controllers.forEach(c => {
-            if (c.player) {
-                c.player.unMute();
-                const v = rndInt(UNMUTE_VOL_MIN, UNMUTE_VOL_MAX);
-                c.player.setVolume(v);
-                log(`[${ts()}] Player ${c.index + 1} 🔊 Unmute -> ${v}%`);
-            }
-        });
-    } else {
-        controllers.forEach(c => {
-            if (c.player) {
-                c.player.mute();
-                log(`[${ts()}] Player ${c.index + 1} 🔇 Mute`);
-            }
-        });
-    }
-    isMutedAll = !isMutedAll;
-}
-
-function randomizeVolumeAll() {
-    controllers.forEach(c => {
-        if (c.player) {
-            const v = rndInt(0, 100);
-            c.player.setVolume(v);
-            log(`[${ts()}] Player ${c.index + 1} 🔊 Volume random -> ${v}%`);
-        }
-    });
-    stats.volumeChanges++;
-    log(`[${ts()}] 🔊 Randomize Volume All`);
-}
-
-function toggleTheme() {
-    document.body.classList.toggle("light");
-    log(`[${ts()}] 🌐 Theme toggled`);
-}
-
-function clearLogs() {
-    const panel = document.getElementById("activityPanel");
-    if (panel) panel.innerHTML = "";
-    log(`[${ts()}] 🧹 Logs cleared`);
-}
-
-function copyLogs() {
-    const panel = document.getElementById("activityPanel");
-    if (panel) {
-        const text = Array.from(panel.children).map(div => div.textContent).join("\n");
-        navigator.clipboard.writeText(text)
-            .then(() => log(`[${ts()}] 📋 Logs copied to clipboard`))
-            .catch(err => log(`[${ts()}] ❌ Failed to copy logs: ${err}`));
-    } else {
-        log(`[${ts()}] ❌ No logs to copy`);
-    }
-}
 
 // --- End Of File ---
