@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-// Human Mode: Ασύγχρονη εκκίνηση με μοναδικά χαρακτηριστικά ανά player
+// Human Mode: Ασύγχρονη εκκίνηση με μοναδικά χαρακτηριστικά ανά player και αλλαγή έντασης σε μεγάλα διαστήματα
 
 function createRandomPlayerConfig() {
   return {
@@ -36,9 +36,8 @@ async function initPlayersSequentially() {
     const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
     const config = createRandomPlayerConfig();
 
-    // Αν είναι ο πρώτος player, μηδενίζουμε το startDelay για να παίξει αμέσως
     if (i === 0) {
-      config.startDelay = 0;
+      config.startDelay = 0; // Ο πρώτος player παίζει αμέσως
     }
 
     const session = createSessionPlan();
@@ -46,6 +45,18 @@ async function initPlayersSequentially() {
     const controller = new PlayerController(i, sourceList, config);
     controllers.push(controller);
     controller.init(videoId);
+
+    // Αν το session επιτρέπει αλλαγή έντασης, προγραμματίζουμε αλλαγές κάθε 20-90 λεπτά
+    if (session.volumeChangeChance) {
+      const volumeChangeInterval = rndInt(1200, 5400) * 1000; // 20-90 λεπτά
+      setInterval(() => {
+        if (controller.player) {
+          const newVolume = rndInt(config.volumeRange[0], config.volumeRange[1]);
+          controller.player.setVolume(newVolume);
+          log(`[${ts()}] Player ${i + 1} 🔊 Volume changed to ${newVolume}%`);
+        }
+      }, volumeChangeInterval);
+    }
 
     log(`[${ts()}] 👤 HumanMode: Player ${i + 1} initialized after ${Math.round(delay / 1000)}s with session plan: ${JSON.stringify(session)}`);
   }
