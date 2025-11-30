@@ -1,11 +1,11 @@
 // --- humanMode.js ---
-// Human Mode: Προσομοίωση ανθρώπινης συμπεριφοράς με τυχαίες καθυστερήσεις, αλλαγές έντασης, ποιότητας και παύσεις
-// Έκδοση: v3.2.0 (προσαρμογές για συμβατότητα με functions.js v4.0.0)
+// Human Mode: Προσομοίωση ανθρώπινης συμπεριφοράς με τυχαίες καθυστερήσεις, αλλαγές έντασης, ποιότητας, παύσεις και ταχύτητας
+// Έκδοση: v3.3.0 (προσθήκη αλλαγής playback speed και επιπλέον αλλαγές έντασης)
 
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v3.2.0"; // Νέα έκδοση με έλεγχο mid-seek για μικρά βίντεο
-const MAIN_PROBABILITY = 0.5; // Πιθανότητα επιλογής main λίστας
-const ALT_PROBABILITY = 0.5; // Πιθανότητα επιλογής alt λίστας
+const HUMAN_MODE_VERSION = "v3.3.0";
+const MAIN_PROBABILITY = 0.5;
+const ALT_PROBABILITY = 0.5;
 
 // Δημιουργία τυχαίου config για κάθε player
 function createRandomPlayerConfig() {
@@ -40,7 +40,7 @@ async function initPlayersSequentially() {
     }
 
     for (let i = 0; i < PLAYER_COUNT; i++) {
-        const delay = i === 0 ? 0 : rndInt(30, 180) * 1000; // ΝΕΟ: 30-180s καθυστέρηση
+        const delay = i === 0 ? 0 : rndInt(30, 180) * 1000;
         await new Promise(resolve => setTimeout(resolve, delay));
 
         let sourceList, sourceType;
@@ -69,29 +69,57 @@ async function initPlayersSequentially() {
 
         log(`[${ts()}] 👤 HumanMode: Player ${i + 1} initialized after ${Math.round(delay / 1000)}s with session plan: ${JSON.stringify(session)} (Source:${sourceType})`);
 
-        // Προγραμματισμένες αλλαγές ποιότητας και έντασης για μεγάλα βίντεο
+        // Προγραμματισμένες αλλαγές ποιότητας, έντασης και ταχύτητας
         setTimeout(() => {
             if (controller.player) {
                 const duration = controller.player.getDuration();
-                if (duration >= 300) { // Μόνο για βίντεο >= 5 λεπτά
+
+                // Αλλαγή ποιότητας για μεγάλα βίντεο
+                if (duration >= 300) {
                     const qualities = ['small', 'medium', 'large'];
                     const q = qualities[Math.floor(Math.random() * qualities.length)];
                     controller.player.setPlaybackQuality(q);
                     log(`[${ts()}] Player ${i + 1} 🎥 Quality changed to ${q}`);
+                }
 
-                    if (session.volumeChangeChance) {
-                        const volumeChangeInterval = rndInt(2400, 4800) * 1000; // 40-80 λεπτά
-                        setTimeout(() => {
-                            let newVolume = rndInt(config.volumeRange[0], config.volumeRange[1]);
-                            const variation = rndInt(-5, 5);
-                            newVolume = Math.min(100, Math.max(0, newVolume + variation));
-                            controller.player.setVolume(newVolume);
-                            log(`[${ts()}] Player ${i + 1} 🔊 Volume changed to ${newVolume}% (variation ${variation}%)`);
-                        }, volumeChangeInterval);
-                    }
+                // Επιπλέον μικρές αλλαγές έντασης σε τυχαία σημεία
+                if (session.volumeChangeChance) {
+                    const volumeChangeInterval = rndInt(300000, 600000); // 5–10 λεπτά
+                    setTimeout(() => {
+                        let newVolume = rndInt(config.volumeRange[0], config.volumeRange[1]);
+                        const variation = rndInt(-5, 5);
+                        newVolume = Math.min(100, Math.max(0, newVolume + variation));
+                        controller.player.setVolume(newVolume);
+                        log(`[${ts()}] Player ${i + 1} 🔊 Volume changed to ${newVolume}% (variation ${variation}%)`);
+                    }, volumeChangeInterval);
+                }
+
+                // Αλλαγή ταχύτητας (πιθανότητα 30%)
+                if (Math.random() < 0.3) {
+                    const speedChangeDelay = rndInt(120000, 300000); // 2–5 λεπτά μετά την έναρξη
+                    setTimeout(() => {
+                        if (controller.player.getPlayerState() === YT.PlayerState.PLAYING) {
+                            let newSpeed, revertDelay;
+                            if (duration >= 600) {
+                                newSpeed = 1.25; // Μεγάλα βίντεο
+                                revertDelay = Math.floor((duration * rndInt(30, 50) / 100) * 1000); // 30–50% της υπόλοιπης διάρκειας
+                            } else {
+                                newSpeed = 0.75; // Μικρά βίντεο
+                                revertDelay = Math.floor((duration * rndInt(20, 40) / 100) * 1000); // 20–40% της υπόλοιπης διάρκειας
+                            }
+                            controller.player.setPlaybackRate(newSpeed);
+                            log(`[${ts()}] Player ${i + 1} 🔄 Speed changed to ${newSpeed}x for ${Math.round(revertDelay / 60000)} min`);
+
+                            // Επιστροφή στο 1.0x μετά το διάστημα
+                            setTimeout(() => {
+                                controller.player.setPlaybackRate(1.0);
+                                log(`[${ts()}] Player ${i + 1} 🔄 Speed reverted to 1.0x`);
+                            }, revertDelay);
+                        }
+                    }, speedChangeDelay);
                 }
             }
-        }, rndInt(30, 90) * 1000); // Αλλαγή ποιότητας μετά από 30-90s
+        }, rndInt(30, 90) * 1000); // Αλλαγές μετά από 30–90s
     }
 
     log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
@@ -99,7 +127,7 @@ async function initPlayersSequentially() {
 
 // Προγραμματισμένες παύσεις για μεγάλα βίντεο
 function scheduleMultiplePauses(controller, duration) {
-    if (duration >= 600) { // Μόνο για βίντεο >= 10 λεπτά
+    if (duration >= 600) {
         const pausePoints = [0.2, 0.5, 0.8];
         pausePoints.forEach(point => {
             const delay = duration * point * 1000;
