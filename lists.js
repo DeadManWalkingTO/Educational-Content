@@ -7,7 +7,7 @@ const internalList = [
 ];
 let videoListMain = [];
 let videoListAlt = [];
-function ts(){ return new Date().toLocaleTimeString(); }
+function tsList(){ return new Date().toLocaleTimeString(); }
 function log(msg){
   console.log(msg);
   const panel=document.getElementById("activityPanel");
@@ -30,7 +30,8 @@ function loadVideoList(){
   return fetch("list.txt")
     .then(r=>r.ok?r.text():Promise.reject("local-not-found"))
     .then(text=>{
-      const arr=text.trim().split("\n").map(s=>s.trim()).filter(Boolean);
+      const arr=text.trim().split("
+").map(s=>s.trim()).filter(Boolean);
       if(arr.length){ listSource="Local"; return arr; }
       throw "local-empty";
     })
@@ -38,7 +39,8 @@ function loadVideoList(){
       return fetch("https://deadmanwalkingto.github.io/ActiveViewer/list.txt")
         .then(r=>r.ok?r.text():Promise.reject("web-not-found"))
         .then(text=>{
-          const arr=text.trim().split("\n").map(s=>s.trim()).filter(Boolean);
+          const arr=text.trim().split("
+").map(s=>s.trim()).filter(Boolean);
           if(arr.length){ listSource="Web"; return arr; }
           throw "web-empty";
         })
@@ -48,7 +50,8 @@ function loadVideoList(){
 function loadAltList(){
   return fetch("random.txt")
     .then(r=>r.ok?r.text():Promise.reject("alt-not-found"))
-    .then(text=>text.trim().split("\n").map(s=>s.trim()).filter(Boolean))
+    .then(text=>text.trim().split("
+").map(s=>s.trim()).filter(Boolean))
     .catch(()=>[]);
 }
 function reloadList(){
@@ -56,8 +59,8 @@ function reloadList(){
     .then(([mainList,altList])=>{
       videoListMain=mainList;
       videoListAlt=altList;
-      log(`[${ts()}] 🔄 Lists reloaded — Main:${videoListMain.length} Alt:${videoListAlt.length}`);
+      log(`[${tsList()}] 🔄 Lists reloaded — Main:${videoListMain.length} Alt:${videoListAlt.length}`);
     })
-    .catch(err=>{ log(`[${ts()}] ❌ Reload failed: ${err}`); });
+    .catch(err=>{ log(`[${tsList()}] ❌ Reload failed: ${err}`); });
 }
 // ---End Of File---
