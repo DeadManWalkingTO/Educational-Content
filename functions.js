@@ -1,5 +1,5 @@
 // --- Versions ---
-const JS_VERSION = "v3.5.1"; // Νέα έκδοση λόγω αλλαγών στη λογική δημιουργίας players
+const JS_VERSION = "v3.5.5"; // Νέα έκδοση λόγω αλλαγών στη λογική δημιουργίας players
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- Player Settings ---
@@ -187,8 +187,19 @@ function playAll() {
 }
 
 function stopAll() {
-    controllers.forEach(c => { if (c.player) c.player.stopVideo(); });
-    log(`[${ts()}] ⏹ Stop All`);
+  const shuffled = [...controllers].sort(() => Math.random() - 0.5);
+  let delay = 0;
+  shuffled.forEach((c, i) => {
+    const randomDelay = rndInt(30000, 60000); // 30-60 sec
+    delay += randomDelay;
+    setTimeout(() => {
+      if (c.player) {
+        c.player.stopVideo();
+        log(`[${ts()}] Player ${c.index + 1} ⏹ Stopped (step ${i + 1})`);
+      }
+    }, delay);
+  });
+  log(`[${ts()}] ⏹ Stop All (sequential mode started, estimated duration ~${Math.round(delay / 1000)}s)`);
 }
 
 function nextAll() {
