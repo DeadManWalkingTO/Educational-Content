@@ -1,33 +1,63 @@
+
 // --- humanMode.js ---
-// Human Mode: Προσομοίωση ανθρώπινης συμπεριφοράς με τυχαίες καθυστερήσεις, αλλαγές έντασης, ποιότητας, παύσεις και ταχύτητας
-// Έκδοση: v3.3.0 (προσθήκη αλλαγής playback speed και επιπλέον αλλαγές έντασης)
+// Human Mode: Προσομοίωση ανθρώπινης συμπεριφοράς με τυχαίες καθυστερήσεις, αλλαγές έντασης, ποιότητας, παύσεις, ταχύτητας και προφίλ συμπεριφοράς
+// Έκδοση: v3.4.0 (προσθήκη behavior profiles και διαφοροποίηση patterns)
 
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v3.3.0";
+const HUMAN_MODE_VERSION = "v3.4.0";
 const MAIN_PROBABILITY = 0.5;
 const ALT_PROBABILITY = 0.5;
 
+// --- Behavior Profiles ---
+const BEHAVIOR_PROFILES = [
+    {
+        name: "Explorer", // Κάνει πολλά mid-seeks και αλλαγές
+        pauseChance: 0.5,
+        seekChance: 0.6,
+        volumeChangeChance: 0.4,
+        midSeekIntervalRange: [4, 6], // πιο συχνά
+    },
+    {
+        name: "Casual", // Λίγες παύσεις, σχεδόν καθόλου mid-seek
+        pauseChance: 0.3,
+        seekChance: 0.1,
+        volumeChangeChance: 0.2,
+        midSeekIntervalRange: [8, 12], // σπάνια
+    },
+    {
+        name: "Focused", // Βλέπει σχεδόν όλο το βίντεο χωρίς πολλά skip
+        pauseChance: 0.2,
+        seekChance: 0.05,
+        volumeChangeChance: 0.1,
+        midSeekIntervalRange: [10, 15], // πολύ σπάνια
+    }
+];
+
 // Δημιουργία τυχαίου config για κάθε player
-function createRandomPlayerConfig() {
+function createRandomPlayerConfig(profile) {
     return {
         startDelay: rndInt(5, 180),
         initSeekMax: rndInt(30, 90),
         unmuteDelay: rndInt(60, 300),
         volumeRange: [rndInt(5, 15), rndInt(20, 40)],
-        midSeekInterval: rndInt(4, 10) * 60000,
-        pauseChance: Math.random() < 0.6,
+        midSeekInterval: rndInt(profile.midSeekIntervalRange[0], profile.midSeekIntervalRange[1]) * 60000,
+        pauseChance: profile.pauseChance,
+        seekChance: profile.seekChance,
+        volumeChangeChance: profile.volumeChangeChance,
         replayChance: Math.random() < 0.15 // Replay ελέγχεται τελικά από functions.js
     };
 }
 
-// Δημιουργία session plan για κάθε player
+// Δημιουργία session plan με προφίλ
 function createSessionPlan(index) {
+    const profile = BEHAVIOR_PROFILES[Math.floor(Math.random() * BEHAVIOR_PROFILES.length)];
     return {
+        profile: profile.name,
         videosToWatch: rndInt(3, 8),
         pauseCount: rndInt(1, 3),
-        pauseChance: Math.random() < (0.4 + index * 0.02),
-        seekChance: Math.random() < (0.3 + index * 0.01),
-        volumeChangeChance: Math.random() < 0.3,
+        pauseChance: profile.pauseChance,
+        seekChance: profile.seekChance,
+        volumeChangeChance: profile.volumeChangeChance,
         replayChance: Math.random() < 0.15
     };
 }
@@ -54,7 +84,8 @@ async function initPlayersSequentially() {
         }
 
         const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
-        const config = createRandomPlayerConfig();
+        const profile = BEHAVIOR_PROFILES[Math.floor(Math.random() * BEHAVIOR_PROFILES.length)];
+        const config = createRandomPlayerConfig(profile);
         if (i === 0) config.startDelay = 0;
         const session = createSessionPlan(i);
 
@@ -67,7 +98,7 @@ async function initPlayersSequentially() {
         controllers.push(controller);
         controller.init(videoId);
 
-        log(`[${ts()}] 👤 HumanMode: Player ${i + 1} initialized after ${Math.round(delay / 1000)}s with session plan: ${JSON.stringify(session)} (Source:${sourceType})`);
+        log(`[${ts()}] 👤 HumanMode: Player ${i + 1} initialized after ${Math.round(delay / 1000)}s with profile: ${session.profile} and session plan: ${JSON.stringify(session)} (Source:${sourceType})`);
 
         // Προγραμματισμένες αλλαγές ποιότητας, έντασης και ταχύτητας
         setTimeout(() => {
@@ -102,15 +133,14 @@ async function initPlayersSequentially() {
                             let newSpeed, revertDelay;
                             if (duration >= 600) {
                                 newSpeed = 1.25; // Μεγάλα βίντεο
-                                revertDelay = Math.floor((duration * rndInt(30, 50) / 100) * 1000); // 30–50% της υπόλοιπης διάρκειας
+                                revertDelay = Math.floor((duration * rndInt(30, 50) / 100) * 1000);
                             } else {
                                 newSpeed = 0.75; // Μικρά βίντεο
-                                revertDelay = Math.floor((duration * rndInt(20, 40) / 100) * 1000); // 20–40% της υπόλοιπης διάρκειας
+                                revertDelay = Math.floor((duration * rndInt(20, 40) / 100) * 1000);
                             }
                             controller.player.setPlaybackRate(newSpeed);
                             log(`[${ts()}] Player ${i + 1} 🔄 Speed changed to ${newSpeed}x for ${Math.round(revertDelay / 60000)} min`);
 
-                            // Επιστροφή στο 1.0x μετά το διάστημα
                             setTimeout(() => {
                                 controller.player.setPlaybackRate(1.0);
                                 log(`[${ts()}] Player ${i + 1} 🔄 Speed reverted to 1.0x`);
@@ -119,7 +149,7 @@ async function initPlayersSequentially() {
                     }, speedChangeDelay);
                 }
             }
-        }, rndInt(30, 90) * 1000); // Αλλαγές μετά από 30–90s
+        }, rndInt(30, 90) * 1000);
     }
 
     log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
