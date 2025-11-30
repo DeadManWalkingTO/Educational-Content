@@ -1,87 +1,115 @@
 // --- humanMode.js ---
-// Human Mode: Προσομοίωση ανθρώπινης συμπεριφοράς με τυχαίες καθυστερήσεις, αλλαγές έντασης και εναλλαγή λίστας main/alt
+// Human Mode: Προσομοίωση ανθρώπινης συμπεριφοράς με τυχαίες καθυστερήσεις, αλλαγές έντασης, ποιότητας και παύσεις
 
 function createRandomPlayerConfig() {
-  return {
-    startDelay: rndInt(5, 180),
-    initSeekMax: rndInt(30, 90),
-    unmuteDelay: rndInt(60, 300),
-    volumeRange: [rndInt(5, 15), rndInt(20, 40)],
-    midSeekInterval: rndInt(4, 10) * 60000,
-    pauseChance: Math.random() < 0.6,
-    replayChance: Math.random() < 0.15
-  };
+    return {
+        startDelay: rndInt(5, 180),
+        initSeekMax: rndInt(30, 90),
+        unmuteDelay: rndInt(60, 300),
+        volumeRange: [rndInt(5, 15), rndInt(20, 40)],
+        midSeekInterval: rndInt(4, 10) * 60000,
+        pauseChance: Math.random() < 0.6,
+        replayChance: Math.random() < 0.15
+    };
 }
 
-function createSessionPlan() {
-  return {
-    videosToWatch: rndInt(3, 8),
-    pauseChance: Math.random() < 0.6,
-    seekChance: Math.random() < 0.4,
-    volumeChangeChance: Math.random() < 0.3,
-    replayChance: Math.random() < 0.15
-  };
+// Δημιουργία διαφοροποιημένου session plan
+function createSessionPlan(index) {
+    return {
+        videosToWatch: rndInt(3, 8),
+        pauseCount: rndInt(1, 3), // Πολλαπλές παύσεις για μεγάλα βίντεο
+        pauseChance: Math.random() < (0.4 + index * 0.02),
+        seekChance: Math.random() < (0.3 + index * 0.01),
+        volumeChangeChance: Math.random() < 0.3,
+        replayChance: Math.random() < 0.15
+    };
 }
 
-// Κύρια συνάρτηση για Human Mode
+// Αρχικοποίηση players με μεγαλύτερες καθυστερήσεις για αποφυγή συγχρονισμού
 async function initPlayersSequentially() {
-  for (let i = 0; i < PLAYER_COUNT; i++) {
-    const delay = i === 0 ? 0 : rndInt(10, 60) * 1000; // Ο πρώτος ξεκινάει άμεσα, οι άλλοι με καθυστέρηση 10-60s
-    await new Promise(resolve => setTimeout(resolve, delay));
+    for (let i = 0; i < PLAYER_COUNT; i++) {
+        const delay = i === 0 ? 0 : rndInt(30, 180) * 1000; // ΝΕΟ εύρος 30-180s
+        await new Promise(resolve => setTimeout(resolve, delay));
 
-    // Επιλογή λίστας main ή alt
-    let sourceList, sourceType;
-    if (videoListAlt.length > 100) {
-      sourceList = (i % 2 === 0) ? videoListMain : videoListAlt;
-      sourceType = (i % 2 === 0) ? "main" : "alt";
-    } else {
-      sourceList = videoListMain;
-      sourceType = "main";
-    }
-
-    const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
-    const config = createRandomPlayerConfig();
-    if (i === 0) config.startDelay = 0; // Ο πρώτος player ξεκινάει αμέσως
-    const session = createSessionPlan();
-
-    // Έλεγχος για Stop All πριν την αρχικοποίηση
-    if (isStopping) {
-      log(`[${ts()}] 👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
-      continue;
-    }
-
-    const controller = new PlayerController(i, sourceList, config, sourceType);
-    controllers.push(controller);
-    controller.init(videoId);
-
-    log(`[${ts()}] 👤 HumanMode: Player ${i + 1} initialized after ${Math.round(delay / 1000)}s with session plan: ${JSON.stringify(session)} (Source:${sourceType})`);
-
-    // Αν το session προβλέπει αλλαγές έντασης, προγραμματίζουμε τυχαίες αλλαγές κάθε 20-90 λεπτά
-    if (session.volumeChangeChance) {
-      const volumeChangeInterval = rndInt(1200, 5400) * 1000; // 20-90 λεπτά
-      setInterval(() => {
-        if (controller.player) {
-          let newVolume = rndInt(config.volumeRange[0], config.volumeRange[1]);
-          const variation = rndInt(-5, 5); // ±5% διακύμανση
-          newVolume = Math.min(100, Math.max(0, newVolume + variation));
-          controller.player.setVolume(newVolume);
-          log(`[${ts()}] Player ${i + 1} 🔊 Volume changed to ${newVolume}% (variation ${variation}%)`);
+        let sourceList = videoListMain;
+        let sourceType = "main";
+        if (videoListAlt.length > 100) {
+            sourceList = (i % 2 === 0) ? videoListMain : videoListAlt;
+            sourceType = (i % 2 === 0) ? "main" : "alt";
         }
-      }, volumeChangeInterval);
+
+        const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
+        const config = createRandomPlayerConfig();
+        if (i === 0) config.startDelay = 0;
+
+        const session = createSessionPlan(i);
+        if (isStopping) {
+            log(`[${ts()}] 👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
+            continue;
+        }
+
+        const controller = new PlayerController(i, sourceList, config, sourceType);
+        controllers.push(controller);
+        controller.init(videoId);
+
+        log(`[${ts()}] 👤 HumanMode: Player ${i + 1} initialized after ${Math.round(delay / 1000)}s with session plan: ${JSON.stringify(session)} (Source:${sourceType})`);
+
+        // Προγραμματισμένες αλλαγές έντασης και ποιότητας
+        setTimeout(() => {
+            if (controller.player) {
+                const duration = controller.player.getDuration();
+                if (duration >= 300) { // Μόνο για βίντεο >= 5 λεπτά
+                    // Αλλαγή ποιότητας σε τυχαίο σημείο
+                    const qualities = ['small', 'medium', 'large'];
+                    const q = qualities[Math.floor(Math.random() * qualities.length)];
+                    controller.player.setPlaybackQuality(q);
+                    log(`[${ts()}] Player ${i + 1} 🎥 Quality changed to ${q}`);
+
+                    // Αλλαγές έντασης (1-2 φορές)
+                    if (session.volumeChangeChance) {
+                        const volumeChangeInterval = rndInt(2400, 4800) * 1000; // 40-80 λεπτά
+                        setTimeout(() => {
+                            let newVolume = rndInt(config.volumeRange[0], config.volumeRange[1]);
+                            const variation = rndInt(-5, 5);
+                            newVolume = Math.min(100, Math.max(0, newVolume + variation));
+                            controller.player.setVolume(newVolume);
+                            log(`[${ts()}] Player ${i + 1} 🔊 Volume changed to ${newVolume}% (variation ${variation}%)`);
+                        }, volumeChangeInterval);
+                    }
+                }
+            }
+        }, rndInt(30, 90) * 1000); // Αλλαγή ποιότητας μετά από 30-90s
     }
-  }
-  log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
+    log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
+}
+
+// Προγραμματισμένες παύσεις (πολλαπλές για μεγάλα βίντεο)
+function scheduleMultiplePauses(controller, duration) {
+    if (duration >= 600) { // Μόνο για βίντεο >= 10 λεπτά
+        const pausePoints = [0.2, 0.5, 0.8]; // 20%, 50%, 80%
+        pausePoints.forEach(point => {
+            const delay = duration * point * 1000;
+            setTimeout(() => {
+                if (controller.player && controller.player.getPlayerState() === YT.PlayerState.PLAYING) {
+                    const pauseLen = rndInt(5, 15) * 1000; // 5-15s
+                    controller.player.pauseVideo();
+                    log(`[${ts()}] Player ${controller.index + 1} ⏸ Pause for ${Math.round(pauseLen / 1000)}s`);
+                    setTimeout(() => controller.player.playVideo(), pauseLen);
+                }
+            }, delay);
+        });
+    }
 }
 
 // Εκκίνηση Human Mode μετά τη φόρτωση λιστών
 Promise.all([loadVideoList(), loadAltList()])
-  .then(([mainList, altList]) => {
-    videoListMain = mainList;
-    videoListAlt = altList;
-    createPlayerContainers();
-    log(`[${ts()}] 🚀 HumanMode start — HTML ${HTML_VERSION} JS ${JS_VERSION} HumanMode v2.1.0`);
-    initPlayersSequentially();
-  })
-  .catch(err => log(`[${ts()}] ❌ List load error: ${err}`));
+    .then(([mainList, altList]) => {
+        videoListMain = mainList;
+        videoListAlt = altList;
+        createPlayerContainers();
+        log(`[${ts()}] 🚀 HumanMode start — HTML ${HTML_VERSION} JS ${JS_VERSION} HumanMode v3.0.0`);
+        initPlayersSequentially();
+    })
+    .catch(err => log(`[${ts()}] ❌ List load error: ${err}`));
 
 // --- End Of File ---
