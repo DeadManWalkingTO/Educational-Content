@@ -7,60 +7,67 @@ const internalList = [
 ];
 let videoListMain = [];
 let videoListAlt = [];
-function tsList(){ return new Date().toLocaleTimeString(); }
-function log(msg){
+
+// Χρησιμοποιούμε διαφορετικό όνομα για να αποφύγουμε conflict με functions.js
+function tsList() { return new Date().toLocaleTimeString(); }
+
+function log(msg) {
   console.log(msg);
-  const panel=document.getElementById("activityPanel");
-  if(panel){
-    const div=document.createElement("div");
-    div.textContent=msg;
+  const panel = document.getElementById("activityPanel");
+  if (panel) {
+    const div = document.createElement("div");
+    div.textContent = msg;
     panel.appendChild(div);
-    while(panel.children.length>50) panel.removeChild(panel.firstChild);
-    panel.scrollTop=panel.scrollHeight;
+    while (panel.children.length > 50) panel.removeChild(panel.firstChild);
+    panel.scrollTop = panel.scrollHeight;
   }
   updateStats();
 }
-function updateStats(){
-  const el=document.getElementById("statsPanel");
-  if(el){
-    el.textContent=`📊 Stats — AutoNext:${stats.autoNext} Replay:${stats.replay} Pauses:${stats.pauses} MidSeeks:${stats.midSeeks} Watchdog:${stats.watchdog} Errors:${stats.errors} VolumeChanges:${stats.volumeChanges} — HTML ${HTML_VERSION} JS ${JS_VERSION} Main:${videoListMain.length} Alt:${videoListAlt.length}`;
+
+function updateStats() {
+  const el = document.getElementById("statsPanel");
+  if (el) {
+    el.textContent = `📊 Stats — AutoNext:${stats.autoNext} Replay:${stats.replay} Pauses:${stats.pauses} MidSeeks:${stats.midSeeks} Watchdog:${stats.watchdog} Errors:${stats.errors} VolumeChanges:${stats.volumeChanges} — HTML ${HTML_VERSION} JS ${JS_VERSION} Main:${videoListMain.length} Alt:${videoListAlt.length}`;
   }
 }
-function loadVideoList(){
+
+function loadVideoList() {
   return fetch("list.txt")
-    .then(r=>r.ok?r.text():Promise.reject("local-not-found"))
-    .then(text=>{
-      const arr=text.trim().split("
-").map(s=>s.trim()).filter(Boolean);
-      if(arr.length){ listSource="Local"; return arr; }
+    .then(r => r.ok ? r.text() : Promise.reject("local-not-found"))
+    .then(text => {
+      const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
+      if (arr.length) { listSource = "Local"; return arr; }
       throw "local-empty";
     })
-    .catch(()=>{
+    .catch(() => {
       return fetch("https://deadmanwalkingto.github.io/ActiveViewer/list.txt")
-        .then(r=>r.ok?r.text():Promise.reject("web-not-found"))
-        .then(text=>{
-          const arr=text.trim().split("
-").map(s=>s.trim()).filter(Boolean);
-          if(arr.length){ listSource="Web"; return arr; }
+        .then(r => r.ok ? r.text() : Promise.reject("web-not-found"))
+        .then(text => {
+          const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
+          if (arr.length) { listSource = "Web"; return arr; }
           throw "web-empty";
         })
-        .catch(()=>{ listSource="Internal"; return internalList; });
+        .catch(() => { listSource = "Internal"; return internalList; });
     });
 }
-function loadAltList(){
+
+function loadAltList() {
   return fetch("random.txt")
-    .then(r=>r.ok?r.text():Promise.reject("alt-not-found"))
-    .then(text=>text.trim().split("
-").map(s=>s.trim()).filter(Boolean))
-    .catch(()=>[]);
+    .then(r => r.ok ? r.text() : Promise.reject("alt-not-found"))
+    .then(text => text.trim().split("\n").map(s => s.trim()).filter(Boolean))
+    .catch(() => []);
 }
-function reloadList(){
-  Promise.all([loadVideoList(),loadAltList()])
-    .then(([mainList,altList])=>{
-      videoListMain=mainList;
-      videoListAlt=altList;
+
+function reloadList() {
+  Promise.all([loadVideoList(), loadAltList()])
+    .then(([mainList, altList]) => {
+      videoListMain = mainList;
+      videoListAlt = altList;
       log(`[${tsList()}] 🔄 Lists reloaded — Main:${videoListMain.length} Alt:${videoListAlt.length}`);
     })
-    .catch(err=>{ log(`[${tsList()}] ❌ Reload failed: ${err}`); });
+    .catch(err => {
+      log(`[${tsList()}] ❌ Reload failed: ${err}`);
+    });
 }
+
 // ---End Of File---
