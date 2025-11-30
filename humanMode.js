@@ -1,9 +1,9 @@
 // --- humanMode.js ---
 // Human Mode: Προσομοίωση ανθρώπινης συμπεριφοράς με τυχαίες καθυστερήσεις, αλλαγές έντασης, ποιότητας και παύσεις
 
-const HUMAN_MODE_VERSION = "v3.1.0"; // Δηλωμένη έκδοση για χρήση σε logs και UI
-const MAIN_PROBABILITY = 0.7; // Πιθανότητα επιλογής main λίστας
-const ALT_PROBABILITY = 0.3;  // Πιθανότητα επιλογής alt λίστας
+const HUMAN_MODE_VERSION = "v3.1.1"; // Δηλωμένη έκδοση για χρήση σε logs και UI
+const MAIN_PROBABILITY = 0.5; // Πιθανότητα επιλογής main λίστας
+const ALT_PROBABILITY = 0.5;  // Πιθανότητα επιλογής alt λίστας
 
 function createRandomPlayerConfig() {
     return {
