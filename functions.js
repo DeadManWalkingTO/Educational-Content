@@ -1,8 +1,10 @@
+
 // --- functions.js ---
 // Κύριες λειτουργίες για τον έλεγχο των YouTube players και του UI
+// Έκδοση: v4.0.0 (βελτιώσεις για εγκυρότητα views και φυσική συμπεριφορά)
 
 // --- Versions ---
-const JS_VERSION = "v3.9.1"; // Νέα έκδοση με υποστήριξη ελάχιστου χρόνου παρακολούθησης
+const JS_VERSION = "v4.0.0"; // Νέα έκδοση με βελτιώσεις για watch time και AutoNext
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- Player Settings ---
@@ -77,11 +79,12 @@ class PlayerController {
 
     onReady(e) {
         const p = e.target;
-        this.startTime = Date.now(); // ΝΕΟ
+        this.startTime = Date.now();
         p.mute();
         const startDelay = this.config && this.config.startDelay !== undefined
             ? this.config.startDelay * 1000
             : rndDelayMs(START_DELAY_MIN_S, START_DELAY_MAX_S);
+
         setTimeout(() => {
             const seek = rndInt(0, this.config?.initSeekMax || INIT_SEEK_MAX_S);
             p.seekTo(seek, true);
@@ -90,6 +93,7 @@ class PlayerController {
             this.schedulePauses();
             this.scheduleMidSeek();
         }, startDelay);
+
         const unmuteDelay = this.config?.unmuteDelay ? this.config.unmuteDelay * 1000 : rndDelayMs(60, 300);
         setTimeout(() => {
             p.unMute();
@@ -104,13 +108,28 @@ class PlayerController {
         if (e.data === YT.PlayerState.ENDED) {
             this.clearTimers();
             const duration = p.getDuration();
-            const watchTime = (Date.now() - this.startTime) / 1000; // σε δευτερόλεπτα
-            const afterEndPauseMs = rndInt(2000, 5000);
+            const watchTime = (Date.now() - this.startTime) / 1000;
+
+            // ΝΕΟ: Ελάχιστη καθυστέρηση πριν AutoNext (15–60s)
+            const afterEndPauseMs = rndInt(15000, 60000);
 
             setTimeout(() => {
-                if (duration < 300 || watchTime >= duration * 0.7) {
-                    // Επιτρέπεται AutoNext ή Replay
-                    if (Math.random() < 0.1) {
+                // ΝΕΟ: Αν το βίντεο είναι μικρό (<5 λεπτά), να παίζει ολόκληρο
+                if (duration < 300) {
+                    log(`[${ts()}] Player ${this.index + 1} ✅ Small video played fully (${duration}s)`);
+                    const newId = this.getRandomId();
+                    p.loadVideoById(newId);
+                    p.playVideo();
+                    stats.autoNext++;
+                    log(`[${ts()}] Player ${this.index + 1} ⏭ AutoNext -> ${newId}`);
+                    this.schedulePauses();
+                    return; // Απενεργοποίηση mid-seek για μικρά βίντεο
+                }
+
+                // Αν έχει παιχτεί >70% του βίντεο
+                if (watchTime >= duration * 0.7) {
+                    // ΝΕΟ: Replay μόνο αν duration > 120s
+                    if (duration > 120 && Math.random() < 0.1) {
                         p.seekTo(0);
                         p.playVideo();
                         stats.replay++;
@@ -125,13 +144,12 @@ class PlayerController {
                         this.scheduleMidSeek();
                     }
                 } else {
-                    // Αν δεν έπαιξε αρκετά, καθυστέρηση πριν AutoNext
                     log(`[${ts()}] Player ${this.index + 1} ⏳ Waiting extra time before AutoNext`);
                     setTimeout(() => {
                         const newId = this.getRandomId();
                         p.loadVideoById(newId);
                         p.playVideo();
-                    }, rndInt(15000, 30000)); // 15-30s extra
+                    }, rndInt(15000, 30000));
                 }
             }, afterEndPauseMs);
         }
@@ -163,9 +181,10 @@ class PlayerController {
 
     scheduleMidSeek() {
         const p = this.player;
+        const duration = p.getDuration();
+        if (duration < 300) return; // ΝΕΟ: Απενεργοποίηση mid-seek για μικρά βίντεο
         const interval = rndInt(MID_SEEK_INTERVAL_MIN[0], MID_SEEK_INTERVAL_MIN[1]) * 60000;
         this.timers.midSeek = setTimeout(() => {
-            const duration = p.getDuration();
             if (duration > 0) {
                 const seek = rndInt(Math.floor(duration * 0.2), Math.floor(duration * 0.6));
                 if (p.getPlayerState() === YT.PlayerState.PLAYING) {
