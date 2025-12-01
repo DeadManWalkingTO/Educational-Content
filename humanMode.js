@@ -1,11 +1,10 @@
 // --- humanMode.js ---
-// Έκδοση: v3.5.1
+// Έκδοση: v3.5.2
 // Περιέχει τη λογική για προσομοίωση ανθρώπινης συμπεριφοράς κατά την αναπαραγωγή βίντεο.
 // Περιλαμβάνει προφίλ συμπεριφοράς, τυχαίες ενέργειες (παύσεις, αλλαγές έντασης, ποιότητας, ταχύτητας) και sequential initialization.
 
-
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v3.5.1";
+const HUMAN_MODE_VERSION = "v3.5.2";
 
 // --- Behavior Profiles ---
 const BEHAVIOR_PROFILES = [
@@ -35,6 +34,7 @@ const BEHAVIOR_PROFILES = [
 // Δημιουργία τυχαίου config για κάθε player
 function createRandomPlayerConfig(profile) {
     return {
+        profileName: profile.name, // ✅ Διορθώθηκε το bug
         startDelay: rndInt(5, 180),
         initSeekMax: rndInt(30, 90),
         unmuteDelay: rndInt(60, 300),
@@ -70,6 +70,7 @@ async function initPlayersSequentially() {
     for (let i = 0; i < PLAYER_COUNT; i++) {
         const delay = i === 0 ? 0 : rndInt(30, 180) * 1000;
         await new Promise(resolve => setTimeout(resolve, delay));
+
         let sourceList, sourceType;
         if (videoListAlt.length > 0) {
             const useMain = Math.random() < MAIN_PROBABILITY;
@@ -79,18 +80,22 @@ async function initPlayersSequentially() {
             sourceList = videoListMain;
             sourceType = "main";
         }
+
         const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
         const profile = BEHAVIOR_PROFILES[Math.floor(Math.random() * BEHAVIOR_PROFILES.length)];
         const config = createRandomPlayerConfig(profile);
         if (i === 0) config.startDelay = 0;
         const session = createSessionPlan(i);
+
         if (isStopping) {
             log(`[${ts()}] 👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
             continue;
         }
+
         const controller = new PlayerController(i, sourceList, config, sourceType);
         controllers.push(controller);
         controller.init(videoId);
+
         log(`[${ts()}] 👤 HumanMode: Player ${i + 1} initialized after ${Math.round(delay / 1000)}s with profile: ${session.profile} and session plan: ${JSON.stringify(session)} (Source:${sourceType})`);
 
         // Προγραμματισμένες αλλαγές ποιότητας, έντασης, ταχύτητας
@@ -103,6 +108,7 @@ async function initPlayersSequentially() {
                     controller.player.setPlaybackQuality(q);
                     log(`[${ts()}] Player ${i + 1} 🎥 Quality changed to ${q}`);
                 }
+
                 if (session.volumeChangeChance) {
                     const volumeChangeInterval = rndInt(300000, 600000);
                     setTimeout(() => {
@@ -113,6 +119,7 @@ async function initPlayersSequentially() {
                         log(`[${ts()}] Player ${i + 1} 🔊 Volume changed to ${newVolume}% (variation ${variation}%)`);
                     }, volumeChangeInterval);
                 }
+
                 if (Math.random() < 0.3) {
                     const speedChangeDelay = rndInt(120000, 300000);
                     setTimeout(() => {
