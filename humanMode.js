@@ -2,7 +2,6 @@
 // Έκδοση: v3.5.3
 // Περιέχει τη λογική για προσομοίωση ανθρώπινης συμπεριφοράς κατά την αναπαραγωγή βίντεο.
 // Περιλαμβάνει προφίλ συμπεριφοράς, τυχαίες ενέργειες (παύσεις, αλλαγές έντασης, ποιότητας, ταχύτητας) και sequential initialization.
-
 // --- Versions ---
 const HUMAN_MODE_VERSION = "v3.5.3";
 
@@ -34,7 +33,7 @@ const BEHAVIOR_PROFILES = [
 // Δημιουργία τυχαίου config για κάθε player
 function createRandomPlayerConfig(profile) {
     return {
-        profileName: profile.name, // ✅ Διορθώθηκε το bug
+        profileName: profile.name,
         startDelay: rndInt(5, 180),
         initSeekMax: rndInt(30, 90),
         unmuteDelay: rndInt(60, 300),
@@ -50,7 +49,7 @@ function createRandomPlayerConfig(profile) {
 // Δημιουργία session plan (απλοποιημένο)
 function createSessionPlan() {
     return {
-        pauseChance: rndInt(1, 3), // Ενδεικτικό πεδίο για log
+        pauseChance: rndInt(1, 3),
         seekChance: Math.random() < 0.5,
         volumeChangeChance: Math.random() < 0.5,
         replayChance: Math.random() < 0.15
@@ -63,18 +62,17 @@ async function initPlayersSequentially() {
         log(`[${ts()}] ❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκτέλεση σταματά.`);
         return;
     }
+
     for (let i = 0; i < PLAYER_COUNT; i++) {
         const delay = i === 0 ? 0 : rndInt(30, 180) * 1000;
         await new Promise(resolve => setTimeout(resolve, delay));
 
-        let sourceList, sourceType;
+        let sourceList;
         if (videoListAlt.length > 0) {
             const useMain = Math.random() < MAIN_PROBABILITY;
             sourceList = useMain ? videoListMain : videoListAlt;
-            sourceType = useMain ? "main" : "alt";
         } else {
             sourceList = videoListMain;
-            sourceType = "main";
         }
 
         const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
@@ -88,12 +86,12 @@ async function initPlayersSequentially() {
             continue;
         }
 
-        const controller = new PlayerController(i, sourceList, config, sourceType);
+        const controller = new PlayerController(i, sourceList, config);
         controllers.push(controller);
         controller.init(videoId);
 
-        // ✅ Log χωρίς άχρηστα πεδία
-        log(`[${ts()}] 👤 HumanMode: Player ${i + 1} initialized after ${Math.round(delay / 1000)}s with session plan: ${JSON.stringify(session)} (Source:${sourceType})`);
+        // ✅ Αφαιρέθηκε το Source από το log
+        log(`[${ts()}] 👤 HumanMode: Player ${i + 1} initialized after ${Math.round(delay / 1000)}s with session plan: ${JSON.stringify(session)}`);
 
         // Προγραμματισμένες αλλαγές ποιότητας, έντασης, ταχύτητας
         setTimeout(() => {
@@ -141,6 +139,7 @@ async function initPlayersSequentially() {
             }
         }, rndInt(30, 90) * 1000);
     }
+
     log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
 
