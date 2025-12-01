@@ -1,9 +1,8 @@
-
 // --- functions.js ---
-// Έκδοση: v4.5.3 (ενημερωμένη)
+// Έκδοση: v4.5.4 (ενημερωμένη)
 // Περιέχει τη βασική λογική για τους YouTube players, στατιστικά, watchdog και βοηθητικές συναρτήσεις.
 // --- Versions ---
-const JS_VERSION = "v4.5.3";
+const JS_VERSION = "v4.5.4";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -99,9 +98,13 @@ class PlayerController {
         const p = e.target;
         this.startTime = Date.now();
         p.mute();
+
         const startDelay = this.config && this.config.startDelay !== undefined
             ? this.config.startDelay * 1000
             : rndDelayMs(5, 180);
+
+        // ✅ ΝΕΟ LOG πριν την καθυστέρηση
+        log(`[${ts()}] ⏳ Player ${this.index + 1} Scheduled -> start after ${Math.round(startDelay / 1000)}s`);
 
         setTimeout(() => {
             const duration = p.getDuration();
@@ -110,7 +113,6 @@ class PlayerController {
                 seek = rndInt(0, this.config?.initSeekMax ?? 60);
             }
             p.seekTo(seek, true);
-            // Αφαιρέθηκε η εντολή setPlaybackQuality για πιο φυσικό αποτέλεσμα
             log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> seek=${seek}s after ${Math.round(startDelay / 1000)}s`);
             this.schedulePauses();
             this.scheduleMidSeek();
@@ -135,7 +137,6 @@ class PlayerController {
             watchPercentages[this.index] = percentWatched;
             const afterEndPauseMs = rndInt(15000, 60000);
             log(`[${ts()}] ✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, watchTime:${Math.round(watchTime)}s)`);
-
             setTimeout(() => {
                 let requiredPercent = duration < 300 ? 100 : 70;
                 if (percentWatched < requiredPercent) {
