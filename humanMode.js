@@ -1,9 +1,9 @@
 // --- humanMode.js ---
-// Έκδοση: v3.5.5
+// Έκδοση: v3.5.7
 // Περιέχει τη λογική για προσομοίωση ανθρώπινης συμπεριφοράς κατά την αναπαραγωγή βίντεο.
 // Περιλαμβάνει προφίλ συμπεριφοράς, τυχαίες ενέργειες (παύσεις, αλλαγές έντασης, ποιότητας, ταχύτητας) και sequential initialization.
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v3.5.5";
+const HUMAN_MODE_VERSION = "v3.5.7";
 
 // --- Behavior Profiles ---
 const BEHAVIOR_PROFILES = [
@@ -90,7 +90,6 @@ async function initPlayersSequentially() {
         controllers.push(controller);
         controller.init(videoId);
 
-        // ✅ Αφαιρέθηκε το Source από το log
         log(`[${ts()}] 👤 HumanMode: Player ${i + 1} initialized after ${Math.round(delay / 1000)}s with session plan: ${JSON.stringify(session)}`);
 
         // Προγραμματισμένες αλλαγές
@@ -171,8 +170,8 @@ Promise.all([loadVideoList(), loadAltList()])
         // ✅ Πρώτη εγγραφή με όλες τις εκδόσεις
         log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής - Εκδόσεις: HTML ${HTML_VERSION} - JS ${JS_VERSION} - Controls ${UICONTROLS_VERSION} - HumanMode ${HUMAN_MODE_VERSION} - Lists ${LISTS_VERSION}`);
 
-        // ✅ Δεύτερη εγγραφή με αριθμό εγγραφών στις λίστες
-        log(`[${ts()}] 📂 Φορτώθηκαν οι λίστες Main List: ${videoListMain.length} | Alt List: ${videoListAlt.length}`);
+        // ✅ Δεύτερη εγγραφή με νέο format
+        log(`[${ts()}] 📂 Φορτώθηκαν οι λίστες - [ Main List: ${videoListMain.length} - Alt List: ${videoListAlt.length} ]`);
 
         initPlayersSequentially();
     })
