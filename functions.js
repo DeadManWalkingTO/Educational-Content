@@ -1,8 +1,8 @@
 // --- functions.js ---
-// Έκδοση: v4.5.6 (ενημερωμένη)
+// Έκδοση: v4.6.0 (ενημερωμένη)
 // Περιέχει τη βασική λογική για τους YouTube players, στατιστικά, watchdog και βοηθητικές συναρτήσεις.
 // --- Versions ---
-const JS_VERSION = "v4.5.6";
+const JS_VERSION = "v4.6.0";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -75,6 +75,11 @@ class PlayerController {
         this.config = config;
         this.startTime = null;
         this.profileName = config?.profileName ?? "Unknown";
+
+        // Νέα μεταβλητά για ακριβή μέτρηση χρόνου θέασης
+        this.playingStart = null;
+        this.currentRate = 1.0;
+        this.totalPlayTime = 0;
     }
 
     init(videoId) {
@@ -130,14 +135,23 @@ class PlayerController {
 
     onStateChange(e) {
         const p = this.player;
+
+        // Καταγραφή χρόνου PLAYING με speed factor
+        if (e.data === YT.PlayerState.PLAYING) {
+            this.playingStart = Date.now();
+            this.currentRate = p.getPlaybackRate();
+        } else if (this.playingStart && (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED)) {
+            this.totalPlayTime += ((Date.now() - this.playingStart) / 1000) * this.currentRate;
+            this.playingStart = null;
+        }
+
         if (e.data === YT.PlayerState.ENDED) {
             this.clearTimers();
             const duration = p.getDuration();
-            const watchTime = (Date.now() - this.startTime) / 1000;
-            const percentWatched = Math.round((watchTime / duration) * 100);
+            const percentWatched = Math.round((this.totalPlayTime / duration) * 100);
             watchPercentages[this.index] = percentWatched;
+            log(`[${ts()}] ✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(this.totalPlayTime)}s)`);
             const afterEndPauseMs = rndInt(15000, 60000);
-            log(`[${ts()}] ✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, watchTime:${Math.round(watchTime)}s)`);
             setTimeout(() => {
                 let requiredPercent = duration < 300 ? 100 : 70;
                 if (percentWatched < requiredPercent) {
@@ -149,7 +163,7 @@ class PlayerController {
                     this.loadNextVideo(p);
                     return;
                 }
-                if (watchTime >= duration * 0.7) {
+                if (this.totalPlayTime >= duration * 0.7) {
                     if (duration > 120 && Math.random() < 0.1) {
                         p.seekTo(0);
                         p.playVideo();
