@@ -1,8 +1,8 @@
 // --- humanMode.js ---
-// Έκδοση: v3.6.2 (ενημερωμένη)
+// Έκδοση: v3.7.0 (ενημερωμένη)
 // Περιέχει τη λογική για προσομοίωση ανθρώπινης συμπεριφοράς κατά την αναπαραγωγή βίντεο.
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v3.6.2";
+const HUMAN_MODE_VERSION = "v3.7.0";
 
 // --- Behavior Profiles ---
 const BEHAVIOR_PROFILES = [
@@ -64,7 +64,6 @@ async function initPlayersSequentially() {
     for (let i = 0; i < PLAYER_COUNT; i++) {
         const delay = i === 0 ? 0 : rndInt(30, 180) * 1000;
 
-        // ✅ ΝΕΟ LOG πριν την καθυστέρηση
         log(`[${ts()}] ⏳ HumanMode scheduled Player ${i + 1} -> start after ${Math.round(delay / 1000)}s`);
 
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -94,7 +93,6 @@ async function initPlayersSequentially() {
         controllers.push(controller);
         controller.init(videoId);
 
-        // Μήνυμα μετά την εκκίνηση
         log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> after ${Math.round(delay / 1000)}s, session=${JSON.stringify(session)}`);
 
         // Προγραμματισμένες αλλαγές
@@ -102,7 +100,7 @@ async function initPlayersSequentially() {
             if (controller.player) {
                 const duration = controller.player.getDuration();
 
-                // Quality Change (μόνο αν παίζει)
+                // Quality Change
                 if (duration >= 300 && controller.player.getPlayerState() === YT.PlayerState.PLAYING) {
                     const qualities = ['small', 'medium', 'large'];
                     const q = qualities[Math.floor(Math.random() * qualities.length)];
@@ -110,7 +108,7 @@ async function initPlayersSequentially() {
                     log(`[${ts()}] 🎥 Player ${i + 1} Quality -> ${q}`);
                 }
 
-                // Volume Change (μόνο αν παίζει)
+                // Volume Change
                 if (session.volumeChangeChance) {
                     const volumeChangeInterval = rndInt(300000, 600000);
                     setTimeout(() => {
@@ -119,12 +117,13 @@ async function initPlayersSequentially() {
                             const variation = rndInt(-5, 5);
                             newVolume = Math.min(100, Math.max(0, newVolume + variation));
                             controller.player.setVolume(newVolume);
+                            stats.volumeChanges++;
                             log(`[${ts()}] 🔊 Player ${i + 1} Volume -> ${newVolume}% (variation ${variation}%)`);
                         }
                     }, volumeChangeInterval);
                 }
 
-                // Speed Change (μόνο αν παίζει)
+                // Speed Change
                 if (Math.random() < 0.3) {
                     const speedChangeDelay = rndInt(120000, 300000);
                     setTimeout(() => {
@@ -138,10 +137,12 @@ async function initPlayersSequentially() {
                                 revertDelay = Math.floor((duration * rndInt(20, 40) / 100) * 1000);
                             }
                             controller.player.setPlaybackRate(newSpeed);
+                            controller.currentRate = newSpeed; // ✅ Ενημέρωση για functions.js
                             log(`[${ts()}] 🔄 Player ${i + 1} Speed -> ${newSpeed}x for ${Math.round(revertDelay / 60000)} min`);
                             setTimeout(() => {
                                 if (controller.player.getPlayerState() === YT.PlayerState.PLAYING) {
                                     controller.player.setPlaybackRate(1.0);
+                                    controller.currentRate = 1.0; // ✅ Επαναφορά
                                     log(`[${ts()}] 🔄 Player ${i + 1} Speed -> reverted to 1.0x`);
                                 }
                             }, revertDelay);
@@ -154,7 +155,7 @@ async function initPlayersSequentially() {
     log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
 
-// Προγραμματισμένες παύσεις (μόνο αν παίζει)
+// Προγραμματισμένες παύσεις
 function scheduleMultiplePauses(controller, duration) {
     if (duration >= 600) {
         const pausePoints = [0.2, 0.5, 0.8];
