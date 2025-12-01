@@ -1,9 +1,8 @@
 // --- uiControls.js ---
-// Έκδοση: v1.3.0
+// Έκδοση: v1.3.1 (ενημερωμένη)
 // Περιέχει τις συναρτήσεις για τα κουμπιά της εφαρμογής (Play All, Stop All, Restart All, Theme Toggle, Logs).
-
 // --- Versions ---
-const UICONTROLS_VERSION = "v1.3.0";
+const UICONTROLS_VERSION = "v1.3.1";
 
 // ▶ Εκκινεί όλους τους players με τυχαία καθυστέρηση
 function playAll() {
@@ -90,13 +89,17 @@ function clearLogs() {
     }
 }
 
-// 📋 Αντιγράφει τα logs στο clipboard
+// 📋 Αντιγράφει τα logs στο clipboard μαζί με τα stats στο τέλος
 function copyLogs() {
     const panel = document.getElementById("activityPanel");
+    const statsPanel = document.getElementById("statsPanel");
     if (panel && panel.children.length > 0) {
-        const text = Array.from(panel.children).map(div => div.textContent).join("\n");
-        navigator.clipboard.writeText(text)
-            .then(() => log(`[${ts()}] 📋 Logs copied to clipboard (${panel.children.length} entries)`))
+        const logsText = Array.from(panel.children).map(div => div.textContent).join("\n");
+        const statsText = statsPanel ? `\n\n📊 Current Stats:\n${statsPanel.textContent}` : "\n\n📊 Stats not available";
+        const finalText = logsText + statsText;
+
+        navigator.clipboard.writeText(finalText)
+            .then(() => log(`[${ts()}] 📋 Logs + Stats copied to clipboard (${panel.children.length} entries)`))
             .catch(err => log(`[${ts()}] ❌ Failed to copy logs: ${err}`));
     } else {
         log(`[${ts()}] ❌ No logs to copy`);
