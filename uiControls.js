@@ -1,8 +1,8 @@
 // --- uiControls.js ---
-// Έκδοση: v1.3.1 (ενημερωμένη)
+// Έκδοση: v1.3.2 (ενημερωμένη)
 // Περιέχει τις συναρτήσεις για τα κουμπιά της εφαρμογής (Play All, Stop All, Restart All, Theme Toggle, Logs).
 // --- Versions ---
-const UICONTROLS_VERSION = "v1.3.1";
+const UICONTROLS_VERSION = "v1.3.2";
 
 // ▶ Εκκινεί όλους τους players με τυχαία καθυστέρηση
 function playAll() {
@@ -10,7 +10,7 @@ function playAll() {
         isStopping = false;
         stopTimers.forEach(t => clearTimeout(t));
         stopTimers = [];
-        log(`[${ts()}] ▶ Stop All canceled, starting Play All`);
+        log(`[${ts()}] ▶ Stop All canceled -> starting Play All`);
     }
     const shuffled = [...controllers].sort(() => Math.random() - 0.5);
     let delay = 0;
@@ -20,17 +20,17 @@ function playAll() {
         setTimeout(() => {
             if (c.player) {
                 c.player.playVideo();
-                log(`[${ts()}] Player ${c.index + 1} ▶ Play (step ${i + 1})`);
+                log(`[${ts()}] ▶ Player ${c.index + 1} Play -> step ${i + 1}`);
             } else {
                 const useMain = Math.random() < MAIN_PROBABILITY;
                 const list = useMain ? videoListMain : videoListAlt;
                 const newId = list[Math.floor(Math.random() * list.length)];
                 c.init(newId);
-                log(`[${ts()}] Player ${c.index + 1} ▶ Initializing for Play (Source:${useMain ? "main" : "alt"})`);
+                log(`[${ts()}] ▶ Player ${c.index + 1} Initializing -> Source:${useMain ? "main" : "alt"}`);
             }
         }, delay);
     });
-    log(`[${ts()}] ▶ Play All (sequential mode started, estimated duration ~${Math.round(delay / 1000)}s)`);
+    log(`[${ts()}] ▶ Play All -> sequential mode started, estimated duration ~${Math.round(delay / 1000)}s`);
 }
 
 // ⏹ Σταματά όλους τους players με τυχαία καθυστέρηση
@@ -46,14 +46,14 @@ function stopAll() {
         const timer = setTimeout(() => {
             if (c.player) {
                 c.player.stopVideo();
-                log(`[${ts()}] Player ${c.index + 1} ⏹ Stopped (step ${i + 1})`);
+                log(`[${ts()}] ⏹ Player ${c.index + 1} Stopped -> step ${i + 1}`);
             } else {
-                log(`[${ts()}] Player ${c.index + 1} not initialized, skipped`);
+                log(`[${ts()}] ❌ Player ${c.index + 1} Stop skipped -> not initialized`);
             }
         }, delay);
         stopTimers.push(timer);
     });
-    log(`[${ts()}] ⏹ Stop All (sequential mode started, estimated duration ~${Math.round(delay / 1000)}s)`);
+    log(`[${ts()}] ⏹ Stop All -> sequential mode started, estimated duration ~${Math.round(delay / 1000)}s`);
 }
 
 // 🔁 Επανεκκινεί όλους τους players με νέο βίντεο
@@ -66,16 +66,17 @@ function restartAll() {
             c.player.stopVideo();
             c.player.loadVideoById(newId);
             c.player.playVideo();
-            log(`[${ts()}] Player ${c.index + 1} 🔁 Restart -> ${newId} (Source:${useMain ? "main" : "alt"})`);
+            log(`[${ts()}] 🔁 Player ${c.index + 1} Restart -> ${newId} (Source:${useMain ? "main" : "alt"})`);
         }
     });
-    log(`[${ts()}] 🔁 Restart All`);
+    log(`[${ts()}] 🔁 Restart All -> completed`);
 }
 
 // 🌍 Εναλλαγή Dark/Light mode
 function toggleTheme() {
     document.body.classList.toggle("light");
-    log(`[${ts()}] 🌍 Theme toggled`);
+    const mode = document.body.classList.contains("light") ? "Light" : "Dark";
+    log(`[${ts()}] 🌍 Theme toggled -> ${mode} mode`);
 }
 
 // 🧹 Καθαρίζει το activity panel
@@ -83,9 +84,9 @@ function clearLogs() {
     const panel = document.getElementById("activityPanel");
     if (panel && panel.children.length > 0) {
         panel.innerHTML = "";
-        log(`[${ts()}] 🧹 Logs cleared`);
+        log(`[${ts()}] 🧹 Logs cleared -> all entries removed`);
     } else {
-        log(`[${ts()}] ❌ No logs to clear`);
+        log(`[${ts()}] ❌ Clear Logs -> no entries to remove`);
     }
 }
 
@@ -97,12 +98,11 @@ function copyLogs() {
         const logsText = Array.from(panel.children).map(div => div.textContent).join("\n");
         const statsText = statsPanel ? `\n\n📊 Current Stats:\n${statsPanel.textContent}` : "\n\n📊 Stats not available";
         const finalText = logsText + statsText;
-
         navigator.clipboard.writeText(finalText)
-            .then(() => log(`[${ts()}] 📋 Logs + Stats copied to clipboard (${panel.children.length} entries)`))
-            .catch(err => log(`[${ts()}] ❌ Failed to copy logs: ${err}`));
+            .then(() => log(`[${ts()}] 📋 Logs copied -> ${panel.children.length} entries + stats`))
+            .catch(err => log(`[${ts()}] ❌ Copy Logs failed -> ${err}`));
     } else {
-        log(`[${ts()}] ❌ No logs to copy`);
+        log(`[${ts()}] ❌ Copy Logs -> no entries to copy`);
     }
 }
 
