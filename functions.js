@@ -1,10 +1,8 @@
 // --- functions.js ---
-// Έκδοση: v4.5.0
+// Έκδοση: v4.5.1
 // Περιέχει τη βασική λογική για τους YouTube players, στατιστικά, watchdog και βοηθητικές συναρτήσεις.
-// Οι συναρτήσεις UI έχουν μεταφερθεί στο uiControls.js. Προστέθηκε έλεγχος ώστε για βίντεο <5 λεπτά να μην γίνεται αρχικό seek.
-
 // --- Versions ---
-const JS_VERSION = "v4.5.0";
+const JS_VERSION = "v4.5.1";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- Player Settings ---
@@ -81,7 +79,7 @@ class PlayerController {
 
     init(videoId) {
         if (isStopping) {
-            log(`[${ts()}] Player ${this.index + 1} initialization canceled due to Stop All`);
+            log(`[${ts()}] ❌ Player ${this.index + 1} initialization canceled due to Stop All`);
             return;
         }
         this.player = new YT.Player(`player${this.index + 1}`, {
@@ -92,7 +90,9 @@ class PlayerController {
                 onError: e => this.onError(e)
             }
         });
-        log(`[${ts()}] Player ${this.index + 1} initialized with ID=${videoId} (Source:${this.sourceType})`);
+        // ✅ Προσθήκη emoji ℹ️
+        log(`[${ts()}] ℹ️ Player ${this.index + 1} initialized with ID=${videoId} (Source:${this.sourceType})`);
+        // ✅ Προσθήκη emoji 👤
         log(`[${ts()}] 👤 Player ${this.index + 1} Profile: ${this.profileName}`);
     }
 
@@ -100,31 +100,28 @@ class PlayerController {
         const p = e.target;
         this.startTime = Date.now();
         p.mute();
-
         const startDelay = this.config && this.config.startDelay !== undefined
             ? this.config.startDelay * 1000
             : rndDelayMs(5, 180);
-
         setTimeout(() => {
             const duration = p.getDuration();
             let seek = 0;
-            // ✅ Αν το βίντεο είναι >=5 λεπτά, κάνε τυχαίο seek, αλλιώς ξεκινά από την αρχή
             if (duration >= 300) {
                 seek = rndInt(0, this.config?.initSeekMax ?? 60);
             }
             p.seekTo(seek, true);
             p.setPlaybackQuality('small');
-            log(`[${ts()}] Player ${this.index + 1} ▶ Ready after ${Math.round(startDelay / 1000)}s, seek=${seek}s`);
+            // ✅ Προσθήκη emoji ▶
+            log(`[${ts()}] ▶ Player ${this.index + 1} Ready after ${Math.round(startDelay / 1000)}s, seek=${seek}s`);
             this.schedulePauses();
             this.scheduleMidSeek();
         }, startDelay);
-
         const unmuteDelay = this.config?.unmuteDelay ? this.config.unmuteDelay * 1000 : rndDelayMs(60, 300);
         setTimeout(() => {
             p.unMute();
             const v = rndInt(10, 30);
             p.setVolume(v);
-            log(`[${ts()}] Player ${this.index + 1} 🔊 Auto Unmute -> ${v}%`);
+            log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
         }, unmuteDelay);
     }
 
@@ -154,6 +151,7 @@ class PlayerController {
                         p.seekTo(0);
                         p.playVideo();
                         stats.replay++;
+                        // ✅ Προσθήκη emoji 🔁
                         log(`[${ts()}] 🔁 Player ${this.index + 1} Replay`);
                     } else {
                         this.loadNextVideo(p);
@@ -170,6 +168,7 @@ class PlayerController {
         const p = this.player;
         this.loadNextVideo(p);
         stats.errors++;
+        // ✅ Προσθήκη emoji ❌
         log(`[${ts()}] ❌ Player ${this.index + 1} Error -> AutoNext`);
     }
 
@@ -180,7 +179,7 @@ class PlayerController {
             lastResetTime = now;
         }
         if (autoNextCounter >= MAX_VIEWS_PER_HOUR) {
-            log(`[${ts()}] ⚠ AutoNext limit reached (${MAX_VIEWS_PER_HOUR}/hour). Pausing new loads.`);
+            log(`[${ts()}] ⚠️ AutoNext limit reached (${MAX_VIEWS_PER_HOUR}/hour). Pausing new loads.`);
             return;
         }
         const useMain = Math.random() < MAIN_PROBABILITY;
@@ -190,6 +189,7 @@ class PlayerController {
         player.playVideo();
         stats.autoNext++;
         autoNextCounter++;
+        // ✅ Προσθήκη emoji ⏭
         log(`[${ts()}] ⏭ Player ${this.index + 1} AutoNext -> ${newId} (Source:${useMain ? "main" : "alt"})`);
         this.schedulePauses();
         this.scheduleMidSeek();
@@ -241,7 +241,7 @@ class PlayerController {
 setInterval(() => {
     controllers.forEach(c => {
         if (c.player && c.player.getPlayerState() === YT.PlayerState.BUFFERING) {
-            log(`[${ts()}] ⚠ Watchdog reset Player ${c.index + 1} (BUFFERING >60s)`);
+            log(`[${ts()}] ⚠️ Watchdog reset Player ${c.index + 1} (BUFFERING >60s)`);
             c.loadNextVideo(c.player);
             stats.watchdog++;
         }
