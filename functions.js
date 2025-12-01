@@ -1,11 +1,11 @@
 // --- functions.js ---
-// Έκδοση: v4.4.3
+// Έκδοση: v4.4.4
 // Περιέχει τη βασική λογική για τους YouTube players, στατιστικά, watchdog και βοηθητικές συναρτήσεις.
-// Οι συναρτήσεις UI έχουν μεταφερθεί στο uiControls.js για καλύτερη οργάνωση.
+// Οι συναρτήσεις UI έχουν μεταφερθεί στο uiControls.js. Προστέθηκε η createPlayerContainers για να διορθωθεί το ReferenceError.
 
 
 // --- Versions ---
-const JS_VERSION = "v4.4.3";
+const JS_VERSION = "v4.4.4";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- Player Settings ---
@@ -14,7 +14,7 @@ const MAIN_PROBABILITY = 0.5;
 const ALT_PROBABILITY = 0.5;
 
 // --- Anti-Spam Settings ---
-const MAX_VIEWS_PER_HOUR = 50; // Όριο AutoNext ανά ώρα
+const MAX_VIEWS_PER_HOUR = 50;
 let autoNextCounter = 0;
 let lastResetTime = Date.now();
 
@@ -52,6 +52,18 @@ function updateStats() {
             : 0;
         const limitStatus = autoNextCounter >= MAX_VIEWS_PER_HOUR ? "Reached" : "OK";
         el.textContent = `📊 Stats — AutoNext:${stats.autoNext} Replay:${stats.replay} Pauses:${stats.pauses} MidSeeks:${stats.midSeeks} AvgWatch:${avgWatch}% Watchdog:${stats.watchdog} Errors:${stats.errors} VolumeChanges:${stats.volumeChanges} Limit:${limitStatus} — HTML ${HTML_VERSION} JS ${JS_VERSION} Main:${videoListMain.length} Alt:${videoListAlt.length}`;
+    }
+}
+
+// ✅ Δημιουργία containers για τους players
+function createPlayerContainers() {
+    const container = document.getElementById("playersContainer");
+    if (!container) return;
+    container.innerHTML = "";
+    for (let i = 0; i < PLAYER_COUNT; i++) {
+        const div = document.createElement("div");
+        div.id = `player${i + 1}`;
+        container.appendChild(div);
     }
 }
 
