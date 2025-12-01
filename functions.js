@@ -1,8 +1,8 @@
 // --- functions.js ---
-// Έκδοση: v4.5.5 (ενημερωμένη)
+// Έκδοση: v4.5.6 (ενημερωμένη)
 // Περιέχει τη βασική λογική για τους YouTube players, στατιστικά, watchdog και βοηθητικές συναρτήσεις.
 // --- Versions ---
-const JS_VERSION = "v4.5.5";
+const JS_VERSION = "v4.5.6";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -103,7 +103,6 @@ class PlayerController {
             ? this.config.startDelay * 1000
             : rndDelayMs(5, 180);
 
-        // ✅ ΝΕΟ LOG πριν την καθυστέρηση
         log(`[${ts()}] ⏳ Player ${this.index + 1} Scheduled -> start after ${Math.round(startDelay / 1000)}s`);
 
         setTimeout(() => {
@@ -196,7 +195,6 @@ class PlayerController {
         this.scheduleMidSeek();
     }
 
-    // ✅ Προσθήκη ελέγχου PLAYING στις Pauses
     schedulePauses() {
         const p = this.player;
         const duration = p.getDuration();
@@ -214,7 +212,6 @@ class PlayerController {
         }
     }
 
-    // ✅ Προσθήκη ελέγχου PLAYING στο Mid-seek
     scheduleMidSeek() {
         const p = this.player;
         const duration = p.getDuration();
