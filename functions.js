@@ -1,8 +1,9 @@
+
 // --- functions.js ---
-// Έκδοση: v4.5.2
+// Έκδοση: v4.5.3 (ενημερωμένη)
 // Περιέχει τη βασική λογική για τους YouTube players, στατιστικά, watchdog και βοηθητικές συναρτήσεις.
 // --- Versions ---
-const JS_VERSION = "v4.5.2";
+const JS_VERSION = "v4.5.3";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -109,7 +110,7 @@ class PlayerController {
                 seek = rndInt(0, this.config?.initSeekMax ?? 60);
             }
             p.seekTo(seek, true);
-            p.setPlaybackQuality('small');
+            // Αφαιρέθηκε η εντολή setPlaybackQuality για πιο φυσικό αποτέλεσμα
             log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> seek=${seek}s after ${Math.round(startDelay / 1000)}s`);
             this.schedulePauses();
             this.scheduleMidSeek();
