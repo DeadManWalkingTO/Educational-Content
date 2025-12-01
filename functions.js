@@ -1,8 +1,8 @@
 // --- functions.js ---
-// Έκδοση: v4.5.4 (ενημερωμένη)
+// Έκδοση: v4.5.5 (ενημερωμένη)
 // Περιέχει τη βασική λογική για τους YouTube players, στατιστικά, watchdog και βοηθητικές συναρτήσεις.
 // --- Versions ---
-const JS_VERSION = "v4.5.4";
+const JS_VERSION = "v4.5.5";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -120,10 +120,12 @@ class PlayerController {
 
         const unmuteDelay = this.config?.unmuteDelay ? this.config.unmuteDelay * 1000 : rndDelayMs(60, 300);
         setTimeout(() => {
-            p.unMute();
-            const v = rndInt(10, 30);
-            p.setVolume(v);
-            log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
+            if (p.getPlayerState() === YT.PlayerState.PLAYING) {
+                p.unMute();
+                const v = rndInt(10, 30);
+                p.setVolume(v);
+                log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
+            }
         }, unmuteDelay);
     }
 
@@ -194,21 +196,25 @@ class PlayerController {
         this.scheduleMidSeek();
     }
 
+    // ✅ Προσθήκη ελέγχου PLAYING στις Pauses
     schedulePauses() {
         const p = this.player;
         const duration = p.getDuration();
         if (duration > 0) {
             const delaySmall = (duration * rndInt(10, 20) / 100) * 1000;
             this.timers.pauseSmall = setTimeout(() => {
-                const pauseLen = (duration * rndInt(2, 5) / 100) * 1000;
-                if (p.getPlayerState() === YT.PlayerState.PLAYING) p.pauseVideo();
-                stats.pauses++;
-                log(`[${ts()}] ⏸ Player ${this.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
-                setTimeout(() => p.playVideo(), pauseLen);
+                if (p.getPlayerState() === YT.PlayerState.PLAYING) {
+                    const pauseLen = (duration * rndInt(2, 5) / 100) * 1000;
+                    p.pauseVideo();
+                    stats.pauses++;
+                    log(`[${ts()}] ⏸ Player ${this.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
+                    setTimeout(() => p.playVideo(), pauseLen);
+                }
             }, delaySmall);
         }
     }
 
+    // ✅ Προσθήκη ελέγχου PLAYING στο Mid-seek
     scheduleMidSeek() {
         const p = this.player;
         const duration = p.getDuration();
