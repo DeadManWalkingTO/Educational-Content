@@ -1,11 +1,10 @@
 // --- functions.js ---
-// Έκδοση: v4.4.4
+// Έκδοση: v4.5.0
 // Περιέχει τη βασική λογική για τους YouTube players, στατιστικά, watchdog και βοηθητικές συναρτήσεις.
-// Οι συναρτήσεις UI έχουν μεταφερθεί στο uiControls.js. Προστέθηκε η createPlayerContainers για να διορθωθεί το ReferenceError.
-
+// Οι συναρτήσεις UI έχουν μεταφερθεί στο uiControls.js. Προστέθηκε έλεγχος ώστε για βίντεο <5 λεπτά να μην γίνεται αρχικό seek.
 
 // --- Versions ---
-const JS_VERSION = "v4.4.4";
+const JS_VERSION = "v4.5.0";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content || "unknown";
 
 // --- Player Settings ---
@@ -77,7 +76,7 @@ class PlayerController {
         this.timers = { midSeek: null, pauseSmall: null };
         this.config = config;
         this.startTime = null;
-        this.profileName = config?.profileName || "Unknown";
+        this.profileName = config?.profileName ?? "Unknown";
     }
 
     init(videoId) {
@@ -101,17 +100,25 @@ class PlayerController {
         const p = e.target;
         this.startTime = Date.now();
         p.mute();
+
         const startDelay = this.config && this.config.startDelay !== undefined
             ? this.config.startDelay * 1000
             : rndDelayMs(5, 180);
+
         setTimeout(() => {
-            const seek = rndInt(0, this.config?.initSeekMax || 60);
+            const duration = p.getDuration();
+            let seek = 0;
+            // ✅ Αν το βίντεο είναι >=5 λεπτά, κάνε τυχαίο seek, αλλιώς ξεκινά από την αρχή
+            if (duration >= 300) {
+                seek = rndInt(0, this.config?.initSeekMax ?? 60);
+            }
             p.seekTo(seek, true);
             p.setPlaybackQuality('small');
             log(`[${ts()}] Player ${this.index + 1} ▶ Ready after ${Math.round(startDelay / 1000)}s, seek=${seek}s`);
             this.schedulePauses();
             this.scheduleMidSeek();
         }, startDelay);
+
         const unmuteDelay = this.config?.unmuteDelay ? this.config.unmuteDelay * 1000 : rndDelayMs(60, 300);
         setTimeout(() => {
             p.unMute();
