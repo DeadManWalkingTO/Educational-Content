@@ -1,10 +1,8 @@
-
 // --- humanMode.js ---
-// Έκδοση: v3.6.0 (ενημερωμένη)
+// Έκδοση: v3.6.1 (ενημερωμένη)
 // Περιέχει τη λογική για προσομοίωση ανθρώπινης συμπεριφοράς κατά την αναπαραγωγή βίντεο.
-// Περιλαμβάνει προφίλ συμπεριφοράς, τυχαίες ενέργειες (παύσεις, αλλαγές έντασης, ποιότητας, ταχύτητας) και sequential initialization.
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v3.6.0";
+const HUMAN_MODE_VERSION = "v3.6.1";
 
 // --- Behavior Profiles ---
 const BEHAVIOR_PROFILES = [
@@ -63,9 +61,12 @@ async function initPlayersSequentially() {
         log(`[${ts()}] ❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκτέλεση σταματά.`);
         return;
     }
-
     for (let i = 0; i < PLAYER_COUNT; i++) {
         const delay = i === 0 ? 0 : rndInt(30, 180) * 1000;
+
+        // ✅ ΝΕΟ LOG πριν την καθυστέρηση
+        log(`[${ts()}] ⏳ HumanMode scheduled Player ${i + 1} -> start after ${Math.round(delay / 1000)}s`);
+
         await new Promise(resolve => setTimeout(resolve, delay));
 
         let sourceList, sourceType;
@@ -93,7 +94,7 @@ async function initPlayersSequentially() {
         controllers.push(controller);
         controller.init(videoId);
 
-        // Μόνο το HumanMode Init log (χωρίς διπλοεγγραφές)
+        // Μήνυμα μετά την εκκίνηση
         log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> after ${Math.round(delay / 1000)}s, session=${JSON.stringify(session)}`);
 
         // Προγραμματισμένες αλλαγές
@@ -106,7 +107,6 @@ async function initPlayersSequentially() {
                     controller.player.setPlaybackQuality(q);
                     log(`[${ts()}] 🎥 Player ${i + 1} Quality -> ${q}`);
                 }
-
                 if (session.volumeChangeChance) {
                     const volumeChangeInterval = rndInt(300000, 600000);
                     setTimeout(() => {
@@ -117,7 +117,6 @@ async function initPlayersSequentially() {
                         log(`[${ts()}] 🔊 Player ${i + 1} Volume -> ${newVolume}% (variation ${variation}%)`);
                     }, volumeChangeInterval);
                 }
-
                 if (Math.random() < 0.3) {
                     const speedChangeDelay = rndInt(120000, 300000);
                     setTimeout(() => {
@@ -142,7 +141,6 @@ async function initPlayersSequentially() {
             }
         }, rndInt(30, 90) * 1000);
     }
-
     log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
 
