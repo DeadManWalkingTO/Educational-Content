@@ -1,28 +1,28 @@
 // --- humanMode.js ---
-// Έκδοση: v3.5.3
+// Έκδοση: v3.5.5
 // Περιέχει τη λογική για προσομοίωση ανθρώπινης συμπεριφοράς κατά την αναπαραγωγή βίντεο.
 // Περιλαμβάνει προφίλ συμπεριφοράς, τυχαίες ενέργειες (παύσεις, αλλαγές έντασης, ποιότητας, ταχύτητας) και sequential initialization.
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v3.5.3";
+const HUMAN_MODE_VERSION = "v3.5.5";
 
 // --- Behavior Profiles ---
 const BEHAVIOR_PROFILES = [
     {
-        name: "Explorer", // Πολλές μετακινήσεις και αλλαγές
+        name: "Explorer",
         pauseChance: 0.5,
         seekChance: 0.6,
         volumeChangeChance: 0.4,
-        midSeekIntervalRange: [4, 6], // λεπτά
+        midSeekIntervalRange: [4, 6],
     },
     {
-        name: "Casual", // Λίγες παύσεις, σπάνιο mid-seek
+        name: "Casual",
         pauseChance: 0.3,
         seekChance: 0.1,
         volumeChangeChance: 0.2,
         midSeekIntervalRange: [8, 12],
     },
     {
-        name: "Focused", // Βλέπει σχεδόν όλο το βίντεο χωρίς πολλά skip
+        name: "Focused",
         pauseChance: 0.2,
         seekChance: 0.05,
         volumeChangeChance: 0.1,
@@ -42,11 +42,11 @@ function createRandomPlayerConfig(profile) {
         pauseChance: profile.pauseChance,
         seekChance: profile.seekChance,
         volumeChangeChance: profile.volumeChangeChance,
-        replayChance: Math.random() < 0.15 // Replay επιλογή
+        replayChance: Math.random() < 0.15
     };
 }
 
-// Δημιουργία session plan (απλοποιημένο)
+// Δημιουργία session plan
 function createSessionPlan() {
     return {
         pauseChance: rndInt(1, 3),
@@ -56,7 +56,7 @@ function createSessionPlan() {
     };
 }
 
-// Αρχικοποίηση players με μεγάλες καθυστερήσεις για φυσική συμπεριφορά
+// Αρχικοποίηση players
 async function initPlayersSequentially() {
     if (videoListMain.length === 0 && videoListAlt.length === 0) {
         log(`[${ts()}] ❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκτέλεση σταματά.`);
@@ -93,7 +93,7 @@ async function initPlayersSequentially() {
         // ✅ Αφαιρέθηκε το Source από το log
         log(`[${ts()}] 👤 HumanMode: Player ${i + 1} initialized after ${Math.round(delay / 1000)}s with session plan: ${JSON.stringify(session)}`);
 
-        // Προγραμματισμένες αλλαγές ποιότητας, έντασης, ταχύτητας
+        // Προγραμματισμένες αλλαγές
         setTimeout(() => {
             if (controller.player) {
                 const duration = controller.player.getDuration();
@@ -143,7 +143,7 @@ async function initPlayersSequentially() {
     log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
 
-// Προγραμματισμένες παύσεις για μεγάλα βίντεο
+// Προγραμματισμένες παύσεις
 function scheduleMultiplePauses(controller, duration) {
     if (duration >= 600) {
         const pausePoints = [0.2, 0.5, 0.8];
@@ -167,7 +167,13 @@ Promise.all([loadVideoList(), loadAltList()])
         videoListMain = mainList;
         videoListAlt = altList;
         createPlayerContainers();
-        log(`[${ts()}] 🚀 HumanMode start — HTML ${HTML_VERSION} JS ${JS_VERSION} HumanMode ${HUMAN_MODE_VERSION}`);
+
+        // ✅ Πρώτη εγγραφή με όλες τις εκδόσεις
+        log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής - Εκδόσεις: HTML ${HTML_VERSION} - JS ${JS_VERSION} - Controls ${UICONTROLS_VERSION} - HumanMode ${HUMAN_MODE_VERSION} - Lists ${LISTS_VERSION}`);
+
+        // ✅ Δεύτερη εγγραφή με αριθμό εγγραφών στις λίστες
+        log(`[${ts()}] 📂 Φορτώθηκαν οι λίστες Main List: ${videoListMain.length} | Alt List: ${videoListAlt.length}`);
+
         initPlayersSequentially();
     })
     .catch(err => log(`[${ts()}] ❌ List load error: ${err}`));
