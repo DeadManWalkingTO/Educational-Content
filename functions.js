@@ -1,8 +1,10 @@
 // --- functions.js ---
-// Έκδοση: v4.6.0 (ενημερωμένη)
+// Έκδοση: v4.6.1 (ενημερωμένη)
+// Αλλαγή: Μικρά βίντεο (<300s) απαιτούν 90% παρακολούθηση για AutoNext (πριν ήταν 100%)
 // Περιέχει τη βασική λογική για τους YouTube players, στατιστικά, watchdog και βοηθητικές συναρτήσεις.
+
 // --- Versions ---
-const JS_VERSION = "v4.6.0";
+const JS_VERSION = "v4.6.1";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -75,8 +77,6 @@ class PlayerController {
         this.config = config;
         this.startTime = null;
         this.profileName = config?.profileName ?? "Unknown";
-
-        // Νέα μεταβλητά για ακριβή μέτρηση χρόνου θέασης
         this.playingStart = null;
         this.currentRate = 1.0;
         this.totalPlayTime = 0;
@@ -103,13 +103,10 @@ class PlayerController {
         const p = e.target;
         this.startTime = Date.now();
         p.mute();
-
         const startDelay = this.config && this.config.startDelay !== undefined
             ? this.config.startDelay * 1000
             : rndDelayMs(5, 180);
-
         log(`[${ts()}] ⏳ Player ${this.index + 1} Scheduled -> start after ${Math.round(startDelay / 1000)}s`);
-
         setTimeout(() => {
             const duration = p.getDuration();
             let seek = 0;
@@ -135,8 +132,6 @@ class PlayerController {
 
     onStateChange(e) {
         const p = this.player;
-
-        // Καταγραφή χρόνου PLAYING με speed factor
         if (e.data === YT.PlayerState.PLAYING) {
             this.playingStart = Date.now();
             this.currentRate = p.getPlaybackRate();
@@ -151,9 +146,10 @@ class PlayerController {
             const percentWatched = Math.round((this.totalPlayTime / duration) * 100);
             watchPercentages[this.index] = percentWatched;
             log(`[${ts()}] ✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(this.totalPlayTime)}s)`);
+
             const afterEndPauseMs = rndInt(15000, 60000);
             setTimeout(() => {
-                let requiredPercent = duration < 300 ? 100 : 70;
+                const requiredPercent = duration < 300 ? 90 : 70; // ✅ Νέος κανόνας
                 if (percentWatched < requiredPercent) {
                     log(`[${ts()}] ⏳ Player ${this.index + 1} AutoNext blocked -> required:${requiredPercent}%, actual:${percentWatched}%`);
                     return;
