@@ -4,7 +4,7 @@
 // Περιέχει τη βασική λογική για τους YouTube players, στατιστικά, watchdog και βοηθητικές συναρτήσεις.
 
 // --- Versions ---
-const JS_VERSION = "v4.6.1";
+const JS_VERSION = "v4.7.2";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -50,7 +50,7 @@ function updateStats() {
             ? Math.round(watchPercentages.reduce((a, b) => a + b, 0) / watchPercentages.filter(p => p > 0).length)
             : 0;
         const limitStatus = autoNextCounter >= MAX_VIEWS_PER_HOUR ? "Reached" : "OK";
-        el.textContent = `📊 Stats — AutoNext:${stats.autoNext} Replay:${stats.replay} Pauses:${stats.pauses} MidSeeks:${stats.midSeeks} AvgWatch:${avgWatch}% Watchdog:${stats.watchdog} Errors:${stats.errors} VolumeChanges:${stats.volumeChanges} Limit:${limitStatus} — HTML ${HTML_VERSION} JS ${JS_VERSION} Main:${videoListMain.length} Alt:${videoListAlt.length}`;
+        el.textContent = `📊 Stats — AutoNext: ${stats.autoNext} | Replay: ${stats.replay} | Pauses: ${stats.pauses} | MidSeeks: ${stats.midSeeks} | AvgWatch: ${avgWatch}% | Watchdog: ${stats.watchdog} | Errors: ${stats.errors} | VolumeChanges: ${stats.volumeChanges} | Limit: ${limitStatus}`;
     }
 }
 
