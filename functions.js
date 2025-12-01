@@ -1,7 +1,8 @@
 // --- functions.js ---
-// Έκδοση: v4.6.1 (ενημερωμένη)
-// Αλλαγή: Μικρά βίντεο (<300s) απαιτούν 90% παρακολούθηση για AutoNext (πριν ήταν 100%)
-// Περιέχει τη βασική λογική για τους YouTube players, στατιστικά, watchdog και βοηθητικές συναρτήσεις.
+// Έκδοση: v4.7.2 (ενημερωμένη)
+// Αλλαγές:
+// 1. Μικρά βίντεο (<300s) απαιτούν 90% παρακολούθηση για AutoNext (πριν ήταν 100%)
+// 2. Διόρθωση λογικής Auto Unmute -> εκτελείται πάντα μετά το delay, ανεξάρτητα από το state του player
 
 // --- Versions ---
 const JS_VERSION = "v4.7.2";
@@ -50,7 +51,7 @@ function updateStats() {
             ? Math.round(watchPercentages.reduce((a, b) => a + b, 0) / watchPercentages.filter(p => p > 0).length)
             : 0;
         const limitStatus = autoNextCounter >= MAX_VIEWS_PER_HOUR ? "Reached" : "OK";
-        el.textContent = `📊 Stats — AutoNext: ${stats.autoNext} | Replay: ${stats.replay} | Pauses: ${stats.pauses} | MidSeeks: ${stats.midSeeks} | AvgWatch: ${avgWatch}% | Watchdog: ${stats.watchdog} | Errors: ${stats.errors} | VolumeChanges: ${stats.volumeChanges} | Limit: ${limitStatus}`;
+        el.textContent = `📊 Stats — AutoNext: ${stats.autoNext} Replay: ${stats.replay} Pauses: ${stats.pauses} MidSeeks: ${stats.midSeeks} AvgWatch: ${avgWatch}% Watchdog: ${stats.watchdog} Errors: ${stats.errors} VolumeChanges: ${stats.volumeChanges} Limit: ${limitStatus}`;
     }
 }
 
@@ -119,9 +120,10 @@ class PlayerController {
             this.scheduleMidSeek();
         }, startDelay);
 
+        // ✅ Διόρθωση: Unmute πάντα μετά το delay, ανεξάρτητα από το state
         const unmuteDelay = this.config?.unmuteDelay ? this.config.unmuteDelay * 1000 : rndDelayMs(60, 300);
         setTimeout(() => {
-            if (p.getPlayerState() === YT.PlayerState.PLAYING) {
+            if (p && typeof p.unMute === "function") {
                 p.unMute();
                 const v = rndInt(10, 30);
                 p.setVolume(v);
@@ -149,7 +151,7 @@ class PlayerController {
 
             const afterEndPauseMs = rndInt(15000, 60000);
             setTimeout(() => {
-                const requiredPercent = duration < 300 ? 90 : 70; // ✅ Νέος κανόνας
+                const requiredPercent = duration < 300 ? 90 : 70; // ✅ Κανόνας για AutoNext
                 if (percentWatched < requiredPercent) {
                     log(`[${ts()}] ⏳ Player ${this.index + 1} AutoNext blocked -> required:${requiredPercent}%, actual:${percentWatched}%`);
                     return;
