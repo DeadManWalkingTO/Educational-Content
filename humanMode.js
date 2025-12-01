@@ -1,9 +1,9 @@
 // --- humanMode.js ---
-// Έκδοση: v3.5.8
+// Έκδοση: v3.5.9
 // Περιέχει τη λογική για προσομοίωση ανθρώπινης συμπεριφοράς κατά την αναπαραγωγή βίντεο.
 // Περιλαμβάνει προφίλ συμπεριφοράς, τυχαίες ενέργειες (παύσεις, αλλαγές έντασης, ποιότητας, ταχύτητας) και sequential initialization.
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v3.5.8";
+const HUMAN_MODE_VERSION = "v3.5.9";
 
 // --- Behavior Profiles ---
 const BEHAVIOR_PROFILES = [
@@ -56,7 +56,7 @@ function createSessionPlan() {
     };
 }
 
-// Αρχικοποίηση players
+// Αρχικοποίηση players sequentially
 async function initPlayersSequentially() {
     if (videoListMain.length === 0 && videoListAlt.length === 0) {
         log(`[${ts()}] ❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκτέλεση σταματά.`);
@@ -92,9 +92,10 @@ async function initPlayersSequentially() {
         controllers.push(controller);
         controller.init(videoId);
 
-        // ✅ Αλλαγή στο μήνυμα: ℹ️ Player X initialized...
-        log(`[${ts()}] ℹ️ Player ${i + 1} initialized with ID=${videoId} (Source:${sourceType})`);
-        log(`[${ts()}] 👤 HumanMode: Player ${i + 1} initialized after ${Math.round(delay / 1000)}s with session plan: ${JSON.stringify(session)}`);
+        // Logs με νέο format
+        log(`[${ts()}] ℹ️ Player ${i + 1} Initialized -> ID=${videoId} (Source:${sourceType})`);
+        log(`[${ts()}] 👤 Player ${i + 1} Profile -> ${profile.name}`);
+        log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> after ${Math.round(delay / 1000)}s, session=${JSON.stringify(session)}`);
 
         // Προγραμματισμένες αλλαγές
         setTimeout(() => {
@@ -104,7 +105,7 @@ async function initPlayersSequentially() {
                     const qualities = ['small', 'medium', 'large'];
                     const q = qualities[Math.floor(Math.random() * qualities.length)];
                     controller.player.setPlaybackQuality(q);
-                    log(`[${ts()}] Player ${i + 1} 🎥 Quality changed to ${q}`);
+                    log(`[${ts()}] 🎥 Player ${i + 1} Quality -> ${q}`);
                 }
 
                 if (session.volumeChangeChance) {
@@ -114,7 +115,7 @@ async function initPlayersSequentially() {
                         const variation = rndInt(-5, 5);
                         newVolume = Math.min(100, Math.max(0, newVolume + variation));
                         controller.player.setVolume(newVolume);
-                        log(`[${ts()}] Player ${i + 1} 🔊 Volume changed to ${newVolume}% (variation ${variation}%)`);
+                        log(`[${ts()}] 🔊 Player ${i + 1} Volume -> ${newVolume}% (variation ${variation}%)`);
                     }, volumeChangeInterval);
                 }
 
@@ -131,10 +132,10 @@ async function initPlayersSequentially() {
                                 revertDelay = Math.floor((duration * rndInt(20, 40) / 100) * 1000);
                             }
                             controller.player.setPlaybackRate(newSpeed);
-                            log(`[${ts()}] Player ${i + 1} 🔄 Speed changed to ${newSpeed}x for ${Math.round(revertDelay / 60000)} min`);
+                            log(`[${ts()}] 🔄 Player ${i + 1} Speed -> ${newSpeed}x for ${Math.round(revertDelay / 60000)} min`);
                             setTimeout(() => {
                                 controller.player.setPlaybackRate(1.0);
-                                log(`[${ts()}] Player ${i + 1} 🔄 Speed reverted to 1.0x`);
+                                log(`[${ts()}] 🔄 Player ${i + 1} Speed -> reverted to 1.0x`);
                             }, revertDelay);
                         }
                     }, speedChangeDelay);
@@ -156,7 +157,7 @@ function scheduleMultiplePauses(controller, duration) {
                 if (controller.player && controller.player.getPlayerState() === YT.PlayerState.PLAYING) {
                     const pauseLen = rndInt(5, 15) * 1000;
                     controller.player.pauseVideo();
-                    log(`[${ts()}] Player ${controller.index + 1} ⏸ Pause for ${Math.round(pauseLen / 1000)}s`);
+                    log(`[${ts()}] ⏸ Player ${controller.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
                     setTimeout(() => controller.player.playVideo(), pauseLen);
                 }
             }, delay);
@@ -170,15 +171,10 @@ Promise.all([loadVideoList(), loadAltList()])
         videoListMain = mainList;
         videoListAlt = altList;
         createPlayerContainers();
-
-        // ✅ Πρώτη εγγραφή με όλες τις εκδόσεις
-        log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής - Εκδόσεις: HTML ${HTML_VERSION} - JS ${JS_VERSION} - Controls ${UICONTROLS_VERSION} - HumanMode ${HUMAN_MODE_VERSION} - Lists ${LISTS_VERSION}`);
-
-        // ✅ Δεύτερη εγγραφή με νέο format
-        log(`[${ts()}] 📂 Φορτώθηκαν οι λίστες - [ Main List: ${videoListMain.length} - Alt List: ${videoListAlt.length} ]`);
-
+        log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> Εκδόσεις: HTML ${HTML_VERSION} - JS ${JS_VERSION} - Controls ${UICONTROLS_VERSION} - HumanMode ${HUMAN_MODE_VERSION} - Lists ${LISTS_VERSION}`);
+        log(`[${ts()}] 📂 Lists Loaded -> Main:${videoListMain.length} Alt:${videoListAlt.length}`);
         initPlayersSequentially();
     })
-    .catch(err => log(`[${ts()}] ❌ List load error: ${err}`));
+    .catch(err => log(`[${ts()}] ❌ List load error -> ${err}`));
 
 // --- End Of File ---
