@@ -1,12 +1,12 @@
 // --- uiControls.js ---
-// Έκδοση: v1.1.0
+// Έκδοση: v1.2.0
 // Περιέχει τις συναρτήσεις για τα κουμπιά της εφαρμογής (Play All, Stop All, Next All, Restart All, Mute/Unmute, Volume Randomize, Theme Toggle, Logs).
 // Οι συναρτήσεις παραμένουν ακριβώς όπως ήταν στο functions.js για να μην επηρεαστεί η λειτουργία.
-// Προστέθηκαν περιγραφικά σχόλια για κάθε συνάρτηση.
+// Προστέθηκαν περιγραφικά σχόλια για κάθε συνάρτηση και βελτιώσεις σε Copy Logs και Clear Logs.
 
 
 // --- Versions ---
-const UICONTROLS_VERSION = "v1.1.0";
+const UICONTROLS_VERSION = "v1.2.0";
 
 // ▶ Εκκινεί όλους τους players με τυχαία καθυστέρηση
 function playAll() {
@@ -132,4 +132,28 @@ function toggleTheme() {
     log(`[${ts()}] 🌓 Theme toggled`);
 }
 
-// 🧹 Καθαρίζει το activity panel
+// 🧹 Καθαρίζει το activity panel (βελτιωμένη έκδοση)
+function clearLogs() {
+    const panel = document.getElementById("activityPanel");
+    if (panel && panel.children.length > 0) {
+        panel.innerHTML = "";
+        log(`[${ts()}] 🧹 Logs cleared`);
+    } else {
+        log(`[${ts()}] ❌ No logs to clear`);
+    }
+}
+
+// 📋 Αντιγράφει τα logs στο clipboard (βελτιωμένη έκδοση)
+function copyLogs() {
+    const panel = document.getElementById("activityPanel");
+    if (panel && panel.children.length > 0) {
+        const text = Array.from(panel.children).map(div => div.textContent).join("\n");
+        navigator.clipboard.writeText(text)
+            .then(() => log(`[${ts()}] 📋 Logs copied to clipboard (${panel.children.length} entries)`))
+            .catch(err => log(`[${ts()}] ❌ Failed to copy logs: ${err}`));
+    } else {
+        log(`[${ts()}] ❌ No logs to copy`);
+    }
+}
+
+// --- End Of File ---
