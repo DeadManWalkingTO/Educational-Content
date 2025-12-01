@@ -1,8 +1,8 @@
 // --- humanMode.js ---
-// Έκδοση: v3.6.1 (ενημερωμένη)
+// Έκδοση: v3.6.2 (ενημερωμένη)
 // Περιέχει τη λογική για προσομοίωση ανθρώπινης συμπεριφοράς κατά την αναπαραγωγή βίντεο.
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v3.6.1";
+const HUMAN_MODE_VERSION = "v3.6.2";
 
 // --- Behavior Profiles ---
 const BEHAVIOR_PROFILES = [
@@ -101,22 +101,30 @@ async function initPlayersSequentially() {
         setTimeout(() => {
             if (controller.player) {
                 const duration = controller.player.getDuration();
-                if (duration >= 300) {
+
+                // Quality Change (μόνο αν παίζει)
+                if (duration >= 300 && controller.player.getPlayerState() === YT.PlayerState.PLAYING) {
                     const qualities = ['small', 'medium', 'large'];
                     const q = qualities[Math.floor(Math.random() * qualities.length)];
                     controller.player.setPlaybackQuality(q);
                     log(`[${ts()}] 🎥 Player ${i + 1} Quality -> ${q}`);
                 }
+
+                // Volume Change (μόνο αν παίζει)
                 if (session.volumeChangeChance) {
                     const volumeChangeInterval = rndInt(300000, 600000);
                     setTimeout(() => {
-                        let newVolume = rndInt(config.volumeRange[0], config.volumeRange[1]);
-                        const variation = rndInt(-5, 5);
-                        newVolume = Math.min(100, Math.max(0, newVolume + variation));
-                        controller.player.setVolume(newVolume);
-                        log(`[${ts()}] 🔊 Player ${i + 1} Volume -> ${newVolume}% (variation ${variation}%)`);
+                        if (controller.player.getPlayerState() === YT.PlayerState.PLAYING) {
+                            let newVolume = rndInt(config.volumeRange[0], config.volumeRange[1]);
+                            const variation = rndInt(-5, 5);
+                            newVolume = Math.min(100, Math.max(0, newVolume + variation));
+                            controller.player.setVolume(newVolume);
+                            log(`[${ts()}] 🔊 Player ${i + 1} Volume -> ${newVolume}% (variation ${variation}%)`);
+                        }
                     }, volumeChangeInterval);
                 }
+
+                // Speed Change (μόνο αν παίζει)
                 if (Math.random() < 0.3) {
                     const speedChangeDelay = rndInt(120000, 300000);
                     setTimeout(() => {
@@ -132,8 +140,10 @@ async function initPlayersSequentially() {
                             controller.player.setPlaybackRate(newSpeed);
                             log(`[${ts()}] 🔄 Player ${i + 1} Speed -> ${newSpeed}x for ${Math.round(revertDelay / 60000)} min`);
                             setTimeout(() => {
-                                controller.player.setPlaybackRate(1.0);
-                                log(`[${ts()}] 🔄 Player ${i + 1} Speed -> reverted to 1.0x`);
+                                if (controller.player.getPlayerState() === YT.PlayerState.PLAYING) {
+                                    controller.player.setPlaybackRate(1.0);
+                                    log(`[${ts()}] 🔄 Player ${i + 1} Speed -> reverted to 1.0x`);
+                                }
                             }, revertDelay);
                         }
                     }, speedChangeDelay);
@@ -144,7 +154,7 @@ async function initPlayersSequentially() {
     log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
 
-// Προγραμματισμένες παύσεις
+// Προγραμματισμένες παύσεις (μόνο αν παίζει)
 function scheduleMultiplePauses(controller, duration) {
     if (duration >= 600) {
         const pausePoints = [0.2, 0.5, 0.8];
