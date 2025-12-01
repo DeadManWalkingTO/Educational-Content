@@ -1,10 +1,10 @@
 // --- humanMode.js ---
-// Έκδοση: v3.5.2
+// Έκδοση: v3.5.3
 // Περιέχει τη λογική για προσομοίωση ανθρώπινης συμπεριφοράς κατά την αναπαραγωγή βίντεο.
 // Περιλαμβάνει προφίλ συμπεριφοράς, τυχαίες ενέργειες (παύσεις, αλλαγές έντασης, ποιότητας, ταχύτητας) και sequential initialization.
 
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v3.5.2";
+const HUMAN_MODE_VERSION = "v3.5.3";
 
 // --- Behavior Profiles ---
 const BEHAVIOR_PROFILES = [
@@ -47,16 +47,12 @@ function createRandomPlayerConfig(profile) {
     };
 }
 
-// Δημιουργία session plan με προφίλ
-function createSessionPlan(index) {
-    const profile = BEHAVIOR_PROFILES[Math.floor(Math.random() * BEHAVIOR_PROFILES.length)];
+// Δημιουργία session plan (απλοποιημένο)
+function createSessionPlan() {
     return {
-        profile: profile.name,
-        videosToWatch: rndInt(3, 8),
-        pauseCount: rndInt(1, 3),
-        pauseChance: profile.pauseChance,
-        seekChance: profile.seekChance,
-        volumeChangeChance: profile.volumeChangeChance,
+        pauseChance: rndInt(1, 3), // Ενδεικτικό πεδίο για log
+        seekChance: Math.random() < 0.5,
+        volumeChangeChance: Math.random() < 0.5,
         replayChance: Math.random() < 0.15
     };
 }
@@ -85,7 +81,7 @@ async function initPlayersSequentially() {
         const profile = BEHAVIOR_PROFILES[Math.floor(Math.random() * BEHAVIOR_PROFILES.length)];
         const config = createRandomPlayerConfig(profile);
         if (i === 0) config.startDelay = 0;
-        const session = createSessionPlan(i);
+        const session = createSessionPlan();
 
         if (isStopping) {
             log(`[${ts()}] 👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
@@ -96,7 +92,8 @@ async function initPlayersSequentially() {
         controllers.push(controller);
         controller.init(videoId);
 
-        log(`[${ts()}] 👤 HumanMode: Player ${i + 1} initialized after ${Math.round(delay / 1000)}s with profile: ${session.profile} and session plan: ${JSON.stringify(session)} (Source:${sourceType})`);
+        // ✅ Log χωρίς άχρηστα πεδία
+        log(`[${ts()}] 👤 HumanMode: Player ${i + 1} initialized after ${Math.round(delay / 1000)}s with session plan: ${JSON.stringify(session)} (Source:${sourceType})`);
 
         // Προγραμματισμένες αλλαγές ποιότητας, έντασης, ταχύτητας
         setTimeout(() => {
