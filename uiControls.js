@@ -1,12 +1,9 @@
 // --- uiControls.js ---
-// Έκδοση: v1.2.0
-// Περιέχει τις συναρτήσεις για τα κουμπιά της εφαρμογής (Play All, Stop All, Next All, Restart All, Mute/Unmute, Volume Randomize, Theme Toggle, Logs).
-// Οι συναρτήσεις παραμένουν ακριβώς όπως ήταν στο functions.js για να μην επηρεαστεί η λειτουργία.
-// Προστέθηκαν περιγραφικά σχόλια για κάθε συνάρτηση και βελτιώσεις σε Copy Logs και Clear Logs.
-
+// Έκδοση: v1.3.0
+// Περιέχει τις συναρτήσεις για τα κουμπιά της εφαρμογής (Play All, Stop All, Restart All, Theme Toggle, Logs).
 
 // --- Versions ---
-const UICONTROLS_VERSION = "v1.2.0";
+const UICONTROLS_VERSION = "v1.3.0";
 
 // ▶ Εκκινεί όλους τους players με τυχαία καθυστέρηση
 function playAll() {
@@ -60,21 +57,6 @@ function stopAll() {
     log(`[${ts()}] ⏹ Stop All (sequential mode started, estimated duration ~${Math.round(delay / 1000)}s)`);
 }
 
-// ⏭ Φορτώνει νέο βίντεο σε όλους τους players
-function nextAll() {
-    controllers.forEach(c => {
-        if (c.player) {
-            const useMain = Math.random() < MAIN_PROBABILITY;
-            const list = useMain ? videoListMain : videoListAlt;
-            const newId = list[Math.floor(Math.random() * list.length)];
-            c.player.loadVideoById(newId);
-            c.player.playVideo();
-            log(`[${ts()}] Player ${c.index + 1} ⏭ Next -> ${newId} (Source:${useMain ? "main" : "alt"})`);
-        }
-    });
-    log(`[${ts()}] ⏭ Next All`);
-}
-
 // 🔁 Επανεκκινεί όλους τους players με νέο βίντεο
 function restartAll() {
     controllers.forEach(c => {
@@ -91,48 +73,13 @@ function restartAll() {
     log(`[${ts()}] 🔁 Restart All`);
 }
 
-// 🔇 Εναλλαγή Mute/Unmute για όλους τους players
-function toggleMuteAll() {
-    if (isMutedAll) {
-        controllers.forEach(c => {
-            if (c.player) {
-                c.player.unMute();
-                const v = rndInt(UNMUTE_VOL_MIN, UNMUTE_VOL_MAX);
-                c.player.setVolume(v);
-                log(`[${ts()}] Player ${c.index + 1} 🔊 Unmute -> ${v}%`);
-            }
-        });
-    } else {
-        controllers.forEach(c => {
-            if (c.player) {
-                c.player.mute();
-                log(`[${ts()}] Player ${c.index + 1} 🔇 Mute`);
-            }
-        });
-    }
-    isMutedAll = !isMutedAll;
-}
-
-// 🔊 Τυχαία ένταση για όλους τους players
-function randomizeVolumeAll() {
-    controllers.forEach(c => {
-        if (c.player) {
-            const v = rndInt(0, 100);
-            c.player.setVolume(v);
-            log(`[${ts()}] Player ${c.index + 1} 🔊 Volume random -> ${v}%`);
-        }
-    });
-    stats.volumeChanges++;
-    log(`[${ts()}] 🔊 Randomize Volume All`);
-}
-
-// 🌓 Εναλλαγή Dark/Light mode
+// 🌍 Εναλλαγή Dark/Light mode
 function toggleTheme() {
     document.body.classList.toggle("light");
-    log(`[${ts()}] 🌓 Theme toggled`);
+    log(`[${ts()}] 🌍 Theme toggled`);
 }
 
-// 🧹 Καθαρίζει το activity panel (βελτιωμένη έκδοση)
+// 🧹 Καθαρίζει το activity panel
 function clearLogs() {
     const panel = document.getElementById("activityPanel");
     if (panel && panel.children.length > 0) {
@@ -143,7 +90,7 @@ function clearLogs() {
     }
 }
 
-// 📋 Αντιγράφει τα logs στο clipboard (βελτιωμένη έκδοση)
+// 📋 Αντιγράφει τα logs στο clipboard
 function copyLogs() {
     const panel = document.getElementById("activityPanel");
     if (panel && panel.children.length > 0) {
