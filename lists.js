@@ -1,8 +1,8 @@
 // --- lists.js ---
-// Έκδοση: v2.2.1 (ενημερωμένη)
+// Έκδοση: v2.2.2 (ενημερωμένη)
 // Περιέχει τις συναρτήσεις για φόρτωση λιστών βίντεο (main και alt) από τοπικά αρχεία, GitHub ή εσωτερική λίστα.
 // --- Versions ---
-const LISTS_VERSION = "v2.2.1";
+const LISTS_VERSION = "v2.2.2";
 
 // Πηγή λίστας (Local, Web ή Internal)
 let listSource = "Internal";
@@ -51,7 +51,6 @@ function loadVideoList() {
             const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
             if (arr.length) {
                 listSource = "Local";
-                log(`[${tsList()}] 📂 Main List loaded -> ${arr.length} videos (Source:Local)`);
                 return arr;
             }
             throw "local-empty";
@@ -63,14 +62,13 @@ function loadVideoList() {
                     const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
                     if (arr.length) {
                         listSource = "Web";
-                        log(`[${tsList()}] 📂 Main List loaded -> ${arr.length} videos (Source:Web)`);
                         return arr;
                     }
                     throw "web-empty";
                 })
                 .catch(() => {
                     listSource = "Internal";
-                    log(`[${tsList()}] 📂 Main List fallback -> ${internalList.length} videos (Source:Internal)`);
+                    log(`[${tsList()}] ⚠️ Main List fallback -> using internal list (${internalList.length} videos)`);
                     return internalList;
                 });
         });
@@ -82,7 +80,6 @@ function loadAltList() {
         .then(r => r.ok ? r.text() : Promise.reject("alt-not-found"))
         .then(text => {
             const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
-            log(`[${tsList()}] 📂 Alt List loaded -> ${arr.length} videos`);
             return arr;
         })
         .catch(() => {
@@ -97,7 +94,8 @@ function reloadList() {
         .then(([mainList, altList]) => {
             videoListMain = mainList;
             videoListAlt = altList;
-            log(`[${tsList()}] 🔄 Lists reloaded -> Main:${videoListMain.length} Alt:${videoListAlt.length}`);
+            // Εμφανίζουμε μόνο συνολική καταγραφή
+            log(`[${tsList()}] 📂 Lists Loaded -> Main:${videoListMain.length} Alt:${videoListAlt.length}`);
         })
         .catch(err => {
             log(`[${tsList()}] ❌ Reload failed -> ${err}`);
