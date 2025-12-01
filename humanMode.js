@@ -1,9 +1,9 @@
 // --- humanMode.js ---
-// Έκδοση: v3.5.7
+// Έκδοση: v3.5.8
 // Περιέχει τη λογική για προσομοίωση ανθρώπινης συμπεριφοράς κατά την αναπαραγωγή βίντεο.
 // Περιλαμβάνει προφίλ συμπεριφοράς, τυχαίες ενέργειες (παύσεις, αλλαγές έντασης, ποιότητας, ταχύτητας) και sequential initialization.
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v3.5.7";
+const HUMAN_MODE_VERSION = "v3.5.8";
 
 // --- Behavior Profiles ---
 const BEHAVIOR_PROFILES = [
@@ -67,12 +67,14 @@ async function initPlayersSequentially() {
         const delay = i === 0 ? 0 : rndInt(30, 180) * 1000;
         await new Promise(resolve => setTimeout(resolve, delay));
 
-        let sourceList;
+        let sourceList, sourceType;
         if (videoListAlt.length > 0) {
             const useMain = Math.random() < MAIN_PROBABILITY;
             sourceList = useMain ? videoListMain : videoListAlt;
+            sourceType = useMain ? "main" : "alt";
         } else {
             sourceList = videoListMain;
+            sourceType = "main";
         }
 
         const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
@@ -90,6 +92,8 @@ async function initPlayersSequentially() {
         controllers.push(controller);
         controller.init(videoId);
 
+        // ✅ Αλλαγή στο μήνυμα: ℹ️ Player X initialized...
+        log(`[${ts()}] ℹ️ Player ${i + 1} initialized with ID=${videoId} (Source:${sourceType})`);
         log(`[${ts()}] 👤 HumanMode: Player ${i + 1} initialized after ${Math.round(delay / 1000)}s with session plan: ${JSON.stringify(session)}`);
 
         // Προγραμματισμένες αλλαγές
