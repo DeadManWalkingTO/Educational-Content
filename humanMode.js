@@ -1,9 +1,10 @@
+
 // --- humanMode.js ---
-// Έκδοση: v3.5.9
+// Έκδοση: v3.6.0 (ενημερωμένη)
 // Περιέχει τη λογική για προσομοίωση ανθρώπινης συμπεριφοράς κατά την αναπαραγωγή βίντεο.
 // Περιλαμβάνει προφίλ συμπεριφοράς, τυχαίες ενέργειες (παύσεις, αλλαγές έντασης, ποιότητας, ταχύτητας) και sequential initialization.
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v3.5.9";
+const HUMAN_MODE_VERSION = "v3.6.0";
 
 // --- Behavior Profiles ---
 const BEHAVIOR_PROFILES = [
@@ -92,9 +93,7 @@ async function initPlayersSequentially() {
         controllers.push(controller);
         controller.init(videoId);
 
-        // Logs με νέο format
-        log(`[${ts()}] ℹ️ Player ${i + 1} Initialized -> ID=${videoId} (Source:${sourceType})`);
-        log(`[${ts()}] 👤 Player ${i + 1} Profile -> ${profile.name}`);
+        // Μόνο το HumanMode Init log (χωρίς διπλοεγγραφές)
         log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> after ${Math.round(delay / 1000)}s, session=${JSON.stringify(session)}`);
 
         // Προγραμματισμένες αλλαγές
