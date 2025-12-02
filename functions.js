@@ -1,12 +1,12 @@
-
 // --- functions.js ---
-// Έκδοση: v4.7.7 (ενημερωμένη)
+// Έκδοση: v4.8.0 (βελτιωμένη)
 // Αλλαγές:
-// 1. Διόρθωση updateStats() -> format με ενωτικά (-).
-// 2. Watchdog reset -> νέο βίντεο κάνει play αμέσως.
-// 3. Διατήρηση προηγούμενων βελτιώσεων (Auto Unmute resume, index στο log).
+// 1. Προσθήκη expectedPauseMs για δυναμικό όριο στο Watchdog.
+// 2. Watchdog υπολογίζει allowedPause = expectedPauseMs + 120s.
+// 3. Διατήρηση Auto Unmute resume, index στο log, play μετά από reset.
+// 4. Ενιαία updateStats με εκδόσεις και μέγεθος λιστών.
 // --- Versions ---
-const JS_VERSION = "v4.7.7";
+const JS_VERSION = "v4.8.0";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -45,6 +45,7 @@ function log(msg) {
     updateStats();
 }
 
+// ✅ Ενιαία updateStats
 function updateStats() {
     const el = document.getElementById("statsPanel");
     if (el) {
@@ -52,7 +53,7 @@ function updateStats() {
             ? Math.round(watchPercentages.reduce((a, b) => a + b, 0) / watchPercentages.filter(p => p > 0).length)
             : 0;
         const limitStatus = autoNextCounter >= MAX_VIEWS_PER_HOUR ? "Reached" : "OK";
-        el.textContent = `📊 Stats — AutoNext: ${stats.autoNext} - Replay: ${stats.replay} - Pauses: ${stats.pauses} - MidSeeks: ${stats.midSeeks} - AvgWatch: ${avgWatch}% - Watchdog: ${stats.watchdog} - Errors: ${stats.errors} - VolumeChanges: ${stats.volumeChanges} - Limit: ${limitStatus}`;
+        el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Replay:${stats.replay} - Pauses:${stats.pauses} - MidSeeks:${stats.midSeeks} - AvgWatch:${avgWatch}% - Watchdog:${stats.watchdog} - Errors:${stats.errors} - VolumeChanges:${stats.volumeChanges} - Limit:${limitStatus} — HTML:${HTML_VERSION} JS:${JS_VERSION} HumanMode:${HUMAN_MODE_VERSION} Lists:${LISTS_VERSION} UI:${UICONTROLS_VERSION} Main:${videoListMain.length} Alt:${videoListAlt.length}`;
     }
 }
 
@@ -84,6 +85,7 @@ class PlayerController {
         this.totalPlayTime = 0;
         this.lastBufferingStart = null;
         this.lastPausedStart = null;
+        this.expectedPauseMs = 0; // ✅ Νέα μεταβλητή
     }
 
     init(videoId) {
@@ -137,7 +139,6 @@ class PlayerController {
                 stats.volumeChanges++;
                 log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
 
-                // ✅ Αν είναι PAUSED, ξαναπαίζει (όχι αν είναι ENDED)
                 if (p.getPlayerState() === YT.PlayerState.PAUSED) {
                     p.playVideo();
                     log(`[${ts()}] ▶ Player ${this.index + 1} resumed after Auto Unmute`);
@@ -175,7 +176,6 @@ class PlayerController {
                     return;
                 }
                 if (duration < 300) {
-                    log(`[${ts()}] ✅ Player ${this.index + 1} Small video played fully -> ${duration}s`);
                     this.loadNextVideo(p);
                     return;
                 }
@@ -189,7 +189,6 @@ class PlayerController {
                         this.loadNextVideo(p);
                     }
                 } else {
-                    log(`[${ts()}] ⏳ Player ${this.index + 1} Waiting extra time before AutoNext`);
                     setTimeout(() => this.loadNextVideo(p), rndInt(15000, 30000));
                 }
             }, afterEndPauseMs);
@@ -197,8 +196,7 @@ class PlayerController {
     }
 
     onError(e) {
-        const p = this.player;
-        this.loadNextVideo(p);
+        this.loadNextVideo(this.player);
         stats.errors++;
         log(`[${ts()}] ❌ Player ${this.index + 1} Error -> AutoNext`);
     }
@@ -217,7 +215,7 @@ class PlayerController {
         const list = useMain ? videoListMain : videoListAlt;
         const newId = list[Math.floor(Math.random() * list.length)];
         player.loadVideoById(newId);
-        player.playVideo(); // ✅ Βεβαιώνουμε ότι κάνει play αμέσως
+        player.playVideo();
         stats.autoNext++;
         autoNextCounter++;
         log(`[${ts()}] ⏭ Player ${this.index + 1} AutoNext -> ${newId} (Source:${useMain ? "main" : "alt"})`);
@@ -230,13 +228,17 @@ class PlayerController {
         const duration = p.getDuration();
         if (duration > 0) {
             const delaySmall = (duration * rndInt(10, 20) / 100) * 1000;
+            const pauseLen = (duration * rndInt(2, 5) / 100) * 1000;
+            this.expectedPauseMs = pauseLen; // ✅ Καταγραφή παύσης
             this.timers.pauseSmall = setTimeout(() => {
                 if (p.getPlayerState() === YT.PlayerState.PLAYING) {
-                    const pauseLen = (duration * rndInt(2, 5) / 100) * 1000;
                     p.pauseVideo();
                     stats.pauses++;
                     log(`[${ts()}] ⏸ Player ${this.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
-                    setTimeout(() => p.playVideo(), pauseLen);
+                    setTimeout(() => {
+                        p.playVideo();
+                        this.expectedPauseMs = 0; // ✅ Reset μετά την παύση
+                    }, pauseLen);
                 }
             }, delaySmall);
         }
@@ -245,17 +247,14 @@ class PlayerController {
     scheduleMidSeek() {
         const p = this.player;
         const duration = p.getDuration();
-        if (duration < 300) {
-            log(`[${ts()}] ⏳ Player ${this.index + 1} Mid-seek disabled -> short video (${duration}s)`);
-            return;
-        }
+        if (duration < 300) return;
         const interval = rndInt(8, 12) * 60000;
         this.timers.midSeek = setTimeout(() => {
             if (duration > 0 && p.getPlayerState() === YT.PlayerState.PLAYING) {
                 const seek = rndInt(Math.floor(duration * 0.2), Math.floor(duration * 0.6));
                 p.seekTo(seek, true);
                 stats.midSeeks++;
-                log(`[${ts()}] 🔄 Player ${this.index + 1} Mid-seek -> ${seek}s (interval ${Math.round(interval / 60000)} min)`);
+                log(`[${ts()}] 🔄 Player ${this.index + 1} Mid-seek -> ${seek}s`);
             }
             this.scheduleMidSeek();
         }, interval);
@@ -266,27 +265,29 @@ class PlayerController {
             if (this.timers[k]) clearTimeout(this.timers[k]);
             this.timers[k] = null;
         });
+        this.expectedPauseMs = 0;
     }
 }
 
-// --- Watchdog ---
+// --- Watchdog με δυναμικό όριο ---
 setInterval(() => {
     controllers.forEach(c => {
         if (!c.player) return;
         const state = c.player.getPlayerState();
         const now = Date.now();
+        const allowedPause = (c.expectedPauseMs || 0) + 120000; // ✅ Δυναμικό όριο
         if (state === YT.PlayerState.BUFFERING && c.lastBufferingStart && (now - c.lastBufferingStart > 60000)) {
             log(`[${ts()}] ⚠️ Watchdog reset -> Player ${c.index + 1} BUFFERING >60s`);
-            c.loadNextVideo(c.player); // ✅ κάνει play αμέσως
+            c.loadNextVideo(c.player);
             stats.watchdog++;
         }
-        if (state === YT.PlayerState.PAUSED && c.lastPausedStart && (now - c.lastPausedStart > 120000)) {
+        if (state === YT.PlayerState.PAUSED && c.lastPausedStart && (now - c.lastPausedStart > allowedPause)) {
             log(`[${ts()}] ⚠️ Watchdog resume attempt -> Player ${c.index + 1}`);
             c.player.playVideo();
             setTimeout(() => {
                 if (c.player.getPlayerState() !== YT.PlayerState.PLAYING) {
                     log(`[${ts()}] ❌ Watchdog reset -> Player ${c.index + 1} stuck in PAUSED`);
-                    c.loadNextVideo(c.player); // ✅ κάνει play αμέσως
+                    c.loadNextVideo(c.player);
                     stats.watchdog++;
                 }
             }, 5000);
