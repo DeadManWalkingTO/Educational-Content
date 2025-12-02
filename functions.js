@@ -1,10 +1,10 @@
 // --- functions.js ---
-// Έκδοση: v5.1.0 (βελτιωμένη)
+// Έκδοση: v5.2.0 (βελτιωμένη)
 // Αλλαγές:
-// 1. Νέα λογική AutoNext με δυναμικό ποσοστό και MAX όρια.
-// 2. Διατήρηση όλων των προηγούμενων λειτουργιών (Watchdog, Pauses, Mid-seeks, Stats, Anti-Spam).
+// 1. Νέα λογική παύσεων με βάση τη διάρκεια του βίντεο (πολλαπλές μεγάλες παύσεις).
+// 2. Watchdog όριο για παύση από 120s -> 240s.
 // --- Versions ---
-const JS_VERSION = "v5.1.0";
+const JS_VERSION = "v5.2.0";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -67,33 +67,38 @@ function createPlayerContainers() {
     }
 }
 
-// ✅ Νέα λογική για απαιτούμενο χρόνο παρακολούθησης
+// ✅ Υπολογισμός απαιτούμενου χρόνου παρακολούθησης
 function getRequiredWatchTime(durationSec) {
     let percent;
     let maxLimitSec = null;
-
     if (durationSec < 300) {
         percent = 80;
     } else if (durationSec < 1800) {
         percent = rndInt(50, 70);
-        maxLimitSec = (15 + rndInt(0, 5)) * 60; // 15 min + random 5
+        maxLimitSec = (15 + rndInt(0, 5)) * 60;
     } else if (durationSec < 7200) {
         percent = rndInt(20, 35);
-        maxLimitSec = (15 + rndInt(0, 10)) * 60; // 15 min + random 10
+        maxLimitSec = (15 + rndInt(0, 10)) * 60;
     } else if (durationSec < 36000) {
         percent = rndInt(10, 20);
-        maxLimitSec = (15 + rndInt(0, 5)) * 60; // 15 min + random 5
+        maxLimitSec = (15 + rndInt(0, 5)) * 60;
     } else {
         percent = rndInt(10, 15);
-        maxLimitSec = (20 + rndInt(0, 3)) * 60; // 20 min + random 3
+        maxLimitSec = (20 + rndInt(0, 3)) * 60;
     }
-
     let requiredTime = Math.floor((durationSec * percent) / 100);
     if (maxLimitSec && requiredTime > maxLimitSec) {
         requiredTime = maxLimitSec;
     }
+    return requiredTime;
+}
 
-    return requiredTime; // σε δευτερόλεπτα
+// ✅ Νέα συνάρτηση για παύσεις
+function getPausePlan(duration) {
+    if (duration < 1800) return { count: rndInt(1, 2), min: 10, max: 30 };
+    if (duration < 7200) return { count: rndInt(2, 3), min: 30, max: 60 };
+    if (duration < 36000) return { count: rndInt(3, 5), min: 60, max: 120 };
+    return { count: rndInt(5, 8), min: 120, max: 180 };
 }
 
 // --- Player Controller Class ---
@@ -103,7 +108,7 @@ class PlayerController {
         this.sourceList = sourceList;
         this.sourceType = sourceType;
         this.player = null;
-        this.timers = { midSeek: null, pauseSmall: null };
+        this.timers = { midSeek: null, pauseTimers: [] };
         this.config = config;
         this.startTime = null;
         this.profileName = config?.profileName ?? "Unknown";
@@ -136,13 +141,10 @@ class PlayerController {
         const p = e.target;
         this.startTime = Date.now();
         p.mute();
-
         const startDelay = this.config && this.config.startDelay !== undefined
             ? this.config.startDelay * 1000
             : rndDelayMs(5, 180);
-
         log(`[${ts()}] ⏳ Player ${this.index + 1} Scheduled -> start after ${Math.round(startDelay / 1000)}s`);
-
         setTimeout(() => {
             const duration = p.getDuration();
             let seek = 0;
@@ -155,10 +157,8 @@ class PlayerController {
             this.schedulePauses();
             this.scheduleMidSeek();
         }, startDelay);
-
         const baseStartDelaySec = this.config?.startDelay ?? rndInt(5, 180);
         const unmuteDelay = (baseStartDelaySec + rndInt(30, 90)) * 1000;
-
         setTimeout(() => {
             if (p.getPlayerState() === YT.PlayerState.PLAYING) {
                 p.unMute();
@@ -188,7 +188,6 @@ class PlayerController {
             const percentWatched = Math.round((this.totalPlayTime / duration) * 100);
             watchPercentages[this.index] = percentWatched;
             log(`[${ts()}] ✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(this.totalPlayTime)}s)`);
-
             const afterEndPauseMs = rndInt(15000, 60000);
             setTimeout(() => {
                 const requiredTime = getRequiredWatchTime(duration);
@@ -244,24 +243,28 @@ class PlayerController {
         this.scheduleMidSeek();
     }
 
+    // ✅ Νέα λογική για πολλαπλές παύσεις
     schedulePauses() {
         const p = this.player;
         const duration = p.getDuration();
-        if (duration > 0) {
-            const delaySmall = (duration * rndInt(10, 20) / 100) * 1000;
-            const pauseLen = (duration * rndInt(2, 5) / 100) * 1000;
-            this.expectedPauseMs = pauseLen;
-            this.timers.pauseSmall = setTimeout(() => {
+        if (duration <= 0) return;
+        const plan = getPausePlan(duration);
+        for (let i = 0; i < plan.count; i++) {
+            const delay = rndInt(Math.floor(duration * 0.1), Math.floor(duration * 0.8)) * 1000;
+            const pauseLen = rndInt(plan.min, plan.max) * 1000;
+            const timer = setTimeout(() => {
                 if (p.getPlayerState() === YT.PlayerState.PLAYING) {
                     p.pauseVideo();
                     stats.pauses++;
+                    this.expectedPauseMs = pauseLen;
                     log(`[${ts()}] ⏸ Player ${this.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
                     setTimeout(() => {
                         p.playVideo();
                         this.expectedPauseMs = 0;
                     }, pauseLen);
                 }
-            }, delaySmall);
+            }, delay);
+            this.timers.pauseTimers.push(timer);
         }
     }
 
@@ -283,8 +286,12 @@ class PlayerController {
 
     clearTimers() {
         Object.keys(this.timers).forEach(k => {
-            if (this.timers[k]) clearTimeout(this.timers[k]);
-            this.timers[k] = null;
+            if (Array.isArray(this.timers[k])) {
+                this.timers[k].forEach(t => clearTimeout(t));
+            } else if (this.timers[k]) {
+                clearTimeout(this.timers[k]);
+            }
+            this.timers[k] = Array.isArray(this.timers[k]) ? [] : null;
         });
         this.expectedPauseMs = 0;
     }
@@ -296,7 +303,7 @@ setInterval(() => {
         if (!c.player) return;
         const state = c.player.getPlayerState();
         const now = Date.now();
-        const allowedPause = (c.expectedPauseMs || 0) + 120000;
+        const allowedPause = (c.expectedPauseMs || 0) + 240000; // ✅ αλλαγή σε 240s
         if (state === YT.PlayerState.BUFFERING && c.lastBufferingStart && (now - c.lastBufferingStart > 60000)) {
             log(`[${ts()}] ⚠️ Watchdog reset -> Player ${c.index + 1} BUFFERING >60s`);
             c.loadNextVideo(c.player);
