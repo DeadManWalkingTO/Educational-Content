@@ -1,12 +1,12 @@
 
 // --- humanMode.js ---
-// Έκδοση: v3.8.0 (βελτιωμένη)
+// Έκδοση: v3.8.1 (βελτιωμένη)
 // Αλλαγές:
 // 1. Αποφυγή conflicts με functions.js (παύσεις).
 // 2. Προσθήκη adaptive pause logic & retry για volume changes.
 // 3. Βελτίωση logs (προσθήκη index σε όλα τα μηνύματα).
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v3.8.0";
+const HUMAN_MODE_VERSION = "v3.8.1";
 
 // --- Behavior Profiles ---
 const BEHAVIOR_PROFILES = [
@@ -39,7 +39,7 @@ function createRandomPlayerConfig(profile) {
         profileName: profile.name,
         startDelay: rndInt(5, 180),
         initSeekMax: rndInt(30, 90),
-        unmuteDelay: rndInt(60, 300),
+        unmuteDelay: rndInt(15, 30),
         volumeRange: [rndInt(5, 15), rndInt(20, 40)],
         midSeekInterval: rndInt(profile.midSeekIntervalRange[0], profile.midSeekIntervalRange[1]) * 60000,
         pauseChance: profile.pauseChance,
