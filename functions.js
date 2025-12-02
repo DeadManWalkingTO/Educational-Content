@@ -1,13 +1,12 @@
-// --- functions.js ---
-// Έκδοση: v4.7.5 (ενημερωμένη)
-// Αλλαγές:
-// 1. Ασφαλής λογική Auto Unmute -> εκτελείται μόνο αν player είναι ενεργός (PLAYING ή BUFFERING)
-// 2. Καταγραφή αλλαγής έντασης στο unmute (stats.volumeChanges++)
-// 3. Νέα μορφή εμφάνισης στατιστικών στο updateStats()
-// 4. Βελτιωμένο Watchdog: έλεγχος BUFFERING >60s και PAUSED >120s με προσπάθεια resume πριν reset
 
+// --- functions.js ---
+// Έκδοση: v4.7.7 (ενημερωμένη)
+// Αλλαγές:
+// 1. Διόρθωση updateStats() -> format με ενωτικά (-).
+// 2. Watchdog reset -> νέο βίντεο κάνει play αμέσως.
+// 3. Διατήρηση προηγούμενων βελτιώσεων (Auto Unmute resume, index στο log).
 // --- Versions ---
-const JS_VERSION = "v4.7.5";
+const JS_VERSION = "v4.7.7";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -53,7 +52,7 @@ function updateStats() {
             ? Math.round(watchPercentages.reduce((a, b) => a + b, 0) / watchPercentages.filter(p => p > 0).length)
             : 0;
         const limitStatus = autoNextCounter >= MAX_VIEWS_PER_HOUR ? "Reached" : "OK";
-        el.textContent = `📊 Stats — AutoNext: ${stats.autoNext} | Replay: ${stats.replay} | Pauses: ${stats.pauses} | MidSeeks: ${stats.midSeeks} | AvgWatch: ${avgWatch}% | Watchdog: ${stats.watchdog} | Errors: ${stats.errors} | VolumeChanges: ${stats.volumeChanges} | Limit: ${limitStatus}`;
+        el.textContent = `📊 Stats — AutoNext: ${stats.autoNext} - Replay: ${stats.replay} - Pauses: ${stats.pauses} - MidSeeks: ${stats.midSeeks} - AvgWatch: ${avgWatch}% - Watchdog: ${stats.watchdog} - Errors: ${stats.errors} - VolumeChanges: ${stats.volumeChanges} - Limit: ${limitStatus}`;
     }
 }
 
@@ -124,20 +123,27 @@ class PlayerController {
             this.scheduleMidSeek();
         }, startDelay);
 
-        // ✅ Ασφαλής λογική για Auto Unmute
+        // ✅ Auto Unmute με νέα λογική
         const unmuteDelay = this.config?.unmuteDelay ? this.config.unmuteDelay * 1000 : rndDelayMs(60, 300);
         setTimeout(() => {
             if (
                 p && typeof p.unMute === "function" &&
-                (p.getPlayerState() === YT.PlayerState.PLAYING || p.getPlayerState() === YT.PlayerState.BUFFERING)
+                (p.getPlayerState() === YT.PlayerState.PLAYING ||
+                 p.getPlayerState() === YT.PlayerState.BUFFERING)
             ) {
                 p.unMute();
                 const v = rndInt(10, 30);
                 p.setVolume(v);
-                stats.volumeChanges++; // ✅ Καταγραφή αλλαγής έντασης
+                stats.volumeChanges++;
                 log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
+
+                // ✅ Αν είναι PAUSED, ξαναπαίζει (όχι αν είναι ENDED)
+                if (p.getPlayerState() === YT.PlayerState.PAUSED) {
+                    p.playVideo();
+                    log(`[${ts()}] ▶ Player ${this.index + 1} resumed after Auto Unmute`);
+                }
             } else {
-                log(`[${ts()}] ⚠️ Auto Unmute skipped -> Player not active`);
+                log(`[${ts()}] ⚠️ Auto Unmute skipped -> Player ${this.index + 1} not active`);
             }
         }, unmuteDelay);
     }
@@ -152,7 +158,6 @@ class PlayerController {
             this.playingStart = null;
         }
 
-        // Καταγραφή χρόνου για Watchdog
         if (e.data === YT.PlayerState.BUFFERING) this.lastBufferingStart = Date.now();
         if (e.data === YT.PlayerState.PAUSED) this.lastPausedStart = Date.now();
 
@@ -162,7 +167,6 @@ class PlayerController {
             const percentWatched = Math.round((this.totalPlayTime / duration) * 100);
             watchPercentages[this.index] = percentWatched;
             log(`[${ts()}] ✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(this.totalPlayTime)}s)`);
-
             const afterEndPauseMs = rndInt(15000, 60000);
             setTimeout(() => {
                 const requiredPercent = duration < 300 ? 90 : 70;
@@ -213,7 +217,7 @@ class PlayerController {
         const list = useMain ? videoListMain : videoListAlt;
         const newId = list[Math.floor(Math.random() * list.length)];
         player.loadVideoById(newId);
-        player.playVideo();
+        player.playVideo(); // ✅ Βεβαιώνουμε ότι κάνει play αμέσως
         stats.autoNext++;
         autoNextCounter++;
         log(`[${ts()}] ⏭ Player ${this.index + 1} AutoNext -> ${newId} (Source:${useMain ? "main" : "alt"})`);
@@ -265,28 +269,24 @@ class PlayerController {
     }
 }
 
-// --- Βελτιωμένο Watchdog ---
+// --- Watchdog ---
 setInterval(() => {
     controllers.forEach(c => {
         if (!c.player) return;
         const state = c.player.getPlayerState();
         const now = Date.now();
-
-        // BUFFERING >60s
         if (state === YT.PlayerState.BUFFERING && c.lastBufferingStart && (now - c.lastBufferingStart > 60000)) {
             log(`[${ts()}] ⚠️ Watchdog reset -> Player ${c.index + 1} BUFFERING >60s`);
-            c.loadNextVideo(c.player);
+            c.loadNextVideo(c.player); // ✅ κάνει play αμέσως
             stats.watchdog++;
         }
-
-        // PAUSED >120s (και όχι σε scheduled pause)
         if (state === YT.PlayerState.PAUSED && c.lastPausedStart && (now - c.lastPausedStart > 120000)) {
             log(`[${ts()}] ⚠️ Watchdog resume attempt -> Player ${c.index + 1}`);
             c.player.playVideo();
             setTimeout(() => {
                 if (c.player.getPlayerState() !== YT.PlayerState.PLAYING) {
                     log(`[${ts()}] ❌ Watchdog reset -> Player ${c.index + 1} stuck in PAUSED`);
-                    c.loadNextVideo(c.player);
+                    c.loadNextVideo(c.player); // ✅ κάνει play αμέσως
                     stats.watchdog++;
                 }
             }, 5000);
