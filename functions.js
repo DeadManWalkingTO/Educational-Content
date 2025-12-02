@@ -6,7 +6,7 @@
 // 3. Διατήρηση Auto Unmute resume, index στο log, play μετά από reset.
 // 4. Ενιαία updateStats με εκδόσεις και μέγεθος λιστών.
 // --- Versions ---
-const JS_VERSION = "v4.9.2";
+const JS_VERSION = "v4.9.3";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -124,7 +124,7 @@ class PlayerController {
             this.schedulePauses();
             this.scheduleMidSeek();
         }, startDelay);
-        const unmuteDelay = this.config?.unmuteDelay ? this.config.unmuteDelay * 1000 : rndDelayMs(60, 300);
+        const unmuteDelay = this.config?.unmuteDelay ? this.config.unmuteDelay * 1000 : rndDelayMs(15, 30);
         setTimeout(() => {
             p.unMute();
             const v = rndInt(10, 30);
