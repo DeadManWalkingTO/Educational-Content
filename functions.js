@@ -1,5 +1,5 @@
 // --- functions.js ---
-// Έκδοση: v4.9.8 (βελτιωμένη)
+// Έκδοση: v4.9.9 (βελτιωμένη)
 // Αλλαγές:
 // 1. Προσθήκη expectedPauseMs για δυναμικό όριο στο Watchdog.
 // 2. Watchdog υπολογίζει allowedPause = expectedPauseMs + 120s.
@@ -7,7 +7,7 @@
 // 4. Ενιαία updateStats με εκδόσεις και μέγεθος λιστών.
 
 // --- Versions ---
-const JS_VERSION = "v4.9.8";
+const JS_VERSION = "v4.9.9";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
