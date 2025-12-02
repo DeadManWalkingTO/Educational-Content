@@ -1,8 +1,10 @@
 // --- lists.js ---
-// Έκδοση: v2.2.2 (ενημερωμένη)
-// Περιέχει τις συναρτήσεις για φόρτωση λιστών βίντεο (main και alt) από τοπικά αρχεία, GitHub ή εσωτερική λίστα.
+// Έκδοση: v2.2.3 (βελτιωμένη)
+// Αλλαγές:
+// 1. Διαγραφή της συνάρτησης updateStats() για αποφυγή conflict με functions.js.
+// 2. Διατήρηση όλων των άλλων λειτουργιών ανέπαφων.
 // --- Versions ---
-const LISTS_VERSION = "v2.2.2";
+const LISTS_VERSION = "v2.2.3";
 
 // Πηγή λίστας (Local, Web ή Internal)
 let listSource = "Internal";
@@ -32,15 +34,7 @@ function log(msg) {
         while (panel.children.length > 50) panel.removeChild(panel.firstChild);
         panel.scrollTop = panel.scrollHeight;
     }
-    updateStats();
-}
-
-// Ενημέρωση στατιστικών στο stats panel
-function updateStats() {
-    const el = document.getElementById("statsPanel");
-    if (el) {
-        el.textContent = `📊 Stats — AutoNext:${stats.autoNext} Replay:${stats.replay} Pauses:${stats.pauses} MidSeeks:${stats.midSeeks} Watchdog:${stats.watchdog} Errors:${stats.errors} VolumeChanges:${stats.volumeChanges} — HTML ${HTML_VERSION} JS ${JS_VERSION} Lists:${LISTS_VERSION} Main:${videoListMain.length} Alt:${videoListAlt.length}`;
-    }
+    // ✅ Αφαιρέθηκε η κλήση updateStats() για να μην υπάρχει conflict
 }
 
 // Φόρτωση κύριας λίστας (main)
@@ -94,7 +88,6 @@ function reloadList() {
         .then(([mainList, altList]) => {
             videoListMain = mainList;
             videoListAlt = altList;
-            // Εμφανίζουμε μόνο συνολική καταγραφή
             log(`[${tsList()}] 📂 Lists Loaded -> Main:${videoListMain.length} Alt:${videoListAlt.length}`);
         })
         .catch(err => {
