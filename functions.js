@@ -1,12 +1,13 @@
 // --- functions.js ---
-// Έκδοση: v4.8.0 (βελτιωμένη)
+// Έκδοση: v4.9.4 (βελτιωμένη)
 // Αλλαγές:
 // 1. Προσθήκη expectedPauseMs για δυναμικό όριο στο Watchdog.
 // 2. Watchdog υπολογίζει allowedPause = expectedPauseMs + 120s.
 // 3. Διατήρηση Auto Unmute resume, index στο log, play μετά από reset.
 // 4. Ενιαία updateStats με εκδόσεις και μέγεθος λιστών.
+
 // --- Versions ---
-const JS_VERSION = "v4.9.3";
+const JS_VERSION = "v4.9.4";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
