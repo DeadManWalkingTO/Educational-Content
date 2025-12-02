@@ -1,61 +1,21 @@
 // --- functions.js ---
-// Έκδοση: v5.4.0
-// Περιγραφή: Κύρια λογική για τον έλεγχο των YouTube Players (PlayerController, AutoNext, Pauses, MidSeek).
-// Περιλαμβάνει: Δημιουργία players, διαχείριση κατάστασης, AutoNext, στατιστικά, logging, watchdog integration.
+// Έκδοση: v5.5.0
+// Περιγραφή: Κύρια λογική για τον έλεγχο των YouTube Players (PlayerController, AutoNext, Pauses, MidSeek). Χρησιμοποιεί global log(), ts(), rndInt() και global state από globals.js.
 
 // --- Versions ---
-const FUNCTIONS_VERSION = "v5.4.1";
+const FUNCTIONS_VERSION = "v5.5.0";
 
 // --- Imports ---
 import { videoListMain, videoListAlt } from './lists.js';
 import { startWatchdog } from './watchdog.js';
 
-// --- Ρυθμίσεις ---
-export const PLAYER_COUNT = 8;
-export const MAIN_PROBABILITY = 0.5;
-export const ALT_PROBABILITY = 0.5;
-const MAX_VIEWS_PER_HOUR = 50;
+// --- Βοηθητικές Συναρτήσεις ---
 
-// --- Κατάσταση ---
-export let controllers = [];
-export let isMutedAll = true;
-export let isStopping = false;
-export let stopTimers = [];
-export const stats = { autoNext: 0, replay: 0, pauses: 0, midSeeks: 0, watchdog: 0, errors: 0, volumeChanges: 0 };
-let autoNextCounter = 0;
-let lastResetTime = Date.now();
-let watchPercentages = Array(PLAYER_COUNT).fill(0);
-
-// --- Utility Functions ---
-export const ts = () => new Date().toLocaleTimeString();
-export const rndInt = (min, max) => Math.floor(min + Math.random() * (max - min + 1));
-export const rndDelayMs = (minS, maxS) => (minS + Math.random() * (maxS - minS)) * 1000;
-
-export function log(msg) {
-  console.log(msg);
-  const panel = document.getElementById("activityPanel");
-  if (panel) {
-    const div = document.createElement("div");
-    div.textContent = msg;
-    panel.appendChild(div);
-    while (panel.children.length > 250) panel.removeChild(panel.firstChild);
-    panel.scrollTop = panel.scrollHeight;
-  }
-  updateStats();
-}
-
-function updateStats() {
-  const el = document.getElementById("statsPanel");
-  if (el) {
-    const avgWatch = watchPercentages.filter(p => p > 0).length
-      ? Math.round(watchPercentages.reduce((a, b) => a + b, 0) / watchPercentages.filter(p => p > 0).length)
-      : 0;
-    const limitStatus = autoNextCounter >= MAX_VIEWS_PER_HOUR ? "Reached" : "OK";
-    el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Replay:${stats.replay} - Pauses:${stats.pauses} - MidSeeks:${stats.midSeeks} - AvgWatch:${avgWatch}% - Watchdog:${stats.watchdog} - Errors:${stats.errors} - VolumeChanges:${stats.volumeChanges} - Limit:${limitStatus}`;
-  }
-}
-
-// --- Υπολογισμοί ---
+/**
+ * Υπολογίζει τον απαιτούμενο χρόνο θέασης για AutoNext ανάλογα με τη διάρκεια του βίντεο.
+ * @param {number} durationSec - Διάρκεια βίντεο σε δευτερόλεπτα.
+ * @returns {number} Απαιτούμενος χρόνος θέασης σε δευτερόλεπτα.
+ */
 export function getRequiredWatchTime(durationSec) {
   let percent;
   let maxLimitSec = null;
@@ -81,6 +41,11 @@ export function getRequiredWatchTime(durationSec) {
   return requiredTime;
 }
 
+/**
+ * Δημιουργεί σχέδιο παύσεων ανάλογα με τη διάρκεια του βίντεο.
+ * @param {number} duration - Διάρκεια βίντεο σε δευτερόλεπτα.
+ * @returns {object} Σχέδιο παύσεων (count, min, max).
+ */
 export function getPausePlan(duration) {
   if (duration < 1800) return { count: rndInt(1, 2), min: 10, max: 30 };
   if (duration < 7200) return { count: rndInt(2, 3), min: 30, max: 60 };
@@ -88,7 +53,7 @@ export function getPausePlan(duration) {
   return { count: rndInt(5, 8), min: 120, max: 180 };
 }
 
-// --- PlayerController ---
+// --- PlayerController Class ---
 export class PlayerController {
   constructor(index, sourceList, config = null, sourceType = "main") {
     this.index = index;
@@ -130,7 +95,7 @@ export class PlayerController {
     p.mute();
     const startDelay = this.config && this.config.startDelay !== undefined
       ? this.config.startDelay * 1000
-      : rndDelayMs(5, 180);
+      : rndInt(5000, 180000);
     log(`[${ts()}] ⏳ Player ${this.index + 1} Scheduled -> start after ${Math.round(startDelay / 1000)}s`);
     setTimeout(() => {
       const duration = p.getDuration();
@@ -144,6 +109,7 @@ export class PlayerController {
       this.schedulePauses();
       this.scheduleMidSeek();
     }, startDelay);
+
     const baseStartDelaySec = this.config?.startDelay ?? rndInt(5, 180);
     const unmuteDelay = (baseStartDelaySec + rndInt(30, 90)) * 1000;
     setTimeout(() => {
@@ -161,27 +127,15 @@ export class PlayerController {
   onStateChange(e) {
     const p = this.player;
     switch (e.data) {
-      case YT.PlayerState.UNSTARTED:
-        log(`[${ts()}] 🟢 Player ${this.index + 1} State -> UNSTARTED`);
-        break;
-      case YT.PlayerState.ENDED:
-        log(`[${ts()}] ⏹ Player ${this.index + 1} State -> ENDED`);
-        break;
-      case YT.PlayerState.PLAYING:
-        log(`[${ts()}] ▶️ Player ${this.index + 1} State -> PLAYING`);
-        break;
-      case YT.PlayerState.PAUSED:
-        log(`[${ts()}] ⏸️ Player ${this.index + 1} State -> PAUSED`);
-        break;
-      case YT.PlayerState.BUFFERING:
-        log(`[${ts()}] 🟡 Player ${this.index + 1} State -> BUFFERING`);
-        break;
-      case YT.PlayerState.CUED:
-        log(`[${ts()}] 🟢 Player ${this.index + 1} State -> CUED`);
-        break;
-      default:
-        log(`[${ts()}] 🔴 Player ${this.index + 1} State -> UNKNOWN (${e.data})`);
+      case YT.PlayerState.UNSTARTED: log(`[${ts()}] 🟢 Player ${this.index + 1} State -> UNSTARTED`); break;
+      case YT.PlayerState.ENDED: log(`[${ts()}] ⏹ Player ${this.index + 1} State -> ENDED`); break;
+      case YT.PlayerState.PLAYING: log(`[${ts()}] ▶ Player ${this.index + 1} State -> PLAYING`); break;
+      case YT.PlayerState.PAUSED: log(`[${ts()}] ⏸️ Player ${this.index + 1} State -> PAUSED`); break;
+      case YT.PlayerState.BUFFERING: log(`[${ts()}] 🟡 Player ${this.index + 1} State -> BUFFERING`); break;
+      case YT.PlayerState.CUED: log(`[${ts()}] 🟢 Player ${this.index + 1} State -> CUED`); break;
+      default: log(`[${ts()}] 🔴 Player ${this.index + 1} State -> UNKNOWN (${e.data})`);
     }
+
     if (e.data === YT.PlayerState.PLAYING) {
       this.playingStart = Date.now();
       this.currentRate = p.getPlaybackRate();
@@ -189,8 +143,10 @@ export class PlayerController {
       this.totalPlayTime += ((Date.now() - this.playingStart) / 1000) * this.currentRate;
       this.playingStart = null;
     }
+
     if (e.data === YT.PlayerState.BUFFERING) this.lastBufferingStart = Date.now();
     if (e.data === YT.PlayerState.PAUSED) this.lastPausedStart = Date.now();
+
     if (e.data === YT.PlayerState.ENDED) {
       this.clearTimers();
       const duration = p.getDuration();
@@ -225,8 +181,8 @@ export class PlayerController {
       autoNextCounter = 0;
       lastResetTime = now;
     }
-    if (autoNextCounter >= MAX_VIEWS_PER_HOUR) {
-      log(`[${ts()}] ⚠️ AutoNext limit reached -> ${MAX_VIEWS_PER_HOUR}/hour`);
+    if (autoNextCounter >= 50) {
+      log(`[${ts()}] ⚠️ AutoNext limit reached -> 50/hour`);
       return;
     }
     const useMain = Math.random() < MAIN_PROBABILITY;
@@ -238,7 +194,7 @@ export class PlayerController {
     autoNextCounter++;
     this.totalPlayTime = 0;
     this.playingStart = null;
-    log(`[${ts()}] ⏭ Player ${this.index + 1} AutoNext -> ${newId} (Source:${useMain ? "main" : "alt"})`);
+    log(`[${ts()}] ⏭️ Player ${this.index + 1} AutoNext -> ${newId} (Source:${useMain ? "main" : "alt"})`);
     this.schedulePauses();
     this.scheduleMidSeek();
   }
@@ -256,7 +212,7 @@ export class PlayerController {
           p.pauseVideo();
           stats.pauses++;
           this.expectedPauseMs = pauseLen;
-          log(`[${ts()}] ⏸ Player ${this.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
+          log(`[${ts()}] ⏸️ Player ${this.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
           setTimeout(() => {
             p.playVideo();
             this.expectedPauseMs = 0;
@@ -297,6 +253,6 @@ export class PlayerController {
 }
 
 // ✅ Εκκίνηση Watchdog
-startWatchdog(controllers, stats, log, ts);
+startWatchdog();
 
 // --- End Of File ---
