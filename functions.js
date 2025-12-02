@@ -130,7 +130,7 @@ class PlayerController {
             p.unMute();
             const v = rndInt(10, 30);
             p.setVolume(v);
-            p.playVideo()
+            p.playVideo();
             log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
         }, unmuteDelay);
     }
