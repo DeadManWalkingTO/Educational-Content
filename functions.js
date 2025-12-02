@@ -4,9 +4,10 @@
 // Περιλαμβάνει: Δημιουργία players, διαχείριση κατάστασης, AutoNext, στατιστικά, logging, watchdog integration.
 
 // --- Versions ---
-const FUNCTIONS_VERSION = "v5.4.0";
+const FUNCTIONS_VERSION = "v5.4.1";
 
 // --- Imports ---
+import { videoListMain, videoListAlt } from './lists.js';
 import { startWatchdog } from './watchdog.js';
 
 // --- Ρυθμίσεις ---
