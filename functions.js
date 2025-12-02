@@ -1,5 +1,5 @@
 // --- functions.js ---
-// Έκδοση: v5.0.0 (βελτιωμένη)
+// Έκδοση: v5.0.1 (βελτιωμένη)
 // Αλλαγές:
 // 1. Προσθήκη expectedPauseMs για δυναμικό όριο στο Watchdog.
 // 2. Watchdog υπολογίζει allowedPause = expectedPauseMs + 120s.
@@ -7,7 +7,7 @@
 // 4. Ενιαία updateStats με εκδόσεις και μέγεθος λιστών.
 
 // --- Versions ---
-const JS_VERSION = "v5.0.0";
+const JS_VERSION = "v5.0.1";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -128,10 +128,8 @@ class PlayerController {
         const unmuteDelay = this.config?.unmuteDelay ? this.config.unmuteDelay * 1000 : rndDelayMs(15, 30);
         setTimeout(() => {
             p.unMute();
-            p.playVideo();
             const v = rndInt(10, 30);
             p.setVolume(v);
-            p.playVideo();
             log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
         }, unmuteDelay);
     }
