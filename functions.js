@@ -6,7 +6,7 @@
 // 3. Διατήρηση Auto Unmute resume, index στο log, play μετά από reset.
 // 4. Ενιαία updateStats με εκδόσεις και μέγεθος λιστών.
 // --- Versions ---
-const JS_VERSION = "v4.8.2";
+const JS_VERSION = "v4.9.2";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -124,28 +124,12 @@ class PlayerController {
             this.schedulePauses();
             this.scheduleMidSeek();
         }, startDelay);
-
-        // ✅ Auto Unmute με νέα λογική
         const unmuteDelay = this.config?.unmuteDelay ? this.config.unmuteDelay * 1000 : rndDelayMs(60, 300);
         setTimeout(() => {
-            if (
-                p && typeof p.unMute === "function" &&
-                (p.getPlayerState() === YT.PlayerState.PLAYING ||
-                 p.getPlayerState() === YT.PlayerState.BUFFERING)
-            ) {
-                p.unMute();
-                const v = rndInt(10, 30);
-                p.setVolume(v);
-                stats.volumeChanges++;
-                log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
-
-                if (p.getPlayerState() === YT.PlayerState.PAUSED) {
-                    p.playVideo();
-                    log(`[${ts()}] ▶ Player ${this.index + 1} resumed after Auto Unmute`);
-                }
-            } else {
-                log(`[${ts()}] ⚠️ Auto Unmute skipped -> Player ${this.index + 1} not active`);
-            }
+            p.unMute();
+            const v = rndInt(10, 30);
+            p.setVolume(v);
+            log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
         }, unmuteDelay);
     }
 
