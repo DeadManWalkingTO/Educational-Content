@@ -1,10 +1,11 @@
 // --- functions.js ---
-// Έκδοση: v5.2.0 (βελτιωμένη)
+// Έκδοση: v5.3.0 (βελτιωμένη)
 // Αλλαγές:
-// 1. Νέα λογική παύσεων με βάση τη διάρκεια του βίντεο (πολλαπλές μεγάλες παύσεις).
-// 2. Watchdog όριο για παύση από 120s -> 240s.
+// 1. Προσθήκη πλήρους logging για όλες τις καταστάσεις του player.
+// 2. Fallback για ENDED -> Force AutoNext μετά από 60s αν μπλοκαριστεί.
+// 3. Reset counters στο AutoNext.
 // --- Versions ---
-const JS_VERSION = "v5.2.0";
+const JS_VERSION = "v5.3.0";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -55,19 +56,7 @@ function updateStats() {
     }
 }
 
-// Δημιουργία containers για τους players
-function createPlayerContainers() {
-    const container = document.getElementById("playersContainer");
-    if (!container) return;
-    container.innerHTML = "";
-    for (let i = 0; i < PLAYER_COUNT; i++) {
-        const div = document.createElement("div");
-        div.id = `player${i + 1}`;
-        container.appendChild(div);
-    }
-}
-
-// ✅ Υπολογισμός απαιτούμενου χρόνου παρακολούθησης
+// ✅ Υπολογισμός απαιτούμενου χρόνου θέασης
 function getRequiredWatchTime(durationSec) {
     let percent;
     let maxLimitSec = null;
@@ -93,7 +82,7 @@ function getRequiredWatchTime(durationSec) {
     return requiredTime;
 }
 
-// ✅ Νέα συνάρτηση για παύσεις
+// ✅ Λογική για παύσεις
 function getPausePlan(duration) {
     if (duration < 1800) return { count: rndInt(1, 2), min: 10, max: 30 };
     if (duration < 7200) return { count: rndInt(2, 3), min: 30, max: 60 };
@@ -173,6 +162,32 @@ class PlayerController {
 
     onStateChange(e) {
         const p = this.player;
+
+        // ✅ Logging για όλες τις καταστάσεις
+        switch (e.data) {
+            case YT.PlayerState.UNSTARTED:
+                log(`[${ts()}] 🟢 Player ${this.index + 1} State -> UNSTARTED: Το βίντεο έχει φορτωθεί αλλά δεν έχει ξεκινήσει ακόμη.`);
+                break;
+            case YT.PlayerState.ENDED:
+                log(`[${ts()}] ⏹️ Player ${this.index + 1} State -> ENDED: Η αναπαραγωγή του βίντεο ολοκληρώθηκε.`);
+                break;
+            case YT.PlayerState.PLAYING:
+                log(`[${ts()}] ▶️ Player ${this.index + 1} State -> PLAYING: Το βίντεο παίζει κανονικά.`);
+                break;
+            case YT.PlayerState.PAUSED:
+                log(`[${ts()}] ⏸️ Player ${this.index + 1} State -> PAUSED: Το βίντεο έχει γίνει pause.`);
+                break;
+            case YT.PlayerState.BUFFERING:
+                log(`[${ts()}] 🟡 Player ${this.index + 1} State -> BUFFERING: Το βίντεο φορτώνει δεδομένα.`);
+                break;
+            case YT.PlayerState.CUED:
+                log(`[${ts()}] 🟢 Player ${this.index + 1} State -> CUED: Το βίντεο έχει προετοιμαστεί και περιμένει να ξεκινήσει.`);
+                break;
+            default:
+                log(`[${ts()}] 🔴 Player ${this.index + 1} State -> UNKNOWN (${e.data}): Άγνωστη κατάσταση.`);
+        }
+
+        // ✅ Υφιστάμενη λογική
         if (e.data === YT.PlayerState.PLAYING) {
             this.playingStart = Date.now();
             this.currentRate = p.getPlaybackRate();
@@ -180,37 +195,31 @@ class PlayerController {
             this.totalPlayTime += ((Date.now() - this.playingStart) / 1000) * this.currentRate;
             this.playingStart = null;
         }
+
         if (e.data === YT.PlayerState.BUFFERING) this.lastBufferingStart = Date.now();
         if (e.data === YT.PlayerState.PAUSED) this.lastPausedStart = Date.now();
+
+        // ✅ Λογική για ENDED
         if (e.data === YT.PlayerState.ENDED) {
             this.clearTimers();
             const duration = p.getDuration();
             const percentWatched = Math.round((this.totalPlayTime / duration) * 100);
             watchPercentages[this.index] = percentWatched;
             log(`[${ts()}] ✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(this.totalPlayTime)}s)`);
+
             const afterEndPauseMs = rndInt(15000, 60000);
             setTimeout(() => {
                 const requiredTime = getRequiredWatchTime(duration);
                 if (this.totalPlayTime < requiredTime) {
                     log(`[${ts()}] ⏳ Player ${this.index + 1} AutoNext blocked -> required:${requiredTime}s, actual:${Math.round(this.totalPlayTime)}s`);
-                    return;
-                }
-                if (duration < 300) {
-                    this.loadNextVideo(p);
-                    return;
-                }
-                if (this.totalPlayTime >= requiredTime) {
-                    if (duration > 120 && Math.random() < 0.1) {
-                        p.seekTo(0);
-                        p.playVideo();
-                        stats.replay++;
-                        log(`[${ts()}] 🔁 Player ${this.index + 1} Replay`);
-                    } else {
+                    // 🔄 Fallback: Αν μείνει κολλημένος, κάνε force AutoNext μετά από 60s
+                    setTimeout(() => {
+                        log(`[${ts()}] ⚠️ Player ${this.index + 1} Force AutoNext -> inactivity fallback`);
                         this.loadNextVideo(p);
-                    }
-                } else {
-                    setTimeout(() => this.loadNextVideo(p), rndInt(15000, 30000));
+                    }, 60000);
+                    return;
                 }
+                this.loadNextVideo(p);
             }, afterEndPauseMs);
         }
     }
@@ -238,12 +247,13 @@ class PlayerController {
         player.playVideo();
         stats.autoNext++;
         autoNextCounter++;
+        this.totalPlayTime = 0; // ✅ Reset counters
+        this.playingStart = null;
         log(`[${ts()}] ⏭ Player ${this.index + 1} AutoNext -> ${newId} (Source:${useMain ? "main" : "alt"})`);
         this.schedulePauses();
         this.scheduleMidSeek();
     }
 
-    // ✅ Νέα λογική για πολλαπλές παύσεις
     schedulePauses() {
         const p = this.player;
         const duration = p.getDuration();
@@ -303,7 +313,7 @@ setInterval(() => {
         if (!c.player) return;
         const state = c.player.getPlayerState();
         const now = Date.now();
-        const allowedPause = (c.expectedPauseMs || 0) + 240000; // ✅ αλλαγή σε 240s
+        const allowedPause = (c.expectedPauseMs || 0) + 240000;
         if (state === YT.PlayerState.BUFFERING && c.lastBufferingStart && (now - c.lastBufferingStart > 60000)) {
             log(`[${ts()}] ⚠️ Watchdog reset -> Player ${c.index + 1} BUFFERING >60s`);
             c.loadNextVideo(c.player);
