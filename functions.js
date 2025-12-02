@@ -1,11 +1,13 @@
 // --- functions.js ---
-// Έκδοση: v4.7.2 (ενημερωμένη)
+// Έκδοση: v4.7.3 (ενημερωμένη)
 // Αλλαγές:
-// 1. Μικρά βίντεο (<300s) απαιτούν 90% παρακολούθηση για AutoNext (πριν ήταν 100%)
-// 2. Διόρθωση λογικής Auto Unmute -> εκτελείται πάντα μετά το delay, ανεξάρτητα από το state του player
+// 1. Μικρά βίντεο (<300s) απαιτούν 90% παρακολούθηση για AutoNext
+// 2. Διόρθωση λογικής Auto Unmute -> εκτελείται πάντα μετά το delay
+// 3. Καταγραφή αλλαγής έντασης στο unmute (stats.volumeChanges++)
+// 4. Νέα μορφή εμφάνισης στατιστικών στο updateStats()
 
 // --- Versions ---
-const JS_VERSION = "v4.7.2";
+const JS_VERSION = "v4.7.3";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -51,7 +53,7 @@ function updateStats() {
             ? Math.round(watchPercentages.reduce((a, b) => a + b, 0) / watchPercentages.filter(p => p > 0).length)
             : 0;
         const limitStatus = autoNextCounter >= MAX_VIEWS_PER_HOUR ? "Reached" : "OK";
-        el.textContent = `📊 Stats — AutoNext: ${stats.autoNext} Replay: ${stats.replay} Pauses: ${stats.pauses} MidSeeks: ${stats.midSeeks} AvgWatch: ${avgWatch}% Watchdog: ${stats.watchdog} Errors: ${stats.errors} VolumeChanges: ${stats.volumeChanges} Limit: ${limitStatus}`;
+        el.textContent = `📊 Stats — AutoNext: ${stats.autoNext} | Replay: ${stats.replay} | Pauses: ${stats.pauses} | MidSeeks: ${stats.midSeeks} | AvgWatch: ${avgWatch}% | Watchdog: ${stats.watchdog} | Errors: ${stats.errors} | VolumeChanges: ${stats.volumeChanges} | Limit: ${limitStatus}`;
     }
 }
 
@@ -120,13 +122,14 @@ class PlayerController {
             this.scheduleMidSeek();
         }, startDelay);
 
-        // ✅ Διόρθωση: Unmute πάντα μετά το delay, ανεξάρτητα από το state
+        // ✅ Διόρθωση: Unmute πάντα μετά το delay + καταγραφή αλλαγής έντασης
         const unmuteDelay = this.config?.unmuteDelay ? this.config.unmuteDelay * 1000 : rndDelayMs(60, 300);
         setTimeout(() => {
             if (p && typeof p.unMute === "function") {
                 p.unMute();
                 const v = rndInt(10, 30);
                 p.setVolume(v);
+                stats.volumeChanges++; // ✅ Καταγραφή αλλαγής έντασης
                 log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
             }
         }, unmuteDelay);
@@ -151,7 +154,7 @@ class PlayerController {
 
             const afterEndPauseMs = rndInt(15000, 60000);
             setTimeout(() => {
-                const requiredPercent = duration < 300 ? 90 : 70; // ✅ Κανόνας για AutoNext
+                const requiredPercent = duration < 300 ? 90 : 70;
                 if (percentWatched < requiredPercent) {
                     log(`[${ts()}] ⏳ Player ${this.index + 1} AutoNext blocked -> required:${requiredPercent}%, actual:${percentWatched}%`);
                     return;
