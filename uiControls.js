@@ -1,12 +1,13 @@
 // --- uiControls.js ---
-// Έκδοση: v1.4.0
-// Περιγραφή: Περιέχει τις συναρτήσεις για τα κουμπιά της εφαρμογής (Play All, Stop All, Restart All, Theme Toggle, Logs).
+// Έκδοση: v1.5.0
+// Περιγραφή: Περιέχει τις συναρτήσεις για τα κουμπιά της εφαρμογής (Play All, Stop All, Restart All, Theme Toggle, Logs). Χρησιμοποιεί global log(), ts(), controllers, isStopping, stopTimers, rndInt(), MAIN_PROBABILITY.
 
 // --- Versions ---
-const UICONTROLS_VERSION = "v1.4.0";
+const UICONTROLS_VERSION = "v1.5.0";
 
 // --- Imports ---
-import { ts, log, rndInt, controllers, isStopping, stopTimers, MAIN_PROBABILITY } from './functions.js';
+// Αφαιρέθηκαν imports από functions.js. Χρησιμοποιούμε global μεταβλητές και συναρτήσεις.
+// Κρατάμε μόνο τις λίστες από lists.js.
 import { videoListMain, videoListAlt } from './lists.js';
 
 // ▶ Εκκινεί όλους τους players με τυχαία καθυστέρηση
