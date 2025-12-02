@@ -1,12 +1,10 @@
-
 // --- humanMode.js ---
-// Έκδοση: v3.8.1 (βελτιωμένη)
+// Έκδοση: v3.8.2 (βελτιωμένη)
 // Αλλαγές:
-// 1. Αποφυγή conflicts με functions.js (παύσεις).
-// 2. Προσθήκη adaptive pause logic & retry για volume changes.
-// 3. Βελτίωση logs (προσθήκη index σε όλα τα μηνύματα).
+// 1. Προσθήκη στο log της πληροφορίας για το υπολογισμένο unmuteDelay (startDelay + extra).
+// 2. Διατήρηση όλων των προηγούμενων λειτουργιών.
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v3.8.1";
+const HUMAN_MODE_VERSION = "v3.8.2";
 
 // --- Behavior Profiles ---
 const BEHAVIOR_PROFILES = [
@@ -39,7 +37,7 @@ function createRandomPlayerConfig(profile) {
         profileName: profile.name,
         startDelay: rndInt(5, 180),
         initSeekMax: rndInt(30, 90),
-        unmuteDelay: rndInt(15, 30),
+        unmuteDelayExtra: rndInt(30, 90), // ✅ νέο πεδίο για extra καθυστέρηση
         volumeRange: [rndInt(5, 15), rndInt(20, 40)],
         midSeekInterval: rndInt(profile.midSeekIntervalRange[0], profile.midSeekIntervalRange[1]) * 60000,
         pauseChance: profile.pauseChance,
@@ -94,12 +92,14 @@ async function initPlayersSequentially() {
         const controller = new PlayerController(i, sourceList, config);
         controllers.push(controller);
         controller.init(videoId);
-        log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> after ${Math.round(delay / 1000)}s, session=${JSON.stringify(session)}`);
 
-        // Προγραμματισμένες αλλαγές
+        // ✅ Προσθήκη στο log του υπολογισμένου unmuteDelay
+        const unmuteDelayTotal = config.startDelay + config.unmuteDelayExtra;
+        log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> after ${Math.round(delay / 1000)}s, session=${JSON.stringify(session)}, unmuteDelay=${unmuteDelayTotal}s`);
+
+        // Προγραμματισμένες αλλαγές (Quality, Volume, Speed)
         setTimeout(() => {
             if (!controller.player || controller.player.getPlayerState() === YT.PlayerState.ENDED) return;
-
             const duration = controller.player.getDuration();
 
             // Quality Change
