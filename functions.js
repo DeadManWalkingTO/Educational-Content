@@ -1,11 +1,11 @@
 // --- functions.js ---
-// Έκδοση: v5.3.2
+// Έκδοση: v5.3.3
 // Περιγραφή: Κύρια λογική για τον έλεγχο των YouTube Players (PlayerController, AutoNext, Pauses, MidSeek).
 // Περιλαμβάνει: Δημιουργία players, διαχείριση κατάστασης, AutoNext, στατιστικά, logging.
 
 
 // --- Versions ---
-const FUNCTIONS_VERSION = "v5.3.2";
+const FUNCTIONS_VERSION = "v5.3.3";
 
 import { startWatchdog } from './watchdog.js';
 
@@ -154,7 +154,7 @@ class PlayerController {
                 p.setVolume(v);
                 log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
             } else {
-                log(`[${ts()}] ⚠️ Auto Unmute skipped -> not playing`);
+                log(`[${ts()}] ⚠️ Player ${this.index + 1} Auto Unmute skipped -> not playing`);
             }
         }, unmuteDelay);
     }
