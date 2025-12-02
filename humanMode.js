@@ -1,10 +1,10 @@
 // --- humanMode.js ---
-// Έκδοση: v3.8.2 (βελτιωμένη)
+// Έκδοση: v3.9.0 (βελτιωμένη)
 // Αλλαγές:
-// 1. Προσθήκη στο log της πληροφορίας για το υπολογισμένο unmuteDelay (startDelay + extra).
+// 1. Προσθήκη στο log του απαιτούμενου χρόνου παρακολούθησης για AutoNext (χρησιμοποιεί getRequiredWatchTime).
 // 2. Διατήρηση όλων των προηγούμενων λειτουργιών.
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v3.8.2";
+const HUMAN_MODE_VERSION = "v3.9.0";
 
 // --- Behavior Profiles ---
 const BEHAVIOR_PROFILES = [
@@ -37,7 +37,7 @@ function createRandomPlayerConfig(profile) {
         profileName: profile.name,
         startDelay: rndInt(5, 180),
         initSeekMax: rndInt(30, 90),
-        unmuteDelayExtra: rndInt(30, 90), // ✅ νέο πεδίο για extra καθυστέρηση
+        unmuteDelayExtra: rndInt(30, 90), // extra καθυστέρηση για unmute
         volumeRange: [rndInt(5, 15), rndInt(20, 40)],
         midSeekInterval: rndInt(profile.midSeekIntervalRange[0], profile.midSeekIntervalRange[1]) * 60000,
         pauseChance: profile.pauseChance,
@@ -93,14 +93,20 @@ async function initPlayersSequentially() {
         controllers.push(controller);
         controller.init(videoId);
 
-        // ✅ Προσθήκη στο log του υπολογισμένου unmuteDelay
+        // Υπολογισμός απαιτούμενου χρόνου για AutoNext
+        const requiredTimeSec = getRequiredWatchTime(0); // placeholder, θα ενημερωθεί όταν το video φορτωθεί
         const unmuteDelayTotal = config.startDelay + config.unmuteDelayExtra;
+
         log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> after ${Math.round(delay / 1000)}s, session=${JSON.stringify(session)}, unmuteDelay=${unmuteDelayTotal}s`);
 
         // Προγραμματισμένες αλλαγές (Quality, Volume, Speed)
         setTimeout(() => {
             if (!controller.player || controller.player.getPlayerState() === YT.PlayerState.ENDED) return;
             const duration = controller.player.getDuration();
+
+            // ✅ Ενημέρωση απαιτούμενου χρόνου για AutoNext στο log
+            const requiredTime = getRequiredWatchTime(duration);
+            log(`[${ts()}] ⏳ Player ${i + 1} Required Watch Time for AutoNext -> ${requiredTime}s (duration:${duration}s)`);
 
             // Quality Change
             if (duration >= 300 && controller.player.getPlayerState() === YT.PlayerState.PLAYING) {
