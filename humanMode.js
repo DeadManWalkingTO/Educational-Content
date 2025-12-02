@@ -1,179 +1,180 @@
 // --- humanMode.js ---
-// Έκδοση: v3.9.0 (βελτιωμένη)
-// Αλλαγές:
-// 1. Προσθήκη στο log του απαιτούμενου χρόνου παρακολούθησης για AutoNext (χρησιμοποιεί getRequiredWatchTime).
-// 2. Διατήρηση όλων των προηγούμενων λειτουργιών.
+// Έκδοση: v4.0.0
+// Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς στους YouTube players.
+// Περιλαμβάνει: Behavior Profiles, τυχαία configs, sequential initialization, αλλαγές ποιότητας, έντασης, ταχύτητας.
+
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v3.9.0";
+const HUMAN_MODE_VERSION = "v4.0.0";
+
+// --- Imports ---
+import { ts, log, rndInt, PlayerController, controllers, isStopping } from './functions.js';
+import { loadVideoList, loadAltList } from './lists.js';
 
 // --- Behavior Profiles ---
 const BEHAVIOR_PROFILES = [
-    {
-        name: "Explorer",
-        pauseChance: 0.5,
-        seekChance: 0.6,
-        volumeChangeChance: 0.4,
-        midSeekIntervalRange: [4, 6],
-    },
-    {
-        name: "Casual",
-        pauseChance: 0.3,
-        seekChance: 0.1,
-        volumeChangeChance: 0.2,
-        midSeekIntervalRange: [8, 12],
-    },
-    {
-        name: "Focused",
-        pauseChance: 0.2,
-        seekChance: 0.05,
-        volumeChangeChance: 0.1,
-        midSeekIntervalRange: [10, 15],
-    }
+  {
+    name: "Explorer",
+    pauseChance: 0.5,
+    seekChance: 0.6,
+    volumeChangeChance: 0.4,
+    midSeekIntervalRange: [4, 6],
+  },
+  {
+    name: "Casual",
+    pauseChance: 0.3,
+    seekChance: 0.1,
+    volumeChangeChance: 0.2,
+    midSeekIntervalRange: [8, 12],
+  },
+  {
+    name: "Focused",
+    pauseChance: 0.2,
+    seekChance: 0.05,
+    volumeChangeChance: 0.1,
+    midSeekIntervalRange: [10, 15],
+  }
 ];
 
-// Δημιουργία τυχαίου config για κάθε player
+// --- Δημιουργία τυχαίου config για κάθε player ---
 function createRandomPlayerConfig(profile) {
-    return {
-        profileName: profile.name,
-        startDelay: rndInt(5, 180),
-        initSeekMax: rndInt(30, 90),
-        unmuteDelayExtra: rndInt(30, 90), // extra καθυστέρηση για unmute
-        volumeRange: [rndInt(5, 15), rndInt(20, 40)],
-        midSeekInterval: rndInt(profile.midSeekIntervalRange[0], profile.midSeekIntervalRange[1]) * 60000,
-        pauseChance: profile.pauseChance,
-        seekChance: profile.seekChance,
-        volumeChangeChance: profile.volumeChangeChance,
-        replayChance: Math.random() < 0.15
-    };
+  return {
+    profileName: profile.name,
+    startDelay: rndInt(5, 180),
+    initSeekMax: rndInt(30, 90),
+    unmuteDelayExtra: rndInt(30, 90),
+    volumeRange: [rndInt(5, 15), rndInt(20, 40)],
+    midSeekInterval: rndInt(profile.midSeekIntervalRange[0], profile.midSeekIntervalRange[1]) * 60000,
+    pauseChance: profile.pauseChance,
+    seekChance: profile.seekChance,
+    volumeChangeChance: profile.volumeChangeChance,
+    replayChance: Math.random() < 0.15
+  };
 }
 
-// Δημιουργία session plan
+// --- Δημιουργία session plan ---
 function createSessionPlan() {
-    return {
-        pauseChance: rndInt(1, 3),
-        seekChance: Math.random() < 0.5,
-        volumeChangeChance: Math.random() < 0.5,
-        replayChance: Math.random() < 0.15
-    };
+  return {
+    pauseChance: rndInt(1, 3),
+    seekChance: Math.random() < 0.5,
+    volumeChangeChance: Math.random() < 0.5,
+    replayChance: Math.random() < 0.15
+  };
 }
 
-// Αρχικοποίηση players sequentially
-async function initPlayersSequentially() {
-    if (videoListMain.length === 0 && videoListAlt.length === 0) {
-        log(`[${ts()}] ❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκτέλεση σταματά.`);
-        return;
+// --- Sequential Initialization των players ---
+export async function initPlayersSequentially() {
+  if (videoListMain.length === 0 && videoListAlt.length === 0) {
+    log(`[${ts()}] ❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκτέλεση σταματά.`);
+    return;
+  }
+  for (let i = 0; i < controllers.length; i++) {
+    const delay = i === 0 ? 0 : rndInt(30, 180) * 1000;
+    log(`[${ts()}] ⏳ HumanMode scheduled Player ${i + 1} -> start after ${Math.round(delay / 1000)}s`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+
+    let sourceList, sourceType;
+    if (videoListAlt.length > 0) {
+      const useMain = Math.random() < MAIN_PROBABILITY;
+      sourceList = useMain ? videoListMain : videoListAlt;
+      sourceType = useMain ? "main" : "alt";
+    } else {
+      sourceList = videoListMain;
+      sourceType = "main";
     }
-    for (let i = 0; i < PLAYER_COUNT; i++) {
-        const delay = i === 0 ? 0 : rndInt(30, 180) * 1000;
-        log(`[${ts()}] ⏳ HumanMode scheduled Player ${i + 1} -> start after ${Math.round(delay / 1000)}s`);
-        await new Promise(resolve => setTimeout(resolve, delay));
 
-        let sourceList, sourceType;
-        if (videoListAlt.length > 0) {
-            const useMain = Math.random() < MAIN_PROBABILITY;
-            sourceList = useMain ? videoListMain : videoListAlt;
-            sourceType = useMain ? "main" : "alt";
-        } else {
-            sourceList = videoListMain;
-            sourceType = "main";
-        }
+    const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
+    const profile = BEHAVIOR_PROFILES[Math.floor(Math.random() * BEHAVIOR_PROFILES.length)];
+    const config = createRandomPlayerConfig(profile);
+    if (i === 0) config.startDelay = 0;
+    const session = createSessionPlan();
 
-        const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
-        const profile = BEHAVIOR_PROFILES[Math.floor(Math.random() * BEHAVIOR_PROFILES.length)];
-        const config = createRandomPlayerConfig(profile);
-        if (i === 0) config.startDelay = 0;
-        const session = createSessionPlan();
+    if (isStopping) {
+      log(`[${ts()}] 👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
+      continue;
+    }
 
-        if (isStopping) {
-            log(`[${ts()}] 👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
-            continue;
-        }
+    const controller = new PlayerController(i, sourceList, config);
+    controllers.push(controller);
+    controller.init(videoId);
 
-        const controller = new PlayerController(i, sourceList, config);
-        controllers.push(controller);
-        controller.init(videoId);
+    const unmuteDelayTotal = config.startDelay + config.unmuteDelayExtra;
+    log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> after ${Math.round(delay / 1000)}s, session=${JSON.stringify(session)}, unmuteDelay=${unmuteDelayTotal}s`);
 
-        // Υπολογισμός απαιτούμενου χρόνου για AutoNext
-        const requiredTimeSec = getRequiredWatchTime(0); // placeholder, θα ενημερωθεί όταν το video φορτωθεί
-        const unmuteDelayTotal = config.startDelay + config.unmuteDelayExtra;
+    // Προγραμματισμένες αλλαγές (Quality, Volume, Speed)
+    setTimeout(() => {
+      if (!controller.player || controller.player.getPlayerState() === YT.PlayerState.ENDED) return;
+      const duration = controller.player.getDuration();
 
-        log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> after ${Math.round(delay / 1000)}s, session=${JSON.stringify(session)}, unmuteDelay=${unmuteDelayTotal}s`);
+      // Required Watch Time για AutoNext
+      const requiredTime = getRequiredWatchTime(duration);
+      log(`[${ts()}] ⏳ Player ${i + 1} Required Watch Time for AutoNext -> ${requiredTime}s (duration:${duration}s)`);
 
-        // Προγραμματισμένες αλλαγές (Quality, Volume, Speed)
+      // Quality Change
+      if (duration >= 300 && controller.player.getPlayerState() === YT.PlayerState.PLAYING) {
+        const qualities = ['small', 'medium', 'large'];
+        const q = qualities[Math.floor(Math.random() * qualities.length)];
+        controller.player.setPlaybackQuality(q);
+        log(`[${ts()}] 🎥 Player ${i + 1} Quality -> ${q}`);
+      }
+
+      // Volume Change
+      if (session.volumeChangeChance) {
+        const volumeChangeInterval = rndInt(300000, 600000);
         setTimeout(() => {
-            if (!controller.player || controller.player.getPlayerState() === YT.PlayerState.ENDED) return;
-            const duration = controller.player.getDuration();
+          if (controller.player.getPlayerState() === YT.PlayerState.PLAYING) {
+            let newVolume = rndInt(config.volumeRange[0], config.volumeRange[1]);
+            const variation = rndInt(-5, 5);
+            newVolume = Math.min(100, Math.max(0, newVolume + variation));
+            controller.player.setVolume(newVolume);
+            stats.volumeChanges++;
+            log(`[${ts()}] 🔊 Player ${i + 1} Volume -> ${newVolume}% (variation ${variation}%)`);
+          } else {
+            log(`[${ts()}] ⚠️ Player ${i + 1} Volume change skipped -> not playing`);
+          }
+        }, volumeChangeInterval);
+      }
 
-            // ✅ Ενημέρωση απαιτούμενου χρόνου για AutoNext στο log
-            const requiredTime = getRequiredWatchTime(duration);
-            log(`[${ts()}] ⏳ Player ${i + 1} Required Watch Time for AutoNext -> ${requiredTime}s (duration:${duration}s)`);
-
-            // Quality Change
-            if (duration >= 300 && controller.player.getPlayerState() === YT.PlayerState.PLAYING) {
-                const qualities = ['small', 'medium', 'large'];
-                const q = qualities[Math.floor(Math.random() * qualities.length)];
-                controller.player.setPlaybackQuality(q);
-                log(`[${ts()}] 🎥 Player ${i + 1} Quality -> ${q}`);
+      // Speed Change
+      if (Math.random() < 0.3) {
+        const speedChangeDelay = rndInt(120000, 300000);
+        setTimeout(() => {
+          if (controller.player.getPlayerState() === YT.PlayerState.PLAYING) {
+            let newSpeed, revertDelay;
+            if (duration >= 600) {
+              newSpeed = 1.25;
+              revertDelay = Math.floor((duration * rndInt(30, 50) / 100) * 1000);
+            } else {
+              newSpeed = 0.75;
+              revertDelay = Math.floor((duration * rndInt(20, 40) / 100) * 1000);
             }
-
-            // Volume Change με retry
-            if (session.volumeChangeChance) {
-                const volumeChangeInterval = rndInt(300000, 600000);
-                setTimeout(() => {
-                    if (controller.player.getPlayerState() === YT.PlayerState.PLAYING) {
-                        let newVolume = rndInt(config.volumeRange[0], config.volumeRange[1]);
-                        const variation = rndInt(-5, 5);
-                        newVolume = Math.min(100, Math.max(0, newVolume + variation));
-                        controller.player.setVolume(newVolume);
-                        stats.volumeChanges++;
-                        log(`[${ts()}] 🔊 Player ${i + 1} Volume -> ${newVolume}% (variation ${variation}%)`);
-                    } else {
-                        log(`[${ts()}] ⚠️ Player ${i + 1} Volume change skipped -> not playing`);
-                    }
-                }, volumeChangeInterval);
-            }
-
-            // Speed Change
-            if (Math.random() < 0.3) {
-                const speedChangeDelay = rndInt(120000, 300000);
-                setTimeout(() => {
-                    if (controller.player.getPlayerState() === YT.PlayerState.PLAYING) {
-                        let newSpeed, revertDelay;
-                        if (duration >= 600) {
-                            newSpeed = 1.25;
-                            revertDelay = Math.floor((duration * rndInt(30, 50) / 100) * 1000);
-                        } else {
-                            newSpeed = 0.75;
-                            revertDelay = Math.floor((duration * rndInt(20, 40) / 100) * 1000);
-                        }
-                        controller.player.setPlaybackRate(newSpeed);
-                        controller.currentRate = newSpeed;
-                        log(`[${ts()}] 🔄 Player ${i + 1} Speed -> ${newSpeed}x for ${Math.round(revertDelay / 60000)} min`);
-                        setTimeout(() => {
-                            if (controller.player.getPlayerState() === YT.PlayerState.PLAYING) {
-                                controller.player.setPlaybackRate(1.0);
-                                controller.currentRate = 1.0;
-                                log(`[${ts()}] 🔄 Player ${i + 1} Speed -> reverted to 1.0x`);
-                            }
-                        }, revertDelay);
-                    }
-                }, speedChangeDelay);
-            }
-        }, rndInt(30, 90) * 1000);
-    }
-    log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
+            controller.player.setPlaybackRate(newSpeed);
+            controller.currentRate = newSpeed;
+            log(`[${ts()}] 🔄 Player ${i + 1} Speed -> ${newSpeed}x for ${Math.round(revertDelay / 60000)} min`);
+            setTimeout(() => {
+              if (controller.player.getPlayerState() === YT.PlayerState.PLAYING) {
+                controller.player.setPlaybackRate(1.0);
+                controller.currentRate = 1.0;
+                log(`[${ts()}] 🔄 Player ${i + 1} Speed -> reverted to 1.0x`);
+              }
+            }, revertDelay);
+          }
+        }, speedChangeDelay);
+      }
+    }, rndInt(30, 90) * 1000);
+  }
+  log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
 
-// Εκκίνηση Human Mode μετά τη φόρτωση λιστών
+// --- Εκκίνηση Human Mode μετά τη φόρτωση λιστών ---
 Promise.all([loadVideoList(), loadAltList()])
-    .then(([mainList, altList]) => {
-        videoListMain = mainList;
-        videoListAlt = altList;
-        createPlayerContainers();
-        log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> Εκδόσεις: HTML ${HTML_VERSION} - JS ${JS_VERSION} - Controls ${UICONTROLS_VERSION} - HumanMode ${HUMAN_MODE_VERSION} - Lists ${LISTS_VERSION}`);
-        log(`[${ts()}] 📂 Lists Loaded -> Main:${videoListMain.length} Alt:${videoListAlt.length}`);
-        initPlayersSequentially();
-    })
-    .catch(err => log(`[${ts()}] ❌ List load error -> ${err}`));
+  .then(([mainList, altList]) => {
+    videoListMain = mainList;
+    videoListAlt = altList;
+    createPlayerContainers();
+    log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> Εκδόσεις: HTML ${HTML_VERSION} - JS ${JS_VERSION} - Controls ${UICONTROLS_VERSION} - HumanMode ${HUMAN_MODE_VERSION} - Lists ${LISTS_VERSION}`);
+    log(`[${ts()}] 📂 Lists Loaded -> Main:${videoListMain.length} Alt:${videoListAlt.length}`);
+    initPlayersSequentially();
+  })
+  .catch(err => log(`[${ts()}] ❌ List load error -> ${err}`));
 
 // --- End Of File ---
