@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <title>Educational Content</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="html-version" content="v5.0.1"> <!-- Ενημερωμένη έκδοση -->
+  <meta name="html-version" content="v5.5.5"> <!-- Ενημερωμένη έκδοση -->
   <link rel="icon" type="image/x-icon" href="./favicon.ico">
   <style>
     body {
@@ -72,10 +72,16 @@
   <!-- YouTube API -->
   <script src="https://www.youtube.com/iframe_api"></script>
   <!-- Συνδέουμε τα εξωτερικά αρχεία με τις συναρτήσεις -->
-  <script src="lists.js"></script>
-  <script src="uiControls.js"></script>
-  <script src="humanMode.js"></script>
+  <!-- Όλα τα αρχεία είναι modules και κάνουν import όπου χρειάζεται.
+  lists.js (φορτώνει λίστες)
+  functions.js (βασική λογική και PlayerController)
+  humanMode.js (χρησιμοποιεί functions και lists)
+  uiControls.js (χρησιμοποιεί functions και lists)
+  watchdog.js (χρησιμοποιεί functions) -->
+  <script type="module" src="lists.js"></script> 
   <script type="module" src="functions.js"></script>
+  <script type="module" src="humanMode.js"></script>
+  <script type="module" src="uiControls.js"></script>
   <script type="module" src="watchdog.js"></script>
 </body>
 </html>
