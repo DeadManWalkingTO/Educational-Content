@@ -1,11 +1,12 @@
 // --- watchdog.js ---
-// Έκδοση: v1.0.0
+// Έκδοση: v1.2.3
 // Περιγραφή: Μηχανισμός παρακολούθησης για PAUSED/BUFFERING καταστάσεις και reset players.
 
 // --- Versions ---
-const WATCHDOG_VERSION = "v1.0.0";
+const WATCHDOG_VERSION = "v1.2.3";
 
 export function startWatchdog(controllers, stats, log, ts) {
+    log(`[${ts()}] 🚀 Εκκίνηση Watchdog -> Έκδοση ${WATCHDOG_VERSION}`);
     setInterval(() => {
         controllers.forEach(c => {
             if (!c.player) return;
