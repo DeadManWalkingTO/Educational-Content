@@ -1,13 +1,11 @@
 // --- functions.js ---
-// Έκδοση: v5.0.1 (βελτιωμένη)
+// Έκδοση: v5.0.2 (βελτιωμένη)
 // Αλλαγές:
-// 1. Προσθήκη expectedPauseMs για δυναμικό όριο στο Watchdog.
-// 2. Watchdog υπολογίζει allowedPause = expectedPauseMs + 120s.
-// 3. Διατήρηση Auto Unmute resume, index στο log, play μετά από reset.
-// 4. Ενιαία updateStats με εκδόσεις και μέγεθος λιστών.
-
+// 1. Auto Unmute -> υπολογισμός καθυστέρησης με βάση startDelay + extra (30–90s).
+// 2. Έλεγχος κατάστασης πριν το unmute για αποφυγή κολλημάτων.
+// 3. Διατήρηση όλων των προηγούμενων λειτουργιών.
 // --- Versions ---
-const JS_VERSION = "v5.0.1";
+const JS_VERSION = "v5.0.2";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -46,7 +44,7 @@ function log(msg) {
     updateStats();
 }
 
-// ✅ Ενιαία updateStats
+// ✅ Ενημέρωση στατιστικών
 function updateStats() {
     const el = document.getElementById("statsPanel");
     if (el) {
@@ -110,10 +108,14 @@ class PlayerController {
         const p = e.target;
         this.startTime = Date.now();
         p.mute();
+
+        // ✅ Start Delay
         const startDelay = this.config && this.config.startDelay !== undefined
             ? this.config.startDelay * 1000
             : rndDelayMs(5, 180);
+
         log(`[${ts()}] ⏳ Player ${this.index + 1} Scheduled -> start after ${Math.round(startDelay / 1000)}s`);
+
         setTimeout(() => {
             const duration = p.getDuration();
             let seek = 0;
@@ -121,16 +123,25 @@ class PlayerController {
                 seek = rndInt(0, this.config?.initSeekMax ?? 60);
             }
             p.seekTo(seek, true);
+            p.playVideo();
             log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> seek=${seek}s after ${Math.round(startDelay / 1000)}s`);
             this.schedulePauses();
             this.scheduleMidSeek();
         }, startDelay);
-        const unmuteDelay = this.config?.unmuteDelay ? this.config.unmuteDelay * 1000 : rndDelayMs(15, 30);
+
+        // ✅ Auto Unmute -> startDelay + extra (30–90s)
+        const baseStartDelaySec = this.config?.startDelay ?? rndInt(5, 180);
+        const unmuteDelay = (baseStartDelaySec + rndInt(30, 90)) * 1000;
+
         setTimeout(() => {
-            p.unMute();
-            const v = rndInt(10, 30);
-            p.setVolume(v);
-            log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
+            if (p.getPlayerState() === YT.PlayerState.PLAYING) {
+                p.unMute();
+                const v = rndInt(10, 30);
+                p.setVolume(v);
+                log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
+            } else {
+                log(`[${ts()}] ⚠️ Auto Unmute skipped -> not playing`);
+            }
         }, unmuteDelay);
     }
 
@@ -143,10 +154,8 @@ class PlayerController {
             this.totalPlayTime += ((Date.now() - this.playingStart) / 1000) * this.currentRate;
             this.playingStart = null;
         }
-
         if (e.data === YT.PlayerState.BUFFERING) this.lastBufferingStart = Date.now();
         if (e.data === YT.PlayerState.PAUSED) this.lastPausedStart = Date.now();
-
         if (e.data === YT.PlayerState.ENDED) {
             this.clearTimers();
             const duration = p.getDuration();
@@ -214,7 +223,7 @@ class PlayerController {
         if (duration > 0) {
             const delaySmall = (duration * rndInt(10, 20) / 100) * 1000;
             const pauseLen = (duration * rndInt(2, 5) / 100) * 1000;
-            this.expectedPauseMs = pauseLen; // ✅ Καταγραφή παύσης
+            this.expectedPauseMs = pauseLen;
             this.timers.pauseSmall = setTimeout(() => {
                 if (p.getPlayerState() === YT.PlayerState.PLAYING) {
                     p.pauseVideo();
@@ -222,7 +231,7 @@ class PlayerController {
                     log(`[${ts()}] ⏸ Player ${this.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
                     setTimeout(() => {
                         p.playVideo();
-                        this.expectedPauseMs = 0; // ✅ Reset μετά την παύση
+                        this.expectedPauseMs = 0;
                     }, pauseLen);
                 }
             }, delaySmall);
@@ -254,13 +263,13 @@ class PlayerController {
     }
 }
 
-// --- Watchdog με δυναμικό όριο ---
+// --- Watchdog ---
 setInterval(() => {
     controllers.forEach(c => {
         if (!c.player) return;
         const state = c.player.getPlayerState();
         const now = Date.now();
-        const allowedPause = (c.expectedPauseMs || 0) + 120000; // ✅ Δυναμικό όριο
+        const allowedPause = (c.expectedPauseMs || 0) + 120000;
         if (state === YT.PlayerState.BUFFERING && c.lastBufferingStart && (now - c.lastBufferingStart > 60000)) {
             log(`[${ts()}] ⚠️ Watchdog reset -> Player ${c.index + 1} BUFFERING >60s`);
             c.loadNextVideo(c.player);
