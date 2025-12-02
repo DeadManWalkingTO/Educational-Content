@@ -1,11 +1,10 @@
 // --- functions.js ---
-// Έκδοση: v5.0.2 (βελτιωμένη)
+// Έκδοση: v5.1.0 (βελτιωμένη)
 // Αλλαγές:
-// 1. Auto Unmute -> υπολογισμός καθυστέρησης με βάση startDelay + extra (30–90s).
-// 2. Έλεγχος κατάστασης πριν το unmute για αποφυγή κολλημάτων.
-// 3. Διατήρηση όλων των προηγούμενων λειτουργιών.
+// 1. Νέα λογική AutoNext με δυναμικό ποσοστό και MAX όρια.
+// 2. Διατήρηση όλων των προηγούμενων λειτουργιών (Watchdog, Pauses, Mid-seeks, Stats, Anti-Spam).
 // --- Versions ---
-const JS_VERSION = "v5.0.2";
+const JS_VERSION = "v5.1.0";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -68,6 +67,35 @@ function createPlayerContainers() {
     }
 }
 
+// ✅ Νέα λογική για απαιτούμενο χρόνο παρακολούθησης
+function getRequiredWatchTime(durationSec) {
+    let percent;
+    let maxLimitSec = null;
+
+    if (durationSec < 300) {
+        percent = 80;
+    } else if (durationSec < 1800) {
+        percent = rndInt(50, 70);
+        maxLimitSec = (15 + rndInt(0, 5)) * 60; // 15 min + random 5
+    } else if (durationSec < 7200) {
+        percent = rndInt(20, 35);
+        maxLimitSec = (15 + rndInt(0, 10)) * 60; // 15 min + random 10
+    } else if (durationSec < 36000) {
+        percent = rndInt(10, 20);
+        maxLimitSec = (15 + rndInt(0, 5)) * 60; // 15 min + random 5
+    } else {
+        percent = rndInt(10, 15);
+        maxLimitSec = (20 + rndInt(0, 3)) * 60; // 20 min + random 3
+    }
+
+    let requiredTime = Math.floor((durationSec * percent) / 100);
+    if (maxLimitSec && requiredTime > maxLimitSec) {
+        requiredTime = maxLimitSec;
+    }
+
+    return requiredTime; // σε δευτερόλεπτα
+}
+
 // --- Player Controller Class ---
 class PlayerController {
     constructor(index, sourceList, config = null, sourceType = "main") {
@@ -84,7 +112,7 @@ class PlayerController {
         this.totalPlayTime = 0;
         this.lastBufferingStart = null;
         this.lastPausedStart = null;
-        this.expectedPauseMs = 0; // ✅ Νέα μεταβλητή
+        this.expectedPauseMs = 0;
     }
 
     init(videoId) {
@@ -109,7 +137,6 @@ class PlayerController {
         this.startTime = Date.now();
         p.mute();
 
-        // ✅ Start Delay
         const startDelay = this.config && this.config.startDelay !== undefined
             ? this.config.startDelay * 1000
             : rndDelayMs(5, 180);
@@ -129,7 +156,6 @@ class PlayerController {
             this.scheduleMidSeek();
         }, startDelay);
 
-        // ✅ Auto Unmute -> startDelay + extra (30–90s)
         const baseStartDelaySec = this.config?.startDelay ?? rndInt(5, 180);
         const unmuteDelay = (baseStartDelaySec + rndInt(30, 90)) * 1000;
 
@@ -162,18 +188,19 @@ class PlayerController {
             const percentWatched = Math.round((this.totalPlayTime / duration) * 100);
             watchPercentages[this.index] = percentWatched;
             log(`[${ts()}] ✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(this.totalPlayTime)}s)`);
+
             const afterEndPauseMs = rndInt(15000, 60000);
             setTimeout(() => {
-                const requiredPercent = duration < 300 ? 90 : 70;
-                if (percentWatched < requiredPercent) {
-                    log(`[${ts()}] ⏳ Player ${this.index + 1} AutoNext blocked -> required:${requiredPercent}%, actual:${percentWatched}%`);
+                const requiredTime = getRequiredWatchTime(duration);
+                if (this.totalPlayTime < requiredTime) {
+                    log(`[${ts()}] ⏳ Player ${this.index + 1} AutoNext blocked -> required:${requiredTime}s, actual:${Math.round(this.totalPlayTime)}s`);
                     return;
                 }
                 if (duration < 300) {
                     this.loadNextVideo(p);
                     return;
                 }
-                if (this.totalPlayTime >= duration * 0.7) {
+                if (this.totalPlayTime >= requiredTime) {
                     if (duration > 120 && Math.random() < 0.1) {
                         p.seekTo(0);
                         p.playVideo();
