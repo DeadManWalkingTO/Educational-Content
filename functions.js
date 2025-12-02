@@ -1,13 +1,13 @@
 // --- functions.js ---
-// Έκδοση: v4.7.3 (ενημερωμένη)
+// Έκδοση: v4.7.5 (ενημερωμένη)
 // Αλλαγές:
-// 1. Μικρά βίντεο (<300s) απαιτούν 90% παρακολούθηση για AutoNext
-// 2. Διόρθωση λογικής Auto Unmute -> εκτελείται πάντα μετά το delay
-// 3. Καταγραφή αλλαγής έντασης στο unmute (stats.volumeChanges++)
-// 4. Νέα μορφή εμφάνισης στατιστικών στο updateStats()
+// 1. Ασφαλής λογική Auto Unmute -> εκτελείται μόνο αν player είναι ενεργός (PLAYING ή BUFFERING)
+// 2. Καταγραφή αλλαγής έντασης στο unmute (stats.volumeChanges++)
+// 3. Νέα μορφή εμφάνισης στατιστικών στο updateStats()
+// 4. Βελτιωμένο Watchdog: έλεγχος BUFFERING >60s και PAUSED >120s με προσπάθεια resume πριν reset
 
 // --- Versions ---
-const JS_VERSION = "v4.7.3";
+const JS_VERSION = "v4.7.5";
 const HTML_VERSION = document.querySelector('meta[name="html-version"]')?.content ?? "unknown";
 
 // --- Player Settings ---
@@ -83,6 +83,8 @@ class PlayerController {
         this.playingStart = null;
         this.currentRate = 1.0;
         this.totalPlayTime = 0;
+        this.lastBufferingStart = null;
+        this.lastPausedStart = null;
     }
 
     init(videoId) {
@@ -122,15 +124,20 @@ class PlayerController {
             this.scheduleMidSeek();
         }, startDelay);
 
-        // ✅ Διόρθωση: Unmute πάντα μετά το delay + καταγραφή αλλαγής έντασης
+        // ✅ Ασφαλής λογική για Auto Unmute
         const unmuteDelay = this.config?.unmuteDelay ? this.config.unmuteDelay * 1000 : rndDelayMs(60, 300);
         setTimeout(() => {
-            if (p && typeof p.unMute === "function") {
+            if (
+                p && typeof p.unMute === "function" &&
+                (p.getPlayerState() === YT.PlayerState.PLAYING || p.getPlayerState() === YT.PlayerState.BUFFERING)
+            ) {
                 p.unMute();
                 const v = rndInt(10, 30);
                 p.setVolume(v);
                 stats.volumeChanges++; // ✅ Καταγραφή αλλαγής έντασης
                 log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
+            } else {
+                log(`[${ts()}] ⚠️ Auto Unmute skipped -> Player not active`);
             }
         }, unmuteDelay);
     }
@@ -144,6 +151,10 @@ class PlayerController {
             this.totalPlayTime += ((Date.now() - this.playingStart) / 1000) * this.currentRate;
             this.playingStart = null;
         }
+
+        // Καταγραφή χρόνου για Watchdog
+        if (e.data === YT.PlayerState.BUFFERING) this.lastBufferingStart = Date.now();
+        if (e.data === YT.PlayerState.PAUSED) this.lastPausedStart = Date.now();
 
         if (e.data === YT.PlayerState.ENDED) {
             this.clearTimers();
@@ -254,13 +265,31 @@ class PlayerController {
     }
 }
 
-// --- Watchdog ---
+// --- Βελτιωμένο Watchdog ---
 setInterval(() => {
     controllers.forEach(c => {
-        if (c.player && c.player.getPlayerState() === YT.PlayerState.BUFFERING) {
-            log(`[${ts()}] ⚠️ Watchdog reset -> Player ${c.index + 1} (BUFFERING >60s)`);
+        if (!c.player) return;
+        const state = c.player.getPlayerState();
+        const now = Date.now();
+
+        // BUFFERING >60s
+        if (state === YT.PlayerState.BUFFERING && c.lastBufferingStart && (now - c.lastBufferingStart > 60000)) {
+            log(`[${ts()}] ⚠️ Watchdog reset -> Player ${c.index + 1} BUFFERING >60s`);
             c.loadNextVideo(c.player);
             stats.watchdog++;
+        }
+
+        // PAUSED >120s (και όχι σε scheduled pause)
+        if (state === YT.PlayerState.PAUSED && c.lastPausedStart && (now - c.lastPausedStart > 120000)) {
+            log(`[${ts()}] ⚠️ Watchdog resume attempt -> Player ${c.index + 1}`);
+            c.player.playVideo();
+            setTimeout(() => {
+                if (c.player.getPlayerState() !== YT.PlayerState.PLAYING) {
+                    log(`[${ts()}] ❌ Watchdog reset -> Player ${c.index + 1} stuck in PAUSED`);
+                    c.loadNextVideo(c.player);
+                    stats.watchdog++;
+                }
+            }, 5000);
         }
     });
 }, 60000);
