@@ -1,14 +1,13 @@
+
 // --- lists.js ---
-// Έκδοση: v2.4.0
-// Περιγραφή: Αυτόνομο module για φόρτωση λιστών βίντεο (τοπικά, GitHub, fallback). Χρησιμοποιεί global log() και ts() για ενημέρωση UI.
+// Έκδοση: v2.5.0
+// Περιγραφή: Αυτόνομο module για φόρτωση λιστών βίντεο (τοπικά, GitHub, fallback). Ενημερώνει τις global μεταβλητές videoListMain και videoListAlt.
 
 // --- Versions ---
-const LISTS_VERSION = "v2.4.0";
+const LISTS_VERSION = "v2.5.0";
 
 // --- Πηγές λιστών ---
 let listSource = "Internal";
-export let videoListMain = [];
-export let videoListAlt = [];
 
 // Εσωτερική λίστα fallback
 const internalList = [
@@ -17,7 +16,11 @@ const internalList = [
   "WezZYKX7AAY","AhRR2nQ71Eg","xIQBnFvFTfg","ZWbRPcCbZA8","YsdWYiPlEsE"
 ];
 
-// --- Φόρτωση κύριας λίστας ---
+/**
+ * Φόρτωση κύριας λίστας βίντεο.
+ * Προσπαθεί από τοπικό αρχείο, μετά από GitHub, αλλιώς χρησιμοποιεί internal fallback.
+ * Ενημερώνει την global μεταβλητή videoListMain.
+ */
 export function loadVideoList() {
   return fetch("list.txt")
     .then(r => r.ok ? r.text() : Promise.reject("local-not-found"))
@@ -25,6 +28,7 @@ export function loadVideoList() {
       const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
       if (arr.length) {
         listSource = "Local";
+        window.videoListMain = arr;
         log(`[${ts()}] ✅ Main list loaded from local (${arr.length} videos)`);
         return arr;
       }
@@ -37,6 +41,7 @@ export function loadVideoList() {
           const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
           if (arr.length) {
             listSource = "Web";
+            window.videoListMain = arr;
             log(`[${ts()}] ✅ Main list loaded from GitHub (${arr.length} videos)`);
             return arr;
           }
@@ -44,34 +49,42 @@ export function loadVideoList() {
         })
         .catch(() => {
           listSource = "Internal";
+          window.videoListMain = internalList;
           log(`[${ts()}] ⚠ Main list fallback -> using internal list (${internalList.length} videos)`);
           return internalList;
         });
     });
 }
 
-// --- Φόρτωση εναλλακτικής λίστας ---
+/**
+ * Φόρτωση εναλλακτικής λίστας βίντεο.
+ * Προσπαθεί από τοπικό αρχείο, αλλιώς επιστρέφει κενή λίστα.
+ * Ενημερώνει την global μεταβλητή videoListAlt.
+ */
 export function loadAltList() {
   return fetch("random.txt")
     .then(r => r.ok ? r.text() : Promise.reject("alt-not-found"))
     .then(text => {
       const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
+      window.videoListAlt = arr;
       log(`[${ts()}] ✅ Alt list loaded (${arr.length} videos)`);
       return arr;
     })
     .catch(() => {
+      window.videoListAlt = [];
       log(`[${ts()}] ⚠ Alt list not found -> using empty list`);
       return [];
     });
 }
 
-// --- Επαναφόρτωση λιστών ---
+/**
+ * Επαναφόρτωση λιστών (Main + Alt).
+ * Ενημερώνει τις global μεταβλητές και εμφανίζει μήνυμα στο log.
+ */
 export function reloadList() {
   Promise.all([loadVideoList(), loadAltList()])
     .then(([mainList, altList]) => {
-      videoListMain = mainList;
-      videoListAlt = altList;
-      log(`[${ts()}] 📂 Lists Loaded -> Main:${videoListMain.length} Alt:${videoListAlt.length}`);
+      log(`[${ts()}] 📂 Lists Loaded -> Main:${mainList.length} Alt:${altList.length}`);
     })
     .catch(err => {
       log(`[${ts()}] ❌ Reload failed -> ${err}`);
