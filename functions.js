@@ -1,13 +1,16 @@
 // --- functions.js ---
-// Έκδοση: v5.5.2
+// Έκδοση: v5.5.6
 // Περιγραφή: Κύρια λογική για τον έλεγχο των YouTube Players (PlayerController, AutoNext, Pauses, MidSeek).
 // Χρησιμοποιεί global log(), ts(), rndInt() και global state από globals.js.
 
 // --- Versions ---
-const FUNCTIONS_VERSION = "v5.5.2";
+const FUNCTIONS_VERSION = "v5.5.6";
 export function getVersion() {
     return FUNCTIONS_VERSION;
 }
+
+// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+log(`[${ts()}] 🚀 Φόρτωση αρχείου: functions.js v${FUNCTIONS_VERSION} -> ξεκίνησε`);
 
 // --- Imports ---
 import { startWatchdog } from './watchdog.js';
@@ -253,5 +256,8 @@ export class PlayerController {
 
 // ✅ Εκκίνηση Watchdog
 startWatchdog();
+
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+log(`[${ts()}] ✅ Φόρτωση αρχείου: functions.js v${FUNCTIONS_VERSION} -> ολοκληρώθηκε`);
 
 // --- End Of File ---
