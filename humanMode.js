@@ -4,7 +4,8 @@
 // Περιλαμβάνει: Δημιουργία containers, sequential initialization, behavior profiles,
 //               αλλαγές ποιότητας/έντασης/ταχύτητας (μέσω PlayerController), session plan logging.
 // Χρησιμοποιεί: log(), ts(), rndInt(), controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping,
-//               PlayerController (functions.js), lists.js, versionReporter.js.
+//               PlayerController (playerController.js), lists.js, versionReporter.js.
+
 // --- Versions ---
 const HUMAN_MODE_VERSION = "v4.3.1";
 export function getVersion() { return HUMAN_MODE_VERSION; }
@@ -15,7 +16,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχεί
 
 // --- Imports ---
 import { loadVideoList, loadAltList } from './lists.js';
-import { PlayerController } from './functions.js';
+import { PlayerController } from './playerController.js'; // ✅ Ενημερωμένο import
 import { reportAllVersions } from './versionReporter.js';
 
 // --- Δημιουργία containers για τους players ---
