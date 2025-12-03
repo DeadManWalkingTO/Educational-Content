@@ -1,15 +1,15 @@
 
 // --- lists.js ---
-// Έκδοση: v3.2.1
+// Έκδοση: v3.2.0
 // Περιγραφή: Φόρτωση λιστών βίντεο από local, GitHub ή fallback + δυνατότητα επαναφόρτωσης.
 // --- Versions ---
-const LISTS_VERSION = "v3.2.1";
+const LISTS_VERSION = "v3.2.0";
 export function getVersion() { return LISTS_VERSION; }
+
+import { log, ts } from './globals.js';
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: lists.js ${LISTS_VERSION} -> ξεκίνησε`);
-
-import { log, ts } from './globals.js';
 
 // Εσωτερική λίστα fallback
 const internalList = [

@@ -1,25 +1,23 @@
-
 // --- versionReporter.js ---
-// Έκδοση: v2.1.1
+// Έκδοση: v2.0.0
 // Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
-// Διόρθωση: Αφαίρεση διπλού 'v' από τα logs.
+// Χρησιμοποιεί ES Modules, χωρίς κυκλικές εξαρτήσεις.
 // --- Versions ---
-const VERSION_REPORTER_VERSION = "v2.1.1";
+const VERSION_REPORTER_VERSION = "v2.0.0";
 export function getVersion() { return VERSION_REPORTER_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: versionReporter.js ${VERSION_REPORTER_VERSION} -> ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: versionReporter.js v${VERSION_REPORTER_VERSION} -> ξεκίνησε`);
 
-import { getVersion as getMainVersion } from './main.js';
 import { getVersion as getGlobalsVersion } from './globals.js';
-import { getVersion as getUIControlsVersion } from './uiControls.js';
 import { getVersion as getListsVersion } from './lists.js';
-import { getVersion as getPlayerControllerVersion } from './playerController.js';
+import { getVersion as getPlayerControllerVersion } from './playerController.js'; // ✅ Ενημερωμένο import
 import { getVersion as getHumanModeVersion } from './humanMode.js';
+import { getVersion as getUIControlsVersion } from './uiControls.js';
 import { getVersion as getWatchdogVersion } from './watchdog.js';
 
 /**
- * Ανάκτηση της έκδοσης του HTML από το meta tag.
+ * Ανάκτα την έκδοση του HTML από το meta tag.
  * @returns {string} Έκδοση HTML ή "unknown".
  */
 function getHtmlVersion() {
@@ -28,18 +26,17 @@ function getHtmlVersion() {
 }
 
 /**
- * Συγκεντρώνει όλες τις εκδόσεις με τη σωστή σειρά.
+ * Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
  * @returns {object} Αντικείμενο με εκδόσεις.
  */
 export function reportAllVersions() {
   return {
     HTML: getHtmlVersion(),
-    Main: getMainVersion(),
     Globals: getGlobalsVersion(),
-    UIControls: getUIControlsVersion(),
     Lists: getListsVersion(),
-    PlayerController: getPlayerControllerVersion(),
+    PlayerController: getPlayerControllerVersion(), // ✅ Ενημερωμένο key
     HumanMode: getHumanModeVersion(),
+    UIControls: getUIControlsVersion(),
     Watchdog: getWatchdogVersion(),
     VersionReporter: VERSION_REPORTER_VERSION
   };
@@ -47,6 +44,6 @@ export function reportAllVersions() {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 import { log, ts } from './globals.js';
-log(`[${ts()}] ✅ Φόρτωση αρχείου: versionReporter.js ${VERSION_REPORTER_VERSION} -> ολοκληρώθηκε`);
+log(`[${ts()}] ✅ Φόρτωση αρχείου: versionReporter.js v${VERSION_REPORTER_VERSION} -> ολοκληρώθηκε`);
 
 // --- End Of File ---

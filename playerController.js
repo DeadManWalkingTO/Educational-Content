@@ -1,10 +1,11 @@
 
 // --- playerController.js ---
-// Έκδοση: v6.2.1
+// Έκδοση: v6.2.0
 // Περιγραφή: PlayerController και κύρια λογική για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
-// Νέα αλλαγή: Διόρθωση στα logs για να μην εμφανίζεται διπλό 'v' στην έκδοση.
+// Νέα δυνατότητα: 1) Δυναμικό origin στο embed (playerVars.origin) 2) Fallback για unmute -> retry playVideo() 3) pendingUnmute παραμένει.
+
 // --- Versions ---
-const PLAYER_CONTROLLER_VERSION = "v6.2.1";
+const PLAYER_CONTROLLER_VERSION = "v6.2.0";
 export function getVersion() { return PLAYER_CONTROLLER_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -16,38 +17,38 @@ import { log, ts, rndInt, stats, controllers, MAIN_PROBABILITY } from './globals
  * Υπολογίζει τον απαιτούμενο χρόνο παρακολούθησης (σε s) για AutoNext.
  */
 export function getRequiredWatchTime(durationSec) {
-  let percent;
-  let maxLimitSec = null;
-  if (durationSec < 300) {
-    percent = 80;
-  } else if (durationSec < 1800) {
-    percent = rndInt(50, 70);
-    maxLimitSec = (15 + rndInt(0, 5)) * 60;
-  } else if (durationSec < 7200) {
-    percent = rndInt(20, 35);
-    maxLimitSec = (15 + rndInt(0, 10)) * 60;
-  } else if (durationSec < 36000) {
-    percent = rndInt(10, 20);
-    maxLimitSec = (15 + rndInt(0, 5)) * 60;
-  } else {
-    percent = rndInt(10, 15);
-    maxLimitSec = (20 + rndInt(0, 3)) * 60;
-  }
-  let requiredTime = Math.floor((durationSec * percent) / 100);
-  if (maxLimitSec && requiredTime > maxLimitSec) {
-    requiredTime = maxLimitSec;
-  }
-  return requiredTime;
+    let percent;
+    let maxLimitSec = null;
+    if (durationSec < 300) {
+        percent = 80;
+    } else if (durationSec < 1800) {
+        percent = rndInt(50, 70);
+        maxLimitSec = (15 + rndInt(0, 5)) * 60;
+    } else if (durationSec < 7200) {
+        percent = rndInt(20, 35);
+        maxLimitSec = (15 + rndInt(0, 10)) * 60;
+    } else if (durationSec < 36000) {
+        percent = rndInt(10, 20);
+        maxLimitSec = (15 + rndInt(0, 5)) * 60;
+    } else {
+        percent = rndInt(10, 15);
+        maxLimitSec = (20 + rndInt(0, 3)) * 60;
+    }
+    let requiredTime = Math.floor((durationSec * percent) / 100);
+    if (maxLimitSec && requiredTime > maxLimitSec) {
+        requiredTime = maxLimitSec;
+    }
+    return requiredTime;
 }
 
 /**
  * Σχέδιο παύσεων με βάση τη διάρκεια.
  */
 export function getPausePlan(duration) {
-  if (duration < 1800) return { count: rndInt(1, 2), min: 10, max: 30 };
-  if (duration < 7200) return { count: rndInt(2, 3), min: 30, max: 60 };
-  if (duration < 36000) return { count: rndInt(3, 5), min: 60, max: 120 };
-  return { count: rndInt(5, 8), min: 120, max: 180 };
+    if (duration < 1800) return { count: rndInt(1, 2), min: 10, max: 30 };
+    if (duration < 7200) return { count: rndInt(2, 3), min: 30, max: 60 };
+    if (duration < 36000) return { count: rndInt(3, 5), min: 60, max: 120 };
+    return { count: rndInt(5, 8), min: 120, max: 180 };
 }
 
 // Τοπικός μετρητής AutoNext
@@ -58,45 +59,237 @@ let lastResetTimeLocal = Date.now();
  * Κλάση PlayerController για διαχείριση ενός YouTube Player.
  */
 export class PlayerController {
-  constructor(index, mainList, altList, config = null) {
-    this.pendingUnmute = false;
-    this.index = index;
-    this.mainList = Array.isArray(mainList) ? mainList : [];
-    this.altList = Array.isArray(altList) ? altList : [];
-    this.player = null;
-    this.timers = { midSeek: null, pauseTimers: [] };
-    this.config = config;
-    this.profileName = config?.profileName ?? "Unknown";
-    this.startTime = null;
-    this.playingStart = null;
-    this.currentRate = 1.0;
-    this.totalPlayTime = 0;
-    this.lastBufferingStart = null;
-    this.lastPausedStart = null;
-    this.expectedPauseMs = 0;
-  }
+    constructor(index, mainList, altList, config = null) {
+        this.pendingUnmute = false; // retry unmute όταν μπει σε PLAYING
+        this.index = index;
+        this.mainList = Array.isArray(mainList) ? mainList : [];
+        this.altList = Array.isArray(altList) ? altList : [];
+        this.player = null;
+        this.timers = { midSeek: null, pauseTimers: [] };
+        this.config = config;
+        this.profileName = config?.profileName ?? "Unknown";
+        this.startTime = null;
+        this.playingStart = null;
+        this.currentRate = 1.0;
+        this.totalPlayTime = 0;
+        this.lastBufferingStart = null;
+        this.lastPausedStart = null;
+        this.expectedPauseMs = 0;
+    }
 
-  init(videoId) {
-    const containerId = `player${this.index + 1}`;
-    const origin = window.location?.origin ?? undefined;
-    this.player = new YT.Player(containerId, {
-      videoId,
-      host: 'https://www.youtube.com',
-      playerVars: origin ? { origin } : {},
-      events: {
-        onReady: (e) => this.onReady(e),
-        onStateChange: (e) => this.onStateChange(e),
-        onError: () => this.onError(),
-      }
-    });
-    log(`[${ts()}] ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
-    log(`[${ts()}] 👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
-  }
+    init(videoId) {
+        const containerId = `player${this.index + 1}`;
+        const origin = window.location?.origin ?? undefined;
+        // Δυναμικό origin στο embed μέσω playerVars
+        this.player = new YT.Player(containerId, {
+            videoId,
+            host: 'https://www.youtube.com',
+            playerVars: origin ? { origin } : {},
+            events: {
+                onReady: (e) => this.onReady(e),
+                onStateChange: (e) => this.onStateChange(e),
+                onError: () => this.onError(),
+            }
+        });
+        log(`[${ts()}] ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
+        log(`[${ts()}] 👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
+    }
 
-  // ... (όλη η υπόλοιπη λογική παραμένει ίδια: onReady, onStateChange, onError, loadNextVideo, schedulePauses, scheduleMidSeek, clearTimers)
+    onReady(e) {
+        const p = e.target;
+        this.startTime = Date.now();
+        p.mute();
+        const startDelaySec = (this.config?.startDelay ?? rndInt(5, 180));
+        const startDelay = startDelaySec * 1000;
+        log(`[${ts()}] ⏳ Player ${this.index + 1} Scheduled -> start after ${startDelaySec}s`);
+        setTimeout(() => {
+            const duration = typeof p.getDuration === 'function' ? p.getDuration() : 0;
+            let seek = 0;
+            if (duration >= 300) {
+                const initMax = this.config?.initSeekMax ?? 60;
+                seek = rndInt(0, initMax);
+            }
+            if (typeof p.seekTo === 'function') p.seekTo(seek, true);
+            if (typeof p.playVideo === 'function') p.playVideo();
+            log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> seek=${seek}s after ${startDelaySec}s`);
+            this.schedulePauses();
+            this.scheduleMidSeek();
+        }, startDelay);
+
+        const unmuteDelayExtra = this.config?.unmuteDelayExtra ?? rndInt(30, 90);
+        const unmuteDelay = (startDelaySec + unmuteDelayExtra) * 1000;
+        setTimeout(() => {
+            if (typeof p.getPlayerState === 'function' && p.getPlayerState() === YT.PlayerState.PLAYING) {
+                // Unmute & Volume
+                if (typeof p.unMute === 'function') p.unMute();
+                const [vMin, vMax] = this.config?.volumeRange ?? [10, 30];
+                const v = rndInt(vMin, vMax);
+                if (typeof p.setVolume === 'function') p.setVolume(v);
+                stats.volumeChanges++;
+                log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
+                // Fallback: αν μετά το unmute βρεθούμε σε PAUSED (autoplay policy), προσπάθησε ξανά play
+                setTimeout(() => {
+                    if (typeof p.getPlayerState === 'function' && p.getPlayerState() === YT.PlayerState.PAUSED) {
+                        log(`[${ts()}] ⚠️ Unmute fallback -> retry playVideo()`);
+                        if (typeof p.playVideo === 'function') p.playVideo();
+                    }
+                }, 1000);
+            } else {
+                this.pendingUnmute = true;
+                log(`[${ts()}] ⚠️ Player ${this.index + 1} Auto Unmute skipped -> not playing (will retry on PLAYING)`);
+                return;
+            }
+        }, unmuteDelay);
+    }
+
+    onStateChange(e) {
+        const p = this.player;
+        switch (e.data) {
+            case YT.PlayerState.UNSTARTED: log(`[${ts()}] 🟢 Player ${this.index + 1} State -> UNSTARTED`); break;
+            case YT.PlayerState.ENDED: log(`[${ts()}] ⏹ Player ${this.index + 1} State -> ENDED`); break;
+            case YT.PlayerState.PLAYING: log(`[${ts()}] ▶ Player ${this.index + 1} State -> PLAYING`); break;
+            case YT.PlayerState.PAUSED: log(`[${ts()}] ⏸️ Player ${this.index + 1} State -> PAUSED`); break;
+            case YT.PlayerState.BUFFERING: log(`[${ts()}] 🟡 Player ${this.index + 1} State -> BUFFERING`); break;
+            case YT.PlayerState.CUED: log(`[${ts()}] 🟢 Player ${this.index + 1} State -> CUED`); break;
+            default: log(`[${ts()}] 🔴 Player ${this.index + 1} State -> UNKNOWN (${e.data})`);
+        }
+
+        // Αν εκκρεμεί unmute και μπήκε σε PLAYING, κάνε unmute τώρα με fallback
+        if (e.data === YT.PlayerState.PLAYING && this.pendingUnmute) {
+            if (typeof p.unMute === 'function') p.unMute();
+            const [vMin, vMax] = this.config?.volumeRange ?? [10, 30];
+            const v = rndInt(vMin, vMax);
+            if (typeof p.setVolume === 'function') p.setVolume(v);
+            this.pendingUnmute = false;
+            stats.volumeChanges++;
+            log(`[${ts()}] 🔊 Player ${this.index + 1} Unmute applied after PLAYING state -> ${v}%`);
+            setTimeout(() => {
+                if (typeof p.getPlayerState === 'function' && p.getPlayerState() === YT.PlayerState.PAUSED) {
+                    log(`[${ts()}] ⚠️ Unmute fallback -> retry playVideo()`);
+                    if (typeof p.playVideo === 'function') p.playVideo();
+                }
+            }, 1000);
+        }
+
+        if (e.data === YT.PlayerState.PLAYING) {
+            this.playingStart = Date.now();
+            this.currentRate = (typeof p.getPlaybackRate === 'function') ? p.getPlaybackRate() : 1.0;
+        } else if (this.playingStart && (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED)) {
+            this.totalPlayTime += ((Date.now() - this.playingStart) / 1000) * this.currentRate;
+            this.playingStart = null;
+        }
+        if (e.data === YT.PlayerState.BUFFERING) this.lastBufferingStart = Date.now();
+        if (e.data === YT.PlayerState.PAUSED) this.lastPausedStart = Date.now();
+        if (e.data === YT.PlayerState.ENDED) {
+            this.clearTimers();
+            const duration = typeof p.getDuration === 'function' ? p.getDuration() : 0;
+            const percentWatched = duration > 0 ? Math.round((this.totalPlayTime / duration) * 100) : 0;
+            log(`[${ts()}] ✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(this.totalPlayTime)}s)`);
+            const afterEndPauseMs = rndInt(15000, 60000);
+            setTimeout(() => {
+                const requiredTime = getRequiredWatchTime(duration);
+                if (this.totalPlayTime < requiredTime) {
+                    log(`[${ts()}] ⏳ Player ${this.index + 1} AutoNext blocked -> required:${requiredTime}s, actual:${Math.round(this.totalPlayTime)}s`);
+                    setTimeout(() => {
+                        log(`[${ts()}] ⚠️ Player ${this.index + 1} Force AutoNext -> inactivity fallback`);
+                        this.loadNextVideo(p);
+                    }, 60000);
+                    return;
+                }
+                this.loadNextVideo(p);
+            }, afterEndPauseMs);
+        }
+    }
+
+    onError() {
+        this.loadNextVideo(this.player);
+        stats.errors++;
+        log(`[${ts()}] ❌ Player ${this.index + 1} Error -> AutoNext`);
+    }
+
+    loadNextVideo(player) {
+        if (!player || typeof player.loadVideoById !== 'function') return;
+        const now = Date.now();
+        if (now - lastResetTimeLocal >= 3600000) {
+            autoNextCounterLocal = 0;
+            lastResetTimeLocal = now;
+        }
+        if (autoNextCounterLocal >= 50) {
+            log(`[${ts()}] ⚠️ AutoNext limit reached -> 50/hour`);
+            return;
+        }
+        const useMain = Math.random() < MAIN_PROBABILITY;
+        const list = useMain && this.mainList.length ? this.mainList :
+            (!useMain && this.altList.length ? this.altList : this.mainList);
+        if (!list || list.length === 0) {
+            log(`[${ts()}] ❌ AutoNext aborted -> no available list`);
+            return;
+        }
+        const newId = list[Math.floor(Math.random() * list.length)];
+        player.loadVideoById(newId);
+        player.playVideo();
+        stats.autoNext++;
+        autoNextCounterLocal++;
+        this.totalPlayTime = 0;
+        this.playingStart = null;
+        log(`[${ts()}] ⏭ Player ${this.index + 1} AutoNext -> ${newId} (Source:${useMain ? "main" : "alt"})`);
+        this.schedulePauses();
+        this.scheduleMidSeek();
+    }
+
+    schedulePauses() {
+        const p = this.player;
+        if (!p || typeof p.getDuration !== 'function') return;
+        const duration = p.getDuration();
+        if (duration <= 0) return;
+        const plan = getPausePlan(duration);
+        for (let i = 0; i < plan.count; i++) {
+            const delay = rndInt(Math.floor(duration * 0.1), Math.floor(duration * 0.8)) * 1000;
+            const pauseLen = rndInt(plan.min, plan.max) * 1000;
+            const timer = setTimeout(() => {
+                if (typeof p.getPlayerState === 'function' && p.getPlayerState() === YT.PlayerState.PLAYING) {
+                    p.pauseVideo();
+                    stats.pauses++;
+                    this.expectedPauseMs = pauseLen;
+                    log(`[${ts()}] ⏸️ Player ${this.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
+                    setTimeout(() => {
+                        p.playVideo();
+                        this.expectedPauseMs = 0;
+                    }, pauseLen);
+                }
+            }, delay);
+            this.timers.pauseTimers.push(timer);
+        }
+    }
+
+    scheduleMidSeek() {
+        const p = this.player;
+        if (!p || typeof p.getDuration !== 'function') return;
+        const duration = p.getDuration();
+        if (duration < 300) return;
+        const interval = this.config?.midSeekInterval ?? (rndInt(8, 12) * 60000);
+        this.timers.midSeek = setTimeout(() => {
+            if (duration > 0 && typeof p.getPlayerState === 'function' && p.getPlayerState() === YT.PlayerState.PLAYING) {
+                const seek = rndInt(Math.floor(duration * 0.2), Math.floor(duration * 0.6));
+                p.seekTo(seek, true);
+                stats.midSeeks++;
+                log(`[${ts()}] 🔄 Player ${this.index + 1} Mid-seek -> ${seek}s`);
+            }
+            this.scheduleMidSeek();
+        }, interval);
+    }
+
+    clearTimers() {
+        this.timers.pauseTimers.forEach(t => clearTimeout(t));
+        this.timers.pauseTimers = [];
+        if (this.timers.midSeek) {
+            clearTimeout(this.timers.midSeek);
+            this.timers.midSeek = null;
+        }
+        this.expectedPauseMs = 0;
+    }
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> ολοκληρώθηκε`);
-
 // --- End Of File ---
