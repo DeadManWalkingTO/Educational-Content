@@ -1,16 +1,16 @@
 // --- uiControls.js ---
-// Έκδοση: v1.5.0
-// Περιγραφή: Περιέχει τις συναρτήσεις για τα κουμπιά της εφαρμογής (Play All, Stop All, Restart All, Theme Toggle, Logs). Χρησιμοποιεί global log(), ts(), controllers, isStopping, stopTimers, rndInt(), MAIN_PROBABILITY.
+// Έκδοση: v1.6.0
+// Περιγραφή: Περιέχει τις συναρτήσεις για τα κουμπιά της εφαρμογής (Play All, Stop All, Restart All, Theme Toggle, Logs). Χρησιμοποιεί global log(), ts(), controllers, isStopping, stopTimers, rndInt(), MAIN_PROBABILITY και global λίστες videoListMain, videoListAlt.
 
 // --- Versions ---
-const UICONTROLS_VERSION = "v1.5.0";
+const UICONTROLS_VERSION = "v1.6.0";
 
 // --- Imports ---
-// Αφαιρέθηκαν imports από functions.js. Χρησιμοποιούμε global μεταβλητές και συναρτήσεις.
-// Κρατάμε μόνο τις λίστες από lists.js.
-import { videoListMain, videoListAlt } from './lists.js';
+// Αφαιρέθηκαν imports για functions.js και lists.js (χρησιμοποιούνται global μεταβλητές και συναρτήσεις).
 
-// ▶ Εκκινεί όλους τους players με τυχαία καθυστέρηση
+/**
+ * ▶ Εκκινεί όλους τους players με τυχαία καθυστέρηση.
+ */
 export function playAll() {
   if (isStopping) {
     isStopping = false;
@@ -39,7 +39,9 @@ export function playAll() {
   log(`[${ts()}] ▶ Play All -> sequential mode started, estimated duration ~${Math.round(delay / 1000)}s`);
 }
 
-// ⏹ Σταματά όλους τους players με τυχαία καθυστέρηση
+/**
+ * ⏹ Σταματά όλους τους players με τυχαία καθυστέρηση.
+ */
 export function stopAll() {
   isStopping = true;
   stopTimers.forEach(t => clearTimeout(t));
@@ -62,7 +64,9 @@ export function stopAll() {
   log(`[${ts()}] ⏹ Stop All -> sequential mode started, estimated duration ~${Math.round(delay / 1000)}s`);
 }
 
-// 🔄 Επανεκκινεί όλους τους players με νέο βίντεο
+/**
+ * 🔄 Επανεκκινεί όλους τους players με νέο βίντεο.
+ */
 export function restartAll() {
   controllers.forEach(c => {
     if (c.player) {
@@ -78,14 +82,18 @@ export function restartAll() {
   log(`[${ts()}] 🔄 Restart All -> completed`);
 }
 
-// 🌍 Εναλλαγή Dark/Light mode
+/**
+ * 🌍 Εναλλαγή Dark/Light mode.
+ */
 export function toggleTheme() {
   document.body.classList.toggle("light");
   const mode = document.body.classList.contains("light") ? "Light" : "Dark";
   log(`[${ts()}] 🌍 Theme toggled -> ${mode} mode`);
 }
 
-// 🧹 Καθαρίζει το activity panel
+/**
+ * 🧹 Καθαρίζει το activity panel.
+ */
 export function clearLogs() {
   const panel = document.getElementById("activityPanel");
   if (panel && panel.children.length > 0) {
@@ -96,7 +104,9 @@ export function clearLogs() {
   }
 }
 
-// 📋 Αντιγράφει τα logs στο clipboard μαζί με τα stats στο τέλος
+/**
+ * 📋 Αντιγράφει τα logs στο clipboard μαζί με τα stats στο τέλος.
+ */
 export function copyLogs() {
   const panel = document.getElementById("activityPanel");
   const statsPanel = document.getElementById("statsPanel");
