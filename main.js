@@ -1,9 +1,11 @@
 
 // --- main.js ---
-// Έκδοση: v1.0.0
+// Έκδοση: v1.1.0
 // Περιγραφή: Entry point της εφαρμογής. Φορτώνει modules, περιμένει το YouTube API και ξεκινά Human Mode.
+// Νέα δυνατότητα: Έλεγχος ετοιμότητας YouTube API πριν την εκκίνηση HumanMode.
+
 // --- Versions ---
-const MAIN_VERSION = "v1.0.0";
+const MAIN_VERSION = "v1.1.0";
 export function getVersion() { return MAIN_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -14,17 +16,20 @@ import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions } from './versionReporter.js';
 import './uiControls.js'; // Συνδέει UI με λογική
-import './watchdog.js';   // Εκκινεί watchdog αυτόματα
+import './watchdog.js'; // Εκκινεί watchdog αυτόματα
 
 /**
  * Περιμένει το YouTube IFrame API να είναι έτοιμο.
- * @returns {Promise<void>}
+ * @param {Function} callback - Συνάρτηση που θα εκτελεστεί όταν το API είναι διαθέσιμο.
  */
-async function waitForYouTubeAPI() {
-  return new Promise(resolve => {
-    const check = () => (window.YT && YT.Player) ? resolve() : setTimeout(check, 200);
-    check();
-  });
+function waitForYouTubeAPI(callback) {
+    const checkInterval = setInterval(() => {
+        if (window.YT && typeof YT.Player === 'function') {
+            clearInterval(checkInterval);
+            console.log(`[${new Date().toLocaleTimeString()}] ✅ YouTube API ready -> starting HumanMode`);
+            callback();
+        }
+    }, 500);
 }
 
 /**
@@ -36,30 +41,24 @@ async function waitForYouTubeAPI() {
  * - Sequential initialization των players
  */
 (async function startApp() {
-  try {
-    log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> main.js v${MAIN_VERSION}`);
-
-    // Φόρτωση λιστών
-    const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
-
-    // Δημιουργία containers
-    createPlayerContainers();
-
-    // Αναφορά εκδόσεων
-    const versions = reportAllVersions();
-    log(`[${ts()}] ✅ Εκδόσεις: ${JSON.stringify(versions)}`);
-    log(`[${ts()}] 📂 Lists Loaded -> Main:${mainList.length} Alt:${altList.length}`);
-
-    // Αναμονή για YouTube API
-    await waitForYouTubeAPI();
-
-    // Sequential initialization των players
-    await initPlayersSequentially(mainList, altList);
-
-    log(`[${ts()}] ✅ Εφαρμογή έτοιμη -> Human Mode ενεργό`);
-  } catch (err) {
-    log(`[${ts()}] ❌ Σφάλμα κατά την εκκίνηση -> ${err}`);
-  }
+    try {
+        log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> main.js v${MAIN_VERSION}`);
+        // Φόρτωση λιστών
+        const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
+        // Δημιουργία containers
+        createPlayerContainers();
+        // Αναφορά εκδόσεων
+        const versions = reportAllVersions();
+        log(`[${ts()}] ✅ Εκδόσεις: ${JSON.stringify(versions)}`);
+        log(`[${ts()}] 📂 Lists Loaded -> Main:${mainList.length} Alt:${altList.length}`);
+        // Αναμονή για YouTube API και εκκίνηση HumanMode
+        waitForYouTubeAPI(() => {
+            initPlayersSequentially(mainList, altList);
+            log(`[${ts()}] ✅ Εφαρμογή έτοιμη -> Human Mode ενεργό`);
+        });
+    } catch (err) {
+        log(`[${ts()}] ❌ Σφάλμα κατά την εκκίνηση -> ${err}`);
+    }
 })();
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
