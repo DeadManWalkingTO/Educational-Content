@@ -1,14 +1,17 @@
 // --- humanMode.js ---
-// Έκδοση: v4.2.0
+// Έκδοση: v4.2.2
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς στους YouTube players.
 // Περιλαμβάνει: Δημιουργία containers, sequential initialization, behavior profiles, αλλαγές ποιότητας/έντασης/ταχύτητας.
 // Χρησιμοποιεί global log(), ts(), rndInt(), controllers, isStopping και PlayerController από functions.js.
 
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v4.2.0";
+const HUMAN_MODE_VERSION = "v4.2.2";
 export function getVersion() {
     return HUMAN_MODE_VERSION;
 }
+
+// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+log(`[${ts()}] 🚀 Φόρτωση αρχείου: humanMode.js v${HUMAN_MODE_VERSION} -> ξεκίνησε`);
 
 // --- Imports ---
 import { loadVideoList, loadAltList } from './lists.js';
@@ -114,5 +117,8 @@ Promise.all([loadVideoList(), loadAltList()])
         initPlayersSequentially();
     })
     .catch(err => log(`[${ts()}] ❌ List load error -> ${err}`));
+
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+log(`[${ts()}] ✅ Φόρτωση αρχείου: humanMode.js v${HUMAN_MODE_VERSION} -> ολοκληρώθηκε`);
 
 // --- End Of File ---
