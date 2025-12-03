@@ -1,12 +1,15 @@
 // --- uiControls.js ---
-// Έκδοση: v1.8.0
+// Έκδοση: v1.8.2
 // Περιγραφή: Παρέχει τις συναρτήσεις για τα κουμπιά της εφαρμογής (Play All, Stop All, Restart All, Theme Toggle, Logs).
 // Χρησιμοποιεί global log(), ts(), controllers, isStopping, stopTimers, rndInt(), MAIN_PROBABILITY και global λίστες videoListMain, videoListAlt.
 // --- Versions ---
-const UICONTROLS_VERSION = "v1.8.0";
+const UICONTROLS_VERSION = "v1.8.2";
 export function getVersion() {
   return UICONTROLS_VERSION;
 }
+
+// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+log(`[${ts()}] 🚀 Φόρτωση αρχείου: uiControls.js v${UICONTROLS_VERSION} -> ξεκίνησε`);
 
 // --- Συναρτήσεις Ελέγχου ---
 export function playAll() {
@@ -113,4 +116,8 @@ window.toggleTheme = toggleTheme;
 window.copyLogs = copyLogs;
 window.clearLogs = clearLogs;
 window.reloadList = reloadList; // από lists.js
+
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου 
+log(`[${ts()}] ✅ Φόρτωση αρχείου: uiControls.js v${UICONTROLS_VERSION} -> ολοκληρώθηκε`);
+
 // --- End Of File ---
