@@ -1,107 +1,91 @@
+
 // --- lists.js ---
-// Έκδοση: v2.7.2
-// Περιγραφή: Φορτώνει λίστες βίντεο (Main και Alt) από τοπικά αρχεία, GitHub ή fallback internal list.
-// Παρέχει συναρτήσεις για επαναφόρτωση λιστών και ενημέρωση του global state.
-
+// Έκδοση: v3.2.0
+// Περιγραφή: Φόρτωση λιστών βίντεο από local, GitHub ή fallback + δυνατότητα επαναφόρτωσης.
 // --- Versions ---
-const LISTS_VERSION = "v2.7.2";
-export function getVersion() {
-    return LISTS_VERSION;
-}
+const LISTS_VERSION = "v3.2.0";
+export function getVersion() { return LISTS_VERSION; }
 
-// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου 
-log(`[${ts()}] 🚀 Φόρτωση αρχείου: lists.js v${LISTS_VERSION} -> ξεκίνησε`);
+import { log, ts } from './globals.js';
 
-// --- Πηγές λιστών ---
-let listSource = "Internal";
+// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: lists.js ${LISTS_VERSION} -> ξεκίνησε`);
 
 // Εσωτερική λίστα fallback
 const internalList = [
-    "ibfVWogZZhU","mYn9JUxxi0M","sWCTs_rQNy8","JFweOaiCoj4","U6VWEuOFRLQ",
-    "ARn8J7N1hIQ","3nd2812IDA4","RFO0NWk-WPw","biwbtfnq9JI","3EXSD6DDCrU",
-    "WezZYKX7AAY","AhRR2nQ71Eg","xIQBnFvFTfg","ZWbRPcCbZA8","YsdWYiPlEsE"
+  "ibfVWogZZhU","mYn9JUxxi0M","sWCTs_rQNy8","JFweOaiCoj4","U6VWEuOFRLQ",
+  "ARn8J7N1hIQ","3nd2812IDA4","RFO0NWk-WPw","biwbtfnq9JI","3EXSD6DDCrU",
+  "WezZYKX7AAY","AhRR2nQ71Eg","xIQBnFvFTfg","ZWbRPcCbZA8","YsdWYiPlEsE"
 ];
 
 /**
  * Φόρτωση κύριας λίστας βίντεο.
- * Προσπαθεί από τοπικό αρχείο, μετά από GitHub, αλλιώς χρησιμοποιεί internal fallback.
- * Ενημερώνει την global μεταβλητή videoListMain.
+ * Προσπαθεί από τοπικό αρχείο, μετά από GitHub, αλλιώς επιστρέφει internal fallback.
+ * @returns {Promise<string[]>} Λίστα με video IDs.
  */
-export function loadVideoList() {
-    return fetch("list.txt")
-        .then(r => r.ok ? r.text() : Promise.reject("local-not-found"))
-        .then(text => {
-            const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
-            if (arr.length) {
-                listSource = "Local";
-                window.videoListMain = arr;
-                log(`[${ts()}] ✅ Main list loaded from local (${arr.length} videos)`);
-                return arr;
-            }
-            throw "local-empty";
-        })
-        .catch(() => {
-            return fetch("https://raw.githubusercontent.com/DeadManWalkingTO/Educational-Content/refs/heads/main/list.txt")
-                .then(r => r.ok ? r.text() : Promise.reject("web-not-found"))
-                .then(text => {
-                    const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
-                    if (arr.length) {
-                        listSource = "Web";
-                        window.videoListMain = arr;
-                        log(`[${ts()}] ✅ Main list loaded from GitHub (${arr.length} videos)`);
-                        return arr;
-                    }
-                    throw "web-empty";
-                })
-                .catch(() => {
-                    listSource = "Internal";
-                    window.videoListMain = internalList;
-                    log(`[${ts()}] ⚠ Main list fallback -> using internal list (${internalList.length} videos)`);
-                    return internalList;
-                });
-        });
+export async function loadVideoList() {
+  try {
+    const r = await fetch("list.txt");
+    if (!r.ok) throw "local-not-found";
+    const text = await r.text();
+    const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
+    if (arr.length) {
+      log(`[${ts()}] ✅ Main list loaded from local (${arr.length} videos)`);
+      return arr;
+    }
+    throw "local-empty";
+  } catch {
+    try {
+      const r = await fetch("https://raw.githubusercontent.com/DeadManWalkingTO/Educational-Content/refs/heads/main/list.txt");
+      if (!r.ok) throw "web-not-found";
+      const text = await r.text();
+      const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
+      if (arr.length) {
+        log(`[${ts()}] ✅ Main list loaded from GitHub (${arr.length} videos)`);
+        return arr;
+      }
+      throw "web-empty";
+    } catch {
+      log(`[${ts()}] ⚠ Main list fallback -> using internal list (${internalList.length} videos)`);
+      return internalList;
+    }
+  }
 }
 
 /**
  * Φόρτωση εναλλακτικής λίστας βίντεο.
  * Προσπαθεί από τοπικό αρχείο, αλλιώς επιστρέφει κενή λίστα.
- * Ενημερώνει την global μεταβλητή videoListAlt.
+ * @returns {Promise<string[]>} Λίστα με video IDs.
  */
-export function loadAltList() {
-    return fetch("random.txt")
-        .then(r => r.ok ? r.text() : Promise.reject("alt-not-found"))
-        .then(text => {
-            const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
-            window.videoListAlt = arr;
-            log(`[${ts()}] ✅ Alt list loaded (${arr.length} videos)`);
-            return arr;
-        })
-        .catch(() => {
-            window.videoListAlt = [];
-            log(`[${ts()}] ⚠ Alt list not found -> using empty list`);
-            return [];
-        });
+export async function loadAltList() {
+  try {
+    const r = await fetch("random.txt");
+    if (!r.ok) throw "alt-not-found";
+    const text = await r.text();
+    const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
+    log(`[${ts()}] ✅ Alt list loaded (${arr.length} videos)`);
+    return arr;
+  } catch {
+    log(`[${ts()}] ⚠ Alt list not found -> using empty list`);
+    return [];
+  }
 }
 
 /**
- * Επαναφόρτωση λιστών (Main + Alt).
- * Ενημερώνει τις global μεταβλητές και εμφανίζει μήνυμα στο log.
+ * Επαναφόρτωση λιστών (Main & Alt) και εμφάνιση αποτελέσματος στο log.
  */
-export function reloadList() {
-    Promise.all([loadVideoList(), loadAltList()])
-        .then(([mainList, altList]) => {
-            log(`[${ts()}] 📂 Lists Loaded -> Main:${mainList.length} Alt:${altList.length}`);
-        })
-        .catch(err => {
-            log(`[${ts()}] ❌ Reload failed -> ${err}`);
-        });
+export async function reloadList() {
+  try {
+    const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
+    log(`[${ts()}] 📂 Lists Reloaded -> Main:${mainList.length} Alt:${altList.length}`);
+    return { mainList, altList };
+  } catch (err) {
+    log(`[${ts()}] ❌ Reload failed -> ${err}`);
+    return { mainList: [], altList: [] };
+  }
 }
 
-// --- Make reloadList globally accessible for HTML onclick ---
-window.reloadList = reloadList;
-
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση αρχείου: lists.js v${LISTS_VERSION} -> ολοκληρώθηκε`);
+log(`[${ts()}] ✅ Φόρτωση αρχείου: lists.js ${LISTS_VERSION} -> ολοκληρώθηκε`);
 
 // --- End Of File ---
-
