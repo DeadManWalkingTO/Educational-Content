@@ -1,10 +1,10 @@
 // --- lists.js ---
-// Έκδοση: v2.6.0
+// Έκδοση: v2.7.0
 // Περιγραφή: Φορτώνει λίστες βίντεο (Main και Alt) από τοπικά αρχεία, GitHub ή fallback internal list.
 // Παρέχει συναρτήσεις για επαναφόρτωση λιστών και ενημέρωση του global state.
 
 // --- Versions ---
-const LISTS_VERSION = "v2.6.0";
+const LISTS_VERSION = "v2.7.0";
 export function getVersion() {
     return LISTS_VERSION;
 }
@@ -94,4 +94,7 @@ export function reloadList() {
         });
 }
 
+// --- Make reloadList globally accessible for HTML onclick ---
+window.reloadList = reloadList;
 // --- End Of File ---
+
