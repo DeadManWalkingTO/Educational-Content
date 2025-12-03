@@ -1,11 +1,11 @@
 
 // --- playerController.js ---
-// Έκδοση: v6.1.0
+// Έκδοση: v6.2.0
 // Περιγραφή: PlayerController και κύρια λογική για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
-// Νέα δυνατότητα: Αν το Auto Unmute skipped, γίνεται Unmute αμέσως όταν ο player έρθει σε κατάσταση PLAYING.
+// Νέα δυνατότητα: 1) Δυναμικό origin στο embed (playerVars.origin) 2) Fallback για unmute -> retry playVideo() 3) pendingUnmute παραμένει.
 
 // --- Versions ---
-const PLAYER_CONTROLLER_VERSION = "v6.1.0";
+const PLAYER_CONTROLLER_VERSION = "v6.2.0";
 export function getVersion() { return PLAYER_CONTROLLER_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -60,7 +60,7 @@ let lastResetTimeLocal = Date.now();
  */
 export class PlayerController {
     constructor(index, mainList, altList, config = null) {
-        this.pendingUnmute = false; // Added for Auto Unmute retry
+        this.pendingUnmute = false; // retry unmute όταν μπει σε PLAYING
         this.index = index;
         this.mainList = Array.isArray(mainList) ? mainList : [];
         this.altList = Array.isArray(altList) ? altList : [];
@@ -79,8 +79,12 @@ export class PlayerController {
 
     init(videoId) {
         const containerId = `player${this.index + 1}`;
+        const origin = window.location?.origin ?? undefined;
+        // Δυναμικό origin στο embed μέσω playerVars
         this.player = new YT.Player(containerId, {
             videoId,
+            host: 'https://www.youtube.com',
+            playerVars: origin ? { origin } : {},
             events: {
                 onReady: (e) => this.onReady(e),
                 onStateChange: (e) => this.onStateChange(e),
@@ -116,12 +120,20 @@ export class PlayerController {
         const unmuteDelay = (startDelaySec + unmuteDelayExtra) * 1000;
         setTimeout(() => {
             if (typeof p.getPlayerState === 'function' && p.getPlayerState() === YT.PlayerState.PLAYING) {
+                // Unmute & Volume
                 if (typeof p.unMute === 'function') p.unMute();
                 const [vMin, vMax] = this.config?.volumeRange ?? [10, 30];
                 const v = rndInt(vMin, vMax);
                 if (typeof p.setVolume === 'function') p.setVolume(v);
                 stats.volumeChanges++;
                 log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
+                // Fallback: αν μετά το unmute βρεθούμε σε PAUSED (autoplay policy), προσπάθησε ξανά play
+                setTimeout(() => {
+                    if (typeof p.getPlayerState === 'function' && p.getPlayerState() === YT.PlayerState.PAUSED) {
+                        log(`[${ts()}] ⚠️ Unmute fallback -> retry playVideo()`);
+                        if (typeof p.playVideo === 'function') p.playVideo();
+                    }
+                }, 1000);
             } else {
                 this.pendingUnmute = true;
                 log(`[${ts()}] ⚠️ Player ${this.index + 1} Auto Unmute skipped -> not playing (will retry on PLAYING)`);
@@ -142,7 +154,7 @@ export class PlayerController {
             default: log(`[${ts()}] 🔴 Player ${this.index + 1} State -> UNKNOWN (${e.data})`);
         }
 
-        // Νέα λογική: Αν έχουμε pendingUnmute και state = PLAYING, κάνε unmute τώρα
+        // Αν εκκρεμεί unmute και μπήκε σε PLAYING, κάνε unmute τώρα με fallback
         if (e.data === YT.PlayerState.PLAYING && this.pendingUnmute) {
             if (typeof p.unMute === 'function') p.unMute();
             const [vMin, vMax] = this.config?.volumeRange ?? [10, 30];
@@ -151,6 +163,12 @@ export class PlayerController {
             this.pendingUnmute = false;
             stats.volumeChanges++;
             log(`[${ts()}] 🔊 Player ${this.index + 1} Unmute applied after PLAYING state -> ${v}%`);
+            setTimeout(() => {
+                if (typeof p.getPlayerState === 'function' && p.getPlayerState() === YT.PlayerState.PAUSED) {
+                    log(`[${ts()}] ⚠️ Unmute fallback -> retry playVideo()`);
+                    if (typeof p.playVideo === 'function') p.playVideo();
+                }
+            }, 1000);
         }
 
         if (e.data === YT.PlayerState.PLAYING) {
@@ -274,5 +292,4 @@ export class PlayerController {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> ολοκληρώθηκε`);
-
 // --- End Of File ---
