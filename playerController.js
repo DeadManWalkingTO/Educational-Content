@@ -59,7 +59,9 @@ let lastResetTimeLocal = Date.now();
  * Κλάση PlayerController για διαχείριση ενός YouTube Player.
  */
 export class PlayerController {
-  constructor(index, mainList, altList, config = null) {
+  constructor(
+        this.pendingUnmute = false; // Added for Auto Unmute retry
+index, mainList, altList, config = null) {
     this.index = index;
     this.mainList = Array.isArray(mainList) ? mainList : [];
     this.altList = Array.isArray(altList) ? altList : [];
