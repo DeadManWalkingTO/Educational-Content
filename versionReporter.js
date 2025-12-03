@@ -1,54 +1,49 @@
-
 // --- versionReporter.js ---
-// Έκδοση: v1.1.2
-// Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules της εφαρμογής και παρέχει κεντρική συνάρτηση αναφοράς.
-// Υποστηρίζει ανάκτηση έκδοσης από modules (με import) και από απλό script (globals.js).
-
+// Έκδοση: v2.0.0
+// Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
+// Χρησιμοποιεί ES Modules, χωρίς κυκλικές εξαρτήσεις.
 // --- Versions ---
-const VERSION_REPORTER_VERSION = "v1.1.2";
-export function getVersion() {
-    return VERSION_REPORTER_VERSION;
-}
+const VERSION_REPORTER_VERSION = "v2.0.0";
+export function getVersion() { return VERSION_REPORTER_VERSION; }
 
-// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου 
-log(`[${ts()}] 🚀 Φόρτωση αρχείου: versionReporter.js v${VERSION_REPORTER_VERSION} -> ξεκίνησε`);
+// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: versionReporter.js v${VERSION_REPORTER_VERSION} -> ξεκίνησε`);
 
-// --- Imports από modules ---
+import { getVersion as getGlobalsVersion } from './globals.js';
+import { getVersion as getListsVersion } from './lists.js';
 import { getVersion as getFunctionsVersion } from './functions.js';
 import { getVersion as getHumanModeVersion } from './humanMode.js';
-import { getVersion as getListsVersion } from './lists.js';
 import { getVersion as getUIControlsVersion } from './uiControls.js';
 import { getVersion as getWatchdogVersion } from './watchdog.js';
 
-// --- Ανάκτηση έκδοσης HTML από το index.html ---
+/**
+ * Ανακτά την έκδοση του HTML από το meta tag.
+ * @returns {string} Έκδοση HTML ή "unknown".
+ */
 function getHtmlVersion() {
-    const metaTag = document.querySelector('meta[name="html-version"]');
-    if (metaTag) return metaTag.getAttribute('content');
-    const htmlElement = document.querySelector('html');
-    const dataVersion = htmlElement?.getAttribute('data-html-version');
-    return dataVersion || "unknown";
+  const metaTag = document.querySelector('meta[name="html-version"]');
+  return metaTag ? metaTag.getAttribute('content') : "unknown";
 }
 
-// --- Ανάκτηση έκδοσης από globals.js (απλό script) ---
-function getGlobalsVersion() {
-    return typeof window.getGlobalsVersion === 'function' ? window.getGlobalsVersion() : "unknown";
-}
-
-// --- Συγκεντρωτική συνάρτηση ---
+/**
+ * Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
+ * @returns {object} Αντικείμενο με εκδόσεις.
+ */
 export function reportAllVersions() {
-    return {
-        HTML: getHtmlVersion(),
-        Globals: getGlobalsVersion(),
-        Functions: getFunctionsVersion(),
-        HumanMode: getHumanModeVersion(),
-        Lists: getListsVersion(),
-        UIControls: getUIControlsVersion(),
-        Watchdog: getWatchdogVersion(),
-        VersionReporter: getVersion()
-    };
+  return {
+    HTML: getHtmlVersion(),
+    Globals: getGlobalsVersion(),
+    Lists: getListsVersion(),
+    Functions: getFunctionsVersion(),
+    HumanMode: getHumanModeVersion(),
+    UIControls: getUIControlsVersion(),
+    Watchdog: getWatchdogVersion(),
+    VersionReporter: VERSION_REPORTER_VERSION
+  };
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+import { log, ts } from './globals.js';
 log(`[${ts()}] ✅ Φόρτωση αρχείου: versionReporter.js v${VERSION_REPORTER_VERSION} -> ολοκληρώθηκε`);
 
 // --- End Of File ---
