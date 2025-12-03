@@ -2,7 +2,6 @@
 // --- globals.js ---
 // Έκδοση: v2.1.0
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
-
 // --- Versions ---
 const GLOBALS_VERSION = "v2.1.0";
 export function getVersion() { return GLOBALS_VERSION; }
@@ -10,7 +9,7 @@ export function getVersion() { return GLOBALS_VERSION; }
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> ξεκίνησε`);
 
-// --- Στατιστικά για την εφαρμογή ---
+// Στατιστικά για την εφαρμογή
 export const stats = {
   autoNext: 0,
   replay: 0,
@@ -21,21 +20,20 @@ export const stats = {
   volumeChanges: 0
 };
 
-// --- Controllers για τους players ---
+// Controllers για τους players
 export const controllers = [];
 
-// --- Σταθερές εφαρμογής ---
+// Σταθερές εφαρμογής
 export const PLAYER_COUNT = 8;
 export const MAIN_PROBABILITY = 0.5;
 
-// --- AutoNext counters ---
+// AutoNext counters
 export let autoNextCounter = 0;
 export let lastResetTime = Date.now();
 
-// --- Lists state ---
+// Lists state
 let _mainList = [];
 let _altList = [];
-
 export function getMainList() { return _mainList; }
 export function getAltList() { return _altList; }
 export function setMainList(list) {
@@ -47,10 +45,9 @@ export function setAltList(list) {
   log(`[${ts()}] 📂 Alt list applied -> ${_altList.length} videos`);
 }
 
-// --- Stop All state & helpers ---
+// Stop All state & helpers
 export let isStopping = false;
 const stopTimers = [];
-
 export function setIsStopping(flag) {
   isStopping = !!flag;
   log(`[${ts()}] ⏹ isStopping = ${isStopping}`);
@@ -66,7 +63,7 @@ export function clearStopTimers() {
   log(`[${ts()}] 🧹 Stop timers cleared`);
 }
 
-// --- Utilities ---
+// Utilities
 export function ts() { return new Date().toLocaleTimeString(); }
 export function rndInt(min, max) {
   return Math.floor(min + Math.random() * (max - min + 1));
@@ -93,5 +90,4 @@ function updateStats() {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> ολοκληρώθηκε`);
-
 // --- End Of File ---
