@@ -1,23 +1,18 @@
+
 // --- humanMode.js ---
-// Έκδοση: v4.3.1
+// Έκδοση: v4.4.0
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς στους YouTube players.
-// Περιλαμβάνει: Δημιουργία containers, sequential initialization, behavior profiles,
-//               αλλαγές ποιότητας/έντασης/ταχύτητας (μέσω PlayerController), session plan logging.
-// Χρησιμοποιεί: log(), ts(), rndInt(), controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping,
-//               PlayerController (playerController.js), lists.js, versionReporter.js.
+// Περιλαμβάνει: Δημιουργία containers, sequential initialization, behavior profiles, session plan logging.
+// Δεν γίνεται πλέον auto-start εδώ — το orchestrator (main.js) καλεί τις exported συναρτήσεις.
 
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v4.3.1";
+const HUMAN_MODE_VERSION = "v4.4.0";
 export function getVersion() { return HUMAN_MODE_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου (format με 'v')
 import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList } from './globals.js';
+import { PlayerController } from './playerController.js';
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: humanMode.js v${HUMAN_MODE_VERSION} -> ξεκίνησε`);
-
-// --- Imports ---
-import { loadVideoList, loadAltList } from './lists.js';
-import { PlayerController } from './playerController.js'; // ✅ Ενημερωμένο import
-import { reportAllVersions } from './versionReporter.js';
 
 // --- Δημιουργία containers για τους players ---
 export function createPlayerContainers() {
@@ -69,15 +64,7 @@ function createSessionPlan() {
   };
 }
 
-// --- Gate για YouTube API readiness ---
-async function waitForYouTubeAPI() {
-  return new Promise(resolve => {
-    const check = () => (window.YT && YT.Player) ? resolve() : setTimeout(check, 200);
-    check();
-  });
-}
-
-// --- Sequential Initialization των players ---
+// --- Sequential Initialization των players (καλείται από main.js) ---
 export async function initPlayersSequentially(mainList, altList) {
   if (Array.isArray(mainList) && Array.isArray(altList)) {
     // ενημέρωση των κεντρικών λιστών (ESM-friendly μέσω setters από globals)
@@ -101,6 +88,14 @@ export async function initPlayersSequentially(mainList, altList) {
       continue;
     }
 
+    // ► Anti-duplication guard:
+    // Έλεγχος αν υπάρχει ήδη controller για το συγκεκριμένο index.
+    let controller = controllers.find(c => c.index === i) || null;
+    if (controller && controller.player) {
+      log(`[${ts()}] ⚠️ Player ${i + 1} already initialized, skipping re-init`);
+      continue;
+    }
+
     // Επιλογή λίστας με βάση MAIN_PROBABILITY (όπως στην παλιά λογική)
     const useMain = Math.random() < MAIN_PROBABILITY;
     const sourceList = useMain
@@ -115,32 +110,21 @@ export async function initPlayersSequentially(mainList, altList) {
     // Δημιουργία και καταγραφή session plan (όπως στο παλιό log)
     const session = createSessionPlan();
 
-    const controller = new PlayerController(i, mainList, altList, config);
-    controllers.push(controller);
-    controller.init(videoId);
+    if (!controller) {
+      controller = new PlayerController(i, mainList, altList, config);
+      controllers.push(controller);
+    } else {
+      // Αν υπάρχει controller χωρίς player, ενημερώνουμε profile/config πριν το init
+      controller.config = config;
+      controller.profileName = config.profileName;
+    }
 
+    controller.init(videoId);
     log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> session=${JSON.stringify(session)}`);
   }
 
   log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
-
-// --- Εκκίνηση Human Mode μετά τη φόρτωση λιστών ---
-(async function startHumanMode() {
-  try {
-    const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
-    createPlayerContainers();
-
-    const versions = reportAllVersions();
-    log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> Εκδόσεις: ${JSON.stringify(versions)}`);
-    log(`[${ts()}] 📂 Lists Loaded -> Main:${mainList.length} Alt:${altList.length}`);
-
-    await waitForYouTubeAPI();
-    await initPlayersSequentially(mainList, altList);
-  } catch (err) {
-    log(`[${ts()}] ❌ List load error -> ${err}`);
-  }
-})();
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου (format με 'v')
 log(`[${ts()}] ✅ Φόρτωση αρχείου: humanMode.js v${HUMAN_MODE_VERSION} -> ολοκληρώθηκε`);
