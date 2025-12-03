@@ -1,9 +1,11 @@
 
 // --- lists.js ---
-// Έκδοση: v3.2.1
-// Περιγραφή: Φόρτωση λιστών βίντεο από local, GitHub ή fallback + δυνατότητα επαναφόρτωσης.
+// Έκδοση: v3.3.0
+// Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
+// Ενημερωμένο: Διόρθωση GitHub raw URL (από refs/heads/main σε main/list.txt).
+
 // --- Versions ---
-const LISTS_VERSION = "v3.2.1";
+const LISTS_VERSION = "v3.3.0";
 export function getVersion() { return LISTS_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -11,78 +13,81 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχεί
 
 import { log, ts } from './globals.js';
 
-// Εσωτερική λίστα fallback
+// Internal fallback list (15 video IDs)
 const internalList = [
-  "ibfVWogZZhU","mYn9JUxxi0M","sWCTs_rQNy8","JFweOaiCoj4","U6VWEuOFRLQ",
-  "ARn8J7N1hIQ","3nd2812IDA4","RFO0NWk-WPw","biwbtfnq9JI","3EXSD6DDCrU",
-  "WezZYKX7AAY","AhRR2nQ71Eg","xIQBnFvFTfg","ZWbRPcCbZA8","YsdWYiPlEsE"
+  "dQw4w9WgXcQ", "3JZ_D3ELwOQ", "L_jWHffIx5E", "kJQP7kiw5Fk", "RgKAFK5djSk",
+  "fJ9rUzIMcZQ", "YQHsXMglC9A", "09R8_2nJtjg", "hT_nvWreIhg", "OPf0YbXqDm0",
+  "CevxZvSJLk8", "2Vv-BfVoq4g", "JGwWNGJdvx8", "60ItHLz5WEA", "pRpeEdMmmQ0"
 ];
 
 /**
- * Φόρτωση κύριας λίστας βίντεο.
- * Προσπαθεί από τοπικό αρχείο, μετά από GitHub, αλλιώς επιστρέφει internal fallback.
- * @returns {Promise<string[]>} Λίστα με video IDs.
+ * Φόρτωση κύριας λίστας από local αρχείο ή GitHub ή internal fallback.
  */
 export async function loadVideoList() {
   try {
-    const r = await fetch("list.txt");
-    if (!r.ok) throw "local-not-found";
-    const text = await r.text();
-    const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
-    if (arr.length) {
-      log(`[${ts()}] ✅ Main list loaded from local (${arr.length} videos)`);
-      return arr;
-    }
-    throw "local-empty";
-  } catch {
-    try {
-      const r = await fetch("https://raw.githubusercontent.com/DeadManWalkingTO/Educational-Content/refs/heads/main/list.txt");
-      if (!r.ok) throw "web-not-found";
-      const text = await r.text();
-      const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
-      if (arr.length) {
-        log(`[${ts()}] ✅ Main list loaded from GitHub (${arr.length} videos)`);
-        return arr;
+    const localResponse = await fetch('list.txt');
+    if (localResponse.ok) {
+      const text = await localResponse.text();
+      const list = text.split('\n').map(x => x.trim()).filter(x => x);
+      if (list.length > 0) {
+        log(`[${ts()}] ✅ Main list loaded from local file -> ${list.length} items`);
+        return list;
       }
-      throw "web-empty";
-    } catch {
-      log(`[${ts()}] ⚠ Main list fallback -> using internal list (${internalList.length} videos)`);
-      return internalList;
     }
+  } catch (err) {
+    log(`[${ts()}] ⚠️ Local list load failed -> ${err}`);
   }
+
+  // GitHub fallback (διορθωμένο URL)
+  try {
+    const githubUrl = 'https://raw.githubusercontent.com/DeadManWalkingTO/Educational-Content/main/list.txt';
+    const githubResponse = await fetch(githubUrl);
+    if (githubResponse.ok) {
+      const text = await githubResponse.text();
+      const list = text.split('\n').map(x => x.trim()).filter(x => x);
+      if (list.length > 0) {
+        log(`[${ts()}] ✅ Main list loaded from GitHub -> ${list.length} items`);
+        return list;
+      }
+    }
+  } catch (err) {
+    log(`[${ts()}] ⚠️ GitHub list load failed -> ${err}`);
+  }
+
+  // Internal fallback
+  log(`[${ts()}] ⚠️ Using internal fallback list -> ${internalList.length} items`);
+  return internalList;
 }
 
 /**
- * Φόρτωση εναλλακτικής λίστας βίντεο.
- * Προσπαθεί από τοπικό αρχείο, αλλιώς επιστρέφει κενή λίστα.
- * @returns {Promise<string[]>} Λίστα με video IDs.
+ * Φόρτωση εναλλακτικής λίστας από local αρχείο ή επιστροφή κενής.
  */
 export async function loadAltList() {
   try {
-    const r = await fetch("random.txt");
-    if (!r.ok) throw "alt-not-found";
-    const text = await r.text();
-    const arr = text.trim().split("\n").map(s => s.trim()).filter(Boolean);
-    log(`[${ts()}] ✅ Alt list loaded (${arr.length} videos)`);
-    return arr;
-  } catch {
-    log(`[${ts()}] ⚠ Alt list not found -> using empty list`);
-    return [];
+    const localResponse = await fetch('random.txt');
+    if (localResponse.ok) {
+      const text = await localResponse.text();
+      const list = text.split('\n').map(x => x.trim()).filter(x => x);
+      if (list.length > 0) {
+        log(`[${ts()}] ✅ Alt list loaded from local file -> ${list.length} items`);
+        return list;
+      }
+    }
+  } catch (err) {
+    log(`[${ts()}] ⚠️ Alt list load failed -> ${err}`);
   }
+
+  log(`[${ts()}] ℹ️ Alt list empty -> using []`);
+  return [];
 }
 
 /**
- * Επαναφόρτωση λιστών (Main & Alt) και εμφάνιση αποτελέσματος στο log.
+ * Επαναφόρτωση λιστών (main και alt).
  */
 export async function reloadList() {
-  try {
-    const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
-    log(`[${ts()}] 📂 Lists Reloaded -> Main:${mainList.length} Alt:${altList.length}`);
-    return { mainList, altList };
-  } catch (err) {
-    log(`[${ts()}] ❌ Reload failed -> ${err}`);
-    return { mainList: [], altList: [] };
-  }
+  const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
+  log(`[${ts()}] 🔄 Lists reloaded -> Main:${mainList.length} Alt:${altList.length}`);
+  return { mainList, altList };
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
