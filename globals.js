@@ -1,9 +1,10 @@
+
 // --- globals.js ---
-// Έκδοση: v1.1.0
-// Περιγραφή: Παρέχει global συναρτήσεις και μεταβλητές για χρήση από όλα τα modules (logging, stats, controllers, βοηθητικές συναρτήσεις).
+// Έκδοση: v1.2.0
+// Περιγραφή: Παρέχει global συναρτήσεις και μεταβλητές για χρήση από όλα τα modules (logging, stats, controllers, λίστες, βοηθητικές συναρτήσεις).
 
 // --- Versions ---
-const GLOBALS_VERSION = "v1.1.0";
+const GLOBALS_VERSION = "v1.2.0";
 
 // --- Global State ---
 // Αντικείμενο για στατιστικά της εφαρμογής
@@ -31,6 +32,13 @@ window.watchPercentages = Array(8).fill(0);
 
 // Μετρητής AutoNext ανά ώρα
 window.autoNextCounter = 0;
+
+// --- Global Lists ---
+// Κύρια λίστα βίντεο (Main)
+window.videoListMain = [];
+
+// Εναλλακτική λίστα βίντεο (Alt)
+window.videoListAlt = [];
 
 // --- Global Constants ---
 window.PLAYER_COUNT = 8;
