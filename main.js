@@ -1,11 +1,11 @@
 
 // --- main.js ---
-// Έκδοση: v1.6.0
+// Έκδοση: v1.6.1
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness, DOM readiness και runtime path check.
-// Ενημερωμένο ώστε να προσθέτει την έκδοση του main στο report μετά την κλήση reportAllVersions().
+// Ενημερωμένο: Χρήση GET αντί για HEAD στο checkModulePaths για καλύτερη συμβατότητα.
 
 // --- Versions ---
-const MAIN_VERSION = "v1.6.0";
+const MAIN_VERSION = "v1.6.1";
 export function getVersion() { return MAIN_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -20,6 +20,7 @@ import './watchdog.js';   // Εκκινεί watchdog αυτόματα
 
 /**
  * ✅ Έλεγχος paths για όλα τα modules πριν την εκκίνηση.
+ * Χρήση GET αντί για HEAD για καλύτερη συμβατότητα.
  * @returns {Promise<boolean>}
  */
 async function checkModulePaths() {
@@ -35,8 +36,7 @@ async function checkModulePaths() {
   ];
   for (const file of requiredFiles) {
     try {
-      // Χρήση HEAD (ή GET αν χρειαστεί αλλαγή για production)
-      const response = await fetch(file, { method: 'HEAD' });
+      const response = await fetch(file, { method: 'GET', cache: 'no-store' });
       if (!response.ok) {
         console.error(`[${new Date().toLocaleTimeString()}] ❌ Λείπει ή λάθος path: ${file}`);
         return false;
