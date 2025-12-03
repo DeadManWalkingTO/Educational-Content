@@ -1,4 +1,4 @@
-// --- functions.js ---
+// --- playerController.js ---
 // Έκδοση: v6.0.0
 // Περιγραφή: PlayerController και κύρια λογική για YouTube players (AutoNext, Pauses, MidSeek,
 //            υπολογισμός ελάχιστου χρόνου παρακολούθησης, χειρισμός σφαλμάτων).
