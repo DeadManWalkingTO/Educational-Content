@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <title>Educational Content</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="html-version" content="v5.8.6"> <!-- Ενημερωμένη έκδοση -->
+  <meta name="html-version" content="v5.8.7"> <!-- Ενημερωμένη έκδοση -->
   <link rel="icon" type="image/x-icon" href="./favicon.ico">
   <style>
     body {
@@ -75,13 +75,14 @@
   <!-- Κοινές Συναρτήσεις και Μεταβλητές -->
   <script src="globals.js"></script> 
   <!-- Όλα τα αρχεία είναι modules και κάνουν import όπου χρειάζεται.
-  lists.js (φορτώνει λίστες)
-  functions.js (βασική λογική και PlayerController)
-  humanMode.js (χρησιμοποιεί functions και lists)
-  uiControls.js (χρησιμοποιεί functions και lists)
+  Η σειρά των modules πρέπει να είναι:
+  functions.js (περιέχει PlayerController και βασική λογική).
+  lists.js (φορτώνει λίστες).
+  humanMode.js (χρησιμοποιεί functions και lists).
+  uiControls.js (χρησιμοποιεί functions και lists).
   watchdog.js (χρησιμοποιεί functions) -->
-  <script type="module" src="lists.js"></script> 
   <script type="module" src="functions.js"></script>
+  <script type="module" src="lists.js"></script> 
   <script type="module" src="humanMode.js"></script>
   <script type="module" src="uiControls.js"></script>
   <script type="module" src="watchdog.js"></script>
