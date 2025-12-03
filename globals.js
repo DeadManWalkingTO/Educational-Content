@@ -1,12 +1,12 @@
 // --- globals.js ---
-// Έκδοση: v1.5.4
+// Έκδοση: v1.5.5
 // Περιγραφή: Ορίζει global state, counters, λίστες video, βοηθητικές συναρτήσεις (logging, randomization) και στατιστικά για την εφαρμογή.
 
 // --- Versions ---
-const GLOBALS_VERSION = "v1.5.4";
+const GLOBALS_VERSION = "v1.5.5";
 window.getGlobalsVersion = () => GLOBALS_VERSION;
 
-// //Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου 
+//Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου 
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> ξεκίνησε`);
 
 // --- Global State ---
