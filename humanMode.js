@@ -1,16 +1,16 @@
 
 // --- humanMode.js ---
-// Έκδοση: v4.5.0
+// Έκδοση: v4.6.0
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς στους YouTube players.
 // Περιλαμβάνει: Δημιουργία containers, sequential initialization, behavior profiles, session plan logging.
 // Δεν γίνεται πλέον auto-start εδώ — το orchestrator (main.js) καλεί τις exported συναρτήσεις.
-// Σημείωση: Συγχρονισμένο με PlayerController v6.2.0 (δυναμικό origin, unmute fallback).
+// Συγχρονισμένο με PlayerController v6.2.0 (δυναμικό origin, unmute fallback).
 
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v4.5.0";
+const HUMAN_MODE_VERSION = "v4.6.0";
 export function getVersion() { return HUMAN_MODE_VERSION; }
 
-// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου (format με 'v')
+// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList } from './globals.js';
 import { PlayerController } from './playerController.js';
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: humanMode.js v${HUMAN_MODE_VERSION} -> ξεκίνησε`);
@@ -97,12 +97,10 @@ export async function initPlayersSequentially(mainList, altList) {
     const sourceList = useMain
       ? (mainList?.length ? mainList : altList)
       : (altList?.length ? altList : mainList);
-
     const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
     const profile = BEHAVIOR_PROFILES[Math.floor(Math.random() * BEHAVIOR_PROFILES.length)];
     const config = createRandomPlayerConfig(profile);
     if (i === 0) config.startDelay = 0;
-
     const session = createSessionPlan();
 
     if (!controller) {
@@ -116,7 +114,6 @@ export async function initPlayersSequentially(mainList, altList) {
     controller.init(videoId);
     log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> session=${JSON.stringify(session)}`);
   }
-
   log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
 
