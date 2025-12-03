@@ -1,13 +1,19 @@
 // --- humanMode.js ---
-// Έκδοση: v4.1.1 (διορθωμένη)
+// Έκδοση: v4.2.0
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς στους YouTube players.
+// Περιλαμβάνει: Δημιουργία containers, sequential initialization, behavior profiles, αλλαγές ποιότητας/έντασης/ταχύτητας.
 // Χρησιμοποιεί global log(), ts(), rndInt(), controllers, isStopping και PlayerController από functions.js.
 
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v4.1.1";
+const HUMAN_MODE_VERSION = "v4.2.0";
+export function getVersion() {
+    return HUMAN_MODE_VERSION;
+}
 
 // --- Imports ---
 import { loadVideoList, loadAltList } from './lists.js';
+import { PlayerController } from './functions.js';
+import { reportAllVersions } from './versionReporter.js';
 
 // --- Δημιουργία containers για τους players ---
 function createPlayerContainers() {
@@ -100,8 +106,11 @@ Promise.all([loadVideoList(), loadAltList()])
         videoListMain = mainList;
         videoListAlt = altList;
         createPlayerContainers();
-        log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> Εκδόσεις: HTML ${HTML_VERSION} - JS ${JS_VERSION} - Controls ${UICONTROLS_VERSION} - HumanMode ${HUMAN_MODE_VERSION} - Lists ${LISTS_VERSION}`);
+
+        const versions = reportAllVersions();
+        log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> Εκδόσεις: ${JSON.stringify(versions)}`);
         log(`[${ts()}] 📂 Lists Loaded -> Main:${videoListMain.length} Alt:${videoListAlt.length}`);
+
         initPlayersSequentially();
     })
     .catch(err => log(`[${ts()}] ❌ List load error -> ${err}`));
