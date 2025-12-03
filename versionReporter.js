@@ -11,13 +11,13 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχεί
 
 import { getVersion as getGlobalsVersion } from './globals.js';
 import { getVersion as getListsVersion } from './lists.js';
-import { getVersion as getFunctionsVersion } from './functions.js';
+import { getVersion as getPlayerControllerVersion } from './playerController.js'; // ✅ Ενημερωμένο import
 import { getVersion as getHumanModeVersion } from './humanMode.js';
 import { getVersion as getUIControlsVersion } from './uiControls.js';
 import { getVersion as getWatchdogVersion } from './watchdog.js';
 
 /**
- * Ανακτά την έκδοση του HTML από το meta tag.
+ * Ανάκτα την έκδοση του HTML από το meta tag.
  * @returns {string} Έκδοση HTML ή "unknown".
  */
 function getHtmlVersion() {
@@ -34,7 +34,7 @@ export function reportAllVersions() {
     HTML: getHtmlVersion(),
     Globals: getGlobalsVersion(),
     Lists: getListsVersion(),
-    Functions: getFunctionsVersion(),
+    PlayerController: getPlayerControllerVersion(), // ✅ Ενημερωμένο key
     HumanMode: getHumanModeVersion(),
     UIControls: getUIControlsVersion(),
     Watchdog: getWatchdogVersion(),
