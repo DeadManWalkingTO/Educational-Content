@@ -1,10 +1,9 @@
 
 // --- main.js ---
-// Έκδοση: v1.2.0
-// Περιγραφή: Entry point της εφαρμογής. Φορτώνει modules, περιμένει DOM & YouTube API, ξεκινά Human Mode.
-// Νέα δυνατότητα: Προσθήκη DOMContentLoaded listener για ασφαλή εκκίνηση.
+// Έκδοση: v1.4.0
+// Περιγραφή: Entry point της εφαρμογής με Promise-based μηχανισμό για YouTube API readiness και ενημερωτικά μηνύματα.
 // --- Versions ---
-const MAIN_VERSION = "v1.2.0";
+const MAIN_VERSION = "v1.4.0";
 export function getVersion() { return MAIN_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -18,25 +17,25 @@ import './uiControls.js'; // Συνδέει UI με λογική
 import './watchdog.js';   // Εκκινεί watchdog αυτόματα
 
 /**
- * Περιμένει το YouTube IFrame API να είναι έτοιμο.
- * @param {Function} callback - Συνάρτηση που θα εκτελεστεί όταν το API είναι διαθέσιμο.
+ * Δημιουργεί Promise που γίνεται resolve όταν το YouTube API είναι έτοιμο.
+ * @returns {Promise<void>}
  */
-function waitForYouTubeAPI(callback) {
+const youtubeReadyPromise = new Promise((resolve) => {
   const checkInterval = setInterval(() => {
     if (window.YT && typeof YT.Player === 'function') {
       clearInterval(checkInterval);
-      console.log(`[${new Date().toLocaleTimeString()}] ✅ YouTube API ready -> starting HumanMode`);
-      callback();
+      console.log(`[${new Date().toLocaleTimeString()}] ✅ YouTube API ready`);
+      resolve();
     }
   }, 500);
-}
+});
 
 /**
  * Εκκίνηση εφαρμογής:
  * - Φόρτωση λιστών (Main & Alt)
  * - Δημιουργία containers
  * - Αναφορά εκδόσεων
- * - Αναμονή για YouTube API
+ * - Αναμονή για YouTube API μέσω Promise
  * - Sequential initialization των players
  */
 async function startApp() {
@@ -54,22 +53,24 @@ async function startApp() {
     log(`[${ts()}] ✅ Εκδόσεις: ${JSON.stringify(versions)}`);
     log(`[${ts()}] 📂 Lists Loaded -> Main:${mainList.length} Alt:${altList.length}`);
     
-    // Αναμονή για YouTube API και εκκίνηση HumanMode
-    waitForYouTubeAPI(() => {
-      initPlayersSequentially(mainList, altList);
-      log(`[${ts()}] ✅ Εφαρμογή έτοιμη -> Human Mode ενεργό`);
-    });
+    // ✅ Προσθήκη ενημερωτικών μηνυμάτων πριν και μετά την αναμονή του API
+    log(`[${ts()}] ⏳ YouTubeAPI -> Αναμονή`);
+    await youtubeReadyPromise;
+    log(`[${ts()}] ✅ YouTubeAPI -> Έτοιμο`);
+    
+    // Εκκίνηση Human Mode
+    initPlayersSequentially(mainList, altList);
+    log(`[${ts()}] ✅ Εφαρμογή έτοιμη -> Human Mode ενεργό`);
   } catch (err) {
     log(`[${ts()}] ❌ Σφάλμα κατά την εκκίνηση -> ${err}`);
   }
 }
 
-// ✅ Νέα προσθήκη: Περιμένουμε το DOM να είναι έτοιμο πριν ξεκινήσουμε
+// ✅ Περιμένουμε το DOM να είναι έτοιμο πριν ξεκινήσουμε
 document.addEventListener("DOMContentLoaded", () => {
   startApp();
 });
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: main.js ${MAIN_VERSION} -> ολοκληρώθηκε`);
-
 // --- End Of File ---
