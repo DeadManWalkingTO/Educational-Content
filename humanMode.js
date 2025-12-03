@@ -1,12 +1,13 @@
 
 // --- humanMode.js ---
-// Έκδοση: v4.4.0
+// Έκδοση: v4.5.0
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς στους YouTube players.
 // Περιλαμβάνει: Δημιουργία containers, sequential initialization, behavior profiles, session plan logging.
 // Δεν γίνεται πλέον auto-start εδώ — το orchestrator (main.js) καλεί τις exported συναρτήσεις.
+// Σημείωση: Συγχρονισμένο με PlayerController v6.2.0 (δυναμικό origin, unmute fallback).
 
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v4.4.0";
+const HUMAN_MODE_VERSION = "v4.5.0";
 export function getVersion() { return HUMAN_MODE_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου (format με 'v')
@@ -54,7 +55,7 @@ function createRandomPlayerConfig(profile) {
   };
 }
 
-// --- Δημιουργία session plan (για καταγραφή, όπως στην παλιά λογική) ---
+// --- Δημιουργία session plan (για καταγραφή) ---
 function createSessionPlan() {
   return {
     pauseChance: rndInt(1, 3),
@@ -67,7 +68,6 @@ function createSessionPlan() {
 // --- Sequential Initialization των players (καλείται από main.js) ---
 export async function initPlayersSequentially(mainList, altList) {
   if (Array.isArray(mainList) && Array.isArray(altList)) {
-    // ενημέρωση των κεντρικών λιστών (ESM-friendly μέσω setters από globals)
     setMainList(mainList);
     setAltList(altList);
   }
@@ -82,21 +82,17 @@ export async function initPlayersSequentially(mainList, altList) {
     log(`[${ts()}] ⏳ HumanMode scheduled Player ${i + 1} -> start after ${Math.round(delay / 1000)}s`);
     await new Promise(resolve => setTimeout(resolve, delay));
 
-    // Αν έχει ζητηθεί Stop All, παρακάμπτουμε την αρχικοποίηση (όπως πριν)
     if (isStopping) {
       log(`[${ts()}] 👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
       continue;
     }
 
-    // ► Anti-duplication guard:
-    // Έλεγχος αν υπάρχει ήδη controller για το συγκεκριμένο index.
     let controller = controllers.find(c => c.index === i) || null;
     if (controller && controller.player) {
       log(`[${ts()}] ⚠️ Player ${i + 1} already initialized, skipping re-init`);
       continue;
     }
 
-    // Επιλογή λίστας με βάση MAIN_PROBABILITY (όπως στην παλιά λογική)
     const useMain = Math.random() < MAIN_PROBABILITY;
     const sourceList = useMain
       ? (mainList?.length ? mainList : altList)
@@ -107,14 +103,12 @@ export async function initPlayersSequentially(mainList, altList) {
     const config = createRandomPlayerConfig(profile);
     if (i === 0) config.startDelay = 0;
 
-    // Δημιουργία και καταγραφή session plan (όπως στο παλιό log)
     const session = createSessionPlan();
 
     if (!controller) {
       controller = new PlayerController(i, mainList, altList, config);
       controllers.push(controller);
     } else {
-      // Αν υπάρχει controller χωρίς player, ενημερώνουμε profile/config πριν το init
       controller.config = config;
       controller.profileName = config.profileName;
     }
@@ -126,7 +120,7 @@ export async function initPlayersSequentially(mainList, altList) {
   log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
 
-// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου (format με 'v')
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: humanMode.js v${HUMAN_MODE_VERSION} -> ολοκληρώθηκε`);
 
 // --- End Of File ---
