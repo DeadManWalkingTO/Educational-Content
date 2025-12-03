@@ -1,10 +1,10 @@
 
 // --- versionReporter.js ---
-// Έκδοση: v2.1.0
+// Έκδοση: v2.1.1
 // Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
-// Νέα δυνατότητα: Προσθήκη έκδοσης του main.js και σωστή σειρά επιστροφής.
+// Διόρθωση: Αφαίρεση διπλού 'v' από τα logs.
 // --- Versions ---
-const VERSION_REPORTER_VERSION = "v2.1.0";
+const VERSION_REPORTER_VERSION = "v2.1.1";
 export function getVersion() { return VERSION_REPORTER_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -48,4 +48,5 @@ export function reportAllVersions() {
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 import { log, ts } from './globals.js';
 log(`[${ts()}] ✅ Φόρτωση αρχείου: versionReporter.js ${VERSION_REPORTER_VERSION} -> ολοκληρώθηκε`);
+
 // --- End Of File ---
