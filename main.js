@@ -1,9 +1,11 @@
 
 // --- main.js ---
-// Έκδοση: v1.5.0
+// Έκδοση: v1.6.0
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness, DOM readiness και runtime path check.
+// Ενημερωμένο ώστε να προσθέτει την έκδοση του main στο report μετά την κλήση reportAllVersions().
+
 // --- Versions ---
-const MAIN_VERSION = "v1.5.0";
+const MAIN_VERSION = "v1.6.0";
 export function getVersion() { return MAIN_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -17,7 +19,7 @@ import './uiControls.js'; // Συνδέει UI με λογική
 import './watchdog.js';   // Εκκινεί watchdog αυτόματα
 
 /**
- * ✅ Runtime έλεγχος για ύπαρξη όλων των modules πριν την εκκίνηση.
+ * ✅ Έλεγχος paths για όλα τα modules πριν την εκκίνηση.
  * @returns {Promise<boolean>}
  */
 async function checkModulePaths() {
@@ -31,9 +33,9 @@ async function checkModulePaths() {
     './versionReporter.js',
     './main.js'
   ];
-
   for (const file of requiredFiles) {
     try {
+      // Χρήση HEAD (ή GET αν χρειαστεί αλλαγή για production)
       const response = await fetch(file, { method: 'HEAD' });
       if (!response.ok) {
         console.error(`[${new Date().toLocaleTimeString()}] ❌ Λείπει ή λάθος path: ${file}`);
@@ -62,11 +64,11 @@ const youtubeReadyPromise = new Promise((resolve) => {
 });
 
 /**
- * Εκκίνηση εφαρμογής:
+ * ✅ Εκκίνηση εφαρμογής:
  * - Έλεγχος modules
  * - Φόρτωση λιστών
  * - Δημιουργία containers
- * - Αναφορά εκδόσεων
+ * - Αναφορά εκδόσεων (με προσθήκη MAIN)
  * - Αναμονή για YouTube API
  * - Sequential initialization των players
  */
@@ -74,7 +76,7 @@ async function startApp() {
   try {
     log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> main.js ${MAIN_VERSION}`);
 
-    // ✅ Έλεγχος modules
+    // Έλεγχος modules
     if (!(await checkModulePaths())) {
       log(`[${ts()}] ❌ Εκκίνηση ακυρώθηκε -> Λείπουν αρχεία`);
       return;
@@ -86,12 +88,14 @@ async function startApp() {
     // Δημιουργία containers
     createPlayerContainers();
 
-    // Αναφορά εκδόσεων
+    // Αναφορά εκδόσεων με προσθήκη MAIN
     const versions = reportAllVersions();
+    versions.Main = MAIN_VERSION;
     log(`[${ts()}] ✅ Εκδόσεις: ${JSON.stringify(versions)}`);
+
     log(`[${ts()}] 📂 Lists Loaded -> Main:${mainList.length} Alt:${altList.length}`);
 
-    // ✅ Ενημερωτικά μηνύματα πριν και μετά την αναμονή του API
+    // Αναμονή για YouTube API
     log(`[${ts()}] ⏳ YouTubeAPI -> Αναμονή`);
     await youtubeReadyPromise;
     log(`[${ts()}] ✅ YouTubeAPI -> Έτοιμο`);
@@ -111,4 +115,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: main.js ${MAIN_VERSION} -> ολοκληρώθηκε`);
+
 // --- End Of File ---
