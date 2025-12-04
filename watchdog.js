@@ -1,10 +1,8 @@
-
 // --- watchdog.js ---
-// Έκδοση: v2.4.1
+// Έκδοση: v2.4.2
 // Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
-//             Διορθώσεις γύρω από nullish coalescing (??) και καθαρό allowedPause.
 // --- Versions ---
-const WATCHDOG_VERSION = "v2.4.1";
+const WATCHDOG_VERSION = "v2.4.2";
 export function getVersion() { return WATCHDOG_VERSION; }
 
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: watchdog.js v${WATCHDOG_VERSION} -> ξεκίνησε`);
@@ -16,10 +14,11 @@ export function startWatchdog() {
   log(`[${ts()}] 🚀 Εκκίνηση Watchdog -> έκδοση v${WATCHDOG_VERSION}`);
   setInterval(() => {
     controllers.forEach(c => {
+      // FIX: guard σε player & μέθοδο getPlayerState
       if (!c.player || typeof c.player.getPlayerState !== 'function') return;
+
       const state = c.player.getPlayerState();
       const now = Date.now();
-
       const allowedPause = (c.expectedPauseMs ?? 0) + 240_000; // 240s margin
 
       // 1) BUFFERING > 60s -> AutoNext reset
@@ -50,7 +49,6 @@ export function startWatchdog() {
       }
     });
   }, 60_000);
-
   log(`[${ts()}] ✅ Watchdog started`);
 }
 
