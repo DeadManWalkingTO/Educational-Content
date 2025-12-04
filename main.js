@@ -1,11 +1,9 @@
-
 // --- main.js ---
-// Έκδοση: v1.6.1
+// Έκδοση: v1.6.2
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness, DOM readiness και runtime path check.
-// Ενημερωμένο: Χρήση GET αντί για HEAD στο checkModulePaths για καλύτερη συμβατότητα.
-
+//             Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded).
 // --- Versions ---
-const MAIN_VERSION = "v1.6.1";
+const MAIN_VERSION = "v1.6.2";
 export function getVersion() { return MAIN_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -15,14 +13,10 @@ import { log, ts } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions } from './versionReporter.js';
-import './uiControls.js'; // Συνδέει UI με λογική
-import './watchdog.js';   // Εκκινεί watchdog αυτόματα
+import { bindUiEvents } from './uiControls.js';  // Επιλογή Β: binding από εδώ
+import './watchdog.js'; // Εισαγωγή watchdog (auto-start)
 
-/**
- * ✅ Έλεγχος paths για όλα τα modules πριν την εκκίνηση.
- * Χρήση GET αντί για HEAD για καλύτερη συμβατότητα.
- * @returns {Promise<boolean>}
- */
+// ✅ Έλεγχος paths των modules (όπως στην προηγούμενη έκδοση)
 async function checkModulePaths() {
   const requiredFiles = [
     './globals.js',
@@ -50,9 +44,7 @@ async function checkModulePaths() {
   return true;
 }
 
-/**
- * ✅ Promise-based μηχανισμός για YouTube API readiness.
- */
+// ✅ YouTube API readiness (περιμένουμε YT.Player)
 const youtubeReadyPromise = new Promise((resolve) => {
   const checkInterval = setInterval(() => {
     if (window.YT && typeof YT.Player === 'function') {
@@ -63,36 +55,27 @@ const youtubeReadyPromise = new Promise((resolve) => {
   }, 500);
 });
 
-/**
- * ✅ Εκκίνηση εφαρμογής:
- * - Έλεγχος modules
- * - Φόρτωση λιστών
- * - Δημιουργία containers
- * - Αναφορά εκδόσεων (με προσθήκη MAIN)
- * - Αναμονή για YouTube API
- * - Sequential initialization των players
- */
+// ✅ Εκκίνηση εφαρμογής
 async function startApp() {
   try {
     log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> main.js ${MAIN_VERSION}`);
-
     // Έλεγχος modules
     if (!(await checkModulePaths())) {
       log(`[${ts()}] ❌ Εκκίνηση ακυρώθηκε -> Λείπουν αρχεία`);
       return;
     }
-
     // Φόρτωση λιστών
     const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
-
-    // Δημιουργία containers
+    // Δημιουργία containers για τους players
     createPlayerContainers();
+    // 🔗 Binding των UI events (χωρίς inline onclick)
+    bindUiEvents();
+    log(`[${ts()}] ✅ UI events bound from main.js`);
 
-    // Αναφορά εκδόσεων με προσθήκη MAIN
+    // Αναφορά εκδόσεων
     const versions = reportAllVersions();
     versions.Main = MAIN_VERSION;
     log(`[${ts()}] ✅ Εκδόσεις: ${JSON.stringify(versions)}`);
-
     log(`[${ts()}] 📂 Lists Loaded -> Main:${mainList.length} Alt:${altList.length}`);
 
     // Αναμονή για YouTube API
@@ -100,7 +83,7 @@ async function startApp() {
     await youtubeReadyPromise;
     log(`[${ts()}] ✅ YouTubeAPI -> Έτοιμο`);
 
-    // Εκκίνηση Human Mode
+    // Human Mode (sequential init)
     initPlayersSequentially(mainList, altList);
     log(`[${ts()}] ✅ Εφαρμογή έτοιμη -> Human Mode ενεργό`);
   } catch (err) {
@@ -108,7 +91,7 @@ async function startApp() {
   }
 }
 
-// ✅ Περιμένουμε το DOM να είναι έτοιμο πριν ξεκινήσουμε
+// ✅ DOM ready: εκκίνηση εφαρμογής
 document.addEventListener("DOMContentLoaded", () => {
   startApp();
 });
