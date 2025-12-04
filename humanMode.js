@@ -1,18 +1,15 @@
 
 // --- humanMode.js ---
-// Έκδοση: v4.6.0
-// Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς στους YouTube players.
-// Περιλαμβάνει: Δημιουργία containers, sequential initialization, behavior profiles, session plan logging.
-// Δεν γίνεται πλέον auto-start εδώ — το orchestrator (main.js) καλεί τις exported συναρτήσεις.
-// Συγχρονισμένο με PlayerController v6.2.0 (δυναμικό origin, unmute fallback).
-
+// Έκδοση: v4.6.1
+// Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players.
+//             Διορθώσεις σε OR (||) συνθήκες και καθαρά checks για κενές λίστες.
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v4.6.0";
+const HUMAN_MODE_VERSION = "v4.6.1";
 export function getVersion() { return HUMAN_MODE_VERSION; }
 
-// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList } from './globals.js';
 import { PlayerController } from './playerController.js';
+
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: humanMode.js v${HUMAN_MODE_VERSION} -> ξεκίνησε`);
 
 // --- Δημιουργία containers για τους players ---
@@ -26,7 +23,7 @@ export function createPlayerContainers() {
   for (let i = 0; i < PLAYER_COUNT; i++) {
     const div = document.createElement("div");
     div.id = `player${i + 1}`;
-    div.className = "player-box"; // Προαιρετικό για styling
+    div.className = "player-box";
     container.appendChild(div);
   }
   log(`[${ts()}] ✅ Δημιουργήθηκαν ${PLAYER_COUNT} player containers`);
@@ -65,14 +62,15 @@ function createSessionPlan() {
   };
 }
 
-// --- Sequential Initialization των players (καλείται από main.js) ---
+// --- Sequential Initialization των players ---
 export async function initPlayersSequentially(mainList, altList) {
   if (Array.isArray(mainList) && Array.isArray(altList)) {
     setMainList(mainList);
     setAltList(altList);
   }
-
-  if ((!mainList || mainList.length === 0) && (!altList || altList.length === 0)) {
+  const mainEmpty = !mainList || mainList.length === 0;
+  const altEmpty  = !altList  || altList.length === 0;
+  if (mainEmpty && altEmpty) {
     log(`[${ts()}] ❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκκίνηση σταματά.`);
     return;
   }
@@ -81,12 +79,10 @@ export async function initPlayersSequentially(mainList, altList) {
     const delay = i === 0 ? 0 : rndInt(30, 180) * 1000;
     log(`[${ts()}] ⏳ HumanMode scheduled Player ${i + 1} -> start after ${Math.round(delay / 1000)}s`);
     await new Promise(resolve => setTimeout(resolve, delay));
-
     if (isStopping) {
       log(`[${ts()}] 👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
       continue;
     }
-
     let controller = controllers.find(c => c.index === i) || null;
     if (controller && controller.player) {
       log(`[${ts()}] ⚠️ Player ${i + 1} already initialized, skipping re-init`);
@@ -95,9 +91,16 @@ export async function initPlayersSequentially(mainList, altList) {
 
     const useMain = Math.random() < MAIN_PROBABILITY;
     const sourceList = useMain
-      ? (mainList?.length ? mainList : altList)
-      : (altList?.length ? altList : mainList);
+      ? (mainList && mainList.length ? mainList : altList)
+      : (altList  && altList.length  ? altList  : mainList);
+
+    // Ασφαλής επιλογή videoId
+    if (!sourceList || sourceList.length === 0) {
+      log(`[${ts()}] ❌ HumanMode skipped Player ${i + 1} -> no videos available`);
+      continue;
+    }
     const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
+
     const profile = BEHAVIOR_PROFILES[Math.floor(Math.random() * BEHAVIOR_PROFILES.length)];
     const config = createRandomPlayerConfig(profile);
     if (i === 0) config.startDelay = 0;
@@ -110,10 +113,10 @@ export async function initPlayersSequentially(mainList, altList) {
       controller.config = config;
       controller.profileName = config.profileName;
     }
-
     controller.init(videoId);
     log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> session=${JSON.stringify(session)}`);
   }
+
   log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
 
