@@ -1,9 +1,10 @@
 // --- main.js ---
-// Έκδοση: v1.6.2
+// Έκδοση: v1.6.3
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness, DOM readiness και runtime path check.
 //             Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded).
+//             Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
 // --- Versions ---
-const MAIN_VERSION = "v1.6.2";
+const MAIN_VERSION = "v1.6.3";
 export function getVersion() { return MAIN_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -13,8 +14,8 @@ import { log, ts } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions } from './versionReporter.js';
-import { bindUiEvents } from './uiControls.js';  // Επιλογή Β: binding από εδώ
-import './watchdog.js'; // Εισαγωγή watchdog (auto-start)
+import { bindUiEvents } from './uiControls.js';       // Επιλογή Β: binding από εδώ
+import { startWatchdog } from './watchdog.js';        // ΝΕΟ: ρητή εκκίνηση watchdog
 
 // ✅ Έλεγχος paths των modules (όπως στην προηγούμενη έκδοση)
 async function checkModulePaths() {
@@ -84,8 +85,12 @@ async function startApp() {
     log(`[${ts()}] ✅ YouTubeAPI -> Έτοιμο`);
 
     // Human Mode (sequential init)
-    initPlayersSequentially(mainList, altList);
-    log(`[${ts()}] ✅ Εφαρμογή έτοιμη -> Human Mode ενεργό`);
+    await initPlayersSequentially(mainList, altList);
+    log(`[${ts()}] ✅ Human Mode -> sequential initialization completed`);
+
+    // 🐶 Watchdog: εκκίνηση ΜΕΤΑ το YouTube readiness & ΜΕΤΑ το Human Mode init
+    startWatchdog();
+    log(`[${ts()}] ✅ Watchdog started from main.js`);
   } catch (err) {
     log(`[${ts()}] ❌ Σφάλμα κατά την εκκίνηση -> ${err}`);
   }
@@ -98,5 +103,4 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: main.js ${MAIN_VERSION} -> ολοκληρώθηκε`);
-
 // --- End Of File ---
