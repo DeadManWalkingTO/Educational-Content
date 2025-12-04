@@ -1,10 +1,12 @@
+
 // --- main.js ---
-// Έκδοση: v1.6.3
-// Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness, DOM readiness και runtime path check.
+// Έκδοση: v1.6.4
+// Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 //             Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded).
 //             Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
+//             Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 // --- Versions ---
-const MAIN_VERSION = "v1.6.3";
+const MAIN_VERSION = "v1.6.4";
 export function getVersion() { return MAIN_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -15,35 +17,7 @@ import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions } from './versionReporter.js';
 import { bindUiEvents } from './uiControls.js';       // Επιλογή Β: binding από εδώ
-import { startWatchdog } from './watchdog.js';        // ΝΕΟ: ρητή εκκίνηση watchdog
-
-// ✅ Έλεγχος paths των modules (όπως στην προηγούμενη έκδοση)
-async function checkModulePaths() {
-  const requiredFiles = [
-    './globals.js',
-    './lists.js',
-    './humanMode.js',
-    './playerController.js',
-    './uiControls.js',
-    './watchdog.js',
-    './versionReporter.js',
-    './main.js'
-  ];
-  for (const file of requiredFiles) {
-    try {
-      const response = await fetch(file, { method: 'GET', cache: 'no-store' });
-      if (!response.ok) {
-        console.error(`[${new Date().toLocaleTimeString()}] ❌ Λείπει ή λάθος path: ${file}`);
-        return false;
-      }
-    } catch (err) {
-      console.error(`[${new Date().toLocaleTimeString()}] ❌ Σφάλμα ελέγχου για ${file}: ${err}`);
-      return false;
-    }
-  }
-  console.log(`[${new Date().toLocaleTimeString()}] ✅ Όλα τα modules βρέθηκαν`);
-  return true;
-}
+import { startWatchdog } from './watchdog.js';        // Ρητή εκκίνηση watchdog
 
 // ✅ YouTube API readiness (περιμένουμε YT.Player)
 const youtubeReadyPromise = new Promise((resolve) => {
@@ -60,15 +34,15 @@ const youtubeReadyPromise = new Promise((resolve) => {
 async function startApp() {
   try {
     log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> main.js ${MAIN_VERSION}`);
-    // Έλεγχος modules
-    if (!(await checkModulePaths())) {
-      log(`[${ts()}] ❌ Εκκίνηση ακυρώθηκε -> Λείπουν αρχεία`);
-      return;
-    }
+
+    // 🔹 ΑΦΑΙΡΕΘΗΚΕ ο προ-έλεγχος paths. Σε ESM, ο browser αποτυγχάνει νωρίς αν λείπει module.
+
     // Φόρτωση λιστών
     const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
+
     // Δημιουργία containers για τους players
     createPlayerContainers();
+
     // 🔗 Binding των UI events (χωρίς inline onclick)
     bindUiEvents();
     log(`[${ts()}] ✅ UI events bound from main.js`);
