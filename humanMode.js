@@ -125,6 +125,8 @@ export async function initPlayersSequentially(mainList, altList) {
 
   log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
-// --- End Of File ---
+
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: humanMode.js v${HUMAN_MODE_VERSION} -> ολοκληρώθηκε`);
+
+// --- End Of File ---
