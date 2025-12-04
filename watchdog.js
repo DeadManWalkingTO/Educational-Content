@@ -1,22 +1,17 @@
+
 // --- watchdog.js ---
-// Έκδοση: v2.4.0
+// Έκδοση: v2.4.1
 // Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
-//            Μετατροπή σε ρητή εκκίνηση: export startWatchdog(), χωρίς auto-start στο import.
+//             Διορθώσεις γύρω από nullish coalescing (??) και καθαρό allowedPause.
 // --- Versions ---
-const WATCHDOG_VERSION = "v2.4.0";
+const WATCHDOG_VERSION = "v2.4.1";
 export function getVersion() { return WATCHDOG_VERSION; }
 
-// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: watchdog.js v${WATCHDOG_VERSION} -> ξεκίνησε`);
 
 import { log, ts, controllers, stats } from './globals.js';
 
-/**
- * Εκκίνηση watchdog:
- * - Κάθε 60s ελέγχει:
- *   1) BUFFERING > 60s -> AutoNext (reset).
- *   2) PAUSED > allowedPause -> retry playVideo() και αν παραμείνει μη PLAYING -> AutoNext.
- */
+/** Εκκίνηση watchdog (καλείται ρητά από main.js μετά το YouTube ready & Human Mode init). */
 export function startWatchdog() {
   log(`[${ts()}] 🚀 Εκκίνηση Watchdog -> έκδοση v${WATCHDOG_VERSION}`);
   setInterval(() => {
@@ -25,8 +20,7 @@ export function startWatchdog() {
       const state = c.player.getPlayerState();
       const now = Date.now();
 
-      // Επιτρεπτός χρόνος παύσης: expectedPauseMs + 240s
-      const allowedPause = (c.expectedPauseMs ?? 0) + 240_000;
+      const allowedPause = (c.expectedPauseMs ?? 0) + 240_000; // 240s margin
 
       // 1) BUFFERING > 60s -> AutoNext reset
       if (state === YT.PlayerState.BUFFERING && c.lastBufferingStart && (now - c.lastBufferingStart > 60_000)) {
@@ -44,7 +38,6 @@ export function startWatchdog() {
         if (typeof c.player.playVideo === 'function') {
           c.player.playVideo();
         }
-        // Δοκιμή 5s: αν δεν γίνει PLAYING -> AutoNext
         setTimeout(() => {
           if (typeof c.player.getPlayerState === 'function' && c.player.getPlayerState() !== YT.PlayerState.PLAYING) {
             log(`[${ts()}] ❌ Watchdog reset -> Player ${c.index + 1} stuck in PAUSED`);
@@ -56,12 +49,10 @@ export function startWatchdog() {
         }, 5000);
       }
     });
-  }, 60_000); // Έλεγχος κάθε 60s
+  }, 60_000);
 
   log(`[${ts()}] ✅ Watchdog started`);
 }
 
-// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: watchdog.js v${WATCHDOG_VERSION} -> ολοκληρώθηκε`);
-
 // --- End Of File ---
