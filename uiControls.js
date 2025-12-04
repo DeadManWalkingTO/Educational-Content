@@ -1,10 +1,9 @@
-
 // --- uiControls.js ---
-// Έκδοση: v2.4.1
+// Έκδοση: v2.4.2
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
-//             με ESM named exports, binding από main.js. Περιλαμβάνει Clipboard fallback (μη-HTTPS) και διορθώσεις σε OR (||).
+// με ESM named exports, binding από main.js. Περιλαμβάνει Clipboard fallback (μη-HTTPS) και ασφαλείς guards.
 // --- Versions ---
-const UICONTROLS_VERSION = "v2.4.1";
+const UICONTROLS_VERSION = "v2.4.2";
 export function getVersion() { return UICONTROLS_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -33,14 +32,17 @@ export function playAll() {
         log(`[${ts()}] ▶ Player ${c.index + 1} Play -> step ${i + 1}`);
       } else {
         const mainList = getMainList();
-        const altList = getAltList();
+        const altList  = getAltList();
         const useMain = Math.random() < MAIN_PROBABILITY;
         const source = useMain ? (mainList.length ? mainList : altList)
                                : (altList.length ? altList : mainList);
+
+        // FIX: guard για κενή/μη διαθέσιμη λίστα
         if (!source || source.length === 0) {
           log(`[${ts()}] ❌ Player ${c.index + 1} Init skipped -> no videos available`);
           return;
         }
+
         const newId = source[Math.floor(Math.random() * source.length)];
         c.init(newId);
         log(`[${ts()}] ▶ Player ${c.index + 1} Initializing -> Source:${useMain ? "main" : "alt"}`);
@@ -72,10 +74,10 @@ export function stopAll() {
   log(`[${ts()}] ⏹ Stop All -> sequential mode started, estimated duration ~${Math.round(delay / 1000)}s`);
 }
 
-/** 🔁 Επανεκκίνηση όλων των players φορτώνοντας νέο video. */
+/** 🔁 Επανάκκινηση όλων των players φορτώνοντας νέο video. */
 export function restartAll() {
   const mainList = getMainList();
-  const altList = getAltList();
+  const altList  = getAltList();
   controllers.forEach(c => {
     if (c.player) {
       c.loadNextVideo(c.player);
@@ -83,10 +85,13 @@ export function restartAll() {
       const useMain = Math.random() < MAIN_PROBABILITY;
       const source = useMain ? (mainList.length ? mainList : altList)
                              : (altList.length ? altList : mainList);
+
+      // FIX: guard για κενή/μη διαθέσιμη λίστα
       if (!source || source.length === 0) {
         log(`[${ts()}] ❌ Player ${c.index + 1} Restart skipped -> no videos available`);
         return;
       }
+
       const newId = source[Math.floor(Math.random() * source.length)];
       c.init(newId);
       log(`[${ts()}] 🔁 Player ${c.index + 1} Restart (init) -> ${newId} (Source:${useMain ? "main" : "alt"})`);
@@ -121,7 +126,6 @@ export async function copyLogs() {
     log(`[${ts()}] ❌ Copy Logs -> no entries to copy`);
     return;
   }
-
   const logsText = Array.from(panel.children).map(div => div.textContent).join("\n");
   const statsText = statsPanel ? `\n\n📊 Current Stats:\n${statsPanel.textContent}` : `\n\n📊 Stats not available`;
   const finalText = logsText + statsText;
@@ -137,7 +141,7 @@ export async function copyLogs() {
     }
   }
 
-  // Fallback: μη-HTTPS ή αποτυχία Clipboard API
+  // Fallback: μη-HTTPS ή απουσία Clipboard API
   const success = unsecuredCopyToClipboard(finalText);
   if (success) {
     log(`[${ts()}] 📋 (Fallback) Logs copied via execCommand -> ${panel.children.length} entries + stats`);
@@ -176,19 +180,18 @@ export async function reloadList() {
   }
 }
 
-/** 🧩 Δημιουργία binding των UI events (χωρίς inline onclick, καλείται από main.js μετά το DOMContentLoaded). */
+/** 🧩 Δέσμευση UI events (χωρίς inline onclick, καλείται από main.js μετά το DOMContentLoaded). */
 export function bindUiEvents() {
   const byId = id => document.getElementById(id);
   const m = new Map([
-    ["btnPlayAll",      playAll],
-    ["btnStopAll",      stopAll],
-    ["btnRestartAll",   restartAll],
-    ["btnToggleTheme",  toggleTheme],
-    ["btnCopyLogs",     copyLogs],
-    ["btnClearLogs",    clearLogs],
-    ["btnReloadList",   reloadList],
+    ["btnPlayAll",    playAll],
+    ["btnStopAll",    stopAll],
+    ["btnRestartAll", restartAll],
+    ["btnToggleTheme",toggleTheme],
+    ["btnCopyLogs",   copyLogs],
+    ["btnClearLogs",  clearLogs],
+    ["btnReloadList", reloadList],
   ]);
-
   m.forEach((handler, id) => {
     const el = byId(id);
     if (el) {
@@ -197,7 +200,6 @@ export function bindUiEvents() {
       log(`[${ts()}] ⚠️ UI bind skipped -> missing element #${id}`);
     }
   });
-
   log(`[${ts()}] ✅ UI events bound (uiControls.js v${UICONTROLS_VERSION})`);
 }
 
