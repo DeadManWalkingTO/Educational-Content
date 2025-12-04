@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <title>Educational Content</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="html-version" content="v6.0.7"> <!-- Ενημερωμένη έκδοση -->
-  <link rel="icon" type="image/x-icon" href="./favicon.ico">
+  <meta name="html-version" content="v6.0.8"> <!-- Ενημερωμένη έκδοση -->
+  ./favicon.ico
   <style>
     body {
       margin:0;
@@ -55,13 +55,14 @@
   <div class="controls">
     <h1>Educational Content</h1>
     <div class="row">
-      <button onclick="playAll()">▶ Play All</button>
-      <button onclick="stopAll()">⏹ Stop All</button>
-      <button onclick="restartAll()">🔁 Restart All</button>
-      <button onclick="toggleTheme()">🌓 Dark/Light Mode</button>
-      <button onclick="copyLogs()">📋 Copy Logs</button>
-      <button onclick="clearLogs()">🧹 Clear Logs</button>
-      <button onclick="reloadList()">🔄 Reload List</button>
+      <!-- ΧΩΡΙΣ inline onclick — μόνο IDs -->
+      <button id="btnPlayAll">▶ Play All</button>
+      <button id="btnStopAll">⏹ Stop All</button>
+      <button id="btnRestartAll">🔁 Restart All</button>
+      <button id="btnToggleTheme">🌓 Dark/Light Mode</button>
+      <button id="btnCopyLogs">📋 Copy Logs</button>
+      <button id="btnClearLogs">🧹 Clear Logs</button>
+      <button id="btnReloadList">🔄 Reload List</button>
     </div>
   </div>
   <div class="main">
