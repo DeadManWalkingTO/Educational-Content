@@ -1,12 +1,9 @@
-
 // --- uiControls.js ---
-// Έκδοση: v2.2.0
-// Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List).
-// Χρησιμοποιεί ES Modules και public API μέσω window.* για HTML onclick.
-// Ενημερωμένο: Διόρθωση τυπογραφικού λάθους στα logs (vv → v).
-
+// Έκδοση: v2.3.0
+// Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
+//             με ESM named exports. Χωρίς inline onclick και χωρίς global window.*.
 // --- Versions ---
-const UICONTROLS_VERSION = "v2.2.0";
+const UICONTROLS_VERSION = "v2.3.0";
 export function getVersion() { return UICONTROLS_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -19,10 +16,8 @@ import {
 } from './globals.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
 
-/**
- * ▶ Εκκινεί όλους τους players σε "sequential" mode με τυχαίες καθυστερήσεις.
- */
-function playAll() {
+/** ▶ Εκκίνηση όλων των players σε "sequential" mode με τυχαίες καθυστερήσεις. */
+export function playAll() {
   setIsStopping(false);
   clearStopTimers();
   log(`[${ts()}] ▶ Stop All canceled -> starting Play All`);
@@ -39,7 +34,8 @@ function playAll() {
         const mainList = getMainList();
         const altList = getAltList();
         const useMain = Math.random() < MAIN_PROBABILITY;
-        const source = useMain ? (mainList.length ? mainList : altList) : (altList.length ? altList : mainList);
+        const source = useMain ? (mainList.length ? mainList : altList)
+                               : (altList.length ? altList : mainList);
         if (!source || source.length === 0) {
           log(`[${ts()}] ❌ Player ${c.index + 1} Init skipped -> no videos available`);
           return;
@@ -53,10 +49,8 @@ function playAll() {
   log(`[${ts()}] ▶ Play All -> sequential mode started, estimated duration ~${Math.round(delay / 1000)}s`);
 }
 
-/**
- * ⏹ Σταματά όλους τους players σε "sequential" mode με τυχαίες καθυστερήσεις.
- */
-function stopAll() {
+/** ⏹ Σταματά όλους τους players σε "sequential" mode με τυχαίες καθυστερήσεις. */
+export function stopAll() {
   setIsStopping(true);
   clearStopTimers();
   const shuffled = [...controllers].sort(() => Math.random() - 0.5);
@@ -77,10 +71,8 @@ function stopAll() {
   log(`[${ts()}] ⏹ Stop All -> sequential mode started, estimated duration ~${Math.round(delay / 1000)}s`);
 }
 
-/**
- * 🔁 Επανεκκινεί όλους τους players φορτώνοντας νέο video.
- */
-function restartAll() {
+/** 🔁 Επανεκκίνηση όλων των players φορτώνοντας νέο video. */
+export function restartAll() {
   const mainList = getMainList();
   const altList = getAltList();
   controllers.forEach(c => {
@@ -88,7 +80,8 @@ function restartAll() {
       c.loadNextVideo(c.player);
     } else {
       const useMain = Math.random() < MAIN_PROBABILITY;
-      const source = useMain ? (mainList.length ? mainList : altList) : (altList.length ? altList : mainList);
+      const source = useMain ? (mainList.length ? mainList : altList)
+                             : (altList.length ? altList : mainList);
       if (!source || source.length === 0) {
         log(`[${ts()}] ❌ Player ${c.index + 1} Restart skipped -> no videos available`);
         return;
@@ -101,19 +94,15 @@ function restartAll() {
   log(`[${ts()}] 🔁 Restart All -> completed`);
 }
 
-/**
- * 🌗 Εναλλαγή Dark/Light theme.
- */
-function toggleTheme() {
+/** 🌓 Εναλλαγή Dark/Light theme. */
+export function toggleTheme() {
   document.body.classList.toggle("light");
   const mode = document.body.classList.contains("light") ? "Light" : "Dark";
-  log(`[${ts()}] 🌗 Theme toggled -> ${mode} mode`);
+  log(`[${ts()}] 🌓 Theme toggled -> ${mode} mode`);
 }
 
-/**
- * 🧹 Καθαρίζει το activity panel.
- */
-function clearLogs() {
+/** 🧹 Καθαρισμός activity panel. */
+export function clearLogs() {
   const panel = document.getElementById("activityPanel");
   if (panel && panel.children.length > 0) {
     panel.innerHTML = "";
@@ -123,28 +112,28 @@ function clearLogs() {
   }
 }
 
-/**
- * 📋 Αντιγράφει όλα τα logs στο clipboard μαζί με τα stats.
- */
-function copyLogs() {
+/** 📋 Αντιγραφή logs + stats στο clipboard (απαιτεί HTTPS/secure context ή localhost). */
+export async function copyLogs() {
   const panel = document.getElementById("activityPanel");
   const statsPanel = document.getElementById("statsPanel");
   if (panel && panel.children.length > 0) {
     const logsText = Array.from(panel.children).map(div => div.textContent).join("\n");
     const statsText = statsPanel ? `\n\n📊 Current Stats:\n${statsPanel.textContent}` : `\n\n📊 Stats not available`;
     const finalText = logsText + statsText;
-    navigator.clipboard.writeText(finalText)
-      .then(() => log(`[${ts()}] 📋 Logs copied -> ${panel.children.length} entries + stats`))
-      .catch(err => log(`[${ts()}] ❌ Copy Logs failed -> ${err}`));
+    try {
+      await navigator.clipboard.writeText(finalText);
+      log(`[${ts()}] 📋 Logs copied -> ${panel.children.length} entries + stats`);
+    } catch (err) {
+      log(`[${ts()}] ❌ Copy Logs failed -> ${err}`);
+      // Προαιρετικός fallback θα προστεθεί αν απαιτηθεί (execCommand)
+    }
   } else {
     log(`[${ts()}] ❌ Copy Logs -> no entries to copy`);
   }
 }
 
-/**
- * 🔄 Επαναφόρτωση λιστών από πηγή και ενημέρωση state.
- */
-async function reloadList() {
+/** 🔄 Επαναφόρτωση λιστών από πηγή και εφαρμογή στο state. */
+export async function reloadList() {
   try {
     const { mainList, altList } = await reloadListsFromSource();
     setMainList(mainList);
@@ -155,14 +144,30 @@ async function reloadList() {
   }
 }
 
-// --- Public API για HTML inline onclick ---
-window.playAll = playAll;
-window.stopAll = stopAll;
-window.restartAll = restartAll;
-window.toggleTheme = toggleTheme;
-window.clearLogs = clearLogs;
-window.copyLogs = copyLogs;
-window.reloadList = reloadList;
+/** 🧩 Δημιουργία binding των UI events (χωρίς inline onclick, από main.js μετά το DOMContentLoaded). */
+export function bindUiEvents() {
+  const byId = id => document.getElementById(id);
+  const m = new Map([
+    ["btnPlayAll",      playAll],
+    ["btnStopAll",      stopAll],
+    ["btnRestartAll",   restartAll],
+    ["btnToggleTheme",  toggleTheme],
+    ["btnCopyLogs",     copyLogs],
+    ["btnClearLogs",    clearLogs],
+    ["btnReloadList",   reloadList],
+  ]);
+
+  m.forEach((handler, id) => {
+    const el = byId(id);
+    if (el) {
+      el.addEventListener("click", handler);
+    } else {
+      log(`[${ts()}] ⚠️ UI bind skipped -> missing element #${id}`);
+    }
+  });
+
+  log(`[${ts()}] ✅ UI events bound (uiControls.js v${UICONTROLS_VERSION})`);
+}
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: uiControls.js v${UICONTROLS_VERSION} -> ολοκληρώθηκε`);
