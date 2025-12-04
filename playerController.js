@@ -1,15 +1,18 @@
+
 // --- playerController.js ---
-// Έκδοση: v6.4.0
-// Περιγραφή: PlayerController και κύρια λογική για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
-//            Ενοποίηση AutoNext counters: χρήση κοινών συναρτήσεων από globals (canAutoNext/incAutoNext, ωριαίο reset).
+// Έκδοση: v6.4.1
+// Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
+//             Χρήση ενοποιημένων counters και διορθώσεις σε OR (||) συνθήκες.
 // --- Versions ---
-const PLAYER_CONTROLLER_VERSION = "v6.4.0";
+const PLAYER_CONTROLLER_VERSION = "v6.4.1";
 export function getVersion() { return PLAYER_CONTROLLER_VERSION; }
 
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: playerController.js v${PLAYER_CONTROLLER_VERSION} -> ξεκίνησε`);
 
-import { log, ts, rndInt, stats, controllers, MAIN_PROBABILITY,
-         canAutoNext, incAutoNext, AUTO_NEXT_LIMIT_PER_PLAYER } from './globals.js';
+import {
+  log, ts, rndInt, stats, controllers, MAIN_PROBABILITY,
+  canAutoNext, incAutoNext, AUTO_NEXT_LIMIT_PER_PLAYER
+} from './globals.js';
 
 /** Υπολογισμός απαιτούμενου χρόνου θέασης για AutoNext. */
 export function getRequiredWatchTime(durationSec) {
@@ -31,9 +34,7 @@ export function getRequiredWatchTime(durationSec) {
     maxLimitSec = (20 + rndInt(0, 3)) * 60;
   }
   let requiredTime = Math.floor((durationSec * percent) / 100);
-  if (maxLimitSec && requiredTime > maxLimitSec) {
-    requiredTime = maxLimitSec;
-  }
+  if (maxLimitSec && requiredTime > maxLimitSec) requiredTime = maxLimitSec;
   return requiredTime;
 }
 
@@ -73,16 +74,15 @@ export class PlayerController {
       host: 'https://www.youtube.com',
       playerVars: origin ? { origin } : {},
       events: {
-        onReady: (e) => this.onReady(e),
+        onReady:   (e) => this.onReady(e),
         onStateChange: (e) => this.onStateChange(e),
-        onError: () => this.onError(),
+        onError:   () => this.onError(),
       }
     });
     log(`[${ts()}] ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
     log(`[${ts()}] 👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
   }
 
-  /** Εκτελείται όταν ο player είναι έτοιμος. */
   onReady(e) {
     const p = e.target;
     this.startTime = Date.now();
@@ -104,7 +104,7 @@ export class PlayerController {
       this.scheduleMidSeek();
     }, startDelay);
 
-    // Προγραμματισμός Auto Unmute
+    // Auto Unmute + fallback
     const unmuteDelayExtra = this.config?.unmuteDelayExtra ?? rndInt(30, 90);
     const unmuteDelay = (startDelaySec + unmuteDelayExtra) * 1000;
     setTimeout(() => {
@@ -115,7 +115,6 @@ export class PlayerController {
         if (typeof p.setVolume === 'function') p.setVolume(v);
         stats.volumeChanges++;
         log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
-        // Fallback: αν με το unmute βρεθούμε σε PAUSED, retry playVideo()
         setTimeout(() => {
           if (typeof p.getPlayerState === 'function' && p.getPlayerState() === YT.PlayerState.PAUSED) {
             log(`[${ts()}] ⚠️ Unmute fallback -> retry playVideo()`);
@@ -129,7 +128,6 @@ export class PlayerController {
     }, unmuteDelay);
   }
 
-  /** Αντίδραση σε αλλαγές κατάστασης του player. */
   onStateChange(e) {
     const p = this.player;
     switch (e.data) {
@@ -170,7 +168,7 @@ export class PlayerController {
     if (e.data === YT.PlayerState.BUFFERING) this.lastBufferingStart = Date.now();
     if (e.data === YT.PlayerState.PAUSED)    this.lastPausedStart = Date.now();
 
-    // Τελική κατάσταση ENDED -> απόφαση AutoNext
+    // ENDED -> απόφαση AutoNext
     if (e.data === YT.PlayerState.ENDED) {
       this.clearTimers();
       const duration = typeof p.getDuration === 'function' ? p.getDuration() : 0;
@@ -198,11 +196,9 @@ export class PlayerController {
     log(`[${ts()}] ❌ Player ${this.index + 1} Error -> AutoNext`);
   }
 
-  /** Φορτώνει επόμενο video, με ελεγχόμενους (ενοποιημένους) counters. */
   loadNextVideo(player) {
     if (!player || typeof player.loadVideoById !== 'function') return;
 
-    // Έλεγχος ορίου ανά player/ώρα (ενοποίηση counters)
     if (!canAutoNext(this.index)) {
       log(`[${ts()}] ⚠️ AutoNext limit reached -> ${AUTO_NEXT_LIMIT_PER_PLAYER}/hour for Player ${this.index + 1}`);
       return;
@@ -222,7 +218,7 @@ export class PlayerController {
     player.loadVideoById(newId);
     player.playVideo();
     stats.autoNext++;
-    incAutoNext(this.index);        // <-- ενοποιημένος μετρητής (global & per-player)
+    incAutoNext(this.index);
     this.totalPlayTime = 0;
     this.playingStart = null;
     log(`[${ts()}] ⏭️ Player ${this.index + 1} AutoNext -> ${newId} (Source:${useMain ? "main" : "alt"})`);
@@ -284,5 +280,4 @@ export class PlayerController {
 }
 
 log(`[${ts()}] ✅ Φόρτωση αρχείου: playerController.js v${PLAYER_CONTROLLER_VERSION} -> ολοκληρώθηκε`);
-
 // --- End Of File ---
