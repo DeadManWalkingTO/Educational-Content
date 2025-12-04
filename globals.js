@@ -1,10 +1,9 @@
-
 // --- globals.js ---
-// Έκδοση: v2.1.0
+// Έκδοση: v2.2.0
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
-
+//            Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset.
 // --- Versions ---
-const GLOBALS_VERSION = "v2.1.0";
+const GLOBALS_VERSION = "v2.2.0";
 export function getVersion() { return GLOBALS_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -28,14 +27,38 @@ export const controllers = [];
 export const PLAYER_COUNT = 8;
 export const MAIN_PROBABILITY = 0.5;
 
-// --- AutoNext counters ---
-export let autoNextCounter = 0;
-export let lastResetTime = Date.now();
+// --- AutoNext counters (ενοποιημένοι) ---
+export let autoNextCounter = 0;           // Global συνολικός μετρητής AutoNext (για reporting)
+export let lastResetTime = Date.now();    // Χρόνος τελευταίου reset (ωριαίο)
+export const AUTO_NEXT_LIMIT_PER_PLAYER = 50; // Όριο ανά player/ώρα (ίδιο με παλιό design)
+export const autoNextPerPlayer = Array(PLAYER_COUNT).fill(0);
+
+/** Έλεγχος ωριαίου reset counters (global & per-player). */
+export function resetAutoNextCountersIfNeeded() {
+  const now = Date.now();
+  if (now - lastResetTime >= 3600000) { // 1 ώρα
+    autoNextCounter = 0;
+    lastResetTime = now;
+    for (let i = 0; i < autoNextPerPlayer.length; i++) autoNextPerPlayer[i] = 0;
+    log(`[${ts()}] 🔄 AutoNext counters reset (hourly)`);
+  }
+}
+
+/** Επιτρέπει AutoNext για τον συγκεκριμένο player σύμφωνα με το όριο/ώρα. */
+export function canAutoNext(playerIndex) {
+  resetAutoNextCountersIfNeeded();
+  return autoNextPerPlayer[playerIndex] < AUTO_NEXT_LIMIT_PER_PLAYER;
+}
+
+/** Αύξηση counters μετά από επιτυχές AutoNext. */
+export function incAutoNext(playerIndex) {
+  autoNextCounter++;
+  autoNextPerPlayer[playerIndex]++;
+}
 
 // --- Lists state ---
 let _mainList = [];
 let _altList = [];
-
 export function getMainList() { return _mainList; }
 export function getAltList() { return _altList; }
 export function setMainList(list) {
@@ -50,7 +73,6 @@ export function setAltList(list) {
 // --- Stop All state & helpers ---
 export let isStopping = false;
 const stopTimers = [];
-
 export function setIsStopping(flag) {
   isStopping = !!flag;
   log(`[${ts()}] ⏹ isStopping = ${isStopping}`);
