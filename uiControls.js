@@ -1,9 +1,10 @@
+
 // --- uiControls.js ---
-// Έκδοση: v2.4.0
+// Έκδοση: v2.4.1
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
-//             με ESM named exports, binding από main.js. Προστέθηκε Clipboard fallback για μη-HTTPS περιβάλλοντα.
+//             με ESM named exports, binding από main.js. Περιλαμβάνει Clipboard fallback (μη-HTTPS) και διορθώσεις σε OR (||).
 // --- Versions ---
-const UICONTROLS_VERSION = "v2.4.0";
+const UICONTROLS_VERSION = "v2.4.1";
 export function getVersion() { return UICONTROLS_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
