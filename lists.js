@@ -2,8 +2,7 @@
 // --- lists.js ---
 // Έκδοση: v3.3.5
 // Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
-// Newline Split: χρήση escaped "
-" αντί για regex literal, ώστε να αποφεύγονται ειδικοί χαρακτήρες (/ , \ , () ) σε περιβάλλοντα μεταφοράς.
+// Newline Split: χρήση escaped αντί για regex literal, ώστε να αποφεύγονται ειδικοί χαρακτήρες (/ , \ , () ) σε περιβάλλοντα μεταφοράς.
 // --- Versions ---
 const LISTS_VERSION = "v3.3.5";
 export function getVersion() { return LISTS_VERSION; }
@@ -23,7 +22,8 @@ const internalList = [
 function parseList(text){
   const lines = text.split('
 ');
-  for (let i=0; i<lines.length; i++) if (lines[i].endsWith('')) lines[i] = lines[i].slice(0, -1);
+  for (let i=0; i<lines.length; i++) if (lines[i].endsWith('
+')) lines[i] = lines[i].slice(0, -1);
   return lines.filter(x => x !== "");
 }
 
