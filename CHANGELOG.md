@@ -1,6 +1,11 @@
 
 # CHANGELOG.md
 > Ημερομηνία: 2025-12-05
+
+## Policy Update (2025-12-05)
+- CONTEXT.md: Προσθήκη ενότητας «Κανόνας για Newline Splits» με οδηγίες για χρήση escape sequence '\n' ή regex '/\r?\n/'.
+Notes: Documentation update, no impact on runtime.
+
 ## UX & Policy — Start Gate (Autoplay)
 - index.html v6.0.8 → v6.0.9: Προσθήκη κουμπιού **💻 Start** ως μοναδικό ενεργό στην αρχή. Τα υπόλοιπα controls disabled μέχρι το πρώτο click (user gesture).
 - main.js v1.6.5 → v1.6.6: Start gate — `startApp()` εκτελείται **μόνο** στην πρώτη αλληλεπίδραση. Κάθε click στο **Start** γράφει `💻 Αλληλεπίδραση Χρήστη` στο console και ενεργοποιεί τα υπόλοιπα controls. Μεταφορά `bindUiEvents()` στη φάση DOM ready.
