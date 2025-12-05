@@ -1,9 +1,10 @@
 // --- uiControls.js ---
-// Έκδοση: v2.4.2
+// Έκδοση: v2.4.3
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
-// με ESM named exports, binding από main.js. Περιλαμβάνει Clipboard fallback (μη-HTTPS) και ασφαλείς guards.
+// με ESM named exports, binding από main.js. Εφαρμογή No '||' σε guards/επιλογές λιστών.
+//
 // --- Versions ---
-const UICONTROLS_VERSION = "v2.4.2";
+const UICONTROLS_VERSION = "v2.4.3";
 export function getVersion() { return UICONTROLS_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -23,6 +24,7 @@ export function playAll() {
   log(`[${ts()}] ▶ Stop All canceled -> starting Play All`);
   const shuffled = [...controllers].sort(() => Math.random() - 0.5);
   let delay = 0;
+
   shuffled.forEach((c, i) => {
     const randomDelay = rndInt(5000, 15000);
     delay += randomDelay;
@@ -33,12 +35,19 @@ export function playAll() {
       } else {
         const mainList = getMainList();
         const altList  = getAltList();
-        const useMain = Math.random() < MAIN_PROBABILITY;
-        const source = useMain ? (mainList.length ? mainList : altList)
-                               : (altList.length ? altList : mainList);
+        const useMain  = Math.random() < MAIN_PROBABILITY;
 
-        // FIX: guard για κενή/μη διαθέσιμη λίστα
-        if (!source || source.length === 0) {
+        const hasMain = Array.isArray(mainList) && mainList.length > 0;
+        const hasAlt  = Array.isArray(altList)  && altList.length  > 0;
+
+        let source;
+        if (useMain && hasMain)       source = mainList;
+        else if (!useMain && hasAlt)  source = altList;
+        else if (hasMain)             source = mainList;
+        else                          source = altList;
+
+        // Guard χωρίς '||'
+        if ((source?.length ?? 0) === 0) {
           log(`[${ts()}] ❌ Player ${c.index + 1} Init skipped -> no videos available`);
           return;
         }
@@ -49,6 +58,7 @@ export function playAll() {
       }
     }, delay);
   });
+
   log(`[${ts()}] ▶ Play All -> sequential mode started, estimated duration ~${Math.round(delay / 1000)}s`);
 }
 
@@ -58,6 +68,7 @@ export function stopAll() {
   clearStopTimers();
   const shuffled = [...controllers].sort(() => Math.random() - 0.5);
   let delay = 0;
+
   shuffled.forEach((c, i) => {
     const randomDelay = rndInt(30000, 60000);
     delay += randomDelay;
@@ -71,40 +82,49 @@ export function stopAll() {
     }, delay);
     pushStopTimer(timer);
   });
+
   log(`[${ts()}] ⏹ Stop All -> sequential mode started, estimated duration ~${Math.round(delay / 1000)}s`);
 }
 
-/** 🔁 Επανάκκινηση όλων των players φορτώνοντας νέο video. */
+/** 🔁 Επανεκκίνηση όλων των players φορτώνοντας νέο video. */
 export function restartAll() {
   const mainList = getMainList();
   const altList  = getAltList();
+
   controllers.forEach(c => {
     if (c.player) {
       c.loadNextVideo(c.player);
     } else {
       const useMain = Math.random() < MAIN_PROBABILITY;
-      const source = useMain ? (mainList.length ? mainList : altList)
-                             : (altList.length ? altList : mainList);
 
-      // FIX: guard για κενή/μη διαθέσιμη λίστα
-      if (!source || source.length === 0) {
+      const hasMain = Array.isArray(mainList) && mainList.length > 0;
+      const hasAlt  = Array.isArray(altList)  && altList.length  > 0;
+
+      let source;
+      if (useMain && hasMain)       source = mainList;
+      else if (!useMain && hasAlt)  source = altList;
+      else if (hasMain)             source = mainList;
+      else                          source = altList;
+
+      // Guard χωρίς '||'
+      if ((source?.length ?? 0) === 0) {
         log(`[${ts()}] ❌ Player ${c.index + 1} Restart skipped -> no videos available`);
         return;
       }
-
       const newId = source[Math.floor(Math.random() * source.length)];
       c.init(newId);
       log(`[${ts()}] 🔁 Player ${c.index + 1} Restart (init) -> ${newId} (Source:${useMain ? "main" : "alt"})`);
     }
   });
+
   log(`[${ts()}] 🔁 Restart All -> completed`);
 }
 
-/** 🌓 Εναλλαγή Dark/Light theme. */
+/** 🌙/☀️ Εναλλαγή Dark/Light theme. */
 export function toggleTheme() {
   document.body.classList.toggle("light");
   const mode = document.body.classList.contains("light") ? "Light" : "Dark";
-  log(`[${ts()}] 🌓 Theme toggled -> ${mode} mode`);
+  log(`[${ts()}] 🌙 Theme toggled -> ${mode} mode`);
 }
 
 /** 🧹 Καθαρισμός activity panel. */
@@ -130,7 +150,7 @@ export async function copyLogs() {
   const statsText = statsPanel ? `\n\n📊 Current Stats:\n${statsPanel.textContent}` : `\n\n📊 Stats not available`;
   const finalText = logsText + statsText;
 
-  // Προσπάθεια με Clipboard API (λειτουργεί σε HTTPS ή localhost)
+  // Προσπάθεια με Clipboard API (HTTPS/secure context)
   if (navigator.clipboard && window.isSecureContext) {
     try {
       await navigator.clipboard.writeText(finalText);
