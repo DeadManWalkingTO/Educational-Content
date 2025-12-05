@@ -1,11 +1,10 @@
-# .github/workflows/lint.yml
 name: Lint & Format
 
 on:
   pull_request:
     branches: [ "main" ]
   push:
-    branches: [ "main" ]  # προαιρετικά: αν θέλεις checks και σε απευθείας push (θα μπλοκαριστεί από ruleset)
+    branches: [ "main" ] # προαιρετικό
 
 jobs:
   lint:
@@ -21,13 +20,13 @@ jobs:
         with:
           node-version: "18"
 
-      - name: Install dependencies
+      - name: Install dev dependencies
         run: |
           npm init -y
-          npm install --save-dev eslint prettier eslint-config-prettier
+          npm i -D eslint @eslint/js globals prettier eslint-config-prettier
 
-      - name: ESLint
-        run: npx eslint .
+      - name: ESLint (flat config)
+        run: npx eslint . --max-warnings=0
 
       - name: Prettier Check
         run: npx prettier --check "**/*.{js,html,css,json,md}"
