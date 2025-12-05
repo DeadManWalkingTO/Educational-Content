@@ -48,13 +48,19 @@
 - **Clipboard:** Native API μόνο σε HTTPS/secure context, αλλιώς fallback.
 - **No `||` in codebase:** Δεν χρησιμοποιούμε τον λογικό τελεστή `||`.  
 
-  **Αντί για `||`, εφαρμόζουμε:**  
-  | Περίπτωση                | Πριν (με `||`)                              | Μετά (ασφαλές)                                  |
-  |--------------------------|--------------------------------------------|------------------------------------------------|
-  | Membership (A ή B)      | `if (x === A || x === B)`                 | `if ([A,B].includes(x))`                      |
-  | Fallback τιμών          | `const v = x || defaultValue`             | `const v = x ?? defaultValue`                 |
-  | Empty list guard        | `if (!list || list.length === 0)`         | `if ((list?.length ?? 0) === 0)`              |
-  | Object & method guard   | `if (!obj || typeof obj.fn !== 'function')`| `if (!(obj && typeof obj.fn === 'function'))` |
+  **Αντί για `||`, εφαρμόζουμε (παραδείγματα):**
+  - Membership (A ή B):  
+    Πριν → `if (x === A || x === B)`  
+    Μετά → `if ([A,B].includes(x))`
+  - Fallback τιμών:  
+    Πριν → `const v = x || defaultValue`  
+    Μετά → `const v = x ?? defaultValue`
+  - Empty list guard:  
+    Πριν → `if (!list || list.length === 0)`  
+    Μετά → `if ((list?.length ?? 0) === 0)`
+  - Object & method guard:  
+    Πριν → `if (!obj || typeof obj.fn !== 'function')`  
+    Μετά → `if (!(obj && typeof obj.fn === 'function'))`
 
 ---
 
