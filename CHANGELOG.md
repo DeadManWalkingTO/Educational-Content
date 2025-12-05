@@ -1,3 +1,4 @@
+
 # CHANGELOG.md
 > Ημερομηνία: 2025-12-05
 
@@ -18,11 +19,17 @@
 - uiControls.js v2.4.2 → v2.4.3: Ασφαλείς guards σε Play/Restart flow (χωρίς `||`), ρητή επιλογή λίστας (hasMain/hasAlt).
 - Διατήρηση binding, clipboard fallback, logs.
 
+## v2.4.3 (watchdog.js)
+- watchdog.js v2.4.2 → v2.4.3: Αφαίρεση του λογικού τελεστή `||` από τον guard σε `startWatchdog()` για συμμόρφωση με τον κανόνα **No '||'** (CONTEXT.md).
+- Συμπεριφορά αμετάβλητη· μόνο βελτίωση ασφάλειας και τήρηση κανόνων κώδικα.
+
 ---
+
 ### Notes
 - Σύμφωνα με τους κανόνες versioning: bump μόνο στα επηρεαζόμενα αρχεία, ποτέ downgrade.
 - Smoke tests: Startup/Init/AutoNext/UI/Watchdog/Clipboard OK σε σύγχρονο browser.
 
+---
 
 # CHANGELOG.md
 > Ημερομηνία: 2025-12-04
