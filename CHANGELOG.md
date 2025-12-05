@@ -1,4 +1,3 @@
-
 # CHANGELOG.md
 > Ημερομηνία: 2025-12-05
 
@@ -24,12 +23,9 @@
 - Συμπεριφορά αμετάβλητη· μόνο βελτίωση ασφάλειας και τήρηση κανόνων κώδικα.
 
 ---
-
-### Notes
+### Notes (2025-12-05)
 - Σύμφωνα με τους κανόνες versioning: bump μόνο στα επηρεαζόμενα αρχεία, ποτέ downgrade.
 - Smoke tests: Startup/Init/AutoNext/UI/Watchdog/Clipboard OK σε σύγχρονο browser.
-
----
 
 # CHANGELOG.md
 > Ημερομηνία: 2025-12-04
@@ -62,7 +58,6 @@
 - versionReporter.js v2.1.9 → v2.2.0: Συγκεντρώνει εκδόσεις όλων των modules **εκτός** του `main.js`. Ανάγνωση HTML έκδοσης από `meta[name="html-version"]`.
 
 ---
-
-### Notes
+### Notes (2025-12-04)
 - Σύμφωνα με τους κανόνες versioning: bump μόνο στα επηρεαζόμενα αρχεία, ποτέ downgrade.
 - Επόμενα βήματα: Roadmap #1 (Watchdog hardening), #2 (External config), #3 (Lists loader hardening).
