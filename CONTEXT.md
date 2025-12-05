@@ -1,4 +1,3 @@
-
 # Educational-Content — CONTEXT.md
 **Τελευταία ενημέρωση:** 2025-12-05
 > Αυτό το αρχείο αποτελεί τη βάση (αρχιτεκτονική, κανόνες, εκδόσεις) και τον οδικό χάρτη για τις επόμενες εργασίες. Χρησιμοποίησέ το στην πρώτη σου εντολή για να συνεχίσουμε απρόσκοπτα.
@@ -51,6 +50,10 @@
   - Fallback τιμών: `const v = x ?? defaultValue`
   - Empty list guard: `if ((list?.length ?? 0) === 0)`
   - Object & method guard: `if (!(obj && typeof obj.fn === 'function'))`
+### Κανόνας για Newline Splits
+- Απαγορεύεται η χρήση πραγματικού line break μέσα σε string literals.
+- Χρησιμοποιούμε πάντα escape sequence '\n' ή regex '/\r?\n/'.
+    
 ---
 ## 4) Τρέχουσες Εκδόσεις (source of truth)
 - **HTML**: index.html **v6.0.9**
