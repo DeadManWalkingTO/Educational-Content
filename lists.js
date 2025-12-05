@@ -1,11 +1,9 @@
-
 // --- lists.js ---
-// Έκδοση: v3.3.2
+// Έκδοση: v3.3.5
 // Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
-// Συμμόρφωση με "Κανόνας για Newline Splits"
-
+// Newline Split: χρήση escaped "\n" αντί για regex literal, ώστε να αποφεύγονται ειδικοί χαρακτήρες (/ , \ , () ) σε περιβάλλοντα μεταφοράς.
 // --- Versions ---
-const LISTS_VERSION = "v3.3.2";
+const LISTS_VERSION = "v3.3.5";
 export function getVersion() { return LISTS_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -21,6 +19,19 @@ const internalList = [
 ];
 
 /**
+ * Ασφαλής parser λίστας χωρίς regex literal: split on "\n" και αφαίρεση μόνο τελικού "\r".
+ * Δεν χρησιμοποιούνται ούτε global/per-line trim.
+ */
+function parseList(text){
+  const lines = text.split('\n'); // escaped newline — χωρίς / και ()
+  for (let i=0; i<lines.length; i++){
+    if (lines[i].endsWith('\r')) lines[i] = lines[i].slice(0, -1); // αφαιρούμε μόνο trailing CR
+  }
+  // Φιλτράρουμε μόνο κυριολεκτικά κενές γραμμές
+  return lines.filter(x => x !== "");
+}
+
+/**
  * Φόρτωση κύριας λίστας από local αρχείο ή GitHub ή internal fallback.
  */
 export async function loadVideoList() {
@@ -28,9 +39,7 @@ export async function loadVideoList() {
     const localResponse = await fetch('list.txt');
     if (localResponse.ok) {
       const text = await localResponse.text();
-      const list = text.trim().split(/n)
-
-/).map(x => x.trim()).filter(x => x);
+      const list = parseList(text);
       if (list.length > 0) {
         log(`[${ts()}] ✅ Main list loaded from local file -> ${list.length} items`);
         return list;
@@ -45,9 +54,7 @@ export async function loadVideoList() {
     const githubResponse = await fetch(githubUrl);
     if (githubResponse.ok) {
       const text = await githubResponse.text();
-      const list = text.trim().split(/
-?
-/).map(x => x.trim()).filter(x => x);
+      const list = parseList(text);
       if (list.length > 0) {
         log(`[${ts()}] ✅ Main list loaded from GitHub -> ${list.length} items`);
         return list;
@@ -69,9 +76,7 @@ export async function loadAltList() {
     const localResponse = await fetch('random.txt');
     if (localResponse.ok) {
       const text = await localResponse.text();
-      const list = text.trim().split(/n)
-
-/).map(x => x.trim()).filter(x => x);
+      const list = parseList(text);
       if (list.length > 0) {
         log(`[${ts()}] ✅ Alt list loaded from local file -> ${list.length} items`);
         return list;
