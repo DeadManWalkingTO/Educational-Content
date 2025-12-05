@@ -1,7 +1,0 @@
-{
-  "scripts": {
-    "lint": "eslint .",
-    "format:check": "prettier --check \"**/*.{js,html,css,json,md}\"",
-    "format:write": "prettier --write \"**/*.{js,html,css,json,md}\""
-  }
-}
