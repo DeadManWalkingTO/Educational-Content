@@ -1,3 +1,4 @@
+
 # Educational-Content — CONTEXT.md
 **Τελευταία ενημέρωση:** 2025-12-05
 > Αυτό το αρχείο αποτελεί τη βάση (αρχιτεκτονική, κανόνες, εκδόσεις) και τον οδικό χάρτη για τις επόμενες εργασίες. Χρησιμοποίησέ το στην πρώτη σου εντολή για να συνεχίσουμε απρόσκοπτα.
@@ -12,10 +13,12 @@
 > • AutoNext counters ενοποιημένοι: global + per-player (50/hour), ωριαίο reset
 > • checkModulePaths() αφαιρέθηκε (χρησιμοποιούμε browser ESM loader)
 > **Versions:**
-> index.html v6.0.9; main.js v1.6.6; uiControls.js v2.4.5; globals.js v2.2.2; playerController.js v6.4.7; watchdog.js v2.4.4; lists.js v3.3.1; humanMode.js v4.6.9; versionReporter.js v2.2.1
+> index.html v6.0.10; main.js v1.6.6; uiControls.js v2.4.6; globals.js v2.2.2; playerController.js v6.4.7; watchdog.js v2.4.4; lists.js v3.3.5; humanMode.js v4.6.9; versionReporter.js v2.2.1
 > **Roadmap επόμενο:**
 > 1) Watchdog hardening; 2) External config; 3) Lists loader hardening; 4) Telemetry export; 5) Activity panel cap/virtualization; 6) Cross-browser IFrame API guards
-> **Rules:** bump version per file change; keep standard header/versions; never downgrade; **No `||` in codebase**; **CHANGELOG policy: νεότερες ημερομηνίες στην κορυφή, ποτέ αφαίρεση ιστορικού**
+> **Rules:** bump version per file change; keep standard header/versions; never downgrade; **No `
+
+` σε string literals**; **CHANGELOG policy: νεότερες ημερομηνίες στην κορυφή, ποτέ αφαίρεση ιστορικού**
 ---
 ## 2) Αρχιτεκτονική & Ροή (συνοπτικά)
 1. **index.html** φορτώνει YouTube IFrame API και `main.js` (ESM), παρέχει `#playersContainer`, `#activityPanel`, `#statsPanel`, και το **💻 Start**.
@@ -45,24 +48,41 @@
 - **UI binding:** Χωρίς inline `onclick` στο HTML· όλα τα events μέσω `addEventListener`.
 - **ESM imports:** Χρήση relative paths· reliance στον browser loader.
 - **Clipboard:** Native API μόνο σε HTTPS/secure context, αλλιώς fallback.
-- **No `||` in codebase:** Αντί για `||`, εφαρμόζουμε:
-  - Membership: `if ([A,B].includes(x))`
-  - Fallback τιμών: `const v = x ?? defaultValue`
-  - Empty list guard: `if ((list?.length ?? 0) === 0)`
-  - Object & method guard: `if (!(obj && typeof obj.fn === 'function'))`
-### Κανόνας για Newline Splits
-- Απαγορεύεται η χρήση πραγματικού line break μέσα σε string literals.
-- Χρησιμοποιούμε πάντα escape sequence '\n' ή regex '/\r?\n/'.
-    
+- **No `
+
+` σε string literals:** Αντί για πραγματικά line breaks, χρησιμοποιούμε `"
+"` για νέες γραμμές ή `'
+'` σε joins.
+### Κανόνας για Newline Splits (ΕΝΗΜΕΡΩΜΕΝΟΣ)
+- **Προτιμώμενος και επιβεβλημένος τρόπος:** Χρήση *escaped* newline **'
+'** για split: `text.split('
+')`.
+- **CR χειρισμός:** Επιτρέπεται **μόνο** η αφαίρεση τελικού `` ανά γραμμή (π.χ., `if (line.endsWith('')) line = line.slice(0,-1);`).
+- **Απαγορεύσεις:**
+  - **Δεν** χρησιμοποιούμε regex literal `/?
+/` ή άλλα regex patterns για split γραμμών, ώστε να αποφεύγονται προβλήματα μεταφοράς/escaping (`/`, `\`, `()`, `?`).
+  - **Δεν** εφαρμόζουμε `trim()` ούτε global ούτε per-line στο περιεχόμενο που φορτώνεται από αρχεία λιστών, ώστε να **μην αλλοιώνονται** bytes (BOM, τερματικά whitespace κ.ά.).
+- **Παράδειγμα ασφαλούς parser:**
+  - **OK:**
+    ```js
+    function parseList(text){
+      const lines = text.split('
+');
+      for (let i=0;i<lines.length;i++) if (lines[i].endsWith('')) lines[i] = lines[i].slice(0,-1);
+      return lines.filter(x => x !== ""); // αγνοούμε ΜΟΝΟ εντελώς κενές γραμμές
+    }
+    ```
+  - **Όχι:** `text.split(/?
+/)`, `text.trim()`, `line.trim()`.
 ---
 ## 4) Τρέχουσες Εκδόσεις (source of truth)
-- **HTML**: index.html **v6.0.9**
+- **HTML**: index.html **v6.0.10**
 - **Main**: main.js **v1.6.6**
-- **UI**: uiControls.js **v2.4.5**
+- **UI**: uiControls.js **v2.4.6**
 - **Globals**: globals.js **v2.2.2**
 - **Player**: playerController.js **v6.4.7**
 - **Watchdog**: watchdog.js **v2.4.4**
-- **Lists**: lists.js **v3.3.1**
+- **Lists**: lists.js **v3.3.5**
 - **Human Mode**: humanMode.js **v4.6.9**
 - **Versions**: versionReporter.js **v2.2.1**
 ---
@@ -99,7 +119,7 @@
 ---
 ## 10) Κανόνες για τη συγγραφή και μεταφορά του CONTEXT.md
 - **Μορφοποίηση ασφαλής για μεταφορά:**
-  - Αποφεύγουμε μεγάλα code fences (``` ) για blocks που περιέχουν οδηγίες ή baseline.
+  - Αποφεύγουμε μεγάλα code fences (```) για blocks που περιέχουν οδηγίες ή baseline.
   - Χρησιμοποιούμε **quote blocks (>)** ή **bullets** για λίστες.
   - Για παραδείγματα κώδικα ή snippets, χρησιμοποιούμε **inline backticks** (π.χ. `const v = x ?? defaultValue`).
   - Πίνακες επιτρέπονται, αλλά χωρίς nested code fences.
@@ -108,16 +128,11 @@
   - Δεν αφήνουμε ανοιχτά backticks που μπορεί να «σπάσουν» σε docx.
 - **Ανθεκτικότητα σε export:**
   - Όλα τα sections πρέπει να είναι σε καθαρό Markdown ή απλό κείμενο.
-  - Αποφεύγουμε ειδικούς χαρακτήρες που μπορεί να αλλοιωθούν (π.χ. `||`) εκτός αν είναι μέσα σε backticks.
+  - **Αποφεύγουμε regex literals** σε τεκμηρίωση/parsers που θα μεταφερθούν μέσω docx (προτιμάμε `'
+'`).
 - **Λήψη του CONTEXT.md:**
   - Όταν ζητείται από το σύστημα ή τον χρήστη, το αρχείο πρέπει να παρέχεται ως **ενιαίο block** με πλήρη κλείσιμο όλων των Markdown στοιχείων.
   - Δεν επιτρέπεται να σπάει η δομή μετά από sections (π.χ. Baseline ή Πρότυπο Changelog).
-- **Παράδειγμα ασφαλούς μορφής για Baseline:**
-  > **Project:** Educational-Content
-  > **Baseline:**
-  > • ES Modules, UI event binding από main.js μετά το DOMContentLoaded
-  > • Watchdog ξεκινά μετά το YouTube API readiness
-  > **Versions:** index.html v6.0.9; main.js v1.6.6; ...
 ---
 **Owner:** DeadManWalkingTO
 **Project:** Educational-Content
