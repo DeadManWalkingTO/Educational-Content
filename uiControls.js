@@ -155,15 +155,12 @@ export async function copyLogs() {
   }
   const logsText = Array.from(panel.children).map(div => div.textContent).join("
 ");
-  const statsText = statsPanel
-    ? ("
+  const statsText = statsPanel ? ("
 📊 Current Stats:
-" + statsPanel.textContent)
-    : ("
+" + statsPanel.textContent) : ("
 📊 Stats not available");
   const finalText = logsText + statsText;
 
-  // Προσπάθεια με Clipboard API (HTTPS/secure context)
   if (navigator.clipboard && window.isSecureContext) {
     try {
       await navigator.clipboard.writeText(finalText);
@@ -173,7 +170,6 @@ export async function copyLogs() {
       log(`[${ts()}] ⚠️ Clipboard write failed (secure) -> ${err}`);
     }
   }
-  // Fallback: μη-HTTPS ή απουσία Clipboard API
   const success = unsecuredCopyToClipboard(finalText);
   if (success) {
     log(`[${ts()}] 📋 (Fallback) Logs copied via execCommand -> ${panel.children.length} entries + stats`);
@@ -182,7 +178,6 @@ export async function copyLogs() {
   }
 }
 
-/** Fallback: αντιγραφή μέσω προσωρινού <textarea> και execCommand('copy'). */
 function unsecuredCopyToClipboard(text) {
   try {
     const textArea = document.createElement('textarea');
@@ -200,7 +195,6 @@ function unsecuredCopyToClipboard(text) {
   }
 }
 
-/** 🧷 Δέσμευση UI events (χωρίς inline onclick, καλείται από main.js). */
 export function bindUiEvents() {
   const byId = id => document.getElementById(id);
   const m = new Map([
@@ -223,7 +217,6 @@ export function bindUiEvents() {
   log(`[${ts()}] ✅ UI events bound (uiControls.js ${UICONTROLS_VERSION})`);
 }
 
-/** 🔄 Επαναφόρτωση λιστών από πηγή και εφαρμογή στο state. */
 export async function reloadList() {
   try {
     const { mainList, altList } = await reloadListsFromSource();
@@ -235,6 +228,5 @@ export async function reloadList() {
   }
 }
 
-// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
 // --- End Of File ---

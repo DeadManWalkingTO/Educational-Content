@@ -1,6 +1,12 @@
+# CHANGELOG.md
+> Ημερομηνία: 2025-12-05
 
-# CHANGELOG.md 
-> Ημερομηνία: 2025-12-05 
+
+## Legacy Fallback — module/nomodule (2025-12-05)
+- index.html v6.0.9 → v6.0.10: Προσθήκη `<script nomodule src="dist/app.compat.js">` ώστε οι παλιοί κινητήρες να μην εκτελούν ESM και να αποφεύγονται συντακτικά σφάλματα.
+- dist/app.compat.js v1.0.0 (ΝΕΟ): Ασφαλής fallback σε IE/legacy mode — ενημερωτικό banner και ασφαλής αδράνεια (χωρίς εκτέλεση modules).
+
+Notes: Αποτρέπει οριστικά syntax errors ανεξάρτητα από mode. Η πλήρης λειτουργία παραμένει στο modern path (type="module").
 
 
 ## Compliance — Newline Splits (2025-12-05)
