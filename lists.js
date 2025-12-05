@@ -2,8 +2,8 @@
 // --- lists.js ---
 // Έκδοση: v3.3.2
 // Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
-// Συμμόρφωση με "Κανόνας για Newline Splits": χρήση split(/?
-/) και trim().
+// Συμμόρφωση με "Κανόνας για Newline Splits"
+
 // --- Versions ---
 const LISTS_VERSION = "v3.3.2";
 export function getVersion() { return LISTS_VERSION; }
@@ -28,7 +28,8 @@ export async function loadVideoList() {
     const localResponse = await fetch('list.txt');
     if (localResponse.ok) {
       const text = await localResponse.text();
-      const list = text.trim().split(/?
+      const list = text.trim().split(/n)
+
 /).map(x => x.trim()).filter(x => x);
       if (list.length > 0) {
         log(`[${ts()}] ✅ Main list loaded from local file -> ${list.length} items`);
@@ -44,7 +45,8 @@ export async function loadVideoList() {
     const githubResponse = await fetch(githubUrl);
     if (githubResponse.ok) {
       const text = await githubResponse.text();
-      const list = text.trim().split(/?
+      const list = text.trim().split(/
+?
 /).map(x => x.trim()).filter(x => x);
       if (list.length > 0) {
         log(`[${ts()}] ✅ Main list loaded from GitHub -> ${list.length} items`);
@@ -67,7 +69,8 @@ export async function loadAltList() {
     const localResponse = await fetch('random.txt');
     if (localResponse.ok) {
       const text = await localResponse.text();
-      const list = text.trim().split(/?
+      const list = text.trim().split(/n)
+
 /).map(x => x.trim()).filter(x => x);
       if (list.length > 0) {
         log(`[${ts()}] ✅ Alt list loaded from local file -> ${list.length} items`);
