@@ -1,4 +1,28 @@
 # CHANGELOG.md
+> Ημερομηνία: 2025-12-05
+
+## Policy & Docs
+- CONTEXT.md: Προσθήκη κανόνα **No `||`** με ασφαλή εναλλακτικά (membership via `includes()`, fallback με `??`, guards με optional chaining/ρητούς ελέγχους).
+
+## v6.4.3 (playerController.js)
+- playerController.js v6.4.2 → v6.4.3: Αντικατάσταση όλων των συνθηκών με `||`:
+  - `PAUSED || ENDED` → `[PAUSED, ENDED].includes(state)` (membership).
+  - Guards σε player/method/list χωρίς `||`: χρήση `??`, `?.`, και ρητών `if/else`.
+- Διατήρηση συμπεριφοράς (AutoNext, Pauses, MidSeek, logging, counters).
+
+## v4.6.3 (humanMode.js)
+- humanMode.js v4.6.2 → v4.6.3: Ασφαλείς guards για main/alt λίστες χωρίς `||`, επιλογή sourceList με ρητή λογική `if/else`, fallback με `??`.
+- Διατήρηση sequential init, profiles, logging.
+
+## v2.4.3 (uiControls.js)
+- uiControls.js v2.4.2 → v2.4.3: Ασφαλείς guards σε Play/Restart flow (χωρίς `||`), ρητή επιλογή λίστας (hasMain/hasAlt).
+- Διατήρηση binding, clipboard fallback, logs.
+
+---
+### Notes
+- Σύμφωνα με τους κανόνες versioning: bump μόνο στα επηρεαζόμενα αρχεία, ποτέ downgrade.
+- Smoke tests: Startup/Init/AutoNext/UI/Watchdog/Clipboard OK σε σύγχρονο browser.
+
 
 > Ημερομηνία: 2025-12-04
 
