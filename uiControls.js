@@ -3,9 +3,7 @@
 // Έκδοση: v2.4.6
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με "Κανόνας για Newline Splits":
-// χρήση join("
-") και μονογραμμικών συμβολοσειρών με 
- στο copyLogs().
+
 // --- Versions ---
 const UICONTROLS_VERSION = "v2.4.6";
 export function getVersion() { return UICONTROLS_VERSION; }
@@ -58,9 +56,7 @@ export function playAll() {
         else if (!useMain && hasAlt) source = altList;
         else if (hasMain) source = mainList;
         else source = altList;
-        // Guard χωρίς '
-
-'
+        // Guard
         if ((source?.length ?? 0) === 0) {
           log(`[${ts()}] ❌ Player ${c.index + 1} Init skipped -> no videos available`);
           return;
@@ -112,9 +108,7 @@ export function restartAll() {
       else if (!useMain && hasAlt) source = altList;
       else if (hasMain) source = mainList;
       else source = altList;
-      // Guard χωρίς '
-
-'
+      // Guard
       if ((source?.length ?? 0) === 0) {
         log(`[${ts()}] ❌ Player ${c.index + 1} Restart skipped -> no videos available`);
         return;
