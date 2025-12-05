@@ -1,8 +1,10 @@
 // --- humanMode.js ---
-// Έκδοση: v4.6.2
-// Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players.
+// Έκδοση: v4.6.3
+// Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
+// με ασφαλείς guards χωρίς χρήση '||' και ρητή επιλογή λιστών.
+//
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v4.6.2";
+const HUMAN_MODE_VERSION = "v4.6.3";
 export function getVersion() { return HUMAN_MODE_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -68,10 +70,9 @@ export async function initPlayersSequentially(mainList, altList) {
     setAltList(altList);
   }
 
-  // FIX: guards για κενές λίστες (OR)
-  const mainEmpty = !mainList || mainList.length === 0;
-  const altEmpty  = !altList  || altList.length  === 0;
-
+  // Ασφαλείς guards για κενές λίστες (χωρίς '||')
+  const mainEmpty = (mainList?.length ?? 0) === 0;
+  const altEmpty  = (altList?.length  ?? 0) === 0;
   if (mainEmpty && altEmpty) {
     log(`[${ts()}] ❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκκίνηση σταματά.`);
     return;
@@ -87,24 +88,28 @@ export async function initPlayersSequentially(mainList, altList) {
       continue;
     }
 
-    // FIX: εύρεση controller ή null
-    let controller = controllers.find(c => c.index === i) || null;
+    // Εύρεση controller ή null (χωρίς '||')
+    let controller = controllers.find(c => c.index === i) ?? null;
     if (controller && controller.player) {
       log(`[${ts()}] ⚠️ Player ${i + 1} already initialized, skipping re-init`);
       continue;
     }
 
     const useMain = Math.random() < MAIN_PROBABILITY;
-    const sourceList = useMain
-      ? (mainList && mainList.length ? mainList : altList)
-      : (altList && altList.length ? altList : mainList);
+    const hasMain = Array.isArray(mainList) && mainList.length > 0;
+    const hasAlt  = Array.isArray(altList)  && altList.length  > 0;
+
+    let sourceList;
+    if (useMain && hasMain)       sourceList = mainList;
+    else if (!useMain && hasAlt)  sourceList = altList;
+    else if (hasMain)             sourceList = mainList;
+    else                          sourceList = altList;
 
     // Ασφαλής επιλογή videoId
-    if (!sourceList || sourceList.length === 0) {
+    if ((sourceList?.length ?? 0) === 0) {
       log(`[${ts()}] ❌ HumanMode skipped Player ${i + 1} -> no videos available`);
       continue;
     }
-
     const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
     const profile = BEHAVIOR_PROFILES[Math.floor(Math.random() * BEHAVIOR_PROFILES.length)];
     const config = createRandomPlayerConfig(profile);
@@ -118,15 +123,12 @@ export async function initPlayersSequentially(mainList, altList) {
       controller.config = config;
       controller.profileName = config.profileName;
     }
-
     controller.init(videoId);
     log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> session=${JSON.stringify(session)}`);
   }
-
   log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: humanMode.js v${HUMAN_MODE_VERSION} -> ολοκληρώθηκε`);
-
 // --- End Of File ---
