@@ -24,6 +24,7 @@
 - Smoke tests: Startup/Init/AutoNext/UI/Watchdog/Clipboard OK σε σύγχρονο browser.
 
 
+# CHANGELOG.md
 > Ημερομηνία: 2025-12-04
 
 ## v6.0.8 (HTML)
