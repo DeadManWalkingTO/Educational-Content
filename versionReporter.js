@@ -1,15 +1,15 @@
 
 // --- versionReporter.js ---
-// Έκδοση: v2.2.0
+// Έκδοση: v2.2.1
 // Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
 // Αφαίρεση κυκλικής εξάρτησης με main.js. Η έκδοση του main θα προστεθεί από το ίδιο το main.js.
 
 // --- Versions ---
-const VERSION_REPORTER_VERSION = "v2.2.0";
+const VERSION_REPORTER_VERSION = "v2.2.1";
 export function getVersion() { return VERSION_REPORTER_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: versionReporter.js ${VERSION_REPORTER_VERSION} -> ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: versionReporter.js ${VERSION_REPORTER_VERSION} -> Ξεκίνησε`);
 
 import { getVersion as getGlobalsVersion } from './globals.js';
 import { getVersion as getListsVersion } from './lists.js';
@@ -48,6 +48,6 @@ export function reportAllVersions() {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 import { log, ts } from './globals.js';
-log(`[${ts()}] ✅ Φόρτωση αρχείου: versionReporter.js ${VERSION_REPORTER_VERSION} -> ολοκληρώθηκε`);
+log(`[${ts()}] ✅ Φόρτωση αρχείου: versionReporter.js ${VERSION_REPORTER_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

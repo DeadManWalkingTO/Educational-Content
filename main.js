@@ -1,16 +1,16 @@
 
 // --- main.js ---
-// Έκδοση: v1.6.4
+// Έκδοση: v1.6.5
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 //             Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded).
 //             Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
 //             Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 // --- Versions ---
-const MAIN_VERSION = "v1.6.4";
+const MAIN_VERSION = "v1.6.5";
 export function getVersion() { return MAIN_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: main.js ${MAIN_VERSION} -> ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: main.js ${MAIN_VERSION} -> Ξεκίνησε`);
 
 import { log, ts } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
@@ -24,7 +24,7 @@ const youtubeReadyPromise = new Promise((resolve) => {
   const checkInterval = setInterval(() => {
     if (window.YT && typeof YT.Player === 'function') {
       clearInterval(checkInterval);
-      console.log(`[${new Date().toLocaleTimeString()}] ✅ YouTube API ready`);
+      console.log(`[${new Date().toLocaleTimeString()}] ✅ YouTube API Ready`);
       resolve();
     }
   }, 500);
@@ -76,5 +76,5 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση αρχείου: main.js ${MAIN_VERSION} -> ολοκληρώθηκε`);
+log(`[${ts()}] ✅ Φόρτωση αρχείου: main.js ${MAIN_VERSION} -> Ολοκληρώθηκε`);
 // --- End Of File ---

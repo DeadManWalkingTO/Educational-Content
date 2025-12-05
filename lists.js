@@ -1,15 +1,15 @@
 
 // --- lists.js ---
-// Έκδοση: v3.3.0
+// Έκδοση: v3.3.1
 // Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
 // Ενημερωμένο: Διόρθωση GitHub raw URL (από refs/heads/main σε main/list.txt).
 
 // --- Versions ---
-const LISTS_VERSION = "v3.3.0";
+const LISTS_VERSION = "v3.3.1";
 export function getVersion() { return LISTS_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: lists.js ${LISTS_VERSION} -> ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: lists.js ${LISTS_VERSION} -> Ξεκίνησε`);
 
 import { log, ts } from './globals.js';
 
@@ -91,6 +91,6 @@ export async function reloadList() {
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση αρχείου: lists.js ${LISTS_VERSION} -> ολοκληρώθηκε`);
+log(`[${ts()}] ✅ Φόρτωση αρχείου: lists.js ${LISTS_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

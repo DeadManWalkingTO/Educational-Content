@@ -1,12 +1,12 @@
 // --- playerController.js ---
-// Έκδοση: v6.4.3
+// Έκδοση: v6.4.6
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Εφαρμογή κανόνα No '||': membership με includes(), guards με ?? / ?. / ρητά if/else.
 //
 // --- Versions ---
-const PLAYER_CONTROLLER_VERSION = "v6.4.3";
+const PLAYER_CONTROLLER_VERSION = "v6.4.6";
 export function getVersion() { return PLAYER_CONTROLLER_VERSION; }
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: playerController.js v${PLAYER_CONTROLLER_VERSION} -> ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ξεκίνησε`);
 
 import {
   log, ts, rndInt, stats, controllers, MAIN_PROBABILITY,
@@ -98,7 +98,7 @@ export class PlayerController {
       }
       if (typeof p.seekTo === 'function') p.seekTo(seek, true);
       if (typeof p.playVideo === 'function') p.playVideo();
-      log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> seek=${seek}s after ${startDelaySec}s`);
+      log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> Seek=${seek}s after ${startDelaySec}s`);
       this.schedulePauses();
       this.scheduleMidSeek();
     }, startDelay);
@@ -116,7 +116,7 @@ export class PlayerController {
         log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
         setTimeout(() => {
           if (typeof p.getPlayerState === 'function' && p.getPlayerState() === YT.PlayerState.PAUSED) {
-            log(`[${ts()}] ⚠️ Unmute fallback -> retry playVideo()`);
+            log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
             if (typeof p.playVideo === 'function') p.playVideo();
           }
         }, 1000);
@@ -150,7 +150,7 @@ export class PlayerController {
       log(`[${ts()}] 🔊 Player ${this.index + 1} Unmute after PLAYING -> ${v}%`);
       setTimeout(() => {
         if (typeof p.getPlayerState === 'function' && p.getPlayerState() === YT.PlayerState.PAUSED) {
-          log(`[${ts()}] ⚠️ Unmute fallback -> retry playVideo()`);
+          log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
           if (typeof p.playVideo === 'function') p.playVideo();
         }
       }, 1000);
@@ -290,5 +290,5 @@ export class PlayerController {
   }
 }
 
-log(`[${ts()}] ✅ Φόρτωση αρχείου: playerController.js v${PLAYER_CONTROLLER_VERSION} -> ολοκληρώθηκε`);
+log(`[${ts()}] ✅ Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ολοκληρώθηκε`);
 // --- End Of File ---

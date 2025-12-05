@@ -1,18 +1,18 @@
 // --- watchdog.js ---
-// Έκδοση: v2.4.3
+// Έκδοση: v2.4.4
 // Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
-// Ενημέρωση v2.4.3: Αφαίρεση '||' από guard (συμμόρφωση με κανόνα No '||').
+// Ενημέρωση v2.4.4: Αφαίρεση '||' από guard (συμμόρφωση με κανόνα No '||').
 // --- Versions ---
-const WATCHDOG_VERSION = "v2.4.3";
+const WATCHDOG_VERSION = "v2.4.4";
 export function getVersion() { return WATCHDOG_VERSION; }
 
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: watchdog.js v${WATCHDOG_VERSION} -> ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: watchdog.js ${WATCHDOG_VERSION} -> Ξεκίνησε`);
 
 import { log, ts, controllers, stats } from './globals.js';
 
 /** Εκκίνηση watchdog (καλείται ρητά από main.js μετά το YouTube ready & Human Mode init). */
 export function startWatchdog() {
-  log(`[${ts()}] 🚀 Εκκίνηση Watchdog -> έκδοση v${WATCHDOG_VERSION}`);
+  log(`[${ts()}] 🚀 Εκκίνηση Watchdog -> έκδοση ${WATCHDOG_VERSION}`);
 
   setInterval(() => {
     controllers.forEach(c => {
@@ -55,5 +55,5 @@ export function startWatchdog() {
   log(`[${ts()}] ✅ Watchdog started`);
 }
 
-log(`[${ts()}] ✅ Φόρτωση αρχείου: watchdog.js v${WATCHDOG_VERSION} -> ολοκληρώθηκε`);
+log(`[${ts()}] ✅ Φόρτωση αρχείου: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
 // --- End Of File ---

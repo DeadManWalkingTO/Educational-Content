@@ -1,14 +1,14 @@
 // --- uiControls.js ---
-// Έκδοση: v2.4.3
+// Έκδοση: v2.4.4
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Εφαρμογή No '||' σε guards/επιλογές λιστών.
 //
 // --- Versions ---
-const UICONTROLS_VERSION = "v2.4.3";
+const UICONTROLS_VERSION = "v2.4.4";
 export function getVersion() { return UICONTROLS_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: uiControls.js v${UICONTROLS_VERSION} -> ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: uiControls.js ${UICONTROLS_VERSION} -> Ξεκίνησε`);
 
 import {
   log, ts, rndInt, controllers, MAIN_PROBABILITY,
@@ -220,9 +220,9 @@ export function bindUiEvents() {
       log(`[${ts()}] ⚠️ UI bind skipped -> missing element #${id}`);
     }
   });
-  log(`[${ts()}] ✅ UI events bound (uiControls.js v${UICONTROLS_VERSION})`);
+  log(`[${ts()}] ✅ UI events bound (uiControls.js ${UICONTROLS_VERSION})`);
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση αρχείου: uiControls.js v${UICONTROLS_VERSION} -> ολοκληρώθηκε`);
+log(`[${ts()}] ✅ Φόρτωση αρχείου: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
 // --- End Of File ---

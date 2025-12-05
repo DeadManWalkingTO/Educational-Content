@@ -1,14 +1,14 @@
 // --- humanMode.js ---
-// Έκδοση: v4.6.3
+// Έκδοση: v4.6.9
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 // με ασφαλείς guards χωρίς χρήση '||' και ρητή επιλογή λιστών.
 //
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v4.6.3";
+const HUMAN_MODE_VERSION = "v4.6.9";
 export function getVersion() { return HUMAN_MODE_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: humanMode.js v${HUMAN_MODE_VERSION} -> ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: humanMode.js ${HUMAN_MODE_VERSION} -> Ξεκίνησε`);
 
 import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList } from './globals.js';
 import { PlayerController } from './playerController.js';
@@ -27,7 +27,7 @@ export function createPlayerContainers() {
     div.className = "player-box";
     container.appendChild(div);
   }
-  log(`[${ts()}] ✅ Δημιουργήθηκαν ${PLAYER_COUNT} player containers`);
+  log(`[${ts()}] ✅ Δημιουργήθηκαν ${PLAYER_COUNT} Player Containers`);
 }
 
 // --- Behavior Profiles ---
@@ -80,7 +80,7 @@ export async function initPlayersSequentially(mainList, altList) {
 
   for (let i = 0; i < PLAYER_COUNT; i++) {
     const delay = i === 0 ? 0 : rndInt(30, 180) * 1000;
-    log(`[${ts()}] ⏳ HumanMode scheduled Player ${i + 1} -> start after ${Math.round(delay / 1000)}s`);
+    log(`[${ts()}] ⏳ Player ${i + 1} HumanMode Scheduled -> Start after ${Math.round(delay / 1000)}s`);
     await new Promise(resolve => setTimeout(resolve, delay));
 
     if (isStopping) {
@@ -124,11 +124,11 @@ export async function initPlayersSequentially(mainList, altList) {
       controller.profileName = config.profileName;
     }
     controller.init(videoId);
-    log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> session=${JSON.stringify(session)}`);
+    log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
   }
   log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση αρχείου: humanMode.js v${HUMAN_MODE_VERSION} -> ολοκληρώθηκε`);
+log(`[${ts()}] ✅ Φόρτωση αρχείου: humanMode.js ${HUMAN_MODE_VERSION} -> Ολοκληρώθηκε`);
 // --- End Of File ---

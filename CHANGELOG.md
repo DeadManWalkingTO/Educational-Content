@@ -1,6 +1,35 @@
 # CHANGELOG.md
 > Ημερομηνία: 2025-12-05
 
+## v6.4.6 (playerController.js)
+- playerController.js v6.4.3 → v6.4.6: Log formatting fixes (remove extra 'v'), Ready -> Seek capitalization, Unmute fallback message standardized. No functional changes.
+
+## v4.6.9 (humanMode.js)
+- humanMode.js v4.6.3 → v4.6.9: Log formatting fixes (remove extra 'v'); messages standardized: Player Containers, HumanMode Scheduled -> Start, Session=…; capitalization updates. No functional changes.
+
+## v2.4.4 (uiControls.js)
+- uiControls.js v2.4.3 → v2.4.4: Log formatting fixes (remove extra 'v'); capitalization updates for start/complete. No functional changes.
+
+## v2.4.4 (watchdog.js)
+- watchdog.js v2.4.3 → v2.4.4: Log formatting fixes (remove extra 'v'); capitalization updates for start/complete. No functional changes.
+
+## v1.6.5 (main.js)
+- main.js v1.6.4 → v1.6.5: Log message updated to 'YouTube API Ready'; capitalization updates for start/complete. No functional changes.
+
+## v2.2.1 (globals.js)
+- globals.js v2.2.0 → v2.2.1: Capitalization updates for start/complete logs. No functional changes.
+
+## v3.3.1 (lists.js)
+- lists.js v3.3.0 → v3.3.1: Capitalization updates for start/complete logs. No functional changes.
+
+## v2.2.1 (versionReporter.js)
+- versionReporter.js v2.2.0 → v2.2.1: Capitalization updates for start/complete logs. No functional changes.
+---
+### Notes (2025-12-05)
+- Formatting-only changes. Smoke tests unaffected.
+# CHANGELOG.md
+> Ημερομηνία: 2025-12-05
+
 ## Policy & Docs
 - CONTEXT.md: Προσθήκη κανόνα **No `||`** με ασφαλή εναλλακτικά (membership via `includes()`, fallback με `??`, guards με optional chaining/ρητούς ελέγχους).
 
