@@ -78,7 +78,6 @@ Rules: bump version per file change; keep standard header/versions; never downgr
 ---
 
 ## 6) Διαδικασία Ανάπτυξης (GitHub)
-- Χρήση **feature branches** → **PR** στο `main` → required status checks (Lint & Prettier) → merge.
 - Διατήρηση `CONTEXT.md` στο root· ενημέρωση Baseline, Versions, Roadmap μετά από κάθε merged PR.
 - Συντήρηση `CHANGELOG.md` με σύντομες εγγραφές ανά PR.
 
