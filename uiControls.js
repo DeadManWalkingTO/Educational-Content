@@ -1,12 +1,15 @@
 
 // --- uiControls.js ---
-// Έκδοση: v2.4.5
+// Έκδοση: v2.4.6
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
-// με ESM named exports, binding από main.js. Εφαρμογή No '||' σε guards/επιλογές λιστών. + helpers enable/disable.
-// 
+// με ESM named exports, binding από main.js. Συμμόρφωση με "Κανόνας για Newline Splits":
+// χρήση join("
+") και μονογραμμικών συμβολοσειρών με 
+ στο copyLogs().
 // --- Versions ---
-const UICONTROLS_VERSION = "v2.4.5";
+const UICONTROLS_VERSION = "v2.4.6";
 export function getVersion() { return UICONTROLS_VERSION; }
+
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: uiControls.js ${UICONTROLS_VERSION} -> Ξεκίνησε`);
 
@@ -55,7 +58,9 @@ export function playAll() {
         else if (!useMain && hasAlt) source = altList;
         else if (hasMain) source = mainList;
         else source = altList;
-        // Guard χωρίς '||'
+        // Guard χωρίς '
+
+'
         if ((source?.length ?? 0) === 0) {
           log(`[${ts()}] ❌ Player ${c.index + 1} Init skipped -> no videos available`);
           return;
@@ -107,7 +112,9 @@ export function restartAll() {
       else if (!useMain && hasAlt) source = altList;
       else if (hasMain) source = mainList;
       else source = altList;
-      // Guard χωρίς '||'
+      // Guard χωρίς '
+
+'
       if ((source?.length ?? 0) === 0) {
         log(`[${ts()}] ❌ Player ${c.index + 1} Restart skipped -> no videos available`);
         return;
@@ -120,7 +127,7 @@ export function restartAll() {
   log(`[${ts()}] 🔁 Restart All -> completed`);
 }
 
-/** 🌙/☀️ Εναλλαγή Dark/Light theme. */
+/** 🌗/☀️ Εναλλαγή Dark/Light theme. */
 export function toggleTheme() {
   document.body.classList.toggle("light");
   const mode = document.body.classList.contains("light") ? "Light" : "Dark";
@@ -148,13 +155,14 @@ export async function copyLogs() {
   }
   const logsText = Array.from(panel.children).map(div => div.textContent).join("
 ");
-  const statsText = statsPanel ? `
-
+  const statsText = statsPanel
+    ? ("
 📊 Current Stats:
-${statsPanel.textContent}` : `
-
-📊 Stats not available`;
+" + statsPanel.textContent)
+    : ("
+📊 Stats not available");
   const finalText = logsText + statsText;
+
   // Προσπάθεια με Clipboard API (HTTPS/secure context)
   if (navigator.clipboard && window.isSecureContext) {
     try {
@@ -192,19 +200,7 @@ function unsecuredCopyToClipboard(text) {
   }
 }
 
-/** 🔄 Επαναφόρτωση λιστών από πηγή και εφαρμογή στο state. */
-export async function reloadList() {
-  try {
-    const { mainList, altList } = await reloadListsFromSource();
-    setMainList(mainList);
-    setAltList(altList);
-    log(`[${ts()}] 📂 Lists applied to state -> Main:${mainList.length} Alt:${altList.length}`);
-  } catch (err) {
-    log(`[${ts()}] ❌ Reload failed -> ${err}`);
-  }
-}
-
-/** 🧲 Δέσμευση UI events (χωρίς inline onclick, καλείται από main.js). */
+/** 🧷 Δέσμευση UI events (χωρίς inline onclick, καλείται από main.js). */
 export function bindUiEvents() {
   const byId = id => document.getElementById(id);
   const m = new Map([
@@ -225,6 +221,18 @@ export function bindUiEvents() {
     }
   });
   log(`[${ts()}] ✅ UI events bound (uiControls.js ${UICONTROLS_VERSION})`);
+}
+
+/** 🔄 Επαναφόρτωση λιστών από πηγή και εφαρμογή στο state. */
+export async function reloadList() {
+  try {
+    const { mainList, altList } = await reloadListsFromSource();
+    setMainList(mainList);
+    setAltList(altList);
+    log(`[${ts()}] 📂 Lists applied to state -> Main:${mainList.length} Alt:${altList.length}`);
+  } catch (err) {
+    log(`[${ts()}] ❌ Reload failed -> ${err}`);
+  }
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
