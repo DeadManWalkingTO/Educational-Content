@@ -14,28 +14,30 @@
 > • AutoNext counters ενοποιημένοι: global + per-player (50/hour), ωριαίο reset  
 > • checkModulePaths() αφαιρέθηκε (χρησιμοποιούμε browser ESM loader)  
 > **Versions:**  
-> index.html v6.0.8; main.js v1.6.4; uiControls.js v2.4.3; globals.js v2.2.0; playerController.js v6.4.3; watchdog.js v2.4.2; lists.js v3.3.0; humanMode.js v4.6.3; versionReporter.js v2.2.0  
+> index.html v6.0.8; main.js v1.6.4; uiControls.js v2.4.3; globals.js v2.2.0; playerController.js v6.4.3; watchdog.js v2.4.3; lists.js v3.3.0; humanMode.js v4.6.3; versionReporter.js v2.2.0  
 > **Roadmap επόμενο:**  
 > 1) Watchdog hardening; 2) External config; 3) Lists loader hardening; 4) Telemetry export; 5) Activity panel cap/virtualization; 6) Cross-browser IFrame API guards  
-> **Rules:** bump version per file change; keep standard header/versions; never downgrade; **No `||` in codebase**
+> **Rules:** bump version per file change; keep standard header/versions; never downgrade; **No `||` in codebase**; **CHANGELOG policy: νεότερες ημερομηνίες στην κορυφή, ποτέ αφαίρεση ιστορικού**
 
 ---
 
 ## 2) Αρχιτεκτονική & Ροή (συνοπτικά)
 1. **index.html** φορτώνει YouTube IFrame API και `main.js` (ESM), παρέχει `#playersContainer`, `#activityPanel`, `#statsPanel`.
-2. **main.js** ορχηστρώνει: φόρτωση λιστών, containers, binding UI events, version report, αναμονή YouTube ready, Human Mode init, startWatchdog().
+2. **main.js** ορχηστρώνει: φόρτωση λιστών, containers, binding UI events, version report, αναμονή YouTube ready, Human Mode init, `startWatchdog()`.
 3. **humanMode.js** δημιουργεί player containers και αρχικοποιεί `PlayerController` instances με τυχαία configs.
-4. **playerController.js** διαχειρίζεται lifecycle κάθε player (auto-unmute fallback, pauses, mid-seeks, AutoNext).
+4. **playerController.js** διαχειρίζεται lifecycle κάθε player (auto‑unmute fallback, pauses, mid‑seeks, AutoNext).
 5. **watchdog.js** παρακολουθεί stuck states (BUFFERING/PAUSED) και κάνει gentle retries ή AutoNext.
 6. **uiControls.js** εκθέτει UI actions μέσω named exports· events δένονται από `main.js`.
-7. **lists.js** φορτώνει main/alt lists με fallbacks (local → GitHub raw → internal για main· local → empty για alt).
+7. **lists.js** φορτώνει main/alt lists με fallbacks (local → GitHub raw → internal για main · local → empty για alt).
 8. **versionReporter.js** συγκεντρώνει εκδόσεις modules + HTML meta· `main.js` προσθέτει τη δική του έκδοση.
 9. **globals.js** φιλοξενεί shared state, utilities, UI logging, Stop All, και unified AutoNext counters.
 
 ---
 
 ## 3) Κανόνες Εργασίας
+
 - **Versioning:** Αύξηση έκδοσης σε κάθε αλλαγή αρχείου· ποτέ υποβιβασμός.
+
 - **Header pattern σε κάθε JS αρχείο:**  
   • 1η γραμμή: σχόλιο με όνομα αρχείου  
   • 2η γραμμή: σχόλιο με έκδοση  
@@ -43,11 +45,20 @@
   • `// --- Versions ---`  
   • `const <NAME>_VERSION = "vX.Y.Z";` και `export function getVersion()`  
   • `// --- End Of File ---`
-- **UI binding:** Χωρίς inline `onclick` στο HTML· όλα τα events μέσω `addEventListener`.
-- **ESM imports:** Χρήση relative paths· reliance στον browser loader.
-- **Clipboard:** Native API μόνο σε HTTPS/secure context, αλλιώς fallback.
-- **No `||` in codebase:** Δεν χρησιμοποιούμε τον λογικό τελεστή `||`.  
 
+- **CHANGELOG.md policy:**  
+  • Καταγράφουμε *όλες τις νέες αλλαγές* ανά ημερομηνία.  
+  • Οι **νεότερες ημερομηνίες** μπαίνουν **πάνω** (αντίστροφη χρονολογική σειρά).  
+  • Δεν αφαιρούμε **ποτέ** προηγούμενες ημερομηνίες ή εγγραφές (το ιστορικό παραμένει ακέραιο).  
+  • Κάθε entry δηλώνει: αρχείο, παλιά → νέα έκδοση, σύντομο summary, και όπου ισχύει **Notes/Tests**.
+
+- **UI binding:** Χωρίς inline `onclick` στο HTML· όλα τα events μέσω `addEventListener`.
+
+- **ESM imports:** Χρήση relative paths· reliance στον browser loader.
+
+- **Clipboard:** Native API μόνο σε HTTPS/secure context, αλλιώς fallback.
+
+- **No `||` in codebase:** Δεν χρησιμοποιούμε τον λογικό τελεστή `||`.  
   **Αντί για `||`, εφαρμόζουμε (παραδείγματα):**
   - Membership (A ή B):  
     Πριν → `if (x === A || x === B)`  
@@ -70,7 +81,7 @@
 - **UI**: uiControls.js **v2.4.3**
 - **Globals**: globals.js **v2.2.0**
 - **Player**: playerController.js **v6.4.3**
-- **Watchdog**: watchdog.js **v2.4.2**
+- **Watchdog**: watchdog.js **v2.4.3**
 - **Lists**: lists.js **v3.3.0**
 - **Human Mode**: humanMode.js **v4.6.3**
 - **Versions**: versionReporter.js **v2.2.0**
@@ -78,27 +89,28 @@
 ---
 
 ## 5) Roadmap (επόμενα βήματα)
-1. **Watchdog hardening**: jitter interval (55–75s), cleanup σε Stop All/visibilitychange, counters per reset-reason.
+1. **Watchdog hardening**: jitter interval (55–75s), cleanup σε Stop All/visibilitychange, counters per reset‑reason.
 2. **External config**: `config.json` για βασικές παραμέτρους (PLAYER_COUNT, MAIN_PROBABILITY, AutoNext limits, watchdog interval).
-3. **Lists loader hardening**: retry με backoff για GitHub fallback· cache-busting param· πλουσιότερα logs.
+3. **Lists loader hardening**: retry με backoff για GitHub fallback · cache‑busting param · πλουσιότερα logs.
 4. **Telemetry export**: δυνατότητα Download Logs (CSV/JSON) με snapshot session.
 5. **Activity panel cap/virtualization**: cap ~500 entries με efficient pruning.
-6. **Cross-browser guards**: πρόσθετοι έλεγχοι YT API για Safari/Firefox quirks.
+6. **Cross‑browser guards**: πρόσθετοι έλεγχοι YT API για Safari/Firefox quirks.
 
 ---
 
 ## 6) Διαδικασία Ανάπτυξης (GitHub)
 - Διατήρηση `CONTEXT.md` στο root· ενημέρωση Baseline, Versions, Roadmap μετά από κάθε merged PR.
-- Συντήρηση `CHANGELOG.md` με σύντομες εγγραφές ανά PR.
+- Συντήρηση `CHANGELOG.md` σύμφωνα με την **CHANGELOG.md policy** (Section 3): προσθέτουμε νέες ημερομηνίες/entries στην κορυφή και **δεν διαγράφουμε** προηγούμενα.
+- Σύντομες εγγραφές ανά PR, με συγκεντρωτικές σημειώσεις tests όπου αρμόζει.
 
 ---
 
 ## 7) Quick Test Plan (smoke)
-- **Startup**: versions logged· lists loaded· containers created.
-- **Clipboard**: HTTPS → native copy ok· HTTP/file:// → fallback ok.
-- **Human Mode**: sequential init logs, auto-unmute, pauses/mid-seeks scheduled.
-- **AutoNext**: τηρεί required watch time· unified per-player limit 50/hour.
-- **Watchdog**: ξεκινά μόνο μετά YouTube ready & init· αντιδρά σε BUFFERING>60s & PAUSED>allowed.
+- **Startup**: versions logged · lists loaded · containers created.
+- **Clipboard**: HTTPS → native copy ok · HTTP/file:// → fallback ok.
+- **Human Mode**: sequential init logs, auto‑unmute, pauses/mid‑seeks scheduled.
+- **AutoNext**: τηρεί required watch time · unified per‑player limit 50/hour.
+- **Watchdog**: ξεκινά μόνο μετά YouTube ready & init · αντιδρά σε BUFFERING>60s & PAUSED>allowed.
 
 ---
 
@@ -119,7 +131,7 @@
 
 ## 10) Κανόνες για τη συγγραφή και μεταφορά του CONTEXT.md
 - **Μορφοποίηση ασφαλής για μεταφορά:**
-  - Αποφεύγουμε μεγάλα code fences (```) για blocks που περιέχουν οδηγίες ή baseline.
+  - Αποφεύγουμε μεγάλα code fences (``` ) για blocks που περιέχουν οδηγίες ή baseline.
   - Χρησιμοποιούμε **quote blocks (>)** ή **bullets** για λίστες.
   - Για παραδείγματα κώδικα ή snippets, χρησιμοποιούμε **inline backticks** (π.χ. `const v = x ?? defaultValue`) αντί για μεγάλα code blocks.
   - Πίνακες επιτρέπονται, αλλά χωρίς nested code fences.
@@ -132,7 +144,7 @@
 - **Λήψη του CONTEXT.md:**
   - Όταν ζητείται από το σύστημα ή τον χρήστη, το αρχείο πρέπει να παρέχεται ως **ενιαίο block** με πλήρη κλείσιμο όλων των Markdown στοιχείων.
   - Δεν επιτρέπεται να σπάει η δομή μετά από sections (π.χ. Baseline ή Πρότυπο Changelog).
-- **Παράδειγμα ασφαλούς μορφής για Baseline:**
+- **Παράδειγμα ασφαλούς μορφής για Baseline:**  
   > **Project:** Educational-Content  
   > **Baseline:**  
   > • ES Modules, UI event binding από main.js μετά το DOMContentLoaded  
