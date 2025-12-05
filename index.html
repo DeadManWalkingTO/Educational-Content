@@ -1,68 +1,75 @@
+
 <!DOCTYPE html>
 <html lang="el">
 <head>
   <meta charset="utf-8" />
   <title>Educational Content</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="html-version" content="v6.0.8"> <!-- Ενημερωμένη έκδοση -->
+  <meta name="html-version" content="v6.0.9"> <!-- Ενημερωμένη έκδοση -->
   <link rel="icon" type="image/x-icon" href="./favicon.ico">
   <style>
-    body {
-      margin:0;
-      font-family:system-ui,sans-serif;
-      background:#111;
-      color:#eee;
-    }
-    .controls {
-      background:#1a1a1a;
-      padding:12px;
-      text-align:center;
-      position:sticky;
-      top:0;
-      z-index:10;
-      border-bottom:1px solid #333;
-    }
-    .controls h1 { margin:0 0 8px; font-size:20px; }
-    .controls .row { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
-    button {
-      background:#222; color:#eee; border:1px solid #444;
-      padding:8px 14px; border-radius:6px; cursor:pointer;
-    }
-    button:hover { background:#2b2b2b; border-color:#666; }
-    iframe { width:100%; height:100%; border:none; border-radius:8px; background:#000; }
-    @media (min-width:1024px){
-      body { display:flex; flex-direction:column; height:100vh; }
-      .main { flex:1 1 auto; display:flex; flex-direction:column; min-height:0; }
-      .grid { flex:7; display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding:10px; min-height:0; }
-      .activity { flex:3; background:#1a1a1a; border-top:1px solid #333; padding:10px; font-size:13px; overflow-y:auto; min-height:0; }
-      .stats { flex:0 0 auto; background:#222; padding:8px; font-size:12px; border-top:1px solid #333; }
-    }
-    @media (max-width:768px){
-      .grid { grid-template-columns:repeat(2,1fr); height:auto; }
-      iframe { height:220px; }
-      .activity { height:20vh; }
-      .stats { font-size:12px; }
-    }
-    body.light { background:#f9f9f9; color:#222; }
-    body.light .controls { background:#eaeaea; border-bottom-color:#ccc; }
-    body.light button { background:#fff; color:#222; border-color:#ccc; }
-    body.light button:hover { background:#ddd; border-color:#999; }
-    body.light .activity { background:#eaeaea; border-top-color:#ccc; }
-    body.light .stats { background:#ddd; border-top-color:#ccc; }
+  body {
+    margin:0;
+    font-family:system-ui,sans-serif;
+    background:#111;
+    color:#eee;
+  }
+  .controls {
+    background:#1a1a1a;
+    padding:12px;
+    text-align:center;
+    position:sticky;
+    top:0;
+    z-index:10;
+    border-bottom:1px solid #333;
+  }
+  .controls h1 { margin:0 0 8px; font-size:20px; }
+  .controls .row { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+  button {
+    background:#222; color:#eee; border:1px solid #444;
+    padding:8px 14px; border-radius:6px; cursor:pointer;
+  }
+  button:hover { background:#2b2b2b; border-color:#666; }
+  button:disabled { opacity:0.6; cursor:not-allowed; }
+  iframe { width:100%; height:100%; border:none; border-radius:8px; background:#000; }
+  @media (min-width:1024px){
+    body { display:flex; flex-direction:column; height:100vh; }
+    .main { flex:1 1 auto; display:flex; flex-direction:column; min-height:0; }
+    .grid { flex:7; display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding:10px; min-height:0; }
+    .activity { flex:3; background:#1a1a1a; border-top:1px solid #333; padding:10px; font-size:13px; overflow-y:auto; min-height:0; }
+    .stats { flex:0 0 auto; background:#222; padding:8px; font-size:12px; border-top:1px solid #333; }
+  }
+  @media (max-width:768px){
+    .grid { grid-template-columns:repeat(2,1fr); height:auto; }
+    iframe { height:220px; }
+    .activity { height:20vh; }
+    .stats { font-size:12px; }
+  }
+  body.light { background:#f9f9f9; color:#222; }
+  body.light .controls { background:#eaeaea; border-bottom-color:#ccc; }
+  body.light button { background:#fff; color:#222; border-color:#ccc; }
+  body.light button:hover { background:#ddd; border-color:#999; }
+  body.light .activity { background:#eaeaea; border-top-color:#ccc; }
+  body.light .stats { background:#ddd; border-top-color:#ccc; }
   </style>
 </head>
 <body>
   <div class="controls">
     <h1>Educational Content</h1>
+
+    <!-- ΝΕΟ: Start button (παραμένει ενεργό) -->
+    <button id="btnStartSession">💻 Start</button>
+    <div style="font-size:12px; opacity:0.85; margin:6px 0 10px">Πατήστε «Start» για εκκίνηση — απαιτείται για την πολιτική Autoplay των browsers.</div>
+
     <div class="row">
       <!-- ΧΩΡΙΣ inline onclick — μόνο IDs -->
-      <button id="btnPlayAll">▶ Play All</button>
-      <button id="btnStopAll">⏹ Stop All</button>
-      <button id="btnRestartAll">🔁 Restart All</button>
-      <button id="btnToggleTheme">🌓 Dark/Light Mode</button>
-      <button id="btnCopyLogs">📋 Copy Logs</button>
-      <button id="btnClearLogs">🧹 Clear Logs</button>
-      <button id="btnReloadList">🔄 Reload List</button>
+      <button id="btnPlayAll" disabled>▶ Play All</button>
+      <button id="btnStopAll" disabled>⏹ Stop All</button>
+      <button id="btnRestartAll" disabled>🔁 Restart All</button>
+      <button id="btnToggleTheme" disabled>🌙 Dark/Light Mode</button>
+      <button id="btnCopyLogs" disabled>📋 Copy Logs</button>
+      <button id="btnClearLogs" disabled>🧹 Clear Logs</button>
+      <button id="btnReloadList" disabled>🔄 Reload List</button>
     </div>
   </div>
   <div class="main">
@@ -72,7 +79,6 @@
   <div class="stats" id="statsPanel">📊 Stats — Loading...</div>
   <!-- YouTube API -->
   <script src="https://www.youtube.com/iframe_api"></script>
-  <!-- Συνδέουμε τα εξωτερικά αρχεία με τις συναρτήσεις -->
   <!-- Κεντρικός Έλεγχος Εφαρμογής -->
   <script type="module" src="main.js"></script>
 </body>

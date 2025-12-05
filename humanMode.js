@@ -2,17 +2,14 @@
 // Έκδοση: v4.6.9
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 // με ασφαλείς guards χωρίς χρήση '||' και ρητή επιλογή λιστών.
-//
+// 
 // --- Versions ---
 const HUMAN_MODE_VERSION = "v4.6.9";
 export function getVersion() { return HUMAN_MODE_VERSION; }
-
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: humanMode.js ${HUMAN_MODE_VERSION} -> Ξεκίνησε`);
-
 import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList } from './globals.js';
 import { PlayerController } from './playerController.js';
-
 // --- Δημιουργία containers για τους players ---
 export function createPlayerContainers() {
   const container = document.getElementById("playersContainer");
@@ -29,14 +26,12 @@ export function createPlayerContainers() {
   }
   log(`[${ts()}] ✅ Δημιουργήθηκαν ${PLAYER_COUNT} Player Containers`);
 }
-
 // --- Behavior Profiles ---
 const BEHAVIOR_PROFILES = [
   { name: "Explorer", pauseChance: 0.5, seekChance: 0.6, volumeChangeChance: 0.4, midSeekIntervalRange: [4, 6] },
-  { name: "Casual",   pauseChance: 0.3, seekChance: 0.1, volumeChangeChance: 0.2, midSeekIntervalRange: [8, 12] },
-  { name: "Focused",  pauseChance: 0.2, seekChance: 0.05, volumeChangeChance: 0.1, midSeekIntervalRange: [10, 15] }
+  { name: "Casual", pauseChance: 0.3, seekChance: 0.1, volumeChangeChance: 0.2, midSeekIntervalRange: [8, 12] },
+  { name: "Focused", pauseChance: 0.2, seekChance: 0.05, volumeChangeChance: 0.1, midSeekIntervalRange: [10, 15] }
 ];
-
 // --- Δημιουργία τυχαίου config για κάθε player ---
 function createRandomPlayerConfig(profile) {
   return {
@@ -52,7 +47,6 @@ function createRandomPlayerConfig(profile) {
     replayChance: Math.random() < 0.15
   };
 }
-
 // --- Δημιουργία session plan (για καταγραφή) ---
 function createSessionPlan() {
   return {
@@ -62,49 +56,41 @@ function createSessionPlan() {
     replayChance: Math.random() < 0.15
   };
 }
-
 // --- Sequential Initialization των players ---
 export async function initPlayersSequentially(mainList, altList) {
   if (Array.isArray(mainList) && Array.isArray(altList)) {
     setMainList(mainList);
     setAltList(altList);
   }
-
   // Ασφαλείς guards για κενές λίστες (χωρίς '||')
   const mainEmpty = (mainList?.length ?? 0) === 0;
-  const altEmpty  = (altList?.length  ?? 0) === 0;
+  const altEmpty = (altList?.length ?? 0) === 0;
   if (mainEmpty && altEmpty) {
     log(`[${ts()}] ❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκκίνηση σταματά.`);
     return;
   }
-
   for (let i = 0; i < PLAYER_COUNT; i++) {
     const delay = i === 0 ? 0 : rndInt(30, 180) * 1000;
     log(`[${ts()}] ⏳ Player ${i + 1} HumanMode Scheduled -> Start after ${Math.round(delay / 1000)}s`);
     await new Promise(resolve => setTimeout(resolve, delay));
-
     if (isStopping) {
       log(`[${ts()}] 👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
       continue;
     }
-
     // Εύρεση controller ή null (χωρίς '||')
     let controller = controllers.find(c => c.index === i) ?? null;
     if (controller && controller.player) {
       log(`[${ts()}] ⚠️ Player ${i + 1} already initialized, skipping re-init`);
       continue;
     }
-
     const useMain = Math.random() < MAIN_PROBABILITY;
     const hasMain = Array.isArray(mainList) && mainList.length > 0;
-    const hasAlt  = Array.isArray(altList)  && altList.length  > 0;
-
+    const hasAlt = Array.isArray(altList) && altList.length > 0;
     let sourceList;
-    if (useMain && hasMain)       sourceList = mainList;
-    else if (!useMain && hasAlt)  sourceList = altList;
-    else if (hasMain)             sourceList = mainList;
-    else                          sourceList = altList;
-
+    if (useMain && hasMain) sourceList = mainList;
+    else if (!useMain && hasAlt) sourceList = altList;
+    else if (hasMain) sourceList = mainList;
+    else sourceList = altList;
     // Ασφαλής επιλογή videoId
     if ((sourceList?.length ?? 0) === 0) {
       log(`[${ts()}] ❌ HumanMode skipped Player ${i + 1} -> no videos available`);
@@ -115,7 +101,6 @@ export async function initPlayersSequentially(mainList, altList) {
     const config = createRandomPlayerConfig(profile);
     if (i === 0) config.startDelay = 0;
     const session = createSessionPlan();
-
     if (!controller) {
       controller = new PlayerController(i, mainList, altList, config);
       controllers.push(controller);
@@ -128,7 +113,6 @@ export async function initPlayersSequentially(mainList, altList) {
   }
   log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
-
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: humanMode.js ${HUMAN_MODE_VERSION} -> Ολοκληρώθηκε`);
 // --- End Of File ---

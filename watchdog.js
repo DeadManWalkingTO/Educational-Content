@@ -5,24 +5,18 @@
 // --- Versions ---
 const WATCHDOG_VERSION = "v2.4.4";
 export function getVersion() { return WATCHDOG_VERSION; }
-
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: watchdog.js ${WATCHDOG_VERSION} -> Ξεκίνησε`);
-
 import { log, ts, controllers, stats } from './globals.js';
-
 /** Εκκίνηση watchdog (καλείται ρητά από main.js μετά το YouTube ready & Human Mode init). */
 export function startWatchdog() {
   log(`[${ts()}] 🚀 Εκκίνηση Watchdog -> έκδοση ${WATCHDOG_VERSION}`);
-
   setInterval(() => {
     controllers.forEach(c => {
       // Guard χωρίς '||' (κανόνας No '||')
       if (!(c.player && typeof c.player.getPlayerState === 'function')) return;
-
       const state = c.player.getPlayerState();
       const now = Date.now();
       const allowedPause = (c.expectedPauseMs ?? 0) + 240_000; // 240s margin
-
       // 1) BUFFERING > 60s -> AutoNext reset
       if (state === YT.PlayerState.BUFFERING && c.lastBufferingStart && (now - c.lastBufferingStart > 60_000)) {
         log(`[${ts()}] ⚠️ Watchdog reset -> Player ${c.index + 1} BUFFERING >60s`);
@@ -32,7 +26,6 @@ export function startWatchdog() {
         }
         return;
       }
-
       // 2) PAUSED > allowedPause -> retry playVideo() πριν AutoNext
       if (state === YT.PlayerState.PAUSED && c.lastPausedStart && (now - c.lastPausedStart > allowedPause)) {
         log(`[${ts()}] ⚠️ Watchdog retry playVideo before AutoNext -> Player ${c.index + 1}`);
@@ -51,9 +44,7 @@ export function startWatchdog() {
       }
     });
   }, 60_000);
-
   log(`[${ts()}] ✅ Watchdog started`);
 }
-
 log(`[${ts()}] ✅ Φόρτωση αρχείου: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
 // --- End Of File ---

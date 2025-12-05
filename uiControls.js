@@ -1,12 +1,12 @@
-// --- uiControls.js ---
-// Έκδοση: v2.4.4
-// Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
-// με ESM named exports, binding από main.js. Εφαρμογή No '||' σε guards/επιλογές λιστών.
-//
-// --- Versions ---
-const UICONTROLS_VERSION = "v2.4.4";
-export function getVersion() { return UICONTROLS_VERSION; }
 
+// --- uiControls.js ---
+// Έκδοση: v2.4.5
+// Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
+// με ESM named exports, binding από main.js. Εφαρμογή No '||' σε guards/επιλογές λιστών. + helpers enable/disable.
+// 
+// --- Versions ---
+const UICONTROLS_VERSION = "v2.4.5";
+export function getVersion() { return UICONTROLS_VERSION; }
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: uiControls.js ${UICONTROLS_VERSION} -> Ξεκίνησε`);
 
@@ -17,6 +17,19 @@ import {
 } from './globals.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
 
+/** ΝΕΟ: Μαζική ενεργοποίηση/απενεργοποίηση controls (πλην Start). */
+export function setControlsEnabled(enabled) {
+  const ids = [
+    "btnPlayAll", "btnStopAll", "btnRestartAll",
+    "btnToggleTheme", "btnCopyLogs", "btnClearLogs", "btnReloadList"
+  ];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !enabled;
+  });
+  log(`[${ts()}] ✅ Controls ${enabled ? 'enabled' : 'disabled'}`);
+}
+
 /** ▶ Εκκίνηση όλων των players σε "sequential" mode με τυχαίες καθυστερήσεις. */
 export function playAll() {
   setIsStopping(false);
@@ -24,7 +37,6 @@ export function playAll() {
   log(`[${ts()}] ▶ Stop All canceled -> starting Play All`);
   const shuffled = [...controllers].sort(() => Math.random() - 0.5);
   let delay = 0;
-
   shuffled.forEach((c, i) => {
     const randomDelay = rndInt(5000, 15000);
     delay += randomDelay;
@@ -34,31 +46,26 @@ export function playAll() {
         log(`[${ts()}] ▶ Player ${c.index + 1} Play -> step ${i + 1}`);
       } else {
         const mainList = getMainList();
-        const altList  = getAltList();
-        const useMain  = Math.random() < MAIN_PROBABILITY;
-
+        const altList = getAltList();
+        const useMain = Math.random() < MAIN_PROBABILITY;
         const hasMain = Array.isArray(mainList) && mainList.length > 0;
-        const hasAlt  = Array.isArray(altList)  && altList.length  > 0;
-
+        const hasAlt = Array.isArray(altList) && altList.length > 0;
         let source;
-        if (useMain && hasMain)       source = mainList;
-        else if (!useMain && hasAlt)  source = altList;
-        else if (hasMain)             source = mainList;
-        else                          source = altList;
-
+        if (useMain && hasMain) source = mainList;
+        else if (!useMain && hasAlt) source = altList;
+        else if (hasMain) source = mainList;
+        else source = altList;
         // Guard χωρίς '||'
         if ((source?.length ?? 0) === 0) {
           log(`[${ts()}] ❌ Player ${c.index + 1} Init skipped -> no videos available`);
           return;
         }
-
         const newId = source[Math.floor(Math.random() * source.length)];
         c.init(newId);
         log(`[${ts()}] ▶ Player ${c.index + 1} Initializing -> Source:${useMain ? "main" : "alt"}`);
       }
     }, delay);
   });
-
   log(`[${ts()}] ▶ Play All -> sequential mode started, estimated duration ~${Math.round(delay / 1000)}s`);
 }
 
@@ -68,7 +75,6 @@ export function stopAll() {
   clearStopTimers();
   const shuffled = [...controllers].sort(() => Math.random() - 0.5);
   let delay = 0;
-
   shuffled.forEach((c, i) => {
     const randomDelay = rndInt(30000, 60000);
     delay += randomDelay;
@@ -82,30 +88,25 @@ export function stopAll() {
     }, delay);
     pushStopTimer(timer);
   });
-
   log(`[${ts()}] ⏹ Stop All -> sequential mode started, estimated duration ~${Math.round(delay / 1000)}s`);
 }
 
 /** 🔁 Επανεκκίνηση όλων των players φορτώνοντας νέο video. */
 export function restartAll() {
   const mainList = getMainList();
-  const altList  = getAltList();
-
+  const altList = getAltList();
   controllers.forEach(c => {
     if (c.player) {
       c.loadNextVideo(c.player);
     } else {
       const useMain = Math.random() < MAIN_PROBABILITY;
-
       const hasMain = Array.isArray(mainList) && mainList.length > 0;
-      const hasAlt  = Array.isArray(altList)  && altList.length  > 0;
-
+      const hasAlt = Array.isArray(altList) && altList.length > 0;
       let source;
-      if (useMain && hasMain)       source = mainList;
-      else if (!useMain && hasAlt)  source = altList;
-      else if (hasMain)             source = mainList;
-      else                          source = altList;
-
+      if (useMain && hasMain) source = mainList;
+      else if (!useMain && hasAlt) source = altList;
+      else if (hasMain) source = mainList;
+      else source = altList;
       // Guard χωρίς '||'
       if ((source?.length ?? 0) === 0) {
         log(`[${ts()}] ❌ Player ${c.index + 1} Restart skipped -> no videos available`);
@@ -116,7 +117,6 @@ export function restartAll() {
       log(`[${ts()}] 🔁 Player ${c.index + 1} Restart (init) -> ${newId} (Source:${useMain ? "main" : "alt"})`);
     }
   });
-
   log(`[${ts()}] 🔁 Restart All -> completed`);
 }
 
@@ -146,10 +146,15 @@ export async function copyLogs() {
     log(`[${ts()}] ❌ Copy Logs -> no entries to copy`);
     return;
   }
-  const logsText = Array.from(panel.children).map(div => div.textContent).join("\n");
-  const statsText = statsPanel ? `\n\n📊 Current Stats:\n${statsPanel.textContent}` : `\n\n📊 Stats not available`;
-  const finalText = logsText + statsText;
+  const logsText = Array.from(panel.children).map(div => div.textContent).join("
+");
+  const statsText = statsPanel ? `
 
+📊 Current Stats:
+${statsPanel.textContent}` : `
+
+📊 Stats not available`;
+  const finalText = logsText + statsText;
   // Προσπάθεια με Clipboard API (HTTPS/secure context)
   if (navigator.clipboard && window.isSecureContext) {
     try {
@@ -160,7 +165,6 @@ export async function copyLogs() {
       log(`[${ts()}] ⚠️ Clipboard write failed (secure) -> ${err}`);
     }
   }
-
   // Fallback: μη-HTTPS ή απουσία Clipboard API
   const success = unsecuredCopyToClipboard(finalText);
   if (success) {
@@ -200,16 +204,16 @@ export async function reloadList() {
   }
 }
 
-/** 🧩 Δέσμευση UI events (χωρίς inline onclick, καλείται από main.js μετά το DOMContentLoaded). */
+/** 🧲 Δέσμευση UI events (χωρίς inline onclick, καλείται από main.js). */
 export function bindUiEvents() {
   const byId = id => document.getElementById(id);
   const m = new Map([
-    ["btnPlayAll",    playAll],
-    ["btnStopAll",    stopAll],
+    ["btnPlayAll", playAll],
+    ["btnStopAll", stopAll],
     ["btnRestartAll", restartAll],
     ["btnToggleTheme",toggleTheme],
-    ["btnCopyLogs",   copyLogs],
-    ["btnClearLogs",  clearLogs],
+    ["btnCopyLogs", copyLogs],
+    ["btnClearLogs", clearLogs],
     ["btnReloadList", reloadList],
   ]);
   m.forEach((handler, id) => {
