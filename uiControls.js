@@ -1,22 +1,21 @@
-
 // --- uiControls.js ---
-// Έκδοση: v2.4.6
+// Έκδοση: v2.4.7
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
-// με ESM named exports, binding από main.js. Συμμόρφωση με "Κανόνας για Newline Splits":
-
+// με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const UICONTROLS_VERSION = "v2.4.6";
+const UICONTROLS_VERSION = "v2.4.7";
 export function getVersion() { return UICONTROLS_VERSION; }
-
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: uiControls.js ${UICONTROLS_VERSION} -> Ξεκίνησε`);
-
 import {
   log, ts, rndInt, controllers, MAIN_PROBABILITY,
   setIsStopping, clearStopTimers, pushStopTimer,
   getMainList, getAltList, setMainList, setAltList
 } from './globals.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
+
+// Βοηθητικό για newline: πάντα escaped (No real newline in literals)
+const NL = '\n';
 
 /** ΝΕΟ: Μαζική ενεργοποίηση/απενεργοποίηση controls (πλην Start). */
 export function setControlsEnabled(enabled) {
@@ -121,7 +120,7 @@ export function restartAll() {
   log(`[${ts()}] 🔁 Restart All -> completed`);
 }
 
-/** 🌗/☀️ Εναλλαγή Dark/Light theme. */
+/** 🌗 Εναλλαγή Dark/Light theme. */
 export function toggleTheme() {
   document.body.classList.toggle("light");
   const mode = document.body.classList.contains("light") ? "Light" : "Dark";
@@ -147,14 +146,9 @@ export async function copyLogs() {
     log(`[${ts()}] ❌ Copy Logs -> no entries to copy`);
     return;
   }
-  const logsText = Array.from(panel.children).map(div => div.textContent).join("
-");
-  const statsText = statsPanel ? ("
-📊 Current Stats:
-" + statsPanel.textContent) : ("
-📊 Stats not available");
+  const logsText = Array.from(panel.children).map(div => div.textContent).join(NL);
+  const statsText = statsPanel ? (NL + "📊 Current Stats:" + NL + statsPanel.textContent) : (NL + "📊 Stats not available");
   const finalText = logsText + statsText;
-
   if (navigator.clipboard && window.isSecureContext) {
     try {
       await navigator.clipboard.writeText(finalText);
@@ -171,7 +165,6 @@ export async function copyLogs() {
     log(`[${ts()}] ❌ Copy Logs failed (fallback)`);
   }
 }
-
 function unsecuredCopyToClipboard(text) {
   try {
     const textArea = document.createElement('textarea');
@@ -188,7 +181,6 @@ function unsecuredCopyToClipboard(text) {
     return false;
   }
 }
-
 export function bindUiEvents() {
   const byId = id => document.getElementById(id);
   const m = new Map([
@@ -210,17 +202,15 @@ export function bindUiEvents() {
   });
   log(`[${ts()}] ✅ UI events bound (uiControls.js ${UICONTROLS_VERSION})`);
 }
-
 export async function reloadList() {
   try {
     const { mainList, altList } = await reloadListsFromSource();
     setMainList(mainList);
     setAltList(altList);
-    log(`[${ts()}] 📂 Lists applied to state -> Main:${mainList.length} Alt:${altList.length}`);
+    log(`[${ts()}] 🗂️ Lists applied to state -> Main:${mainList.length} Alt:${altList.length}`);
   } catch (err) {
     log(`[${ts()}] ❌ Reload failed -> ${err}`);
   }
 }
-
 log(`[${ts()}] ✅ Φόρτωση αρχείου: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
 // --- End Of File ---
