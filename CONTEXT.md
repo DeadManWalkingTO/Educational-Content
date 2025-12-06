@@ -57,9 +57,12 @@
 - **Προτιμώμενος και επιβεβλημένος τρόπος:** Χρήση *escaped* newline **'
 '** για split: `text.split('
 ')`.
-- **CR χειρισμός:** Επιτρέπεται **μόνο** η αφαίρεση τελικού `` ανά γραμμή (π.χ., `if (line.endsWith('')) line = line.slice(0,-1);`).
+- **CR χειρισμός:** Επιτρέπεται **μόνο** η αφαίρεση τελικού `
+` ανά γραμμή (π.χ., `if (line.endsWith('
+')) line = line.slice(0,-1);`).
 - **Απαγορεύσεις:**
-  - **Δεν** χρησιμοποιούμε regex literal `/?
+  - **Δεν** χρησιμοποιούμε regex literal `/
+?
 /` ή άλλα regex patterns για split γραμμών, ώστε να αποφεύγονται προβλήματα μεταφοράς/escaping (`/`, `\`, `()`, `?`).
   - **Δεν** εφαρμόζουμε `trim()` ούτε global ούτε per-line στο περιεχόμενο που φορτώνεται από αρχεία λιστών, ώστε να **μην αλλοιώνονται** bytes (BOM, τερματικά whitespace κ.ά.).
 - **Παράδειγμα ασφαλούς parser:**
@@ -68,12 +71,15 @@
     function parseList(text){
       const lines = text.split('
 ');
-      for (let i=0;i<lines.length;i++) if (lines[i].endsWith('')) lines[i] = lines[i].slice(0,-1);
+      for (let i=0;i<lines.length;i++) if (lines[i].endsWith('
+')) lines[i] = lines[i].slice(0,-1);
       return lines.filter(x => x !== ""); // αγνοούμε ΜΟΝΟ εντελώς κενές γραμμές
     }
     ```
-  - **Όχι:** `text.split(/?
+  - **Όχι:** `text.split(/
+?
 /)`, `text.trim()`, `line.trim()`.
+
 ---
 ## 4) Τρέχουσες Εκδόσεις (source of truth)
 - **HTML**: index.html **v6.0.10**
