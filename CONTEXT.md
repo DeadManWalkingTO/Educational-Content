@@ -1,6 +1,5 @@
-
 # Educational-Content — CONTEXT.md
-**Τελευταία ενημέρωση:** 2025-12-05
+**Τελευταία ενημέρωση:** 2025-12-06
 > Αυτό το αρχείο αποτελεί τη βάση (αρχιτεκτονική, κανόνες, εκδόσεις) και τον οδικό χάρτη για τις επόμενες εργασίες. Χρησιμοποίησέ το στην πρώτη σου εντολή για να συνεχίσουμε απρόσκοπτα.
 ---
 ## 1) Baseline (copy/paste σε νέα συνομιλία)
@@ -13,11 +12,10 @@
 > • AutoNext counters ενοποιημένοι: global + per-player (50/hour), ωριαίο reset
 > • checkModulePaths() αφαιρέθηκε (χρησιμοποιούμε browser ESM loader)
 > **Versions:**
-> index.html v6.0.10; main.js v1.6.6; uiControls.js v2.4.6; globals.js v2.2.2; playerController.js v6.4.7; watchdog.js v2.4.4; lists.js v3.3.5; humanMode.js v4.6.9; versionReporter.js v2.2.1
+> index.html v6.0.10; main.js v1.6.6; uiControls.js v2.4.6; globals.js v2.2.2; playerController.js v6.4.7; watchdog.js v2.4.4; lists.js v3.3.6; humanMode.js v4.6.9; versionReporter.js v2.2.1
 > **Roadmap επόμενο:**
 > 1) Watchdog hardening; 2) External config; 3) Lists loader hardening; 4) Telemetry export; 5) Activity panel cap/virtualization; 6) Cross-browser IFrame API guards
 > **Rules:** bump version per file change; keep standard header/versions; never downgrade; **No `
-
 ` σε string literals**; **CHANGELOG policy: νεότερες ημερομηνίες στην κορυφή, ποτέ αφαίρεση ιστορικού**
 ---
 ## 2) Αρχιτεκτονική & Ροή (συνοπτικά)
@@ -51,7 +49,6 @@
 - Όλα τα sections πρέπει να είναι σε καθαρό Markdown ή απλό κείμενο.
 - Απαγορεύεται η χρήση πραγματικού line break μέσα σε string literals.
 - **Αποφεύγουμε regex literals** για να αποφεύγονται προβλήματα μεταφοράς/escaping (`/`, `\`, `()`, `?`).
-
 ---
 ## 4) Τρέχουσες Εκδόσεις (source of truth)
 - **HTML**: index.html **v6.0.10**
@@ -60,7 +57,7 @@
 - **Globals**: globals.js **v2.2.2**
 - **Player**: playerController.js **v6.4.7**
 - **Watchdog**: watchdog.js **v2.4.4**
-- **Lists**: lists.js **v3.3.5**
+- **Lists**: lists.js **v3.3.6**
 - **Human Mode**: humanMode.js **v4.6.9**
 - **Versions**: versionReporter.js **v2.2.1**
 ---
@@ -97,21 +94,21 @@
 ---
 ## 10) Κανόνες για τη συγγραφή και μεταφορά του CONTEXT.md
 - **Μορφοποίηση ασφαλής για μεταφορά:**
-  - Αποφεύγουμε μεγάλα code fences (```) για blocks που περιέχουν οδηγίες ή baseline.
-  - Χρησιμοποιούμε **quote blocks (>)** ή **bullets** για λίστες.
-  - Για παραδείγματα κώδικα ή snippets, χρησιμοποιούμε **inline backticks** (π.χ. `const v = x ?? defaultValue`).
-  - Πίνακες επιτρέπονται, αλλά χωρίς nested code fences.
+ - Αποφεύγουμε μεγάλα code fences (```) για blocks που περιέχουν οδηγίες ή baseline.
+ - Χρησιμοποιούμε **quote blocks (>)** ή **bullets** για λίστες.
+ - Για παραδείγματα κώδικα ή snippets, χρησιμοποιούμε **inline backticks** (π.χ. `const v = x ?? defaultValue`).
+ - Πίνακες επιτρέπονται, αλλά χωρίς nested code fences.
 - **Κλείσιμο όλων των blocks:**
-  - Αν χρησιμοποιηθεί code fence για μικρό snippet, πρέπει να κλείνει αμέσως μετά το παράδειγμα.
-  - Δεν αφήνουμε ανοιχτά backticks που μπορεί να «σπάσουν» σε docx.
+ - Αν χρησιμοποιηθεί code fence για μικρό snippet, πρέπει να κλείνει αμέσως μετά το παράδειγμα.
+ - Δεν αφήνουμε ανοιχτά backticks που μπορεί να «σπάσουν» σε docx.
 - **Ανθεκτικότητα σε export:**
-  - Όλα τα sections πρέπει να είναι σε καθαρό Markdown ή απλό κείμενο.
-  - - Απαγορεύεται η χρήση πραγματικού line break μέσα σε string literals.
+ - Όλα τα sections πρέπει να είναι σε καθαρό Markdown ή απλό κείμενο.
+ - - Απαγορεύεται η χρήση πραγματικού line break μέσα σε string literals.
  - **Αποφεύγουμε regex literals** για να αποφεύγονται προβλήματα μεταφοράς/escaping (`/`, `\`, `()`, `?`).
  - 
 - **Λήψη του CONTEXT.md:**
-  - Όταν ζητείται από το σύστημα ή τον χρήστη, το αρχείο πρέπει να παρέχεται ως **ενιαίο block** με πλήρη κλείσιμο όλων των Markdown στοιχείων.
-  - Δεν επιτρέπεται να σπάει η δομή μετά από sections (π.χ. Baseline ή Πρότυπο Changelog).
+ - Όταν ζητείται από το σύστημα ή τον χρήστη, το αρχείο πρέπει να παρέχεται ως **ενιαίο block** με πλήρη κλείσιμο όλων των Markdown στοιχείων.
+ - Δεν επιτρέπεται να σπάει η δομή μετά από sections (π.χ. Baseline ή Πρότυπο Changelog).
 ---
 **Owner:** DeadManWalkingTO
 **Project:** Educational-Content
