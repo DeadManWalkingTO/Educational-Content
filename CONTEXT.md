@@ -69,7 +69,8 @@
   - **OK:**
     ```js
     function parseList(text){
-      const lines = text.split(' /n ');
+      const lines = text.split(' 
+      ');
       for (let i=0;i<lines.length;i++) if (lines[i].endsWith('
 ')) lines[i] = lines[i].slice(0,-1);
       return lines.filter(x => x !== ""); // αγνοούμε ΜΟΝΟ εντελώς κενές γραμμές
