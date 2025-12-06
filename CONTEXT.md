@@ -12,7 +12,7 @@
 > • AutoNext counters ενοποιημένοι: global + per-player (50/hour), ωριαίο reset
 > • checkModulePaths() αφαιρέθηκε (χρησιμοποιούμε browser ESM loader)
 > **Versions:**
-> index.html v6.0.10; main.js v1.6.6; uiControls.js v2.4.7; globals.js v2.2.2; playerController.js v6.4.7; watchdog.js v2.4.4; lists.js v3.3.6; humanMode.js v4.6.9; versionReporter.js v2.2.1
+> index.html v6.0.10; main.js v1.6.6; uiControls.js v2.4.7; globals.js v2.2.2; playerController.js v6.4.7; watchdog.js v2.4.4; lists.js v3.3.8; humanMode.js v4.6.9; versionReporter.js v2.2.1
 > **Roadmap επόμενο:**
 > 1) Watchdog hardening; 2) External config; 3) Lists loader hardening; 4) Telemetry export; 5) Activity panel cap/virtualization; 6) Cross-browser IFrame API guards
 > **Rules:** bump version per file change; keep standard header/versions; never downgrade; **No `
@@ -53,11 +53,11 @@
 ## 4) Τρέχουσες Εκδόσεις (source of truth)
 - **HTML**: index.html **v6.0.10**
 - **Main**: main.js **v1.6.6**
-- **UI**: uiControls.js **v2.4.6**
+- **UI**: uiControls.js **v2.4.7**
 - **Globals**: globals.js **v2.2.2**
 - **Player**: playerController.js **v6.4.7**
 - **Watchdog**: watchdog.js **v2.4.4**
-- **Lists**: lists.js **v3.3.6**
+- **Lists**: lists.js **v3.3.8**
 - **Human Mode**: humanMode.js **v4.6.9**
 - **Versions**: versionReporter.js **v2.2.1**
 ---
