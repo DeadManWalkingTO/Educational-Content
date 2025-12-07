@@ -1,16 +1,15 @@
 # CHANGELOG.md
 > 🆕 2025-12-07
 
-## PlayerController v6.4.9
-- Δυναμικό `origin`/`host` στο YouTube IFrame API (αποφυγή postMessage origin mismatch).
-- Προστέθηκε διαγνωστικό log `origin/host`.
+## PlayerController v6.4.9 (fix)
+- Διόρθωση `Identifier 'origin' has already been declared` με μετονομασία σε `originVal/hostVal` εντός `init()`.
+- Παραμένουν: δυναμικό `origin`/`host`, διαγνωστικό log.
 
 ## UI Controls v2.4.9
-- Copy Logs: Προτεραιότητα σε `navigator.clipboard.writeText` όταν είναι διαθέσιμο (secure context).
-- Fallback σε `execCommand('copy')` όπου απαιτείται.
+- Copy Logs: Clipboard API first, fallback σε execCommand.
 
 ## Main v1.6.8
-- Προστέθηκε `sanityCheck()` (versions, dry-run lists, containers check).
+- `sanityCheck()` πριν το gate.
 
 ---
 # CHANGELOG.md

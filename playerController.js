@@ -80,8 +80,8 @@ export class PlayerController {
   /** Αρχικοποίηση του YouTube Player. */
   init(videoId) {
     const containerId = `player${this.index + 1}`;
-    const origin = getDynamicOrigin();
-    const host = getYouTubeHostFallback();
+    const originVal = getDynamicOrigin();
+    const hostVal = getYouTubeHostFallback();
     const origin = window.location?.origin ?? undefined;
     this.player = new YT.Player(containerId, {
       videoId,
@@ -93,7 +93,7 @@ export class PlayerController {
         onError: () => this.onError(),
       }
     });
-    log(`[${ts()}] ℹ️ YT PlayerVars origin→ ${origin || '(empty)'} host→ ${host}`);
+    log(`[${ts()}] ℹ️ YT PlayerVars origin→ ${originVal || '(empty)'} host→ ${hostVal}`);
     log(`[${ts()}] ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
     log(`[${ts()}] 👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
   }
