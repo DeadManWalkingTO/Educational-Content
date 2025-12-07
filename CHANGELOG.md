@@ -1,4 +1,18 @@
 # CHANGELOG.md
+
+## [2025-12-07]
+### Προσθήκες / Βελτιώσεις
+- **humanMode.js v4.6.11**: Προσθήκη micro-stagger (400–600ms) στη δημιουργία iframes για μείωση race conditions και postMessage warnings.
+- **playerController.js v6.4.11**: Ενοποίηση origin, προσθήκη `enablejsapi:1` και `playsinline:1` στα playerVars, ασφαλής έλεγχος εγκυρότητας origin, βελτιωμένο logging.
+- **main.js v1.6.9**: Επιβεβαίωση gate στο YouTube API Ready πριν την αρχικοποίηση των players.
+
+### Σημειώσεις
+- Τα παραπάνω αρχεία αποτελούν το baseline για τις επόμενες αλλαγές.
+- Επόμενα βήματα: Επέκταση στατιστικών (AvgWatch, watchdog counters), εξαγωγή JSON αναφορών.
+
+---
+
+# CHANGELOG.md
 > 🆕 2025-12-07
 
 ## HTML v6.0.11
@@ -6,6 +20,7 @@
 - UX: Το μήνυμα *«Πατήστε “Start” για εκκίνηση — απαιτείται για την πολιτική Autoplay των browsers.»* έγινε **tooltip** (title/aria-label) στο ίδιο το κουμπί.
 
 ---
+
 # CHANGELOG.md
 > 🔄 Ενημέρωση: 2025-12-07
 
@@ -21,6 +36,8 @@
 
 ## Μικρή βελτίωση Auto Unmute
 - playerController.js: Προστέθηκε γρήγορος έλεγχος (250 ms) μετά το unmute στο PLAYING, ώστε αν παραμένει σε PAUSED να γίνει άμεσο `playVideo()`.
+
+---
 
 # CHANGELOG.md
 > Ημερομηνία: 2025-12-06
