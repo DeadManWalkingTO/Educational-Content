@@ -1,10 +1,10 @@
 // --- humanMode.js ---
-// Έκδοση: v4.6.9
+// Έκδοση: v4.6.10
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 // με ασφαλείς guards χωρίς χρήση '||' και ρητή επιλογή λιστών.
 // 
 // --- Versions ---
-const HUMAN_MODE_VERSION = "v4.6.9";
+const HUMAN_MODE_VERSION = "v4.6.10";
 export function getVersion() { return HUMAN_MODE_VERSION; }
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: humanMode.js ${HUMAN_MODE_VERSION} -> Ξεκίνησε`);

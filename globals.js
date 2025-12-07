@@ -1,10 +1,11 @@
+// --- globals.js ---
 
 // --- globals.js ---
-// Έκδοση: v2.2.2
+// Έκδοση: v2.2.3
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // --- Versions ---
-const GLOBALS_VERSION = "v2.2.2";
+const GLOBALS_VERSION = "v2.2.3";
 export function getVersion() { return GLOBALS_VERSION; }
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ξεκίνησε`);

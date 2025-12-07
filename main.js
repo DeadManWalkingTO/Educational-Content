@@ -1,12 +1,13 @@
+// --- main.js ---
 
 // --- main.js ---
-// Έκδοση: v1.6.6
+// Έκδοση: v1.6.7
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 // Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded) και gate μέσω Start button.
 // Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 // --- Versions ---
-const MAIN_VERSION = "v1.6.6";
+const MAIN_VERSION = "v1.6.7";
 export function getVersion() { return MAIN_VERSION; }
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: main.js ${MAIN_VERSION} -> Ξεκίνησε`);

@@ -1,9 +1,9 @@
 // --- versionReporter.js ---
-// Έκδοση: v2.2.1
+// Έκδοση: v2.2.2
 // Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
 // Αφαίρεση κυκλικής εξάρτησης με main.js. Η έκδοση του main θα προστεθεί από το ίδιο το main.js.
 // --- Versions ---
-const VERSION_REPORTER_VERSION = "v2.2.1";
+const VERSION_REPORTER_VERSION = "v2.2.2";
 export function getVersion() { return VERSION_REPORTER_VERSION; }
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: versionReporter.js ${VERSION_REPORTER_VERSION} -> Ξεκίνησε`);

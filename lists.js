@@ -1,9 +1,9 @@
 // --- lists.js ---
-// Έκδοση: v3.3.8
+// Έκδοση: v3.3.9
 // Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
 // Newline Split: χρήση escaped '\n' + αφαίρεση μόνο τελικού '\r' ανά γραμμή. Χωρίς regex literals.
 // --- Versions ---
-const LISTS_VERSION = "v3.3.8";
+const LISTS_VERSION = "v3.3.9";
 export function getVersion() { return LISTS_VERSION; }
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: lists.js ${LISTS_VERSION} -> Ξεκίνησε`);
@@ -16,9 +16,11 @@ function parseList(text){
   // Split strictly on escaped newline
   const lines = text.split('
 ');
-  // Αφαίρεση ΜΟΝΟ τελικού CR ('') ανά γραμμή (για συμβατότητα με CRLF)
+  // Αφαίρεση ΜΟΝΟ τελικού CR ('
+') ανά γραμμή (για συμβατότητα με CRLF)
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].endsWith('')) lines[i] = lines[i].slice(0, -1);
+    if (lines[i].endsWith('
+')) lines[i] = lines[i].slice(0, -1);
   }
   // Φιλτράρουμε μόνο εντελώς κενές γραμμές
   return lines.filter(x => x !== "");

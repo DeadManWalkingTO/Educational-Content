@@ -1,12 +1,13 @@
+// --- playerController.js ---
 
 // --- playerController.js ---
-// Έκδοση: v6.4.7
+// Έκδοση: v6.4.8
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Εφαρμογή κανόνα No '||': membership με includes(), guards με ?? / ?. / ρητά if/else.
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // 
 // --- Versions ---
-const PLAYER_CONTROLLER_VERSION = "v6.4.7";
+const PLAYER_CONTROLLER_VERSION = "v6.4.8";
 export function getVersion() { return PLAYER_CONTROLLER_VERSION; }
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ξεκίνησε`);
 
@@ -120,7 +121,16 @@ export class PlayerController {
         if (typeof p.setVolume === 'function') p.setVolume(v);
         stats.volumeChanges++;
         log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
-        setTimeout(() => {
+        
+            // Quick check: if immediately paused after unmute, push play (250ms)
+            setTimeout(() => {
+                if (typeof p.getPlayerState === 'function' && p.getPlayerState() === YT.PlayerState.PAUSED) {
+                    log(`[${ts()}] 🔁 Player ${this.index + 1} Quick retry playVideo after immediate unmute`);
+                    if (typeof p.playVideo === 'function') p.playVideo();
+                }
+            }, 250);
+
+setTimeout(() => {
           if (typeof p.getPlayerState === 'function' && p.getPlayerState() === YT.PlayerState.PAUSED) {
             log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
             if (typeof p.playVideo === 'function') p.playVideo();

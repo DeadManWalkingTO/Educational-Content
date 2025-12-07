@@ -1,4 +1,20 @@
 # CHANGELOG.md
+> 🔄 Ενημέρωση: 2025-12-07
+
+## Συμμόρφωση μορφολογίας JS (+ bump εκδόσεων)
+- globals.js → v2.2.3
+- humanMode.js → v4.6.10
+- lists.js → v3.3.9
+- main.js → v1.6.7
+- playerController.js → v6.4.8
+- uiControls.js → v2.4.8
+- versionReporter.js → v2.2.2
+- watchdog.js → v2.4.5
+
+## Μικρή βελτίωση Auto Unmute
+- playerController.js: Προστέθηκε γρήγορος έλεγχος (250 ms) μετά το unmute στο PLAYING, ώστε αν παραμένει σε PAUSED να γίνει άμεσο `playVideo()`.
+
+# CHANGELOG.md
 > Ημερομηνία: 2025-12-06
 ## Lists — Update internal fallback list (2025-12-06)
 - lists.js v3.3.7 → v3.3.8: Αντικατάσταση `internalList` με νέα 15 YouTube IDs (παρεχόμενα από τον χρήστη). Διατήρηση parser (split('
