@@ -1,5 +1,5 @@
 # Educational-Content — CONTEXT.md
-**Τελευταία ενημέρωση:** 2025-12-06
+**Τελευταία ενημέρωση:** 2025-12-07
 > Αυτό το αρχείο αποτελεί τη βάση (αρχιτεκτονική, κανόνες, εκδόσεις) και τον οδικό χάρτη για τις επόμενες εργασίες. Χρησιμοποίησέ το στην πρώτη σου εντολή για να συνεχίσουμε απρόσκοπτα.
 ---
 ## 1) Baseline (copy/paste σε νέα συνομιλία)
@@ -83,7 +83,7 @@
 ---
 ## 8) Πρότυπο Changelog
 Παράδειγμα:
-`### vX.Y.Z (YYYY-MM-DD)`
+`- vX.Y.Z (YYYY-MM-DD)`
 `- file.js vA.B.C → vA.B.(C+1): <summary>`
 `Notes: <compatibility / migration / tests>`
 ---
@@ -109,6 +109,37 @@
 - **Λήψη του CONTEXT.md:**
  - Όταν ζητείται από το σύστημα ή τον χρήστη, το αρχείο πρέπει να παρέχεται ως **ενιαίο block** με πλήρη κλείσιμο όλων των Markdown στοιχείων.
  - Δεν επιτρέπεται να σπάει η δομή μετά από sections (π.χ. Baseline ή Πρότυπο Changelog).
+---
+## 11) Πολιτική Line Endings (EOL) και .gitattributes
+- Όλα τα αρχεία κειμένου (scripts, κώδικας, JSON, Markdown, HTML, CSS) πρέπει να χρησιμοποιούν **LF** ως end-of-line.
+- Τα binary αρχεία (π.χ. `.docx`, `.zip`, εικόνες) εξαιρούνται από οποιαδήποτε μετατροπή EOL.
+- Για να διασφαλιστεί η συνέπεια:
+  1. Στο root του repo υπάρχει αρχείο `.gitattributes` με τους εξής κανόνες:
+     ```
+     *          text=auto eol=lf
+     *.sh       text eol=lf
+     *.js       text eol=lf
+     *.json     text eol=lf
+     *.md       text eol=lf
+     *.html     text eol=lf
+     *.css      text eol=lf
+     *.docx     binary
+     *.zip      binary
+     ```
+  2. Ρύθμιση Git:
+     ```bash
+     git config --global core.autocrlf input
+     git config --global core.eol lf
+     ```
+  3. Μετά την προσθήκη του `.gitattributes`, εκτελείται:
+     ```bash
+     git add --renormalize .
+     git commit -m "chore: enforce LF via .gitattributes"
+     ```
+- Οι editors (VS Code, Notepad++, κ.λπ.) πρέπει να είναι ρυθμισμένοι να αποθηκεύουν αρχεία με **LF**.
+- Στο CI μπορεί να προστεθεί έλεγχος που αποτυγχάνει αν βρεθούν αρχεία με CRLF.
+
+**Στόχος:** Αποφυγή diffs που αφορούν μόνο αλλαγές EOL και διασφάλιση συμβατότητας σε MSYS2/Linux.
 ---
 **Owner:** DeadManWalkingTO
 **Project:** Educational-Content
