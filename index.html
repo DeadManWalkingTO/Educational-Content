@@ -1,11 +1,10 @@
-
 <!DOCTYPE html>
 <html lang="el">
 <head>
   <meta charset="utf-8" />
   <title>Educational Content</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="html-version" content="v6.0.10"> <!-- Ενημερωμένη έκδοση: προσθήκη nomodule fallback -->
+  <meta name="html-version" content="v6.0.11">
   <link rel="icon" type="image/x-icon" href="./favicon.ico">
   <style>
   body { margin:0; font-family:system-ui,sans-serif; background:#111; color:#eee; }
@@ -25,15 +24,24 @@
   body.light .activity { background:#eaeaea; border-top-color:#ccc; }
   body.light .stats { background:#ddd; border-top-color:#ccc; }
   .legacy-banner { background:#552; color:#ffd; padding:10px; text-align:center; font-size:13px; border-bottom:1px solid #aa7; position:sticky; top:0; z-index:9999; }
-  </style>
+  
+  /* Accessible hidden text */
+  .sr-only {
+    position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,1px,1px); white-space: nowrap; border: 0;
+  }
+</style>
 </head>
 <body>
   <div class="controls">
     <h1>Educational Content</h1>
-    <!-- Start button (παραμένει ενεργό) -->
-    <button id="btnStartSession">💻 Start</button>
-    <div style="font-size:12px; opacity:0.85; margin:6px 0 10px">Πατήστε «Start» για εκκίνηση — απαιτείται για την πολιτική Autoplay των browsers.</div>
     <div class="row">
+	  <!-- Start button (παραμένει ενεργό) -->
+	  <button id="btnStartSession"
+        title="Πατήστε «Start» για εκκίνηση — απαιτείται για την πολιτική Autoplay των browsers."
+        aria-label="Πατήστε Start για εκκίνηση — απαιτείται για την πολιτική Autoplay των browsers.">
+		💻 Start
+	  </button>
       <!-- ΧΩΡΙΣ inline onclick — μόνο IDs -->
       <button id="btnPlayAll" disabled>▶ Play All</button>
       <button id="btnStopAll" disabled>⏹ Stop All</button>
@@ -51,8 +59,6 @@
   <div class="stats" id="statsPanel">📊 Stats — Loading...</div>
   <!-- YouTube API -->
   <script src="https://www.youtube.com/iframe_api"></script>
-  <!-- Legacy fallback: θα εκτελεστεί ΜΟΝΟ σε browsers που δεν υποστηρίζουν ES modules -->
-  <script nomodule src="dist/app.compat.js"></script>
   <!-- Κεντρικός Έλεγχος Εφαρμογής (Modern) -->
   <script type="module" src="main.js"></script>
 </body>

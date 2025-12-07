@@ -1,15 +1,9 @@
 # CHANGELOG.md
 > 🆕 2025-12-07
 
-## PlayerController v6.4.9 (fix)
-- Διόρθωση `Identifier 'origin' has already been declared` με μετονομασία σε `originVal/hostVal` εντός `init()`.
-- Παραμένουν: δυναμικό `origin`/`host`, διαγνωστικό log.
-
-## UI Controls v2.4.9
-- Copy Logs: Clipboard API first, fallback σε execCommand.
-
-## Main v1.6.8
-- `sanityCheck()` πριν το gate.
+## HTML v6.0.11
+- UI: Το κουμπί **💻 Start** μεταφέρθηκε μπροστά από τα υπόλοιπα κουμπιά.
+- UX: Το μήνυμα *«Πατήστε “Start” για εκκίνηση — απαιτείται για την πολιτική Autoplay των browsers.»* έγινε **tooltip** (title/aria-label) στο ίδιο το κουμπί.
 
 ---
 # CHANGELOG.md
