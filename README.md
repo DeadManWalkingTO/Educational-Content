@@ -73,3 +73,24 @@
 - Watchdog reacts σε BUFFERING>60s & παρατεταμένο PAUSED.
 
 ---
+
+
+### YouTube IFrame API – Dynamic Origin (2025-12-07)
+**Τι & Γιατί:** Δηλώνουμε δυναμικά το `origin` από `window.location.origin` και ορίζουμε `host = https://www.youtube.com` για να αποφύγουμε προειδοποιήσεις *postMessage target origin mismatch* όταν αλλάζει domain/port.
+
+**Before:**
+```js
+this.player = new YT.Player(containerId, { videoId, playerVars: { /* ... (χωρίς origin/host) */ }, events: { onReady: ..., onStateChange: ..., onError: ... } });
+```
+**After:**
+```js
+const origin = getDynamicOrigin();
+const host   = getYouTubeHostFallback();
+this.player = new YT.Player(containerId, {
+  videoId,
+  playerVars: { origin, host },
+  events: { onReady: (e) => this.onReady(e), onStateChange: (e) => this.onStateChange(e), onError: () => this.onError() }
+});
+log(`[${ts()}] ℹ️ YT PlayerVars origin→ ${origin || '(empty)'} host→ ${host}`);
+```
+**Συμβατότητα:** Αν `window.location.origin` λείπει (π.χ. `file://`), χρησιμοποιείται `''`. Συνίσταται `https` ή local dev server.

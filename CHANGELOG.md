@@ -1,9 +1,16 @@
 # CHANGELOG.md
-> Νέες αλλαγές — 2025-12-07
+> 🆕 2025-12-07
 
-## Κανόνες Newlines & Regex — Επιβεβαίωση
-- Επιβεβαιώθηκε η χρήση `NL='\n'` και `.split(NL)/.join(NL)` όπου απαιτείται.
-- Στατικές δοκιμές χωρίς αποκλίσεις.
+## PlayerController v6.4.9
+- Δυναμικό `origin`/`host` στο YouTube IFrame API (αποφυγή postMessage origin mismatch).
+- Προστέθηκε διαγνωστικό log `origin/host`.
+
+## UI Controls v2.4.9
+- Copy Logs: Προτεραιότητα σε `navigator.clipboard.writeText` όταν είναι διαθέσιμο (secure context).
+- Fallback σε `execCommand('copy')` όπου απαιτείται.
+
+## Main v1.6.8
+- Προστέθηκε `sanityCheck()` (versions, dry-run lists, containers check).
 
 ---
 # CHANGELOG.md
@@ -41,8 +48,7 @@ Notes: Χωρίς αλλαγή ροής. Smoke OK.
 
 ## Lists Parsing — Fix real newline literal in parser (2025-12-06)
 - lists.js v3.3.5 → v3.3.6: Διόρθωση `parseList()` ώστε να χρησιμοποιεί `split('
-')` (escaped) και αφαίρεση μόνο τελικού `'
-'` ανά γραμμή. Καθαρισμός backslashes σε internalList IDs.
+')` (escaped) και αφαίρεση μόνο τελικού `''` ανά γραμμή. Καθαρισμός backslashes σε internalList IDs.
 Notes: Συμμόρφωση με κανόνα “No real newline σε string literals”. Smoke OK.
 
 ## Policy Update — Newline Splits rule (2025-12-05)

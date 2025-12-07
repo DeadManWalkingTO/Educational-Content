@@ -7,7 +7,7 @@
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // 
 // --- Versions ---
-const PLAYER_CONTROLLER_VERSION = "v6.4.8";
+const PLAYER_CONTROLLER_VERSION = "v6.4.9";
 export function getVersion() { return PLAYER_CONTROLLER_VERSION; }
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ξεκίνησε`);
 
@@ -48,6 +48,17 @@ export function getPausePlan(duration) {
   return { count: rndInt(5, 8), min: 120, max: 180 };
 }
 
+
+// --- Utils: dynamic origin/host ---
+function getDynamicOrigin() {
+  try {
+    if (window.location && window.location.origin) return window.location.origin;
+    const { protocol, hostname, port } = window.location || {};
+    if (protocol && hostname) return `${protocol}//${hostname}${port ? `:${port}` : ''}`;
+  } catch (_) {}
+  return '';
+}
+function getYouTubeHostFallback() { return 'https://www.youtube.com'; }
 export class PlayerController {
   constructor(index, mainList, altList, config = null) {
     this.pendingUnmute = false;
@@ -69,6 +80,8 @@ export class PlayerController {
   /** Αρχικοποίηση του YouTube Player. */
   init(videoId) {
     const containerId = `player${this.index + 1}`;
+    const origin = getDynamicOrigin();
+    const host = getYouTubeHostFallback();
     const origin = window.location?.origin ?? undefined;
     this.player = new YT.Player(containerId, {
       videoId,
@@ -80,6 +93,7 @@ export class PlayerController {
         onError: () => this.onError(),
       }
     });
+    log(`[${ts()}] ℹ️ YT PlayerVars origin→ ${origin || '(empty)'} host→ ${host}`);
     log(`[${ts()}] ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
     log(`[${ts()}] 👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
   }

@@ -7,7 +7,7 @@
 // Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 // --- Versions ---
-const MAIN_VERSION = "v1.6.7";
+const MAIN_VERSION = "v1.6.8";
 export function getVersion() { return MAIN_VERSION; }
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: main.js ${MAIN_VERSION} -> Ξεκίνησε`);
@@ -20,6 +20,27 @@ import { bindUiEvents, setControlsEnabled } from './uiControls.js';
 import { startWatchdog } from './watchdog.js';
 
 // ✅ YouTube API readiness (περιμένουμε YT.Player)
+
+async function sanityCheck(versions) {
+  try {
+    if (!versions || !versions.HTML || versions.HTML === 'unknown') {
+      log(`[${ts()}] ⚠️ Sanity: HTML version missing or unknown`);
+    } else {
+      log(`[${ts()}] ✅ Sanity: HTML version -> ${versions.HTML}`);
+    }
+    const [ml, al] = await Promise.all([loadVideoList(), loadAltList()]);
+    if (!Array.isArray(ml) || !Array.isArray(al)) {
+      log(`[${ts()}] ❌ Sanity: Lists not arrays`);
+    } else {
+      log(`[${ts()}] ✅ Sanity: Lists ok -> Main:${ml.length} Alt:${al.length}`);
+    }
+    const cont = document.getElementById('playersContainer');
+    const boxes = cont ? cont.querySelectorAll('.player-box').length : 0;
+    if (!boxes) log(`[${ts()}] ⚠️ Sanity: No player boxes yet (created later)`);
+  } catch (e) {
+    log(`[${ts()}] ❌ SanityCheck error -> ${e}`);
+  }
+}
 const youtubeReadyPromise = new Promise((resolve) => {
   const checkInterval = setInterval(() => {
     if (window.YT && typeof YT.Player === 'function') {
