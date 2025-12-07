@@ -144,3 +144,8 @@
 ---
 **Owner:** DeadManWalkingTO
 **Project:** Educational-Content
+
+
+### Εφαρμογή Κανόνων (2025-12-07)
+- Newlines: χρήση `const NL='\n'` και `.split(NL)/.join(NL)`.
+- Regex/trim: χρήση `trim()` σε parsing λιστών όπου ενδείκνυται.
