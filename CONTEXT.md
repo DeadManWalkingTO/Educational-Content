@@ -37,7 +37,7 @@
  • 3η γραμμή: σχόλιο με περιγραφή
  • `// --- Versions ---`
  • `const <NAME>_VERSION = "vX.Y.Z";` και `export function getVersion()`
- • `// --- End Of File ---`
+ • Τελευταία γραμμή: `// --- End Of File ---`
 - **CHANGELOG.md policy:**
  • Καταγράφουμε *όλες τις νέες αλλαγές* ανά ημερομηνία.
  • Οι **νεότερες ημερομηνίες** μπαίνουν **πάνω** (αντίστροφη χρονολογική σειρά).
@@ -49,6 +49,8 @@
 - Όλα τα sections πρέπει να είναι σε καθαρό Markdown ή απλό κείμενο.
 - Απαγορεύεται η χρήση πραγματικού line break μέσα σε string literals.
 - **Αποφεύγουμε regex literals** για να αποφεύγονται προβλήματα μεταφοράς/escaping (`/`, `\`, `()`, `?`).
+- Newlines: χρήση `const NL='\n'` και `.split(NL)/.join(NL)`.
+- Regex/trim: χρήση `trim()` σε parsing λιστών όπου ενδείκνυται.
 ---
 ## 4) Τρέχουσες Εκδόσεις (source of truth)
 - **HTML**: index.html **v6.0.10**
@@ -144,8 +146,3 @@
 ---
 **Owner:** DeadManWalkingTO
 **Project:** Educational-Content
-
-
-### Εφαρμογή Κανόνων (2025-12-07)
-- Newlines: χρήση `const NL='\n'` και `.split(NL)/.join(NL)`.
-- Regex/trim: χρήση `trim()` σε parsing λιστών όπου ενδείκνυται.
