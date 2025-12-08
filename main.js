@@ -1,5 +1,5 @@
-// main.js 
-// v1.6.9 
+// --- main.js ---
+// Έκδοση: v1.6.9
 // Entry point: DOM readiness, UI binding, lists load, versions report, YouTube API ready, Human Mode init, watchdog 
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness. 
 // Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded) και gate μέσω Start button. 

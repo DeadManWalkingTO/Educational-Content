@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-// Έκδοση: v2.4.8
+// Έκδοση: v2.4.9
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
