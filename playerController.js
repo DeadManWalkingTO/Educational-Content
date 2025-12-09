@@ -4,7 +4,7 @@
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions --- 
-const PLAYER_CONTROLLER_VERSION = "v6.4.11"; 
+const PLAYER_CONTROLLER_VERSION = "v6.4.13"; 
 export function getVersion() { return PLAYER_CONTROLLER_VERSION; } 
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ξεκίνησε`);
 import { 
@@ -12,12 +12,20 @@ import {
  canAutoNext, incAutoNext, AUTO_NEXT_LIMIT_PER_PLAYER, hasUserGesture 
 } from './globals.js'; 
 /** Υπολογισμός απαιτούμενου χρόνου θέασης για AutoNext. */ 
-export function getRequiredWatchTime(durationSec) { 
- let percent; 
- let maxLimitSec = null; 
- if (durationSec < 300) { 
- percent = 80; 
- } else if (durationSec < 1800) { 
+export function getRequiredWatchTime(durationSec) {
+  const jitter = (Math.random() * 0.04) - 0.02;
+  let percent;
+  if (durationSec < 300) { percent = 0.80 + jitter; }
+  else if (durationSec < 1800) { percent = (50 + Math.floor(Math.random()*21)) / 100 + jitter; }
+  else if (durationSec < 7200) { percent = (20 + Math.floor(Math.random()*16)) / 100 + jitter; }
+  else { percent = (10 + Math.floor(Math.random()*6)) / 100 + jitter; }
+  if (percent < 0.05) percent = 0.05;
+  if (percent > 0.95) percent = 0.95;
+  let required = Math.floor(durationSec * percent);
+  const maxLimitSec = (15 + Math.floor(Math.random()*6)) * 60;
+  if (required > maxLimitSec) required = maxLimitSec;
+  return required;
+} else if (durationSec < 1800) { 
  percent = rndInt(50, 70); 
  maxLimitSec = (15 + rndInt(0, 5)) * 60; 
  } else if (durationSec < 7200) { 
@@ -58,7 +66,7 @@ export class PlayerController {
  this.mainList = Array.isArray(mainList) ? mainList : []; 
  this.altList = Array.isArray(altList) ? altList : []; 
  this.player = null; 
- this.timers = { midSeek: null, pauseTimers: [] }; 
+ this.timers = { midSeek: null, pauseTimers: [], progressCheck: null }; 
  this.config = config; 
  this.profileName = config?.profileName ?? "Unknown"; 
  this.startTime = null; 
@@ -156,8 +164,34 @@ const hostVal = getYouTubeHostFallback();
  onStateChange(e) { 
  const p = this.player; 
  switch (e.data) { 
- case YT.PlayerState.UNSTARTED: log(`[${ts()}] 🟢 Player ${this.index + 1} State -> UNSTARTED`); break; 
- case YT.PlayerState.ENDED: log(`[${ts()}] ⏹ Player ${this.index + 1} State -> ENDED`); break; 
+ case YT.PlayerState.UNSTARTED: log(`[${ts()}
+    // EARLY-NEXT: periodic progress check while PLAYING
+    if (e.data === YT.PlayerState.PLAYING) {
+      if (!this.timers) this.timers = { midSeek: null, pauseTimers: [], progressCheck: null };
+      if (this.timers.progressCheck) { try { clearInterval(this.timers.progressCheck) } catch(_){ } this.timers.progressCheck = null; }
+      const iv = (9 + Math.floor(Math.random()*4)) * 1000;
+      const p = this.player;
+      this.timers.progressCheck = setInterval(() => {
+        if (!this.player || typeof p.getDuration !== "function") return;
+        const now = Date.now();
+        let prospective = this.totalPlayTime;
+        if (this.playingStart) {
+          const delta = ((now - this.playingStart) / 1000) * (this.currentRate || 1.0);
+          prospective += delta;
+        }
+        const duration = p.getDuration();
+        const required = getRequiredWatchTime(duration);
+        if (prospective >= required) {
+          this.clearTimers();
+          this.loadNextVideo(p);
+        }
+      }, iv);
+    }
+] 🟢 Player ${this.index + 1} State -> UNSTARTED`); break; 
+ case YT.PlayerState.ENDED:
+        this.clearTimers();
+        this.loadNextVideo(p);
+        return; 
  case YT.PlayerState.PLAYING: log(`[${ts()}] ▶ Player ${this.index + 1} State -> PLAYING`); break; 
  case YT.PlayerState.PAUSED: log(`[${ts()}] ⏸️ Player ${this.index + 1} State -> PAUSED`); break; 
  case YT.PlayerState.BUFFERING: log(`[${ts()}] 🟠 Player ${this.index + 1} State -> BUFFERING`); break; 
@@ -294,13 +328,13 @@ const hostVal = getYouTubeHostFallback();
  this.scheduleMidSeek(); 
  }, interval); 
  } 
- clearTimers() { 
- this.timers.pauseTimers.forEach(t => clearTimeout(t)); 
- this.timers.pauseTimers = []; 
- if (this.timers.midSeek) { 
- clearTimeout(this.timers.midSeek); 
- this.timers.midSeek = null; 
- } 
+ clearTimers() {
+    this.timers.pauseTimers.forEach(t => { try { clearTimeout(t) } catch(_){ } });
+    this.timers.pauseTimers = [];
+    if (this.timers.midSeek) { try { clearTimeout(this.timers.midSeek) } catch(_){ } this.timers.midSeek = null; }
+    if (this.timers.progressCheck) { try { clearInterval(this.timers.progressCheck) } catch(_){ } this.timers.progressCheck = null; }
+    this.expectedPauseMs = 0;
+  } 
  this.expectedPauseMs = 0; 
  } 
 } 
