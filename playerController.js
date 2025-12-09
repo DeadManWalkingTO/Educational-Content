@@ -1,10 +1,10 @@
 // --- playerController.js ---
-// Έκδοση: v6.4.14
+// Έκδοση: v6.4.15
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική 
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions --- 
-const PLAYER_CONTROLLER_VERSION = "v6.4.14"; 
+const PLAYER_CONTROLLER_VERSION = "v6.4.15"; 
 export function getVersion() { return PLAYER_CONTROLLER_VERSION; } 
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ξεκίνησε`);
 import { 
@@ -37,23 +37,7 @@ export function getRequiredWatchTime(durationSec) {
   if (required < 15) required = 15;
   return required;
 }
- else if (durationSec < 1800) { 
- percent = rndInt(50, 70); 
- maxLimitSec = (15 + rndInt(0, 5)) * 60; 
- } else if (durationSec < 7200) { 
- percent = rndInt(20, 35); 
- maxLimitSec = (15 + rndInt(0, 10)) * 60; 
- } else if (durationSec < 36000) { 
- percent = rndInt(10, 20); 
- maxLimitSec = (15 + rndInt(0, 5)) * 60; 
- } else { 
- percent = rndInt(10, 15); 
- maxLimitSec = (20 + rndInt(0, 3)) * 60; 
- } 
- let requiredTime = Math.floor((durationSec * percent) / 100); 
- if (maxLimitSec && requiredTime > maxLimitSec) requiredTime = maxLimitSec; 
- return requiredTime; 
-} 
+
 /** Σχέδιο παύσεων με βάση τη διάρκεια. */ 
 export function getPausePlan(duration) {
   if (duration < 180)  return { count: rndInt(1, 2), min: 10, max: 30 }; // < 3 min
