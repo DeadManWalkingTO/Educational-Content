@@ -1,10 +1,10 @@
 // --- playerController.js ---
-// Έκδοση: v6.4.13
+// Έκδοση: v6.4.14
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική 
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions --- 
-const PLAYER_CONTROLLER_VERSION = "v6.4.13"; 
+const PLAYER_CONTROLLER_VERSION = "v6.4.14"; 
 export function getVersion() { return PLAYER_CONTROLLER_VERSION; } 
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ξεκίνησε`);
 import { 
@@ -13,19 +13,31 @@ import {
 } from './globals.js'; 
 /** Υπολογισμός απαιτούμενου χρόνου θέασης για AutoNext. */ 
 export function getRequiredWatchTime(durationSec) {
-  const jitter = (Math.random() * 0.04) - 0.02;
-  let percent;
-  if (durationSec < 300) { percent = 0.80 + jitter; }
-  else if (durationSec < 1800) { percent = (50 + Math.floor(Math.random()*21)) / 100 + jitter; }
-  else if (durationSec < 7200) { percent = (20 + Math.floor(Math.random()*16)) / 100 + jitter; }
-  else { percent = (10 + Math.floor(Math.random()*6)) / 100 + jitter; }
-  if (percent < 0.05) percent = 0.05;
-  if (percent > 0.95) percent = 0.95;
-  let required = Math.floor(durationSec * percent);
-  const maxLimitSec = (15 + Math.floor(Math.random()*6)) * 60;
-  if (required > maxLimitSec) required = maxLimitSec;
+  // < 3 min: 90–100%
+  // < 5 min: 80–100%
+  // 5–30 min: 50–70%
+  // 30–120 min: 20–35%
+  // > 120 min: 10–15%
+  const capSec = (15 + rndInt(0, 5)) * 60; // 15–20 min cap
+  let minPct, maxPct;
+  if (durationSec < 180) {           // < 3 min
+    [minPct, maxPct] = [0.90, 1.00];
+  } else if (durationSec < 300) {    // < 5 min
+    [minPct, maxPct] = [0.80, 1.00];
+  } else if (durationSec < 1800) {   // 5–30 min
+    [minPct, maxPct] = [0.50, 0.70];
+  } else if (durationSec < 7200) {   // 30–120 min
+    [minPct, maxPct] = [0.20, 0.35];
+  } else {                           // > 120 min
+    [minPct, maxPct] = [0.10, 0.15];
+  }
+  const pct = minPct + Math.random() * (maxPct - minPct);
+  let required = Math.floor(durationSec * pct);
+  if (required > capSec) required = capSec;
+  if (required < 15) required = 15;
   return required;
-} else if (durationSec < 1800) { 
+}
+ else if (durationSec < 1800) { 
  percent = rndInt(50, 70); 
  maxLimitSec = (15 + rndInt(0, 5)) * 60; 
  } else if (durationSec < 7200) { 
@@ -43,12 +55,14 @@ export function getRequiredWatchTime(durationSec) {
  return requiredTime; 
 } 
 /** Σχέδιο παύσεων με βάση τη διάρκεια. */ 
-export function getPausePlan(duration) { 
- if (duration < 1800) return { count: rndInt(1, 2), min: 10, max: 30 }; 
- if (duration < 7200) return { count: rndInt(2, 3), min: 30, max: 60 }; 
- if (duration < 36000) return { count: rndInt(3, 5), min: 60, max: 120 }; 
- return { count: rndInt(5, 8), min: 120, max: 180 }; 
-} 
+export function getPausePlan(duration) {
+  if (duration < 180)  return { count: rndInt(1, 2), min: 10, max: 30 }; // < 3 min
+  if (duration < 300)  return { count: rndInt(1, 2), min: 10, max: 30 }; // < 5 min
+  if (duration < 1800) return { count: rndInt(2, 3), min: 30, max: 60 }; // 5–30 min
+  if (duration < 7200) return { count: rndInt(3, 4), min: 60, max: 120 }; // 30–120 min
+  return { count: rndInt(4, 5), min: 120, max: 180 }; // > 120 min
+}
+ 
 // --- Utils: dynamic origin/host --- 
 function getDynamicOrigin() { 
  try { 

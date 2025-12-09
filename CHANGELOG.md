@@ -1,6 +1,13 @@
 # CHANGELOG.md
 
 ## [2025-12-09]
+- playerController.js v6.4.14: Προσαρμογή λογικής παρακολούθησης και παύσεων ανά διάρκεια.
+  - Νέα κατηγορία για βίντεο < 3 λεπτά: ποσοστό 90–100%, παύσεις 1–2.
+  - Αλλαγή για βίντεο < 5 λεπτά: ποσοστό 80–100%, παύσεις 1–2.
+  - Cap 15–20 min μέγιστης παραμονής, ελάχιστο 15s.
+  - Ευθυγράμμιση getPausePlan() για πολύ σύντομα/σύντομα βίντεο.
+- CONTEXT.md: Προστέθηκε ενότητα «Νέα Λογική Παρακολούθησης Βίντεο (2025-12-09)» (απλό Markdown).
+- watchdog.js v2.4.6: no changes from previous baseline (adaptive poll remains)
 - playerController.js v6.4.13: EarlyNext, ENDED->next, jittered required time, timers init & clearTimers fix.
 - watchdog.js v2.4.6: Adaptive poll & randomized buffering threshold.
 - playerController.js v6.4.12: Implemented **earlyNext** policy.
