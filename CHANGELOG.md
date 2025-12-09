@@ -1,6 +1,7 @@
 # CHANGELOG.md
 
 ## [2025-12-09]
+- globals.js v2.5.5: Console filter/tagging για non-critical YouTube IFrame API warnings (postMessage origin mismatch). Τα μηνύματα επισημαίνονται ως `[YouTubeAPI][non-critical]` σε `console.info`.
 - playerController.js v6.4.17: Fix SyntaxError
 - watchdog.js v2.4.7: Fix SyntaxError
 - playerController.js v6.4.16: Fix SyntaxError (ορφανό `this.expectedPauseMs = 0;` εκτός `clearTimers()` & επιπλέον `}`)

@@ -1,10 +1,11 @@
 // --- globals.js ---
-// Έκδοση: v2.2.4
+// Έκδοση: v2.5.5
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
+// Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const GLOBALS_VERSION = "v2.2.4";
+const GLOBALS_VERSION = "v2.5.5";
 export function getVersion() { return GLOBALS_VERSION; }
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ξεκίνησε`);
@@ -116,6 +117,71 @@ function updateStats() {
     el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Replay:${stats.replay} - Pauses:${stats.pauses} - MidSeeks:${stats.midSeeks} - AvgWatch:${avgWatch}% - Watchdog:${stats.watchdog} - Errors:${stats.errors} - VolumeChanges:${stats.volumeChanges}`;
   }
 }
+
+
+/**
+ * Console Filter για non-critical μηνύματα YouTube IFrame API.
+ * - Ενεργοποίηση/Απενεργοποίηση με σημαία.
+ * - Tagging αντί για σιωπή (κρατάμε την ορατότητα, μειώνουμε «θόρυβο»).
+ */
+export const consoleFilterConfig = {
+  enabled: true,                   // Toggle: on/off
+  tagLevel: "info",                // "info" ή "warn" (πώς θα εμφανίζεται το tagged μήνυμα)
+  patterns: [
+    // Γνωστό προειδοποιητικό μήνυμα widgetapi: postMessage target origin mismatch
+    /Failed to execute 'postMessage'.*does not match the recipient window's origin/i,
+    /postMessage.*origin.*does not match/i
+  ]
+};
+
+// Ασφαλής ανακατεύθυνση των console methods
+(function setupConsoleFilter(cfg) {
+  if (!cfg?.enabled) return;
+
+  const origError = console.error.bind(console);
+  const origWarn  = console.warn.bind(console);
+
+  function tagMessage(method, args, originMethodName) {
+    const msg = (args && args[0]) ? String(args[0]) : "";
+    const shouldTag = cfg.patterns.some(re => re.test(msg));
+
+    if (shouldTag) {
+      const tag = "[YouTubeAPI][non-critical]";
+      const passArgs = [
+        `${tag} ${msg}`,
+        ...args.slice(1)
+      ];
+
+      // Επιλογή επιπέδου απεικόνισης (info/warn)
+      if (cfg.tagLevel === "warn") {
+        console.warn(...passArgs);
+      } else {
+        console.info(...passArgs);
+      }
+
+      // Προαιρετικά: κρατάμε το αρχικό call σε χαμηλότερο επίπεδο (debug)
+      // console.debug(`[original ${originMethodName}]`, ...args);
+
+      return; // Μην καλέσεις το original method για να αποφύγεις διπλό log
+    }
+
+    // Για όλα τα άλλα, δώσε κανονικά το original
+    method(...args);
+  }
+
+  console.error = function (...args) {
+    tagMessage(origError, args, "error");
+  };
+  console.warn = function (...args) {
+    tagMessage(origWarn, args, "warn");
+  };
+
+  // Προαιρετικά, μπορείς να φιλτράρεις και console.log/info αν χρειαστεί.
+})(consoleFilterConfig);
+
+// Παράδειγμα χρήσης στο initialization:
+console.log(`[${new Date().toLocaleTimeString()}] 🛠️ Console filter active: ${consoleFilterConfig.enabled} (${consoleFilterConfig.tagLevel})`);
+
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ολοκληρώθηκε`);
