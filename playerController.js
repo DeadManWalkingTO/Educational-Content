@@ -1,10 +1,10 @@
 // --- playerController.js ---
-// Έκδοση: v6.4.15
+// Έκδοση: v6.4.16
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική 
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions --- 
-const PLAYER_CONTROLLER_VERSION = "v6.4.15"; 
+const PLAYER_CONTROLLER_VERSION = "v6.4.16"; 
 export function getVersion() { return PLAYER_CONTROLLER_VERSION; } 
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ξεκίνησε`);
 import { 
@@ -333,8 +333,6 @@ const hostVal = getYouTubeHostFallback();
     if (this.timers.progressCheck) { try { clearInterval(this.timers.progressCheck) } catch(_){ } this.timers.progressCheck = null; }
     this.expectedPauseMs = 0;
   } 
- this.expectedPauseMs = 0; 
- } 
 } 
 log(`[${ts()}] ✅ Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ολοκληρώθηκε`);
 // --- End Of File ---

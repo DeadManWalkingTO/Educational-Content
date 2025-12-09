@@ -1,6 +1,7 @@
 # CHANGELOG.md
 
 ## [2025-12-09]
+- playerController.js v6.4.16: Fix SyntaxError (ορφανό `this.expectedPauseMs = 0;` εκτός `clearTimers()` & επιπλέον `}`)
 - playerController.js v6.4.15: Fix SyntaxError από ορφανό `else if` μπλοκ μετά το κλείσιμο της `getRequiredWatchTime()`. Αφαίρεση legacy/διπλού κώδικα, καμία λειτουργική αλλαγή στη νέα λογική. 
 - playerController.js v6.4.14: Προσαρμογή λογικής παρακολούθησης και παύσεων ανά διάρκεια.
   - Νέα κατηγορία για βίντεο < 3 λεπτά: ποσοστό 90–100%, παύσεις 1–2.
