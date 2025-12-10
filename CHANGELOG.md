@@ -2,6 +2,13 @@
 
 ---
 ## [2025-12-10]
+- **globals.js v2.8.0**
+  - Console Filter v2, safe postMessage handler.
+- **main.js v1.6.10**
+  - Import/call bindSafeMessageHandler early.
+- **playerController.js v6.4.19**
+  - Micro‑jitter 100–400 ms πριν το `unMute()` (Auto Unmute & pending).
+
 - **globals.js v2.7.2**
   - Βελτιώσεις στο **Console Filter** για το YouTube IFrame API:
     - (Παράδειγμα:) Νέα patterns για postMessage warnings ή/και προσθήκη `sources` hints.

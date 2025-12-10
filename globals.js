@@ -1,11 +1,11 @@
 // --- globals.js ---
-// Έκδοση: v2.7.2
+// Έκδοση: v2.8.0
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const GLOBALS_VERSION = "v2.7.2";
+const GLOBALS_VERSION = "v2.8.0";
 export function getVersion() { return GLOBALS_VERSION; }
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ξεκίνησε`);
@@ -292,5 +292,20 @@ export function getYouTubeEmbedHost(){
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ολοκληρώθηκε`);
+
+
+// --- Safe postMessage handler ---
+export function bindSafeMessageHandler(allowlist = null) {
+  try {
+    const defaults = [getOrigin(), 'https://www.youtube.com'];
+    const allow = Array.isArray(allowlist) && allowlist.length ? allowlist : defaults;
+    window.addEventListener('message', (ev) => {
+      const origin = ev.origin || '';
+      const ok = allow.some(a => typeof a === 'string' && a && origin.startsWith(a));
+      if (!ok) { try { console.info(`[YouTubeAPI][non-critical][Origin] Blocked postMessage from '${origin}'`); } catch (_) {} return; }
+    }, { capture: true });
+    log(`[${ts()}] 🛡️ Safe postMessage handler bound — allowlist: ${JSON.stringify(allow)}`);
+  } catch (e) { log(`[${ts()}] ⚠️ bindSafeMessageHandler error → ${e}`); }
+}
 
 // --- End Of File ---
