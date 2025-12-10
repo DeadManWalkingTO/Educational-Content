@@ -1,9 +1,9 @@
 // --- humanMode.js ---
-// Έκδοση: v4.6.11
+// Έκδοση: v4.6.12
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 // 
 // --- Versions --- 
-const HUMAN_MODE_VERSION = "v4.6.11"; 
+const HUMAN_MODE_VERSION = "v4.6.12"; 
 export function getVersion() { return HUMAN_MODE_VERSION; } 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου 
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: humanMode.js ${HUMAN_MODE_VERSION} -> Ξεκίνησε`); 
@@ -35,8 +35,8 @@ const BEHAVIOR_PROFILES = [
 function createRandomPlayerConfig(profile) { 
  return { 
  profileName: profile.name, 
- startDelay: rndInt(5, 180), 
- initSeekMax: rndInt(30, 90), 
+ startDelay: rndInt(5, 240), 
+ initSeekMax: rndInt(30, 120), 
  unmuteDelayExtra: rndInt(30, 90), 
  volumeRange: [rndInt(5, 15), rndInt(20, 40)], 
  midSeekInterval: rndInt(profile.midSeekIntervalRange[0], profile.midSeekIntervalRange[1]) * 60000, 

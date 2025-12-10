@@ -1,11 +1,11 @@
 // --- globals.js ---
-// Έκδοση: v2.8.0
+// Έκδοση: v2.8.2
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const GLOBALS_VERSION = "v2.8.0";
+const GLOBALS_VERSION = "v2.8.2";
 export function getVersion() { return GLOBALS_VERSION; }
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ξεκίνησε`);
@@ -23,6 +23,13 @@ export const stats = {
 
 // --- Controllers για τους players ---
 export const controllers = [];
+// --- Concurrency Controls ---
+export const MAX_CONCURRENT_PLAYING = 2;
+let _currentPlaying = 0;
+export function getPlayingCount(){ return _currentPlaying; }
+export function incPlaying(){ _currentPlaying++; log(`[${new Date().toLocaleTimeString()}] ✅ Playing++ -> ${_currentPlaying}`); }
+export function decPlaying(){ if(_currentPlaying>0){ _currentPlaying--; } log(`[${new Date().toLocaleTimeString()}] ✅ Playing-- -> ${_currentPlaying}`); }
+
 
 // --- Σταθερές εφαρμογής ---
 export const PLAYER_COUNT = 8;
@@ -99,7 +106,9 @@ export function rndInt(min, max) {
   return Math.floor(min + Math.random() * (max - min + 1));
 }
 
-export function log(msg) {
+export function log(msg){
+  try{ if (shouldSuppressNoise(arguments)) return; }catch(_){ }
+
   console.log(msg);
   if (typeof document !== 'undefined') {
     const panel = document.getElementById("activityPanel");
@@ -309,3 +318,18 @@ export function bindSafeMessageHandler(allowlist = null) {
 }
 
 // --- End Of File ---
+// --- Console noise deduper & grouping ---
+const noiseCache = new Map(); // key -> {count, lastTs}
+function shouldSuppressNoise(args){
+  const s = String(args && args[0] || '');
+  const isWidgetNoise = /www\-widgetapi\.js/i.test(s) || /Failed to execute 'postMessage'/i.test(s);
+  const isAdsNoise    = /viewthroughconversion/i.test(s) || /doubleclick\.net/i.test(s);
+  if (!(isWidgetNoise || isAdsNoise)) return false;
+  const key = s.replace(/\d{2}:\d{2}:\d{2}/g,'');
+  const now = Date.now();
+  const rec = noiseCache.get(key) || {count:0,lastTs:0};
+  if (now - rec.lastTs < 1500){ rec.count++; rec.lastTs = now; noiseCache.set(key, rec); return rec.count > 2; }
+  noiseCache.set(key, {count:1,lastTs:now});
+  return false;
+}
+function groupedLog(tag, msg, count){ try{ console.groupCollapsed(`${tag} (x${count})`); console.log(msg); console.groupEnd(); }catch(_){} }

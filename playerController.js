@@ -1,13 +1,13 @@
 // --- playerController.js ---
-// Έκδοση: v6.4.19
+// Έκδοση: v6.4.21
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική 
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions --- 
-const PLAYER_CONTROLLER_VERSION = "v6.4.19"; 
+const PLAYER_CONTROLLER_VERSION = "v6.4.21"; 
 export function getVersion() { return PLAYER_CONTROLLER_VERSION; } 
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ξεκίνησε`);
-import {log, ts, rndInt, stats, controllers, MAIN_PROBABILITY, canAutoNext, incAutoNext, AUTO_NEXT_LIMIT_PER_PLAYER, hasUserGesture, getOrigin, getYouTubeEmbedHost} from './globals.js'; 
+import {AUTO_NEXT_LIMIT_PER_PLAYER, MAIN_PROBABILITY, MAX_CONCURRENT_PLAYING, canAutoNext, controllers, decPlaying, getOrigin, getPlayingCount, getYouTubeEmbedHost, hasUserGesture, incAutoNext, incPlaying, log, rndInt, stats, ts} from './globals.js'; 
 /** Υπολογισμός απαιτούμενου χρόνου θέασης για AutoNext. */ 
 export function getRequiredWatchTime(durationSec) {
   // < 3 min: 90–100%
@@ -61,12 +61,25 @@ export class PlayerController {
  this.mainList = Array.isArray(mainList) ? mainList : []; 
  this.altList = Array.isArray(altList) ? altList : []; 
  this.player = null; 
- this.timers = { midSeek: null, pauseTimers: [], progressCheck: null }; 
+ this.timers = { midSeek: null, pauseTimers: [], progressCheck: null }
+    this.tryPlay = (p) => {
+      const jitter = 50 + Math.floor(Math.random()*200);
+      const attempt = () => {
+        if (getPlayingCount() < MAX_CONCURRENT_PLAYING){
+          if (typeof p.playVideo === 'function'){ this.tryPlay(p); }
+        } else {
+          const backoff = 300 + Math.floor(Math.random()*900);
+          setTimeout(attempt, backoff);
+        }
+      };
+      setTimeout(attempt, jitter);
+    };; 
  this.config = config; 
  this.profileName = config?.profileName ?? "Unknown"; 
  this.startTime = null; 
  this.playingStart = null; 
- this.currentRate = 1.0; 
+ this.currentRate = 1.0;
+    this.isPlayingActive = false; 
  this.totalPlayTime = 0; 
  this.lastBufferingStart = null; 
  this.lastPausedStart = null; 
@@ -115,7 +128,7 @@ const hostVal = getYouTubeHostFallback();
  seek = rndInt(0, initMax); 
  } 
  if (typeof p.seekTo === 'function') p.seekTo(seek, true); 
- if (typeof p.playVideo === 'function') p.playVideo(); 
+ if (typeof p.playVideo === 'function') this.tryPlay(p); 
  log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> Seek=${seek}s after ${startDelaySec}s`); 
  this.schedulePauses(); 
  this.scheduleMidSeek(); 
@@ -141,13 +154,13 @@ const hostVal = getYouTubeHostFallback();
  setTimeout(() => { 
  if (typeof p.getPlayerState === 'function' && p.getPlayerState() === YT.PlayerState.PAUSED) { 
  log(`[${ts()}] 🔁 Player ${this.index + 1} Quick retry playVideo after immediate unmute`); 
- if (typeof p.playVideo === 'function') p.playVideo(); 
+ if (typeof p.playVideo === 'function') this.tryPlay(p); 
  } 
  }, 250); 
  setTimeout(() => { 
  if (typeof p.getPlayerState === 'function' && p.getPlayerState() === YT.PlayerState.PAUSED) { 
  log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`); 
- if (typeof p.playVideo === 'function') p.playVideo(); 
+ if (typeof p.playVideo === 'function') this.tryPlay(p); 
  } 
  }, 1000); 
  } else { 
@@ -162,7 +175,19 @@ const hostVal = getYouTubeHostFallback();
  case YT.PlayerState.UNSTARTED: 
     // EARLY-NEXT: periodic progress check while PLAYING
     if (e.data === YT.PlayerState.PLAYING) {
-      if (!this.timers) this.timers = { midSeek: null, pauseTimers: [], progressCheck: null };
+      if (!this.timers) this.timers = { midSeek: null, pauseTimers: [], progressCheck: null }
+    this.tryPlay = (p) => {
+      const jitter = 50 + Math.floor(Math.random()*200);
+      const attempt = () => {
+        if (getPlayingCount() < MAX_CONCURRENT_PLAYING){
+          if (typeof p.playVideo === 'function'){ this.tryPlay(p); }
+        } else {
+          const backoff = 300 + Math.floor(Math.random()*900);
+          setTimeout(attempt, backoff);
+        }
+      };
+      setTimeout(attempt, jitter);
+    };;
       if (this.timers.progressCheck) { try { clearInterval(this.timers.progressCheck) } catch(_){ } this.timers.progressCheck = null; }
       const iv = (9 + Math.floor(Math.random()*4)) * 1000;
       const p = this.player;
@@ -187,11 +212,14 @@ const hostVal = getYouTubeHostFallback();
         this.clearTimers();
         this.loadNextVideo(p);
         return; 
- case YT.PlayerState.PLAYING: log(`[${ts()}] ▶ Player ${this.index + 1} State -> PLAYING`); break; 
+ case YT.PlayerState.PLAYING:
+      if(!this.isPlayingActive){ this.isPlayingActive = true; incPlaying(); }
+log(`[${ts()}] ▶ Player ${this.index + 1} State -> PLAYING`); break; 
  case YT.PlayerState.PAUSED: log(`[${ts()}] ⏸️ Player ${this.index + 1} State -> PAUSED`); break; 
  case YT.PlayerState.BUFFERING: log(`[${ts()}] 🟠 Player ${this.index + 1} State -> BUFFERING`); break; 
  case YT.PlayerState.CUED: log(`[${ts()}] 🟢 Player ${this.index + 1} State -> CUED`); break; 
- default: log(`[${ts()}] 🔴 Player ${this.index + 1} State -> UNKNOWN (${e.data})`); 
+ default: log(`[${ts()}] 🔴 Player ${this.index + 1} State -> UNKNOWN (${e.data})`);
+      if(this.isPlayingActive && e.data !== YT.PlayerState.PLAYING){ this.isPlayingActive = false; decPlaying(); } 
  } 
  // Retry unmute αν ήταν pending 
  if (e.data === YT.PlayerState.PLAYING && this.pendingUnmute) { 
@@ -209,7 +237,7 @@ const hostVal = getYouTubeHostFallback();
  setTimeout(() => { 
  if (typeof p.getPlayerState === 'function' && p.getPlayerState() === YT.PlayerState.PAUSED) { 
  log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`); 
- if (typeof p.playVideo === 'function') p.playVideo(); 
+ if (typeof p.playVideo === 'function') this.tryPlay(p); 
  } 
  }, 1000); 
  } 
@@ -299,7 +327,7 @@ const hostVal = getYouTubeHostFallback();
  this.expectedPauseMs = pauseLen; 
  log(`[${ts()}] ⏸️ Player ${this.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`); 
  setTimeout(() => { 
- p.playVideo(); 
+ this.tryPlay(p); 
  this.expectedPauseMs = 0; 
  }, pauseLen); 
  } 
