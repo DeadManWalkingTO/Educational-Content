@@ -1,5 +1,24 @@
 # CHANGELOG.md
 
+---
+## [2025-12-10]
+- **globals.js v2.7.2**
+  - Βελτιώσεις στο **Console Filter** για το YouTube IFrame API:
+    - (Παράδειγμα:) Νέα patterns για postMessage warnings ή/και προσθήκη `sources` hints.
+    - (Παράδειγμα:) Ενοποίηση αρχικών logs “Console filter active” και καθαρότερη έναρξη.
+    - (Παράδειγμα:) Μικρό hardening: guards σε περιβάλλοντα χωρίς `document` (SSR/tests).
+  - **Συμμόρφωση με CONTEXT.md** (χωρίς αλλαγές):
+    - `getOrigin()` παραμένει η **ενιαία πηγή** για `playerVars.origin`.
+    - `getYouTubeEmbedHost()` → **μόνο** `'https://www.youtube.com'` (καμία χρήση `youtube-nocookie.com`
+- playerController.js v6.4.18: Ενεργοποιήθηκε `host: getYouTubeEmbedHost()` στον constructor του YT.Player και διατηρήθηκε `playerVars.origin: getOrigin()` (ενιαία πηγή).
+
+---
+## [2025-12-09]
+- playerController.js v0.0.1: Προστέθηκε `host: getYouTubeEmbedHost()` και εξασφαλίστηκε `playerVars.origin: getOrigin()`.
+- globals.js: Επιβεβαιώθηκαν/προστέθηκαν `getOrigin()` & `getYouTubeEmbedHost()` με ενημέρωση έκδοσης.
+- CONTEXT.md: Νέοι κανόνες για YouTube host και ενιαίο origin.
+
+---
 ## [2025-12-09]
 - globals.js v2.5.5: Console filter/tagging για non-critical YouTube IFrame API warnings (postMessage origin mismatch). Τα μηνύματα επισημαίνονται ως `[YouTubeAPI][non-critical]` σε `console.info`.
 - playerController.js v6.4.17: Fix SyntaxError
@@ -76,7 +95,8 @@ Notes: Χωρίς αλλαγή ροής. Smoke OK.
 
 ### Lists Parsing — Fix real newline literal in parser (2025-12-06)
 - lists.js v3.3.5 → v3.3.6: Διόρθωση `parseList()` ώστε να χρησιμοποιεί `split('
-')` (escaped) και αφαίρεση μόνο τελικού `''` ανά γραμμή. Καθαρισμός backslashes σε internalList IDs.
+')` (escaped) και αφαίρεση μόνο τελικού `'
+'` ανά γραμμή. Καθαρισμός backslashes σε internalList IDs.
 Notes: Συμμόρφωση με κανόνα “No real newline σε string literals”. Smoke OK.
 
 ### Policy Update — Newline Splits rule (2025-12-05)

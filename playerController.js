@@ -1,16 +1,13 @@
 // --- playerController.js ---
-// Έκδοση: v6.4.17
+// Έκδοση: v6.4.18
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική 
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions --- 
-const PLAYER_CONTROLLER_VERSION = "v6.4.17"; 
+const PLAYER_CONTROLLER_VERSION = "v6.4.18"; 
 export function getVersion() { return PLAYER_CONTROLLER_VERSION; } 
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ξεκίνησε`);
-import { 
- log, ts, rndInt, stats, controllers, MAIN_PROBABILITY, 
- canAutoNext, incAutoNext, AUTO_NEXT_LIMIT_PER_PLAYER, hasUserGesture 
-} from './globals.js'; 
+import {log, ts, rndInt, stats, controllers, MAIN_PROBABILITY, canAutoNext, incAutoNext, AUTO_NEXT_LIMIT_PER_PLAYER, hasUserGesture, getOrigin, getYouTubeEmbedHost} from './globals.js'; 
 /** Υπολογισμός απαιτούμενου χρόνου θέασης για AutoNext. */ 
 export function getRequiredWatchTime(durationSec) {
   // < 3 min: 90–100%
@@ -87,11 +84,11 @@ const isValidOrigin =
 const hostVal = getYouTubeHostFallback(); 
  this.player = new YT.Player(containerId, { 
  videoId, 
- // host: 'https://www.youtube.com', // αφαιρέθηκε — αφήνουμε το default 
+ host: getYouTubeEmbedHost(),
  playerVars: {
         enablejsapi: 1,
         playsinline: 1,
-        ...(isValidOrigin ? { origin: computedOrigin } : {})
+        ...(isValidOrigin ? { origin: getOrigin()} : {})
       }, 
  events: { 
  onReady: (e) => this.onReady(e), 

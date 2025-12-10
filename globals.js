@@ -1,11 +1,11 @@
 // --- globals.js ---
-// Έκδοση: v2.5.5
+// Έκδοση: v2.7.2
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const GLOBALS_VERSION = "v2.5.5";
+const GLOBALS_VERSION = "v2.7.2";
 export function getVersion() { return GLOBALS_VERSION; }
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ξεκίνησε`);
@@ -98,19 +98,25 @@ export function ts() { return new Date().toLocaleTimeString(); }
 export function rndInt(min, max) {
   return Math.floor(min + Math.random() * (max - min + 1));
 }
+
 export function log(msg) {
   console.log(msg);
-  const panel = document.getElementById("activityPanel");
-  if (panel) {
-    const div = document.createElement("div");
-    div.textContent = msg;
-    panel.appendChild(div);
-    while (panel.children.length > 250) panel.removeChild(panel.firstChild);
-    panel.scrollTop = panel.scrollHeight;
+  if (typeof document !== 'undefined') {
+    const panel = document.getElementById("activityPanel");
+    if (panel) {
+      const div = document.createElement("div");
+      div.textContent = msg;
+      panel.appendChild(div);
+      const LOG_PANEL_MAX = 250;
+      while (panel.children.length > LOG_PANEL_MAX) panel.removeChild(panel.firstChild);
+      panel.scrollTop = panel.scrollHeight;
+    }
   }
   updateStats();
 }
+
 function updateStats() {
+  if (typeof document === 'undefined') return;
   const el = document.getElementById("statsPanel");
   if (el) {
     const avgWatch = controllers.length ? Math.round(stats.pauses / controllers.length) : 0;
@@ -119,70 +125,172 @@ function updateStats() {
 }
 
 
+
+
+
 /**
  * Console Filter για non-critical μηνύματα YouTube IFrame API.
  * - Ενεργοποίηση/Απενεργοποίηση με σημαία.
  * - Tagging αντί για σιωπή (κρατάμε την ορατότητα, μειώνουμε «θόρυβο»).
  */
+// --- Console Filter (YouTube IFrame non-critical tagging) ---
+// Στόχος: tagging & demotion non-critical logs, χωρίς απώλεια ορατότητας/stack.
+// Ασφαλές σε πολλαπλή φόρτωση, με API enable/disable/setLevel/addPattern/restore.
+
 export const consoleFilterConfig = {
-  enabled: true,                   // Toggle: on/off
-  tagLevel: "info",                // "info" ή "warn" (πώς θα εμφανίζεται το tagged μήνυμα)
+  enabled: true,              // On/Off
+  tagLevel: 'info',           // 'info' | 'warn'
+  // patterns: regex που "πιάνουν" μήνυμα ή οποιοδήποτε arg.toString()
   patterns: [
-    // Γνωστό προειδοποιητικό μήνυμα widgetapi: postMessage target origin mismatch
     /Failed to execute 'postMessage'.*does not match the recipient window's origin/i,
-    /postMessage.*origin.*does not match/i
-  ]
+    /postMessage.*origin.*does not match/i,
+  ],
+  // προαιρετικό source hint (μειώνει false positives)
+  sources: [/www-widgetapi\.js/i],
+  tag: '[YouTubeAPI][non-critical]'
 };
 
-// Ασφαλής ανακατεύθυνση των console methods
-(function setupConsoleFilter(cfg) {
-  if (!cfg?.enabled) return;
+// Idempotent setup (τρέχει μία φορά)
+(function () {
+  if (typeof console === 'undefined') return;
+  if (typeof window !== 'undefined' && window.__YT_CONSOLE_FILTER_INSTALLED__) return;
+  if (typeof globalThis !== 'undefined' && globalThis.__YT_CONSOLE_FILTER_INSTALLED__) return;
 
-  const origError = console.error.bind(console);
-  const origWarn  = console.warn.bind(console);
+  const state = {
+    installed: true,
+    enabled: !!consoleFilterConfig.enabled,
+    level: consoleFilterConfig.tagLevel === 'warn' ? 'warn' : 'info',
+    patterns: [...consoleFilterConfig.patterns],
+    sources: consoleFilterConfig.sources ? [...consoleFilterConfig.sources] : [],
+    tag: consoleFilterConfig.tag || '[YouTubeAPI][non-critical]',
+  };
 
-  function tagMessage(method, args, originMethodName) {
-    const msg = (args && args[0]) ? String(args[0]) : "";
-    const shouldTag = cfg.patterns.some(re => re.test(msg));
+  const orig = {
+    error: console.error?.bind(console),
+    warn:  console.warn?.bind(console),
+    info:  console.info?.bind(console),
+    log:   console.log?.bind(console),
+    debug: console.debug?.bind(console),
+  };
 
-    if (shouldTag) {
-      const tag = "[YouTubeAPI][non-critical]";
-      const passArgs = [
-        `${tag} ${msg}`,
-        ...args.slice(1)
-      ];
-
-      // Επιλογή επιπέδου απεικόνισης (info/warn)
-      if (cfg.tagLevel === "warn") {
-        console.warn(...passArgs);
-      } else {
-        console.info(...passArgs);
+  // Utility: ελέγχει όλα τα args (και όχι μόνο το πρώτο)
+  function matchAnyArg(args, regexList) {
+    try {
+      for (const a of args) {
+        const s = typeof a === 'string' ? a : (a && a.message) ? a.message : String(a);
+        if (regexList.some(re => re.test(s))) return true;
       }
-
-      // Προαιρετικά: κρατάμε το αρχικό call σε χαμηλότερο επίπεδο (debug)
-      // console.debug(`[original ${originMethodName}]`, ...args);
-
-      return; // Μην καλέσεις το original method για να αποφύγεις διπλό log
-    }
-
-    // Για όλα τα άλλα, δώσε κανονικά το original
-    method(...args);
+    } catch { /* no-op */ }
+    return false;
   }
 
-  console.error = function (...args) {
-    tagMessage(origError, args, "error");
+  // Utility: προαιρετικός έλεγχος "πηγής" στο stringified stack ή location (αν υπάρχει)
+  function matchSourceHints(args, sources) {
+    if (!sources?.length) return false;
+    try {
+      // κοιτάμε μήπως κάποιος arg έχει stack/url
+      for (const a of args) {
+        if (a && a.stack && sources.some(re => re.test(String(a.stack)))) return true;
+        if (typeof a === 'string' && sources.some(re => re.test(a))) return true;
+      }
+      // fallback: ίσως ο browser προσθέτει url στο πρώτο string arg
+      return false;
+    } catch { return false; }
+  }
+
+  function tagAndForward(level, ...args) {
+    // Για tag, δεν αλλοιώνουμε Error αντικείμενα—τα περνάμε αυτούσια.
+    // Απλώς προσαρτούμε prefix/tag στο πρώτο ορατό string.
+    const prefix = `${state.tag}`;
+    let forwarded = [];
+
+    if (args.length === 0) {
+      forwarded = [prefix];
+    } else {
+      // αν το πρώτο arg είναι string -> prefix + string, αλλιώς κάνε prepend tag ως ξεχωριστό arg
+      if (typeof args[0] === 'string') {
+        forwarded = [`${prefix} ${args[0]}`, ...args.slice(1)];
+      } else {
+        forwarded = [prefix, ...args];
+      }
+    }
+
+    (level === 'warn' ? orig.warn : orig.info)(...forwarded);
+  }
+
+  function shouldTag(args) {
+    // Αν δεν είναι ενεργό, ή δεν υπάρχουν patterns -> όχι
+    if (!state.enabled || state.patterns.length === 0) return false;
+    const argMatch = matchAnyArg(args, state.patterns);
+    const sourceMatch = matchSourceHints(args, state.sources);
+    return argMatch || sourceMatch;
+  }
+
+  // Wrapper για error/warn
+  function wrap(origMethod, originName) {
+    return function (...args) {
+      // Μόνο για γνωστά non-critical warnings/errors κάνουμε "demote & tag"
+      if (shouldTag(args)) {
+        tagAndForward(state.level, ...args);
+        // Δεν καλούμε το original για να αποφύγουμε διπλό log στην κονσόλα.
+        return;
+      }
+      // Αλλιώς, κανονικά
+      origMethod(...args);
+    };
+  }
+
+  // Εγκατάσταση wrappers
+  console.error = wrap(orig.error, 'error');
+  console.warn  = wrap(orig.warn,  'warn');
+
+  // Δημόσιο API για runtime έλεγχο (π.χ. από DevTools)
+  const api = {
+    enable()           { state.enabled = true; },
+    disable()          { state.enabled = false; },
+    setLevel(lvl)      { state.level = (lvl === 'warn' ? 'warn' : 'info'); },
+    addPattern(re)     { if (re instanceof RegExp) state.patterns.push(re); },
+    clearPatterns()    { state.patterns.length = 0; },
+    addSource(re)      { if (re instanceof RegExp) state.sources.push(re); },
+    clearSources()     { state.sources.length = 0; },
+    restore() {
+      console.error = orig.error;
+      console.warn  = orig.warn;
+      if (typeof window !== 'undefined') window.__YT_CONSOLE_FILTER_API__ = undefined;
+      if (typeof globalThis !== 'undefined') globalThis.__YT_CONSOLE_FILTER_API__ = undefined;
+      if (typeof window !== 'undefined') window.__YT_CONSOLE_FILTER_INSTALLED__ = undefined;
+      if (typeof globalThis !== 'undefined') globalThis.__YT_CONSOLE_FILTER_INSTALLED__ = undefined;
+    },
+    _dumpState() { return JSON.parse(JSON.stringify(state)); }
   };
-  console.warn = function (...args) {
-    tagMessage(origWarn, args, "warn");
-  };
 
-  // Προαιρετικά, μπορείς να φιλτράρεις και console.log/info αν χρειαστεί.
-})(consoleFilterConfig);
+  if (typeof window !== 'undefined') {
+    window.__YT_CONSOLE_FILTER_INSTALLED__ = true;
+    window.__YT_CONSOLE_FILTER_API__ = api;
+  }
+  if (typeof globalThis !== 'undefined') {
+    globalThis.__YT_CONSOLE_FILTER_INSTALLED__ = true;
+    globalThis.__YT_CONSOLE_FILTER_API__ = api;
+  }
 
-// Παράδειγμα χρήσης στο initialization:
-console.log(`[${new Date().toLocaleTimeString()}] 🛠️ Console filter active: ${consoleFilterConfig.enabled} (${consoleFilterConfig.tagLevel})`);
+  // Ορατότητα κατά την εκκίνηση
+  const now = new Date().toLocaleTimeString();
+  orig.log?.(`[${now}] 🛠️ Console filter active: ${state.enabled} (${state.level})`);
 
+})();
+
+
+// Επιστρέφει ενιαίο origin (πηγή αλήθειας)
+export function getOrigin(){
+  try { return window.location.origin; } catch(e){ return 'https://localhost'; }
+}
+
+// Επιστρέφει τον host για YouTube Iframe API (μόνο youtube.com)
+export function getYouTubeEmbedHost(){
+  return 'https://www.youtube.com';
+}
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ολοκληρώθηκε`);
+
 // --- End Of File ---
