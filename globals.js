@@ -1,11 +1,11 @@
 // --- globals.js ---
-// Έκδοση: v2.8.2
+// Έκδοση: v2.8.4
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const GLOBALS_VERSION = "v2.8.2";
+const GLOBALS_VERSION = "v2.8.4";
 export function getVersion() { return GLOBALS_VERSION; }
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ξεκίνησε`);
@@ -142,153 +142,213 @@ function updateStats() {
  * - Ενεργοποίηση/Απενεργοποίηση με σημαία.
  * - Tagging αντί για σιωπή (κρατάμε την ορατότητα, μειώνουμε «θόρυβο»).
  */
-// --- Console Filter (YouTube IFrame non-critical tagging) ---
-// Στόχος: tagging & demotion non-critical logs, χωρίς απώλεια ορατότητας/stack.
-// Ασφαλές σε πολλαπλή φόρτωση, με API enable/disable/setLevel/addPattern/restore.
 
+// --- Console Filter (State Machine, χωρίς '||'/'&&') ---
+// Περιγραφή: Tagging & demotion για μη-κρίσιμα μηνύματα YouTube IFrame API (postMessage origin mismatch)
+// και DoubleClick CORS warnings. Χρήση guard steps και βοηθητικών anyTrue/allTrue για αποφυγή ρητών τελεστών.
 export const consoleFilterConfig = {
-  enabled: true,              // On/Off
-  tagLevel: 'info',           // 'info' | 'warn'
-  // patterns: regex που "πιάνουν" μήνυμα ή οποιοδήποτε arg.toString()
+  enabled: true,
+  tagLevel: 'info', // 'info' ή 'warn'
   patterns: [
     /Failed to execute 'postMessage'.*does not match the recipient window's origin/i,
     /postMessage.*origin.*does not match/i,
+    /googleads\.g\.doubleclick\.net.*blocked by CORS policy/i,
+    /youtube.*pagead\/viewthroughconversion.*blocked by CORS policy/i
   ],
-  // προαιρετικό source hint (μειώνει false positives)
-  sources: [/www-widgetapi\.js/i],
+  sources: [/www\-widgetapi\.js/i],
   tag: '[YouTubeAPI][non-critical]'
 };
 
-// Idempotent setup (τρέχει μία φορά)
-(function () {
-  if (typeof console === 'undefined') return;
-  if (typeof window !== 'undefined' && window.__YT_CONSOLE_FILTER_INSTALLED__) return;
-  if (typeof globalThis !== 'undefined' && globalThis.__YT_CONSOLE_FILTER_INSTALLED__) return;
+function anyTrue(flags){
+  for (let i=0;i<flags.length;i++){ if (flags[i]) { return true; } }
+  return false;
+}
+function allTrue(flags){
+  for (let i=0;i<flags.length;i++){ if (!flags[i]) { return false; } }
+  return true;
+}
 
-  const state = {
-    installed: true,
-    enabled: !!consoleFilterConfig.enabled,
-    level: consoleFilterConfig.tagLevel === 'warn' ? 'warn' : 'info',
-    patterns: [...consoleFilterConfig.patterns],
-    sources: consoleFilterConfig.sources ? [...consoleFilterConfig.sources] : [],
-    tag: consoleFilterConfig.tag || '[YouTubeAPI][non-critical]',
+(function(){
+  var S_CHECK_ENV = 0;
+  var S_CHECK_INSTALLED = 1;
+  var S_BUILD_STATE = 2;
+  var S_CAPTURE_ORIG = 3;
+  var S_WRAP = 4;
+  var S_EXPOSE_API = 5;
+  var S_LOG_START = 6;
+  var S_DONE = 7;
+  var S_ABORT = 8;
+
+  var ctx = {
+    stateObj: null,
+    orig: null,
+    api: null,
+    g: (typeof globalThis !== 'undefined') ? globalThis : window
   };
 
-  const orig = {
-    error: console.error?.bind(console),
-    warn:  console.warn?.bind(console),
-    info:  console.info?.bind(console),
-    log:   console.log?.bind(console),
-    debug: console.debug?.bind(console),
-  };
-
-  // Utility: ελέγχει όλα τα args (και όχι μόνο το πρώτο)
-  function matchAnyArg(args, regexList) {
-    try {
-      for (const a of args) {
-        const s = typeof a === 'string' ? a : (a && a.message) ? a.message : String(a);
-        if (regexList.some(re => re.test(s))) return true;
-      }
-    } catch { /* no-op */ }
+  function hasConsole(){ return (typeof console !== 'undefined'); }
+  function alreadyInstalled(g){
+    if (typeof g === 'undefined') { return false; }
+    if (g.__YT_CONSOLE_FILTER_INSTALLED__) { return true; }
     return false;
   }
-
-  // Utility: προαιρετικός έλεγχος "πηγής" στο stringified stack ή location (αν υπάρχει)
-  function matchSourceHints(args, sources) {
-    if (!sources?.length) return false;
-    try {
-      // κοιτάμε μήπως κάποιος arg έχει stack/url
-      for (const a of args) {
-        if (a && a.stack && sources.some(re => re.test(String(a.stack)))) return true;
-        if (typeof a === 'string' && sources.some(re => re.test(a))) return true;
-      }
-      // fallback: ίσως ο browser προσθέτει url στο πρώτο string arg
-      return false;
-    } catch { return false; }
+  function buildState(){
+    var cfg = consoleFilterConfig;
+    var st = {
+      installed: true,
+      enabled: !!cfg.enabled,
+      level: (cfg.tagLevel === 'warn') ? 'warn' : 'info',
+      patterns: cfg.patterns ? cfg.patterns.slice() : [],
+      sources: cfg.sources ? cfg.sources.slice() : [],
+      tag: cfg.tag ? cfg.tag : '[YouTubeAPI][non-critical]'
+    };
+    return st;
   }
-
-  function tagAndForward(level, ...args) {
-    // Για tag, δεν αλλοιώνουμε Error αντικείμενα—τα περνάμε αυτούσια.
-    // Απλώς προσαρτούμε prefix/tag στο πρώτο ορατό string.
-    const prefix = `${state.tag}`;
-    let forwarded = [];
-
-    if (args.length === 0) {
-      forwarded = [prefix];
+  function captureOrig(){
+    return {
+      error: console.error ? console.error.bind(console) : undefined,
+      warn:  console.warn  ? console.warn.bind(console)  : undefined,
+      info:  console.info  ? console.info.bind(console)  : undefined,
+      log:   console.log   ? console.log.bind(console)   : undefined,
+      debug: console.debug ? console.debug.bind(console) : undefined
+    };
+  }
+  function matchAnyArg(args, regexList){
+    try{
+      for (var i=0;i<args.length;i++){
+        var a = args[i];
+        var s;
+        if (typeof a === 'string'){ s = a; }
+        else if (a && a.message){ s = a.message; }
+        else { s = String(a); }
+        for (var j=0;j<regexList.length;j++){
+          if (regexList[j].test(s)){ return true; }
+        }
+      }
+    }catch(_){}
+    return false;
+  }
+  function matchSourceHints(args, sources){
+    if (!sources || sources.length === 0){ return false; }
+    try{
+      for (var i=0;i<args.length;i++){
+        var a = args[i];
+        if (a && a.stack){
+          for (var j=0;j<sources.length;j++){
+            if (sources[j].test(String(a.stack))){ return true; }
+          }
+        }
+        if (typeof a === 'string'){
+          for (var k=0;k<sources.length;k++){
+            if (sources[k].test(a)){ return true; }
+          }
+        }
+      }
+    }catch(_){}
+    return false;
+  }
+  function shouldTag(args, st){
+    if (!st.enabled){ return false; }
+    if (st.patterns.length === 0){ return false; }
+    var argMatch = matchAnyArg(args, st.patterns);
+    var srcMatch = matchSourceHints(args, st.sources);
+    return anyTrue([argMatch, srcMatch]);
+  }
+  function tagAndForward(level, forwardedArgs, st, orig){
+    var prefix = st.tag;
+    var payload;
+    if (forwardedArgs.length === 0){
+      payload = [prefix];
     } else {
-      // αν το πρώτο arg είναι string -> prefix + string, αλλιώς κάνε prepend tag ως ξεχωριστό arg
-      if (typeof args[0] === 'string') {
-        forwarded = [`${prefix} ${args[0]}`, ...args.slice(1)];
+      if (typeof forwardedArgs[0] === 'string'){
+        payload = [prefix + ' ' + forwardedArgs[0]];
+        for (var i=1;i<forwardedArgs.length;i++){ payload.push(forwardedArgs[i]); }
       } else {
-        forwarded = [prefix, ...args];
+        payload = [prefix];
+        for (var j=0;j<forwardedArgs.length;j++){ payload.push(forwardedArgs[j]); }
       }
     }
-
-    (level === 'warn' ? orig.warn : orig.info)(...forwarded);
+    if (level === 'warn'){ if (orig && orig.warn){ orig.warn.apply(console, payload); } }
+    else { if (orig && orig.info){ orig.info.apply(console, payload); } }
   }
-
-  function shouldTag(args) {
-    // Αν δεν είναι ενεργό, ή δεν υπάρχουν patterns -> όχι
-    if (!state.enabled || state.patterns.length === 0) return false;
-    const argMatch = matchAnyArg(args, state.patterns);
-    const sourceMatch = matchSourceHints(args, state.sources);
-    return argMatch || sourceMatch;
-  }
-
-  // Wrapper για error/warn
-  function wrap(origMethod, originName) {
-    return function (...args) {
-      // Μόνο για γνωστά non-critical warnings/errors κάνουμε "demote & tag"
-      if (shouldTag(args)) {
-        tagAndForward(state.level, ...args);
-        // Δεν καλούμε το original για να αποφύγουμε διπλό log στην κονσόλα.
+  function makeWrapper(origMethod, st, orig){
+    return function wrapped(){
+      var args = Array.prototype.slice.call(arguments);
+      var tag = shouldTag(args, st);
+      if (tag){
+        tagAndForward(st.level, args, st, orig);
         return;
       }
-      // Αλλιώς, κανονικά
-      origMethod(...args);
+      if (origMethod){ origMethod.apply(console, args); }
     };
   }
 
-  // Εγκατάσταση wrappers
-  console.error = wrap(orig.error, 'error');
-  console.warn  = wrap(orig.warn,  'warn');
-
-  // Δημόσιο API για runtime έλεγχο (π.χ. από DevTools)
-  const api = {
-    enable()           { state.enabled = true; },
-    disable()          { state.enabled = false; },
-    setLevel(lvl)      { state.level = (lvl === 'warn' ? 'warn' : 'info'); },
-    addPattern(re)     { if (re instanceof RegExp) state.patterns.push(re); },
-    clearPatterns()    { state.patterns.length = 0; },
-    addSource(re)      { if (re instanceof RegExp) state.sources.push(re); },
-    clearSources()     { state.sources.length = 0; },
-    restore() {
-      console.error = orig.error;
-      console.warn  = orig.warn;
-      if (typeof window !== 'undefined') window.__YT_CONSOLE_FILTER_API__ = undefined;
-      if (typeof globalThis !== 'undefined') globalThis.__YT_CONSOLE_FILTER_API__ = undefined;
-      if (typeof window !== 'undefined') window.__YT_CONSOLE_FILTER_INSTALLED__ = undefined;
-      if (typeof globalThis !== 'undefined') globalThis.__YT_CONSOLE_FILTER_INSTALLED__ = undefined;
-    },
-    _dumpState() { return JSON.parse(JSON.stringify(state)); }
-  };
-
-  if (typeof window !== 'undefined') {
-    window.__YT_CONSOLE_FILTER_INSTALLED__ = true;
-    window.__YT_CONSOLE_FILTER_API__ = api;
+  var s = S_CHECK_ENV;
+  while(true){
+    if (s === S_CHECK_ENV){
+      if (!hasConsole()){ s = S_ABORT; continue; }
+      s = S_CHECK_INSTALLED; continue;
+    }
+    if (s === S_CHECK_INSTALLED){
+      var inst = alreadyInstalled(ctx.g);
+      if (inst){ s = S_ABORT; continue; }
+      s = S_BUILD_STATE; continue;
+    }
+    if (s === S_BUILD_STATE){
+      ctx.stateObj = buildState();
+      s = S_CAPTURE_ORIG; continue;
+    }
+    if (s === S_CAPTURE_ORIG){
+      ctx.orig = captureOrig();
+      s = S_WRAP; continue;
+    }
+    if (s === S_WRAP){
+      if (ctx.orig && ctx.orig.error){ console.error = makeWrapper(ctx.orig.error, ctx.stateObj, ctx.orig); }
+      if (ctx.orig && ctx.orig.warn){  console.warn  = makeWrapper(ctx.orig.warn,  ctx.stateObj, ctx.orig); }
+      s = S_EXPOSE_API; continue;
+    }
+    if (s === S_EXPOSE_API){
+      ctx.api = {
+        enable: function(){ ctx.stateObj.enabled = true; },
+        disable: function(){ ctx.stateObj.enabled = false; },
+        setLevel: function(l){ ctx.stateObj.level = (l === 'warn') ? 'warn' : 'info'; },
+        addPattern: function(re){ if (re instanceof RegExp){ ctx.stateObj.patterns.push(re); } },
+        clearPatterns: function(){ ctx.stateObj.patterns.length = 0; },
+        addSource: function(re){ if (re instanceof RegExp){ ctx.stateObj.sources.push(re); } },
+        clearSources: function(){ ctx.stateObj.sources.length = 0; },
+        restore: function(){
+          if (ctx.orig && ctx.orig.error){ console.error = ctx.orig.error; }
+          if (ctx.orig && ctx.orig.warn){  console.warn  = ctx.orig.warn; }
+          if (typeof window !== 'undefined'){
+            window.__YT_CONSOLE_FILTER_API__ = undefined;
+            window.__YT_CONSOLE_FILTER_INSTALLED__ = undefined;
+          }
+          ctx.g.__YT_CONSOLE_FILTER_API__ = undefined;
+          ctx.g.__YT_CONSOLE_FILTER_INSTALLED__ = undefined;
+        },
+        _dumpState: function(){ try{ return JSON.parse(JSON.stringify(ctx.stateObj)); } catch(_){ return null; } }
+      };
+      if (typeof window !== 'undefined'){
+        window.__YT_CONSOLE_FILTER_API__ = ctx.api;
+        window.__YT_CONSOLE_FILTER_INSTALLED__ = true;
+      }
+      ctx.g.__YT_CONSOLE_FILTER_API__ = ctx.api;
+      ctx.g.__YT_CONSOLE_FILTER_INSTALLED__ = true;
+      s = S_LOG_START; continue;
+    }
+    if (s === S_LOG_START){
+      try{
+        var now = new Date().toLocaleTimeString();
+        if (ctx.orig && ctx.orig.log){ ctx.orig.log('[' + now + '] 🛠️ Console filter active: ' + ctx.stateObj.enabled + ' (' + ctx.stateObj.level + ')'); }
+      }catch(_){}
+      s = S_DONE; continue;
+    }
+    if (s === S_DONE){ break; }
+    if (s === S_ABORT){ break; }
+    break;
   }
-  if (typeof globalThis !== 'undefined') {
-    globalThis.__YT_CONSOLE_FILTER_INSTALLED__ = true;
-    globalThis.__YT_CONSOLE_FILTER_API__ = api;
-  }
-
-  // Ορατότητα κατά την εκκίνηση
-  const now = new Date().toLocaleTimeString();
-  orig.log?.(`[${now}] 🛠️ Console filter active: ${state.enabled} (${state.level})`);
-
 })();
-
-
+// --- End Console Filter (State Machine) ---
 // Επιστρέφει ενιαίο origin (πηγή αλήθειας)
 export function getOrigin(){
   try { return window.location.origin; } catch(e){ return 'https://localhost'; }
@@ -317,7 +377,6 @@ export function bindSafeMessageHandler(allowlist = null) {
   } catch (e) { log(`[${ts()}] ⚠️ bindSafeMessageHandler error → ${e}`); }
 }
 
-// --- End Of File ---
 // --- Console noise deduper & grouping ---
 const noiseCache = new Map(); // key -> {count, lastTs}
 function shouldSuppressNoise(args){
@@ -333,3 +392,5 @@ function shouldSuppressNoise(args){
   return false;
 }
 function groupedLog(tag, msg, count){ try{ console.groupCollapsed(`${tag} (x${count})`); console.log(msg); console.groupEnd(); }catch(_){} }
+
+// --- End Of File ---
