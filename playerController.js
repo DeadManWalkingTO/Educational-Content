@@ -1,10 +1,10 @@
 // --- playerController.js ---
-// Έκδοση: v6.5.45
+// Έκδοση: v6.6.7
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions ---
-const PLAYER_CONTROLLER_VERSION = 'v6.5.45';
+const PLAYER_CONTROLLER_VERSION = 'v6.6.7';
 export function getVersion() {
   return PLAYER_CONTROLLER_VERSION;
 }
@@ -35,6 +35,7 @@ import {
   anyTrue,
   allTrue,
 } from './globals.js';
+
 // Concurrency guard: tryPlay wraps player.playVideo with MAX_CONCURRENT_PLAYING
 function tryPlay(player, idx) {
   try {
@@ -74,6 +75,7 @@ function isNonEmptyArray(x) {
   }
   return true;
 }
+
 // Named guards for playerController
 function hasPlayer(p) {
   return !!p && typeof p.playVideo === 'function';
@@ -129,6 +131,15 @@ const STATE_TRANSITIONS = {
     },
   },
 };
+
+// Debounce helper for initial commands (postMessage race mitigation)
+function safeCmd(fn, delay = 80) {
+  setTimeout(() => {
+    try {
+      fn();
+    } catch (_) {}
+  }, delay);
+}
 
 /** Υπολογισμός απαιτούμενου χρόνου θέασης για AutoNext. 
   // < 3 min: 90–100%
@@ -259,15 +270,22 @@ export class PlayerController {
     const startDelaySec = this.config?.startDelay ?? rndInt(5, 180);
     const startDelay = startDelaySec * 1000;
     log(`[${ts()}] ⏳ Player ${this.index + 1} Scheduled -> start after ${startDelaySec}s`);
+    const __jitterMs = 100 + Math.floor(Math.random() * 120);
     setTimeout(() => {
-      const duration = typeof p.getDuration === 'function' ? p.getDuration() : 0;
-      let seek = 0;
-      if (duration >= 300) {
-        const initMax = this.config?.initSeekMax ?? 60;
-        seek = rndInt(0, initMax);
+      try {
+        if (typeof e.target.seekTo === 'function' && this.initialSeekSec) {
+          safeCmd(() => e.target.seekTo(this.initialSeekSec, true), 120);
+        }
+        if (typeof e.target.playVideo === 'function') {
+          safeCmd(() => e.target.playVideo(), 240);
+        }
+      } catch (__err) {
+        try {
+          log(`[${ts()}] ⚠️ onReady jitter failed: ${__err.message}`);
+        } catch (_e) {}
       }
-      if (typeof p.seekTo === 'function') p.seekTo(seek, true);
-      if (typeof p.playVideo === 'function') this.tryPlay(p);
+    }, __jitterMs); // JITTER_APPLIED
+    setTimeout(() => {
       log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> Seek=${seek}s after ${startDelaySec}s`);
       this.schedulePauses();
       this.scheduleMidSeek();

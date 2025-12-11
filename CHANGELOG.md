@@ -2,6 +2,19 @@
 
 ---
 
+## [2025-12-11] Fix: Template literal & Fine-tune (local 19:25)
+- Closed template literal and separated jitter/debounce logic.
+- Jitter 80–180 ms; seek/play via safeCmd at 100/200 ms.
+- File changed: playerController.js.
+
+
+## [2025-12-11] Fine-tune #2 (local 19:31)
+- Increased onReady jitter to 100–220 ms.
+- Adjusted safeCmd delays: seek +120 ms, play +240 ms.
+- File changed: playerController.js.
+
+---
+
 ## [2025-12-11] Unified helpers & concurrency
 - Ενοποίηση helpers `anyTrue`/`allTrue`: imports από `globals.js`, αφαίρεση τοπικών επαναδηλώσεων.
 - Ενεργοποίηση ορίου `MAX_CONCURRENT_PLAYING`: προστέθηκε `tryPlay()` σε `playerController.js` και αντικαταστάθηκαν άμεσες `playVideo()`.
@@ -220,3 +233,4 @@ Notes: Συμμόρφωση με κανόνα “No real newline σε string lit
 Notes: Καμία αλλαγή στη ροή. Smoke OK.
 
 ---
+
