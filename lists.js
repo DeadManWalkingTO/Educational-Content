@@ -1,9 +1,9 @@
 // --- lists.js ---
-// Έκδοση: v3.4.11
+// Έκδοση: v3.4.12
 // Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
 // Ενημερωμένο: Διόρθωση URL + καθαρισμός escaped tokens
 // --- Versions ---
-const LISTS_VERSION = "v3.4.11";
+const LISTS_VERSION = 'v3.4.12';
 export function getVersion() {
   return LISTS_VERSION;
 }
@@ -14,28 +14,15 @@ console.log(
 );
 
 // Imports
-import { log, ts } from "./globals.js";
+import { log, ts, anyTrue, allTrue } from './globals.js';
 
 // Guard helpers for State Machine (Rule 12)
-function anyTrue(flags) {
-  for (let i = 0; i < flags.length; i++) {
-    if (flags[i]) return true;
-  }
-  return false;
-}
-function allTrue(flags) {
-  for (let i = 0; i < flags.length; i++) {
-    if (!flags[i]) return false;
-  }
-  return true;
-}
-
 // Named guards for Lists
 function hasArrayWithItems(arr) {
   return allTrue([Array.isArray(arr), arr.length > 0]);
 }
 function isValidId(id) {
-  return typeof id === "string" && id.trim().length > 0;
+  return typeof id === 'string' && id.trim().length > 0;
 }
 function canLoadLists(main, alt) {
   return anyTrue([hasArrayWithItems(main), hasArrayWithItems(alt)]);
@@ -43,21 +30,21 @@ function canLoadLists(main, alt) {
 
 // Internal fallback list (15 video IDs)
 const internalList = [
-  "ibfVWogZZhU",
-  "mYn9JUxxi0M",
-  "sWCTs_rQNy8",
-  "JFweOaiCoj4",
-  "U6VWEuOFRLQ",
-  "ARn8J7N1hIQ",
-  "3nd2812IDA4",
-  "RFO0NWk-WPw",
-  "biwbtfnq9JI",
-  "3EXSD6DDCrU",
-  "WezZYKX7AAY",
-  "AhRR2nQ71Eg",
-  "xIQBnFvFTfg",
-  "ZWbRPcCbZA8",
-  "YsdWYiPlEsE",
+  'ibfVWogZZhU',
+  'mYn9JUxxi0M',
+  'sWCTs_rQNy8',
+  'JFweOaiCoj4',
+  'U6VWEuOFRLQ',
+  'ARn8J7N1hIQ',
+  '3nd2812IDA4',
+  'RFO0NWk-WPw',
+  'biwbtfnq9JI',
+  '3EXSD6DDCrU',
+  'WezZYKX7AAY',
+  'AhRR2nQ71Eg',
+  'xIQBnFvFTfg',
+  'ZWbRPcCbZA8',
+  'YsdWYiPlEsE',
 ];
 
 /**
@@ -65,19 +52,15 @@ const internalList = [
  */
 export async function loadVideoList() {
   try {
-    const localResponse = await fetch("list.txt");
+    const localResponse = await fetch('list.txt');
     if (localResponse.ok) {
       const text = await localResponse.text();
       const list = text
-        .split("\n")
+        .split('\n')
         .map((x) => x.trim())
         .filter((x) => x);
       if (list.length > 0) {
-        log(
-          `[${ts()}] ✅ Main list loaded from local file -> ${
-            list.length
-          } items`
-        );
+        log(`[${ts()}] ✅ Main list loaded from local file -> ${list.length} items`);
         return list;
       }
     }
@@ -88,18 +71,16 @@ export async function loadVideoList() {
   // GitHub fallback (διορθωμένο URL)
   try {
     const githubUrl =
-      "https://raw.githubusercontent.com/DeadManWalkingTO/Educational-Content/main/list.txt";
+      'https://raw.githubusercontent.com/DeadManWalkingTO/Educational-Content/main/list.txt';
     const githubResponse = await fetch(githubUrl);
     if (githubResponse.ok) {
       const text = await githubResponse.text();
       const list = text
-        .split("\n")
+        .split('\n')
         .map((x) => x.trim())
         .filter((x) => x);
       if (list.length > 0) {
-        log(
-          `[${ts()}] ✅ Main list loaded from GitHub -> ${list.length} items`
-        );
+        log(`[${ts()}] ✅ Main list loaded from GitHub -> ${list.length} items`);
         return list;
       }
     }
@@ -108,9 +89,7 @@ export async function loadVideoList() {
   }
 
   // Internal fallback
-  log(
-    `[${ts()}] ⚠️ Using internal fallback list -> ${internalList.length} items`
-  );
+  log(`[${ts()}] ⚠️ Using internal fallback list -> ${internalList.length} items`);
   return internalList;
 }
 
@@ -119,17 +98,15 @@ export async function loadVideoList() {
  */
 export async function loadAltList() {
   try {
-    const localResponse = await fetch("random.txt");
+    const localResponse = await fetch('random.txt');
     if (localResponse.ok) {
       const text = await localResponse.text();
       const list = text
-        .split("\n")
+        .split('\n')
         .map((x) => x.trim())
         .filter((x) => x);
       if (list.length > 0) {
-        log(
-          `[${ts()}] ✅ Alt list loaded from local file -> ${list.length} items`
-        );
+        log(`[${ts()}] ✅ Alt list loaded from local file -> ${list.length} items`);
         return list;
       }
     }
@@ -144,15 +121,8 @@ export async function loadAltList() {
  * Επαναφόρτωση λιστών (main και alt).
  */
 export async function reloadList() {
-  const [mainList, altList] = await Promise.all([
-    loadVideoList(),
-    loadAltList(),
-  ]);
-  log(
-    `[${ts()}] 🔄 Lists reloaded -> Main:${mainList.length} Alt:${
-      altList.length
-    }`
-  );
+  const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
+  log(`[${ts()}] 🔄 Lists reloaded -> Main:${mainList.length} Alt:${altList.length}`);
   return { mainList, altList };
 }
 

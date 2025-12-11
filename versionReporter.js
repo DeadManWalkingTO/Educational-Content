@@ -1,9 +1,9 @@
 // --- versionReporter.js ---
-// Έκδοση: v2.3.3
+// Έκδοση: v2.3.5
 // Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
 // Αφαίρεση κυκλικής εξάρτησης με main.js. Η έκδοση του main θα προστεθεί από το ίδιο το main.js.
 // --- Versions ---
-const VERSION_REPORTER_VERSION = 'v2.3.3';
+const VERSION_REPORTER_VERSION = 'v2.3.5';
 export function getVersion() {
   return VERSION_REPORTER_VERSION;
 }
@@ -14,7 +14,7 @@ console.log(
 );
 
 //imports
-import { getVersion as getGlobalsVersion } from './globals.js';
+import { getVersion as getGlobalsVersion, anyTrue, allTrue } from './globals.js';
 import { getVersion as getListsVersion } from './lists.js';
 import { getVersion as getHumanModeVersion } from './humanMode.js';
 import { getVersion as getPlayerControllerVersion } from './playerController.js';
@@ -23,19 +23,6 @@ import { getVersion as getWatchdogVersion } from './watchdog.js';
 import { log, ts } from './globals.js';
 
 // Guard helpers for State Machine (Rule 12)
-function anyTrue(flags) {
-  for (let i = 0; i < flags.length; i++) {
-    if (flags[i]) return true;
-  }
-  return false;
-}
-function allTrue(flags) {
-  for (let i = 0; i < flags.length; i++) {
-    if (!flags[i]) return false;
-  }
-  return true;
-}
-
 /**
  * Ανάκτηση της έκδοσης του HTML από το meta tag.
  * Στο return {string} Έκδοση HTML ή "unknown".

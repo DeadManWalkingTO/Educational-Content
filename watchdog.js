@@ -1,9 +1,9 @@
 // --- watchdog.js ---
-// Έκδοση: v2.5.15
+// Έκδοση: v2.5.16
 // Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
 // Συμμόρφωση με κανόνα State Machine με Guard Steps.
 // --- Versions ---
-const WATCHDOG_VERSION = 'v2.5.15';
+const WATCHDOG_VERSION = 'v2.5.16';
 export function getVersion() {
   return WATCHDOG_VERSION;
 }
@@ -14,22 +14,9 @@ console.log(
 );
 
 // Imports
-import { log, ts, controllers, stats } from './globals.js';
+import { log, ts, controllers, stats, anyTrue, allTrue } from './globals.js';
 
 // Guard helpers for State Machine (Rule 12)
-function anyTrue(flags) {
-  for (let i = 0; i < flags.length; i++) {
-    if (flags[i]) return true;
-  }
-  return false;
-}
-function allTrue(flags) {
-  for (let i = 0; i < flags.length; i++) {
-    if (!flags[i]) return false;
-  }
-  return true;
-}
-
 /** Εκκίνηση watchdog (καλείται ρητά από main.js μετά το YouTube ready και Human Mode init). */
 export function startWatchdog() {
   log(`[${ts()}] 🧭 Watchdog -> start (adaptive): ${WATCHDOG_VERSION}`);

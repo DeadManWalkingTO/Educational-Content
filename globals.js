@@ -1,11 +1,11 @@
 // --- globals.js ---
-// Έκδοση: v2.9.9
+// Έκδοση: v2.9.10
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const GLOBALS_VERSION = 'v2.9.9';
+const GLOBALS_VERSION = 'v2.9.10';
 export function getVersion() {
   return GLOBALS_VERSION;
 }
@@ -224,6 +224,9 @@ export const consoleFilterConfig = {
     /postMessage.*origin.*does not match/i,
     /googleads\.g\.doubleclick\.net.*blocked by CORS policy/i,
     /youtube.*pagead\/viewthroughconversion.*blocked by CORS policy/i,
+    ,
+    /Permissions\s+policy\s+violation:\s+compute-pressure/i,
+    /\[Violation\]\s+Permissions\s+policy\s+violation:\s+compute-pressure/i,
   ],
   sources: [/www\-widgetapi\.js/i],
   tag: '[YouTubeAPI][non-critical]',

@@ -1,8 +1,8 @@
 // --- humanMode.js ---
-// Έκδοση: v4.7.15
+// Έκδοση: v4.7.17
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 // --- Versions ---
-const HUMAN_MODE_VERSION = 'v4.7.15';
+const HUMAN_MODE_VERSION = 'v4.7.17';
 export function getVersion() {
   return HUMAN_MODE_VERSION;
 }
@@ -23,23 +23,12 @@ import {
   isStopping,
   setMainList,
   setAltList,
+  anyTrue,
+  allTrue,
 } from './globals.js';
 import { PlayerController } from './playerController.js';
 
 // Guard helpers for State Machine (Rule 12)
-function anyTrue(flags) {
-  for (let i = 0; i < flags.length; i++) {
-    if (flags[i]) return true;
-  }
-  return false;
-}
-function allTrue(flags) {
-  for (let i = 0; i < flags.length; i++) {
-    if (!flags[i]) return false;
-  }
-  return true;
-}
-
 // Named guards for Human Mode
 function hasArrayWithItems(arr) {
   return allTrue([Array.isArray(arr), arr.length > 0]);
@@ -122,6 +111,7 @@ function createSessionPlan() {
     replayChance: Math.random() < 0.15,
   };
 }
+
 // --- Sequential Initialization των players ---
 export async function initPlayersSequentially(mainList, altList) {
   if (Array.isArray(mainList) && Array.isArray(altList)) {

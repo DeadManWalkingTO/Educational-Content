@@ -1,10 +1,10 @@
 // --- playerController.js ---
-// Έκδοση: v6.5.43
+// Έκδοση: v6.5.45
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions ---
-const PLAYER_CONTROLLER_VERSION = 'v6.5.43';
+const PLAYER_CONTROLLER_VERSION = 'v6.5.45';
 export function getVersion() {
   return PLAYER_CONTROLLER_VERSION;
 }
@@ -32,22 +32,38 @@ import {
   rndInt,
   stats,
   ts,
+  anyTrue,
+  allTrue,
 } from './globals.js';
+// Concurrency guard: tryPlay wraps player.playVideo with MAX_CONCURRENT_PLAYING
+function tryPlay(player, idx) {
+  try {
+    const count = getPlayingCount();
+    if (count >= MAX_CONCURRENT_PLAYING) {
+      log(
+        `[${ts()}] ⏳ Concurrency limit reached (${count}/${MAX_CONCURRENT_PLAYING}) — deferring Player ${
+          idx + 1
+        }`
+      );
+      const delay = rndInt(1500, 5000);
+      schedule(() => {
+        try {
+          player.playVideo();
+        } catch (e) {
+          log(`[${ts()}] ❗ tryPlay error after delay → ${e}`);
+        }
+      }, delay);
+      return false;
+    }
+    tryPlay(player, this.index);
+    return true;
+  } catch (e) {
+    log(`[${ts()}] ❗ tryPlay error → ${e}`);
+    return false;
+  }
+}
 
 // Guard helpers for State Machine (Rule 12)
-function anyTrue(flags) {
-  for (let i = 0; i < flags.length; i++) {
-    if (flags[i]) return true;
-  }
-  return false;
-}
-function allTrue(flags) {
-  for (let i = 0; i < flags.length; i++) {
-    if (!flags[i]) return false;
-  }
-  return true;
-}
-
 // Ατομικός έλεγχος «είναι μη κενός πίνακας»
 function isNonEmptyArray(x) {
   if (!Array.isArray(x)) {
@@ -58,7 +74,6 @@ function isNonEmptyArray(x) {
   }
   return true;
 }
-
 // Named guards for playerController
 function hasPlayer(p) {
   return !!p && typeof p.playVideo === 'function';
@@ -115,13 +130,14 @@ const STATE_TRANSITIONS = {
   },
 };
 
-/** Υπολογισμός απαιτούμενου χρόνου θέασης για AutoNext. */
-export function getRequiredWatchTime(durationSec) {
+/** Υπολογισμός απαιτούμενου χρόνου θέασης για AutoNext. 
   // < 3 min: 90–100%
   // < 5 min: 80–100%
   // 5–30 min: 50–70%
   // 30–120 min: 20–35%
   // > 120 min: 10–15%
+*/
+export function getRequiredWatchTime(durationSec) {
   const capSec = (15 + rndInt(0, 5)) * 60; // 15–20 min cap
   let minPct, maxPct;
   if (durationSec < 180) {
@@ -558,7 +574,7 @@ export class PlayerController {
     }
     const newId = list[Math.floor(Math.random() * list.length)];
     player.loadVideoById(newId);
-    player.playVideo();
+    tryPlay(player, this.index);
     stats.autoNext++;
     incAutoNext(this.index);
     this.totalPlayTime = 0;

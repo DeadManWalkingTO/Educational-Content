@@ -1,12 +1,12 @@
 // --- main.js ---
-// Έκδοση: v1.7.19
+// Έκδοση: v1.7.21
 // Entry point: DOM readiness, UI binding, lists load, versions report, YouTube API ready, Human Mode init, watchdog
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 // Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded) και gate μέσω Start button.
 // Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 // --- Versions ---
-const MAIN_VERSION = 'v1.7.19';
+const MAIN_VERSION = 'v1.7.21';
 export function getVersion() {
   return MAIN_VERSION;
 }
@@ -17,7 +17,7 @@ console.log(
 );
 
 // Imports
-import { log, ts, setUserGesture, bindSafeMessageHandler } from './globals.js';
+import { log, ts, setUserGesture, bindSafeMessageHandler, anyTrue, allTrue } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions } from './versionReporter.js';
@@ -25,19 +25,6 @@ import { bindUiEvents, setControlsEnabled } from './uiControls.js';
 import { startWatchdog } from './watchdog.js';
 
 // Guard helpers for State Machine (Rule 12)
-function anyTrue(flags) {
-  for (let i = 0; i < flags.length; i++) {
-    if (flags[i]) return true;
-  }
-  return false;
-}
-function allTrue(flags) {
-  for (let i = 0; i < flags.length; i++) {
-    if (!flags[i]) return false;
-  }
-  return true;
-}
-
 // Named guards (Rule 12)
 function isApiReady() {
   const hasYT = !!(window && window.YT);
