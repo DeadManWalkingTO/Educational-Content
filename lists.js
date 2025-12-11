@@ -1,5 +1,5 @@
 // --- lists.js ---
-// Έκδοση: v3.3.9
+// Έκδοση: v3.3.10
 // Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
 // Ενημερωμένο: Διόρθωση URL + καθαρισμός escaped tokens (&gt; → >) + σωστό split με '\n'.
 // --- Versions ---
@@ -9,7 +9,17 @@ export function getVersion() { return LISTS_VERSION; }
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: lists.js ${LISTS_VERSION} -> Ξεκίνησε`);
 
+// Imports
 import { log, ts } from './globals.js';
+
+// Guard helpers for State Machine (Rule 12)
+function anyTrue(flags){ for(let i=0;i<flags.length;i++){ if(flags[i]) return true; } return false; }
+function allTrue(flags){ for(let i=0;i<flags.length;i++){ if(!flags[i]) return false; } return true; }
+
+// Named guards for Lists
+function hasArrayWithItems(arr){ return allTrue([ Array.isArray(arr), arr.length > 0 ]); }
+function isValidId(id){ return typeof id === 'string' && id.trim().length>0; }
+function canLoadLists(main, alt){ return anyTrue([ hasArrayWithItems(main), hasArrayWithItems(alt) ]); }
 
 // Internal fallback list (15 video IDs)
 const internalList = [

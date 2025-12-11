@@ -1,5 +1,5 @@
 // --- main.js ---
-// Έκδοση: v1.6.11
+// Έκδοση: v1.6.14
 // Entry point: DOM readiness, UI binding, lists load, versions report, YouTube API ready, Human Mode init, watchdog 
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness. 
 // Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded) και gate μέσω Start button. 
@@ -11,6 +11,25 @@ export function getVersion() { return MAIN_VERSION; }
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου 
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: main.js ${MAIN_VERSION} -> Ξεκίνησε`); 
 import { log, ts, setUserGesture, bindSafeMessageHandler } from './globals.js';
+
+
+// Guard helpers for State Machine (Rule 12)
+
+
+// Named guards (Rule 12)
+function isApiReady(){
+  const hasYT = !!(window && window.YT);
+  const hasPlayer = !!(window && window.YT && typeof window.YT.Player === 'function');
+  return allTrue([ hasYT, hasPlayer ]);
+}
+function isDomInteractive(){
+  return anyTrue([ document.readyState === 'complete', document.readyState === 'interactive' ]);
+}
+function isHtmlVersionMissing(v){
+  return anyTrue([ !v, !v.HTML, v.HTML === 'unknown' ]);
+}
+function anyTrue(flags){ for(let i=0;i<flags.length;i++){ if(flags[i]) return true; } return false; }
+function allTrue(flags){ for(let i=0;i<flags.length;i++){ if(!flags[i]) return false; } return true; }
 try { bindSafeMessageHandler(); } catch (e) { log(`[${ts()}] ⚠️ bindSafeMessageHandler failed → ${e}`); } 
 import { loadVideoList, loadAltList } from './lists.js'; 
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js'; 
@@ -20,7 +39,7 @@ import { startWatchdog } from './watchdog.js';
 // ✅ YouTube API readiness (περιμένουμε YT.Player) 
 async function sanityCheck(versions) { 
  try { 
- if (!versions || !versions.HTML || versions.HTML === 'unknown') { 
+ if (isHtmlVersionMissing(versions)) { 
  log(`[${ts()}] ⚠️ Sanity: HTML version missing or unknown`); 
  } else { 
  log(`[${ts()}] ✅ Sanity: HTML version -> ${versions.HTML}`); 
@@ -40,7 +59,7 @@ async function sanityCheck(versions) {
 } 
 const youtubeReadyPromise = new Promise((resolve) => { 
  const checkInterval = setInterval(() => { 
- if (window.YT && typeof YT.Player === 'function') { 
+ if (isApiReady()) { 
  clearInterval(checkInterval); 
  console.log(`[${new Date().toLocaleTimeString()}] ✅ YouTube API Ready`); 
  resolve(); 

@@ -1,14 +1,28 @@
-// --- humanMode.js ---
-// Έκδοση: v4.6.12
+// humanMode.js
+// Έκδοση: v4.6.14
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
-// 
 // --- Versions --- 
-const HUMAN_MODE_VERSION = "v4.6.12"; 
+const HUMAN_MODE_VERSION = "v4.6.14"; 
 export function getVersion() { return HUMAN_MODE_VERSION; } 
+
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου 
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: humanMode.js ${HUMAN_MODE_VERSION} -> Ξεκίνησε`); 
+
+// Imports
 import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList } from './globals.js'; 
 import { PlayerController } from './playerController.js'; 
+
+// Guard helpers for State Machine (Rule 12)
+function anyTrue(flags){ for(let i=0;i<flags.length;i++){ if(flags[i]) return true; } return false; }
+function allTrue(flags){ for(let i=0;i<flags.length;i++){ if(!flags[i]) return false; } return true; }
+
+// Named guards for Human Mode
+function hasArrayWithItems(arr){ return allTrue([ Array.isArray(arr), arr.length > 0 ]); }
+function isFunction(fn){ return typeof fn === 'function'; }
+function inStaggerWindow(ms){ return anyTrue([ ms >= 400 && ms <= 600, ms === undefined ]); }
+function canSequentialInit(queue){ return hasArrayWithItems(queue); }
+function hasCtrlAndPlayer(ctrl){ return !!ctrl && !!ctrl.player; }
+
 // --- Δημιουργία containers για τους players --- 
 export function createPlayerContainers() { 
  const container = document.getElementById("playersContainer"); 
@@ -64,7 +78,7 @@ export async function initPlayersSequentially(mainList, altList) {
  // Ασφαλείς guards για κενές λίστες 
  const mainEmpty = (mainList?.length ?? 0) === 0; 
  const altEmpty = (altList?.length ?? 0) === 0; 
- if (mainEmpty && altEmpty) { 
+ if (allTrue([ mainEmpty, altEmpty ])) { 
  log(`[${ts()}] ❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκκίνηση σταματά.`); 
  return; 
  } 
@@ -84,16 +98,16 @@ export async function initPlayersSequentially(mainList, altList) {
  } 
  // Εύρεση controller ή null 
  let controller = controllers.find(c => c.index === i) ?? null; 
- if (controller && controller.player) { 
+ if (allTrue([ hasCtrlAndPlayer(controller) ])) { 
  log(`[${ts()}] ⚠️ Player ${i + 1} already initialized, skipping re-init`); 
  continue; 
  } 
  const useMain = Math.random() < MAIN_PROBABILITY; 
- const hasMain = Array.isArray(mainList) && mainList.length > 0; 
- const hasAlt = Array.isArray(altList) && altList.length > 0; 
+ const hasMain = hasArrayWithItems(mainList); 
+ const hasAlt = hasArrayWithItems(altList); 
  let sourceList; 
- if (useMain && hasMain) sourceList = mainList; 
- else if (!useMain && hasAlt) sourceList = altList; 
+ if (allTrue([ useMain, hasMain ])) sourceList = mainList; 
+ else if (allTrue([ !useMain, hasAlt ])) sourceList = altList; 
  else if (hasMain) sourceList = mainList; 
  else sourceList = altList; 
  // Ασφαλής επιλογή videoId 
@@ -104,7 +118,7 @@ export async function initPlayersSequentially(mainList, altList) {
  const videoId = sourceList[Math.floor(Math.random() * sourceList.length)]; 
  const profile = BEHAVIOR_PROFILES[Math.floor(Math.random() * BEHAVIOR_PROFILES.length)]; 
  const config = createRandomPlayerConfig(profile); 
- if (i == 0) config.startDelay = 0; 
+ if (i == 0) config.startDelay = Math.max(config.startDelay ?? 0, 1); 
  const session = createSessionPlan(); 
  if (!controller) { 
  controller = new PlayerController(i, mainList, altList, config); 

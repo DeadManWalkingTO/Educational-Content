@@ -2,6 +2,48 @@
 
 ---
 ## [2025-12-11]
+- globals.js v2.8.5: Εναρμόνιση Guard Steps (Rule 12); προσθήκη helpers/named guards και guardification σε if(...).
+- uiControls.js v2.4.10: Εναρμόνιση Guard Steps (Rule 12); προσθήκη helpers/named guards και guardification σε if(...).
+- lists.js v3.3.10: Εναρμόνιση Guard Steps (Rule 12); προσθήκη helpers/named guards και guardification σε if(...).
+- versionReporter.js v2.2.3: Εναρμόνιση Guard Steps (Rule 12); προσθήκη helpers/named guards και guardification σε if(...).
+
+## [2025-12-11]
+- humanMode.js v4.6.13: Εναρμόνιση Guard Steps (Rule 12); προστέθηκαν named guards και έγινε guardification σε arrays/function checks, generic &&/||.
+
+## [2025-12-11]
+- main.js v1.6.14: Τελική εναρμόνιση Guard Steps (Rule 12); προστέθηκαν named guards (isApiReady/isDomInteractive/isHtmlVersionMissing), interval gate & sanity OR σε guards.
+
+## [2025-12-11]
+- main.js v1.6.13: 2η/3η διέλευση Guard Steps (Rule 12); multi-term &&/|| σε if(...) → guards, YouTube/DOM gates εναρμονισμένα.
+
+## [2025-12-11]
+- main.js v1.6.12: Εναρμόνιση Guard Steps (Rule 12); youTube API readiness gate με guards, DOM readiness OR → anyTrue, Start gate enablement → allTrue.
+
+## [2025-12-11]
+- watchdog.js v2.4.10: 3η διέλευση Guard Steps (Rule 12); χειροποίητα guards σε BUFFERING/PAUSED thresholds και stuck check.
+
+## [2025-12-11]
+- watchdog.js v2.4.9: 2η διέλευση Guard Steps (Rule 12); γενικευμένο guardify για multi-term συνθήκες σε if(...).
+
+## [2025-12-11]
+- watchdog.js v2.4.8: 1η διέλευση Guard Steps (Rule 12); προσθήκη anyTrue/allTrue, guardified state/duration checks, μείωση inline &&/||.
+
+## [2025-12-11]
+- playerController.js v6.4.27: Τελική εναρμόνιση — αντικατάσταση isValidOrigin chain με allTrue([...]); inline && → 0.
+
+## [2025-12-11]
+- playerController.js v6.4.26: Τελική εναρμόνιση Guard Steps (Rule 12); εξομάλυνση isValidOrigin chain σε allTrue([...]), μείωση υπολοίπων inline τελεστών.
+
+## [2025-12-11]
+- playerController.js v6.4.25: 4η διέλευση Guard Steps (Rule 12); guardified isValidOrigin και midSeek/schedulePauses checks, περαιτέρω μείωση inline τελεστών.
+
+## [2025-12-11]
+- playerController.js v6.4.24: 3η διέλευση Guard Steps (Rule 12); περαιτέρω μείωση inline &&/||, generic guardify για απλές συνθήκες, διατήρηση semantics.
+
+## [2025-12-11]
+- playerController.js v6.4.23: 2η διέλευση Guard Steps (Rule 12); μείωση inline &&/||, προσθήκη guards σε origin/player state/list checks.
+
+## [2025-12-11]
 - **globals.js → v2.8.4**: Μετατροπή του *Console filter* σε **State Machine με guard steps** (χωρίς ρητούς τελεστές `||`/`&&`), βελτίωση συμβατότητας με parsers/minifiers, demotion/tagging για `postMessage origin mismatch` και `DoubleClick CORS` logs.
 - Ενημερώθηκαν τα sections **Baseline/Versions** και **Τρέχουσες Εκδόσεις** να αντικατοπτρίζουν τη νέα έκδοση των Globals.
 

@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-// Έκδοση: v2.2.2
+// Έκδοση: v2.2.3
 // Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
 // Αφαίρεση κυκλικής εξάρτησης με main.js. Η έκδοση του main θα προστεθεί από το ίδιο το main.js.
 // --- Versions ---
@@ -13,6 +13,11 @@ import { getVersion as getHumanModeVersion } from './humanMode.js';
 import { getVersion as getPlayerControllerVersion } from './playerController.js';
 import { getVersion as getUiControlsVersion } from './uiControls.js';
 import { getVersion as getWatchdogVersion } from './watchdog.js';
+
+
+// Guard helpers for State Machine (Rule 12)
+function anyTrue(flags){ for(let i=0;i<flags.length;i++){ if(flags[i]) return true; } return false; }
+function allTrue(flags){ for(let i=0;i<flags.length;i++){ if(!flags[i]) return false; } return true; }
 /**
  * Ανάκτηση της έκδοσης του HTML από το meta tag.
  * @returns {string} Έκδοση HTML ή "unknown".

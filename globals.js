@@ -1,12 +1,13 @@
 // --- globals.js ---
-// Έκδοση: v2.8.4
+// Έκδοση: v2.8.5
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const GLOBALS_VERSION = "v2.8.4";
+const GLOBALS_VERSION = "v2.8.5";
 export function getVersion() { return GLOBALS_VERSION; }
+
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ξεκίνησε`);
 
@@ -21,15 +22,20 @@ export const stats = {
   volumeChanges: 0
 };
 
+// Named guards for globals
+function isObj(x){ return typeof x === 'object' && x !== null; }
+function hasFn(obj, name){ return isObj(obj) && typeof obj[name] === 'function'; }
+function nonEmpty(str){ return typeof str === 'string' && str.length>0; }
+
 // --- Controllers για τους players ---
 export const controllers = [];
+
 // --- Concurrency Controls ---
 export const MAX_CONCURRENT_PLAYING = 2;
 let _currentPlaying = 0;
 export function getPlayingCount(){ return _currentPlaying; }
 export function incPlaying(){ _currentPlaying++; log(`[${new Date().toLocaleTimeString()}] ✅ Playing++ -> ${_currentPlaying}`); }
 export function decPlaying(){ if(_currentPlaying>0){ _currentPlaying--; } log(`[${new Date().toLocaleTimeString()}] ✅ Playing-- -> ${_currentPlaying}`); }
-
 
 // --- Σταθερές εφαρμογής ---
 export const PLAYER_COUNT = 8;
@@ -133,16 +139,11 @@ function updateStats() {
   }
 }
 
-
-
-
-
 /**
  * Console Filter για non-critical μηνύματα YouTube IFrame API.
  * - Ενεργοποίηση/Απενεργοποίηση με σημαία.
  * - Tagging αντί για σιωπή (κρατάμε την ορατότητα, μειώνουμε «θόρυβο»).
  */
-
 // --- Console Filter (State Machine, χωρίς '||'/'&&') ---
 // Περιγραφή: Tagging & demotion για μη-κρίσιμα μηνύματα YouTube IFrame API (postMessage origin mismatch)
 // και DoubleClick CORS warnings. Χρήση guard steps και βοηθητικών anyTrue/allTrue για αποφυγή ρητών τελεστών.
@@ -219,7 +220,7 @@ function allTrue(flags){
         var a = args[i];
         var s;
         if (typeof a === 'string'){ s = a; }
-        else if (a && a.message){ s = a.message; }
+        else if (allTrue([ a, a.message ])){ s = a.message; }
         else { s = String(a); }
         for (var j=0;j<regexList.length;j++){
           if (regexList[j].test(s)){ return true; }
@@ -233,7 +234,7 @@ function allTrue(flags){
     try{
       for (var i=0;i<args.length;i++){
         var a = args[i];
-        if (a && a.stack){
+        if (allTrue([ a, a.stack ])){
           for (var j=0;j<sources.length;j++){
             if (sources[j].test(String(a.stack))){ return true; }
           }
@@ -268,8 +269,8 @@ function allTrue(flags){
         for (var j=0;j<forwardedArgs.length;j++){ payload.push(forwardedArgs[j]); }
       }
     }
-    if (level === 'warn'){ if (orig && orig.warn){ orig.warn.apply(console, payload); } }
-    else { if (orig && orig.info){ orig.info.apply(console, payload); } }
+    if (level === 'warn'){ if (allTrue([ orig, orig.warn ])){ orig.warn.apply(console, payload); } }
+    else { if (allTrue([ orig, orig.info ])){ orig.info.apply(console, payload); } }
   }
   function makeWrapper(origMethod, st, orig){
     return function wrapped(){
@@ -303,8 +304,8 @@ function allTrue(flags){
       s = S_WRAP; continue;
     }
     if (s === S_WRAP){
-      if (ctx.orig && ctx.orig.error){ console.error = makeWrapper(ctx.orig.error, ctx.stateObj, ctx.orig); }
-      if (ctx.orig && ctx.orig.warn){  console.warn  = makeWrapper(ctx.orig.warn,  ctx.stateObj, ctx.orig); }
+      if (allTrue([ ctx.orig, ctx.orig.error ])){ console.error = makeWrapper(ctx.orig.error, ctx.stateObj, ctx.orig); }
+      if (allTrue([ ctx.orig, ctx.orig.warn ])){  console.warn  = makeWrapper(ctx.orig.warn,  ctx.stateObj, ctx.orig); }
       s = S_EXPOSE_API; continue;
     }
     if (s === S_EXPOSE_API){
@@ -317,8 +318,8 @@ function allTrue(flags){
         addSource: function(re){ if (re instanceof RegExp){ ctx.stateObj.sources.push(re); } },
         clearSources: function(){ ctx.stateObj.sources.length = 0; },
         restore: function(){
-          if (ctx.orig && ctx.orig.error){ console.error = ctx.orig.error; }
-          if (ctx.orig && ctx.orig.warn){  console.warn  = ctx.orig.warn; }
+          if (allTrue([ ctx.orig, ctx.orig.error ])){ console.error = ctx.orig.error; }
+          if (allTrue([ ctx.orig, ctx.orig.warn ])){  console.warn  = ctx.orig.warn; }
           if (typeof window !== 'undefined'){
             window.__YT_CONSOLE_FILTER_API__ = undefined;
             window.__YT_CONSOLE_FILTER_INSTALLED__ = undefined;
@@ -339,7 +340,7 @@ function allTrue(flags){
     if (s === S_LOG_START){
       try{
         var now = new Date().toLocaleTimeString();
-        if (ctx.orig && ctx.orig.log){ ctx.orig.log('[' + now + '] 🛠️ Console filter active: ' + ctx.stateObj.enabled + ' (' + ctx.stateObj.level + ')'); }
+        if (allTrue([ ctx.orig, ctx.orig.log ])){ ctx.orig.log('[' + now + '] 🛠️ Console filter active: ' + ctx.stateObj.enabled + ' (' + ctx.stateObj.level + ')'); }
       }catch(_){}
       s = S_DONE; continue;
     }
@@ -358,10 +359,6 @@ export function getOrigin(){
 export function getYouTubeEmbedHost(){
   return 'https://www.youtube.com';
 }
-
-// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ολοκληρώθηκε`);
-
 
 // --- Safe postMessage handler ---
 export function bindSafeMessageHandler(allowlist = null) {
@@ -383,7 +380,8 @@ function shouldSuppressNoise(args){
   const s = String(args && args[0] || '');
   const isWidgetNoise = /www\-widgetapi\.js/i.test(s) || /Failed to execute 'postMessage'/i.test(s);
   const isAdsNoise    = /viewthroughconversion/i.test(s) || /doubleclick\.net/i.test(s);
-  if (!(isWidgetNoise || isAdsNoise)) return false;
+  const isNoise = anyTrue([ isWidgetNoise, isAdsNoise ]);
+  if (!isNoise) return false;
   const key = s.replace(/\d{2}:\d{2}:\d{2}/g,'');
   const now = Date.now();
   const rec = noiseCache.get(key) || {count:0,lastTs:0};
@@ -392,5 +390,8 @@ function shouldSuppressNoise(args){
   return false;
 }
 function groupedLog(tag, msg, count){ try{ console.groupCollapsed(`${tag} (x${count})`); console.log(msg); console.groupEnd(); }catch(_){} }
+
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+log(`[${ts()}] ✅ Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

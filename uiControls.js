@@ -1,18 +1,30 @@
 // --- uiControls.js ---
-// Έκδοση: v2.4.9
+// Έκδοση: v2.4.10
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const UICONTROLS_VERSION = "v2.4.9";
+const UICONTROLS_VERSION = "v2.4.10";
 export function getVersion() { return UICONTROLS_VERSION; }
+
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: uiControls.js ${UICONTROLS_VERSION} -> Ξεκίνησε`);
+
+// Imports
 import {
   log, ts, rndInt, controllers, MAIN_PROBABILITY,
   setIsStopping, clearStopTimers, pushStopTimer,
   getMainList, getAltList, setMainList, setAltList
 } from './globals.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
+
+// Guard helpers for State Machine (Rule 12)
+function anyTrue(flags){ for(let i=0;i<flags.length;i++){ if(flags[i]) return true; } return false; }
+function allTrue(flags){ for(let i=0;i<flags.length;i++){ if(!flags[i]) return false; } return true; }
+
+// Named guards for UI Controls
+function hasEl(id){ return !!document.getElementById(id); }
+function isHttps(){ return typeof location !== 'undefined' && location.protocol === 'https:'; }
+function canClipboardNative(){ return isHttps() && !!(navigator && navigator.clipboard); }
 
 // Βοηθητικό για newline: πάντα escaped (No real newline in literals)
 const NL = '\n';
@@ -51,8 +63,8 @@ export function playAll() {
         const hasMain = Array.isArray(mainList) && mainList.length > 0;
         const hasAlt = Array.isArray(altList) && altList.length > 0;
         let source;
-        if (useMain && hasMain) source = mainList;
-        else if (!useMain && hasAlt) source = altList;
+        if (allTrue([ useMain, hasMain ])) source = mainList;
+        else if (allTrue([ !useMain, hasAlt ])) source = altList;
         else if (hasMain) source = mainList;
         else source = altList;
         // Guard
@@ -103,8 +115,8 @@ export function restartAll() {
       const hasMain = Array.isArray(mainList) && mainList.length > 0;
       const hasAlt = Array.isArray(altList) && altList.length > 0;
       let source;
-      if (useMain && hasMain) source = mainList;
-      else if (!useMain && hasAlt) source = altList;
+      if (allTrue([ useMain, hasMain ])) source = mainList;
+      else if (allTrue([ !useMain, hasAlt ])) source = altList;
       else if (hasMain) source = mainList;
       else source = altList;
       // Guard
@@ -130,7 +142,7 @@ export function toggleTheme() {
 /** 🧹 Καθαρισμός activity panel. */
 export function clearLogs() {
   const panel = document.getElementById("activityPanel");
-  if (panel && panel.children.length > 0) {
+  if (allTrue([ panel, panel.children.length > 0 ])) {
     panel.innerHTML = "";
     log(`[${ts()}] 🧹 Logs cleared -> all entries removed`);
   } else {
@@ -142,31 +154,25 @@ export function clearLogs() {
 export async function copyLogs() {
   const panel = document.getElementById("activityPanel");
   const statsPanel = document.getElementById("statsPanel");
-  if (!(panel && panel.children.length > 0)) {
+  const hasEntries = anyTrue([ panel && panel.children && panel.children.length > 0 ]);
+  if (!hasEntries) {
     log(`[${ts()}] ❌ Copy Logs -> no entries to copy`);
     return;
   }
-  const logsText = Array.from(panel.children).map(div => div.textContent).join(NL);
+  const logsText  = Array.from(panel.children).map(div => div.textContent).join(NL);
   const statsText = statsPanel ? (NL + "📊 Current Stats:" + NL + statsPanel.textContent) : (NL + "📊 Stats not available");
   const finalText = logsText + statsText;
-if (navigator.clipboard && window.isSecureContext) {
+  // Primary path: Clipboard API on secure context
+  if (allTrue([ navigator.clipboard, window.isSecureContext ])) {
     try {
       await navigator.clipboard.writeText(finalText);
       log(`[${ts()}] ✅ Logs copied via Clipboard API -> ${panel.children.length} entries + stats`);
       return;
     } catch (err) {
-      log(`[${ts()}] ⚠️ Clipboard API failed -> fallback to execCommand (${err})`);
+      log(`[${ts()}] ⚠️ Clipboard API failed -> fallback (${err})`);
     }
   }
-  if (navigator.clipboard && window.isSecureContext) {
-    try {
-      await navigator.clipboard.writeText(finalText);
-      log(`[${ts()}] 📋 Logs copied -> ${panel.children.length} entries + stats`);
-      return;
-    } catch (err) {
-      log(`[${ts()}] ⚠️ Clipboard write failed (secure) -> ${err}`);
-    }
-  }
+  // Fallback: textarea + execCommand
   const success = unsecuredCopyToClipboard(finalText);
   if (success) {
     log(`[${ts()}] 📋 (Fallback) Logs copied via execCommand -> ${panel.children.length} entries + stats`);
@@ -174,6 +180,7 @@ if (navigator.clipboard && window.isSecureContext) {
     log(`[${ts()}] ❌ Copy Logs failed (fallback)`);
   }
 }
+
 function unsecuredCopyToClipboard(text) {
   try {
     const textArea = document.createElement('textarea');
@@ -190,6 +197,7 @@ function unsecuredCopyToClipboard(text) {
     return false;
   }
 }
+
 export function bindUiEvents() {
   const byId = id => document.getElementById(id);
   const m = new Map([
@@ -211,6 +219,7 @@ export function bindUiEvents() {
   });
   log(`[${ts()}] ✅ UI events bound (uiControls.js ${UICONTROLS_VERSION})`);
 }
+
 export async function reloadList() {
   try {
     const { mainList, altList } = await reloadListsFromSource();
@@ -221,5 +230,8 @@ export async function reloadList() {
     log(`[${ts()}] ❌ Reload failed -> ${err}`);
   }
 }
+
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+
 // --- End Of File ---
