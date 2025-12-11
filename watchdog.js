@@ -3,7 +3,7 @@
 // Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
 // Συμμόρφωση με κανόνα State Machine με Guard Steps.
 // --- Versions ---
-const WATCHDOG_VERSION = "v2.5.15";
+const WATCHDOG_VERSION = 'v2.5.15';
 export function getVersion() {
   return WATCHDOG_VERSION;
 }
@@ -14,7 +14,7 @@ console.log(
 );
 
 // Imports
-import { log, ts, controllers, stats } from "./globals.js";
+import { log, ts, controllers, stats } from './globals.js';
 
 // Guard helpers for State Machine (Rule 12)
 function anyTrue(flags) {
@@ -36,8 +36,7 @@ export function startWatchdog() {
   const loop = () => {
     let didRecovery = false;
     controllers.forEach((c) => {
-      if (!allTrue([c.player, typeof c.player.getPlayerState === "function"]))
-        return;
+      if (!allTrue([c.player, typeof c.player.getPlayerState === 'function'])) return;
       const state = c.player.getPlayerState();
       const now = Date.now();
       const allowedPause = (c.expectedPauseMs ?? 0) + 240_000;
@@ -50,11 +49,11 @@ export function startWatchdog() {
         ])
       ) {
         log(
-          `[${ts()}] 🛠 Watchdog reset -> Player ${
-            c.index + 1
-          } BUFFERING >${Math.round(bufThreshold / 1000)}s`
+          `[${ts()}] 🛠 Watchdog reset -> Player ${c.index + 1} BUFFERING >${Math.round(
+            bufThreshold / 1000
+          )}s`
         );
-        if (typeof c.loadNextVideo === "function") {
+        if (typeof c.loadNextVideo === 'function') {
           c.loadNextVideo(c.player);
           stats.watchdog++;
           didRecovery = true;
@@ -68,23 +67,19 @@ export function startWatchdog() {
           now - c.lastPauseStart > allowedPause,
         ])
       ) {
-        log(
-          `[${ts()}] ▶️ Watchdog retry playVideo before AutoNext -> Player ${
-            c.index + 1
-          }`
-        );
+        log(`[${ts()}] ▶️ Watchdog retry playVideo before AutoNext -> Player ${c.index + 1}`);
         try {
-          if (typeof c.player.playVideo === "function") c.player.playVideo();
+          if (typeof c.player.playVideo === 'function') c.player.playVideo();
         } catch (_) {}
         setTimeout(() => {
           if (
             allTrue([
-              typeof c.player.getPlayerState === "function",
+              typeof c.player.getPlayerState === 'function',
               c.player.getPlayerState() !== YT.PlayerState.PLAYING,
             ])
           ) {
             log(`[${ts()}] ♻️ Watchdog reset -> stuck in PAUSED`);
-            if (typeof c.loadNextVideo === "function") {
+            if (typeof c.loadNextVideo === 'function') {
               c.loadNextVideo(c.player);
               stats.watchdog++;
             }
@@ -104,8 +99,7 @@ export function startWatchdog() {
   setInterval(() => {
     controllers.forEach((c) => {
       // Guard
-      if (!allTrue([c.player, typeof c.player.getPlayerState === "function"]))
-        return;
+      if (!allTrue([c.player, typeof c.player.getPlayerState === 'function'])) return;
       const state = c.player.getPlayerState();
       const now = Date.now();
       const allowedPause = (c.expectedPauseMs ?? 0) + 240_000; // 240s margin
@@ -117,10 +111,8 @@ export function startWatchdog() {
           now - c.lastBufferingStart > 60_000,
         ])
       ) {
-        log(
-          `[${ts()}] ⚠️ Watchdog reset -> Player ${c.index + 1} BUFFERING >60s`
-        );
-        if (typeof c.loadNextVideo === "function") {
+        log(`[${ts()}] ⚠️ Watchdog reset -> Player ${c.index + 1} BUFFERING >60s`);
+        if (typeof c.loadNextVideo === 'function') {
           c.loadNextVideo(c.player);
           stats.watchdog++;
         }
@@ -134,27 +126,19 @@ export function startWatchdog() {
           now - c.lastPausedStart > allowedPause,
         ])
       ) {
-        log(
-          `[${ts()}] ⚠️ Watchdog retry playVideo before AutoNext -> Player ${
-            c.index + 1
-          }`
-        );
-        if (typeof c.player.playVideo === "function") {
+        log(`[${ts()}] ⚠️ Watchdog retry playVideo before AutoNext -> Player ${c.index + 1}`);
+        if (typeof c.player.playVideo === 'function') {
           c.player.playVideo();
         }
         setTimeout(() => {
           if (
             allTrue([
-              typeof c.player.getPlayerState === "function",
+              typeof c.player.getPlayerState === 'function',
               c.player.getPlayerState() !== YT.PlayerState.PLAYING,
             ])
           ) {
-            log(
-              `[${ts()}] ❌ Watchdog reset -> Player ${
-                c.index + 1
-              } stuck in PAUSED`
-            );
-            if (typeof c.loadNextVideo === "function") {
+            log(`[${ts()}] ❌ Watchdog reset -> Player ${c.index + 1} stuck in PAUSED`);
+            if (typeof c.loadNextVideo === 'function') {
               c.loadNextVideo(c.player);
               stats.watchdog++;
             }
@@ -167,8 +151,6 @@ export function startWatchdog() {
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(
-  `[${ts()}] ✅ Φόρτωση αρχείου: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`
-);
+log(`[${ts()}] ✅ Φόρτωση αρχείου: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

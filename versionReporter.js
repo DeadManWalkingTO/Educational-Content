@@ -3,7 +3,7 @@
 // Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
 // Αφαίρεση κυκλικής εξάρτησης με main.js. Η έκδοση του main θα προστεθεί από το ίδιο το main.js.
 // --- Versions ---
-const VERSION_REPORTER_VERSION = "v2.3.3";
+const VERSION_REPORTER_VERSION = 'v2.3.3';
 export function getVersion() {
   return VERSION_REPORTER_VERSION;
 }
@@ -14,13 +14,13 @@ console.log(
 );
 
 //imports
-import { getVersion as getGlobalsVersion } from "./globals.js";
-import { getVersion as getListsVersion } from "./lists.js";
-import { getVersion as getHumanModeVersion } from "./humanMode.js";
-import { getVersion as getPlayerControllerVersion } from "./playerController.js";
-import { getVersion as getUiControlsVersion } from "./uiControls.js";
-import { getVersion as getWatchdogVersion } from "./watchdog.js";
-import { log, ts } from "./globals.js";
+import { getVersion as getGlobalsVersion } from './globals.js';
+import { getVersion as getListsVersion } from './lists.js';
+import { getVersion as getHumanModeVersion } from './humanMode.js';
+import { getVersion as getPlayerControllerVersion } from './playerController.js';
+import { getVersion as getUiControlsVersion } from './uiControls.js';
+import { getVersion as getWatchdogVersion } from './watchdog.js';
+import { log, ts } from './globals.js';
 
 // Guard helpers for State Machine (Rule 12)
 function anyTrue(flags) {
@@ -42,7 +42,7 @@ function allTrue(flags) {
  */
 function getHtmlVersion() {
   const metaTag = document.querySelector('meta[name="html-version"]');
-  return metaTag ? metaTag.getAttribute("content") : "unknown";
+  return metaTag ? metaTag.getAttribute('content') : 'unknown';
 }
 /**
  * Συγκεντρώνει όλες τις εκδόσεις των modules (εκτός του main.js).
@@ -64,8 +64,6 @@ export function reportAllVersions() {
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(
-  `[${ts()}] ✅ Φόρτωση αρχείου: versionReporter.js ${VERSION_REPORTER_VERSION} -> Ολοκληρώθηκε`
-);
+log(`[${ts()}] ✅ Φόρτωση αρχείου: versionReporter.js ${VERSION_REPORTER_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

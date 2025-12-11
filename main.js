@@ -6,7 +6,7 @@
 // Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 // --- Versions ---
-const MAIN_VERSION = "v1.7.19";
+const MAIN_VERSION = 'v1.7.19';
 export function getVersion() {
   return MAIN_VERSION;
 }
@@ -17,15 +17,12 @@ console.log(
 );
 
 // Imports
-import { log, ts, setUserGesture, bindSafeMessageHandler } from "./globals.js";
-import { loadVideoList, loadAltList } from "./lists.js";
-import {
-  createPlayerContainers,
-  initPlayersSequentially,
-} from "./humanMode.js";
-import { reportAllVersions } from "./versionReporter.js";
-import { bindUiEvents, setControlsEnabled } from "./uiControls.js";
-import { startWatchdog } from "./watchdog.js";
+import { log, ts, setUserGesture, bindSafeMessageHandler } from './globals.js';
+import { loadVideoList, loadAltList } from './lists.js';
+import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
+import { reportAllVersions } from './versionReporter.js';
+import { bindUiEvents, setControlsEnabled } from './uiControls.js';
+import { startWatchdog } from './watchdog.js';
 
 // Guard helpers for State Machine (Rule 12)
 function anyTrue(flags) {
@@ -44,21 +41,14 @@ function allTrue(flags) {
 // Named guards (Rule 12)
 function isApiReady() {
   const hasYT = !!(window && window.YT);
-  const hasPlayer = !!(
-    window &&
-    window.YT &&
-    typeof window.YT.Player === "function"
-  );
+  const hasPlayer = !!(window && window.YT && typeof window.YT.Player === 'function');
   return allTrue([hasYT, hasPlayer]);
 }
 function isDomInteractive() {
-  return anyTrue([
-    document.readyState === "complete",
-    document.readyState === "interactive",
-  ]);
+  return anyTrue([document.readyState === 'complete', document.readyState === 'interactive']);
 }
 function isHtmlVersionMissing(v) {
-  return anyTrue([!v, !v.HTML, v.HTML === "unknown"]);
+  return anyTrue([!v, !v.HTML, v.HTML === 'unknown']);
 }
 
 try {
@@ -79,12 +69,10 @@ async function sanityCheck(versions) {
     if (!Array.isArray(ml) || !Array.isArray(al)) {
       log(`[${ts()}] ❌ Sanity: Lists not arrays`);
     } else {
-      log(
-        `[${ts()}] ✅ Sanity: Lists ok -> Main:${ml.length} Alt:${al.length}`
-      );
+      log(`[${ts()}] ✅ Sanity: Lists ok -> Main:${ml.length} Alt:${al.length}`);
     }
-    const cont = document.getElementById("playersContainer");
-    const boxes = cont ? cont.querySelectorAll(".player-box").length : 0;
+    const cont = document.getElementById('playersContainer');
+    const boxes = cont ? cont.querySelectorAll('.player-box').length : 0;
     if (!boxes) log(`[${ts()}] ⚠️ Sanity: No player boxes yet (created later)`);
   } catch (e) {
     log(`[${ts()}] ❌ SanityCheck error -> ${e}`);
@@ -106,21 +94,14 @@ async function startApp() {
   try {
     log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> main.js ${MAIN_VERSION}`);
     // Φόρτωση λιστών
-    const [mainList, altList] = await Promise.all([
-      loadVideoList(),
-      loadAltList(),
-    ]);
+    const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
     // Δημιουργία containers για τους players
     createPlayerContainers();
     // Αναφορά εκδόσεων
     const versions = reportAllVersions();
     versions.Main = MAIN_VERSION;
     log(`[${ts()}] ✅ Εκδόσεις: ${JSON.stringify(versions)}`);
-    log(
-      `[${ts()}] 📂 Lists Loaded -> Main:${mainList.length} Alt:${
-        altList.length
-      }`
-    );
+    log(`[${ts()}] 📂 Lists Loaded -> Main:${mainList.length} Alt:${altList.length}`);
     // Αναμονή για YouTube API
     log(`[${ts()}] ⏳ YouTubeAPI -> Αναμονή`);
     await youtubeReadyPromise;
@@ -136,12 +117,12 @@ async function startApp() {
   }
 }
 // ✅ DOM ready: Start gate + UI binding
-document.addEventListener("DOMContentLoaded", () => {
-  const btnStart = document.getElementById("btnStartSession");
+document.addEventListener('DOMContentLoaded', () => {
+  const btnStart = document.getElementById('btnStartSession');
   if (btnStart) {
     // Δέσμευση UI events μία φορά εδώ (ώστε τα handlers να υπάρχουν πριν το enable)
     bindUiEvents();
-    btnStart.addEventListener("click", async () => {
+    btnStart.addEventListener('click', async () => {
       // 1) Καταγραφή/σηματοδότηση gesture (πάντα)
       setUserGesture(); // γράφει και console.log με 💻
       // 2) Enable των υπολοίπων controls (κάθε φορά)

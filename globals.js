@@ -5,7 +5,7 @@
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const GLOBALS_VERSION = "v2.9.9";
+const GLOBALS_VERSION = 'v2.9.9';
 export function getVersion() {
   return GLOBALS_VERSION;
 }
@@ -66,13 +66,13 @@ export { anyTrue, allTrue };
 
 // Named guards for globals
 function isObj(x) {
-  return typeof x === "object" && x !== null;
+  return typeof x === 'object' && x !== null;
 }
 function hasFn(obj, name) {
-  return isObj(obj) && typeof obj[name] === "function";
+  return isObj(obj) && typeof obj[name] === 'function';
 }
 function nonEmpty(str) {
-  return typeof str === "string" && str.length > 0;
+  return typeof str === 'string' && str.length > 0;
 }
 
 // --- Controllers για τους players ---
@@ -86,17 +86,13 @@ export function getPlayingCount() {
 }
 export function incPlaying() {
   _currentPlaying++;
-  log(
-    `[${new Date().toLocaleTimeString()}] ✅ Playing++ -> ${_currentPlaying}`
-  );
+  log(`[${new Date().toLocaleTimeString()}] ✅ Playing++ -> ${_currentPlaying}`);
 }
 export function decPlaying() {
   if (_currentPlaying > 0) {
     _currentPlaying--;
   }
-  log(
-    `[${new Date().toLocaleTimeString()}] ✅ Playing-- -> ${_currentPlaying}`
-  );
+  log(`[${new Date().toLocaleTimeString()}] ✅ Playing-- -> ${_currentPlaying}`);
 }
 
 // --- Σταθερές εφαρμογής ---
@@ -189,15 +185,14 @@ export function log(msg) {
   } catch (_) {}
 
   console.log(msg);
-  if (typeof document !== "undefined") {
-    const panel = document.getElementById("activityPanel");
+  if (typeof document !== 'undefined') {
+    const panel = document.getElementById('activityPanel');
     if (panel) {
-      const div = document.createElement("div");
+      const div = document.createElement('div');
       div.textContent = msg;
       panel.appendChild(div);
       const LOG_PANEL_MAX = 250;
-      while (panel.children.length > LOG_PANEL_MAX)
-        panel.removeChild(panel.firstChild);
+      while (panel.children.length > LOG_PANEL_MAX) panel.removeChild(panel.firstChild);
       panel.scrollTop = panel.scrollHeight;
     }
   }
@@ -205,12 +200,10 @@ export function log(msg) {
 }
 
 function updateStats() {
-  if (typeof document === "undefined") return;
-  const el = document.getElementById("statsPanel");
+  if (typeof document === 'undefined') return;
+  const el = document.getElementById('statsPanel');
   if (el) {
-    const avgWatch = controllers.length
-      ? Math.round(stats.pauses / controllers.length)
-      : 0;
+    const avgWatch = controllers.length ? Math.round(stats.pauses / controllers.length) : 0;
     el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Replay:${stats.replay} - Pauses:${stats.pauses} - MidSeeks:${stats.midSeeks} - AvgWatch:${avgWatch}% - Watchdog:${stats.watchdog} - Errors:${stats.errors} - VolumeChanges:${stats.volumeChanges}`;
   }
 }
@@ -225,7 +218,7 @@ function updateStats() {
 // και DoubleClick CORS warnings. Χρήση guard steps και βοηθητικών anyTrue/allTrue για αποφυγή ρητών τελεστών.
 export const consoleFilterConfig = {
   enabled: true,
-  tagLevel: "info", // 'info' ή 'warn'
+  tagLevel: 'info', // 'info' ή 'warn'
   patterns: [
     /Failed to execute 'postMessage'.*does not match the recipient window's origin/i,
     /postMessage.*origin.*does not match/i,
@@ -233,7 +226,7 @@ export const consoleFilterConfig = {
     /youtube.*pagead\/viewthroughconversion.*blocked by CORS policy/i,
   ],
   sources: [/www\-widgetapi\.js/i],
-  tag: "[YouTubeAPI][non-critical]",
+  tag: '[YouTubeAPI][non-critical]',
 };
 
 (function () {
@@ -251,14 +244,14 @@ export const consoleFilterConfig = {
     stateObj: null,
     orig: null,
     api: null,
-    g: typeof globalThis !== "undefined" ? globalThis : window,
+    g: typeof globalThis !== 'undefined' ? globalThis : window,
   };
 
   function hasConsole() {
-    return typeof console !== "undefined";
+    return typeof console !== 'undefined';
   }
   function alreadyInstalled(g) {
-    if (typeof g === "undefined") {
+    if (typeof g === 'undefined') {
       return false;
     }
     if (g.__YT_CONSOLE_FILTER_INSTALLED__) {
@@ -271,10 +264,10 @@ export const consoleFilterConfig = {
     var st = {
       installed: true,
       enabled: !!cfg.enabled,
-      level: cfg.tagLevel === "warn" ? "warn" : "info",
+      level: cfg.tagLevel === 'warn' ? 'warn' : 'info',
       patterns: cfg.patterns ? cfg.patterns.slice() : [],
       sources: cfg.sources ? cfg.sources.slice() : [],
-      tag: cfg.tag ? cfg.tag : "[YouTubeAPI][non-critical]",
+      tag: cfg.tag ? cfg.tag : '[YouTubeAPI][non-critical]',
     };
     return st;
   }
@@ -292,7 +285,7 @@ export const consoleFilterConfig = {
       for (var i = 0; i < args.length; i++) {
         var a = args[i];
         var s;
-        if (typeof a === "string") {
+        if (typeof a === 'string') {
           s = a;
         } else if (allTrue([a, a.message])) {
           s = a.message;
@@ -322,7 +315,7 @@ export const consoleFilterConfig = {
             }
           }
         }
-        if (typeof a === "string") {
+        if (typeof a === 'string') {
           for (var k = 0; k < sources.length; k++) {
             if (sources[k].test(a)) {
               return true;
@@ -350,8 +343,8 @@ export const consoleFilterConfig = {
     if (forwardedArgs.length === 0) {
       payload = [prefix];
     } else {
-      if (typeof forwardedArgs[0] === "string") {
-        payload = [prefix + " " + forwardedArgs[0]];
+      if (typeof forwardedArgs[0] === 'string') {
+        payload = [prefix + ' ' + forwardedArgs[0]];
         for (var i = 1; i < forwardedArgs.length; i++) {
           payload.push(forwardedArgs[i]);
         }
@@ -362,7 +355,7 @@ export const consoleFilterConfig = {
         }
       }
     }
-    if (level === "warn") {
+    if (level === 'warn') {
       if (allTrue([orig, orig.warn])) {
         orig.warn.apply(console, payload);
       }
@@ -434,7 +427,7 @@ export const consoleFilterConfig = {
           ctx.stateObj.enabled = false;
         },
         setLevel: function (l) {
-          ctx.stateObj.level = l === "warn" ? "warn" : "info";
+          ctx.stateObj.level = l === 'warn' ? 'warn' : 'info';
         },
         addPattern: function (re) {
           if (re instanceof RegExp) {
@@ -459,7 +452,7 @@ export const consoleFilterConfig = {
           if (allTrue([ctx.orig, ctx.orig.warn])) {
             console.warn = ctx.orig.warn;
           }
-          if (typeof window !== "undefined") {
+          if (typeof window !== 'undefined') {
             window.__YT_CONSOLE_FILTER_API__ = undefined;
             window.__YT_CONSOLE_FILTER_INSTALLED__ = undefined;
           }
@@ -474,7 +467,7 @@ export const consoleFilterConfig = {
           }
         },
       };
-      if (typeof window !== "undefined") {
+      if (typeof window !== 'undefined') {
         window.__YT_CONSOLE_FILTER_API__ = ctx.api;
         window.__YT_CONSOLE_FILTER_INSTALLED__ = true;
       }
@@ -488,13 +481,13 @@ export const consoleFilterConfig = {
         var now = new Date().toLocaleTimeString();
         if (allTrue([ctx.orig, ctx.orig.log])) {
           ctx.orig.log(
-            "[" +
+            '[' +
               now +
-              "] 🛠️ Console filter active: " +
+              '] 🛠️ Console filter active: ' +
               ctx.stateObj.enabled +
-              " (" +
+              ' (' +
               ctx.stateObj.level +
-              ")"
+              ')'
           );
         }
       } catch (_) {}
@@ -516,44 +509,35 @@ export function getOrigin() {
   try {
     return window.location.origin;
   } catch (e) {
-    return "https://localhost";
+    return 'https://localhost';
   }
 }
 
 // Επιστρέφει τον host για YouTube Iframe API (μόνο youtube.com)
 export function getYouTubeEmbedHost() {
-  return "https://www.youtube.com";
+  return 'https://www.youtube.com';
 }
 
 // --- Safe postMessage handler ---
 export function bindSafeMessageHandler(allowlist = null) {
   try {
-    const defaults = [getOrigin(), "https://www.youtube.com"];
-    const allow =
-      Array.isArray(allowlist) && allowlist.length ? allowlist : defaults;
+    const defaults = [getOrigin(), 'https://www.youtube.com'];
+    const allow = Array.isArray(allowlist) && allowlist.length ? allowlist : defaults;
     window.addEventListener(
-      "message",
+      'message',
       (ev) => {
-        const origin = ev.origin || "";
-        const ok = allow.some(
-          (a) => typeof a === "string" && a && origin.startsWith(a)
-        );
+        const origin = ev.origin || '';
+        const ok = allow.some((a) => typeof a === 'string' && a && origin.startsWith(a));
         if (!ok) {
           try {
-            console.info(
-              `[YouTubeAPI][non-critical][Origin] Blocked postMessage from '${origin}'`
-            );
+            console.info(`[YouTubeAPI][non-critical][Origin] Blocked postMessage from '${origin}'`);
           } catch (_) {}
           return;
         }
       },
       { capture: true }
     );
-    log(
-      `[${ts()}] 🛡️ Safe postMessage handler bound — allowlist: ${JSON.stringify(
-        allow
-      )}`
-    );
+    log(`[${ts()}] 🛡️ Safe postMessage handler bound — allowlist: ${JSON.stringify(allow)}`);
   } catch (e) {
     log(`[${ts()}] ⚠️ bindSafeMessageHandler error → ${e}`);
   }
@@ -562,14 +546,12 @@ export function bindSafeMessageHandler(allowlist = null) {
 // --- Console noise deduper & grouping ---
 const noiseCache = new Map(); // key -> {count, lastTs}
 function shouldSuppressNoise(args) {
-  const s = String((args && args[0]) || "");
-  const isWidgetNoise =
-    /www\-widgetapi\.js/i.test(s) || /Failed to execute 'postMessage'/i.test(s);
-  const isAdsNoise =
-    /viewthroughconversion/i.test(s) || /doubleclick\.net/i.test(s);
+  const s = String((args && args[0]) || '');
+  const isWidgetNoise = /www\-widgetapi\.js/i.test(s) || /Failed to execute 'postMessage'/i.test(s);
+  const isAdsNoise = /viewthroughconversion/i.test(s) || /doubleclick\.net/i.test(s);
   const isNoise = anyTrue([isWidgetNoise, isAdsNoise]);
   if (!isNoise) return false;
-  const key = s.replace(/\d{2}:\d{2}:\d{2}/g, "");
+  const key = s.replace(/\d{2}:\d{2}:\d{2}/g, '');
   const now = Date.now();
   const rec = noiseCache.get(key) || { count: 0, lastTs: 0 };
   if (now - rec.lastTs < 1500) {
@@ -590,8 +572,6 @@ function groupedLog(tag, msg, count) {
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(
-  `[${ts()}] ✅ Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ολοκληρώθηκε`
-);
+log(`[${ts()}] ✅ Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

@@ -3,7 +3,7 @@
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const UICONTROLS_VERSION = "v2.5.11";
+const UICONTROLS_VERSION = 'v2.5.11';
 export function getVersion() {
   return UICONTROLS_VERSION;
 }
@@ -27,8 +27,8 @@ import {
   getAltList,
   setMainList,
   setAltList,
-} from "./globals.js";
-import { reloadList as reloadListsFromSource } from "./lists.js";
+} from './globals.js';
+import { reloadList as reloadListsFromSource } from './lists.js';
 
 // Guard helpers for State Machine (Rule 12)
 function anyTrue(flags) {
@@ -49,31 +49,31 @@ function hasEl(id) {
   return !!document.getElementById(id);
 }
 function isHttps() {
-  return typeof location !== "undefined" && location.protocol === "https:";
+  return typeof location !== 'undefined' && location.protocol === 'https:';
 }
 function canClipboardNative() {
   return isHttps() && !!(navigator && navigator.clipboard);
 }
 
 // Βοηθητικό για newline: πάντα escaped (No real newline in literals)
-const NL = "\n";
+const NL = '\n';
 
 /** ΝΕΟ: Μαζική ενεργοποίηση/απενεργοποίηση controls (πλην Start). */
 export function setControlsEnabled(enabled) {
   const ids = [
-    "btnPlayAll",
-    "btnStopAll",
-    "btnRestartAll",
-    "btnToggleTheme",
-    "btnCopyLogs",
-    "btnClearLogs",
-    "btnReloadList",
+    'btnPlayAll',
+    'btnStopAll',
+    'btnRestartAll',
+    'btnToggleTheme',
+    'btnCopyLogs',
+    'btnClearLogs',
+    'btnReloadList',
   ];
   ids.forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.disabled = !enabled;
   });
-  log(`[${ts()}] ✅ Controls ${enabled ? "enabled" : "disabled"}`);
+  log(`[${ts()}] ✅ Controls ${enabled ? 'enabled' : 'disabled'}`);
 }
 
 /** ▶ Εκκίνηση όλων των players σε "sequential" mode με τυχαίες καθυστερήσεις. */
@@ -103,20 +103,12 @@ export function playAll() {
         else source = altList;
         // Guard
         if ((source?.length ?? 0) === 0) {
-          log(
-            `[${ts()}] ❌ Player ${
-              c.index + 1
-            } Init skipped -> no videos available`
-          );
+          log(`[${ts()}] ❌ Player ${c.index + 1} Init skipped -> no videos available`);
           return;
         }
         const newId = source[Math.floor(Math.random() * source.length)];
         c.init(newId);
-        log(
-          `[${ts()}] ▶ Player ${c.index + 1} Initializing -> Source:${
-            useMain ? "main" : "alt"
-          }`
-        );
+        log(`[${ts()}] ▶ Player ${c.index + 1} Initializing -> Source:${useMain ? 'main' : 'alt'}`);
       }
     }, delay);
   });
@@ -141,9 +133,7 @@ export function stopAll() {
         c.player.stopVideo();
         log(`[${ts()}] ⏹ Player ${c.index + 1} Stopped -> step ${i + 1}`);
       } else {
-        log(
-          `[${ts()}] ❌ Player ${c.index + 1} Stop skipped -> not initialized`
-        );
+        log(`[${ts()}] ❌ Player ${c.index + 1} Stop skipped -> not initialized`);
       }
     }, delay);
     pushStopTimer(timer);
@@ -173,19 +163,15 @@ export function restartAll() {
       else source = altList;
       // Guard
       if ((source?.length ?? 0) === 0) {
-        log(
-          `[${ts()}] ❌ Player ${
-            c.index + 1
-          } Restart skipped -> no videos available`
-        );
+        log(`[${ts()}] ❌ Player ${c.index + 1} Restart skipped -> no videos available`);
         return;
       }
       const newId = source[Math.floor(Math.random() * source.length)];
       c.init(newId);
       log(
-        `[${ts()}] 🔁 Player ${
-          c.index + 1
-        } Restart (init) -> ${newId} (Source:${useMain ? "main" : "alt"})`
+        `[${ts()}] 🔁 Player ${c.index + 1} Restart (init) -> ${newId} (Source:${
+          useMain ? 'main' : 'alt'
+        })`
       );
     }
   });
@@ -194,16 +180,16 @@ export function restartAll() {
 
 /** 🌗 Εναλλαγή Dark/Light theme. */
 export function toggleTheme() {
-  document.body.classList.toggle("light");
-  const mode = document.body.classList.contains("light") ? "Light" : "Dark";
+  document.body.classList.toggle('light');
+  const mode = document.body.classList.contains('light') ? 'Light' : 'Dark';
   log(`[${ts()}] 🌙 Theme toggled -> ${mode} mode`);
 }
 
 /** 🧹 Καθαρισμός activity panel. */
 export function clearLogs() {
-  const panel = document.getElementById("activityPanel");
+  const panel = document.getElementById('activityPanel');
   if (allTrue([panel, panel.children.length > 0])) {
-    panel.innerHTML = "";
+    panel.innerHTML = '';
     log(`[${ts()}] 🧹 Logs cleared -> all entries removed`);
   } else {
     log(`[${ts()}] ❌ Clear Logs -> no entries to remove`);
@@ -212,11 +198,9 @@ export function clearLogs() {
 
 /** 📋 Αντιγραφή logs + stats στο clipboard με fallback για μη-HTTPS. */
 export async function copyLogs() {
-  const panel = document.getElementById("activityPanel");
-  const statsPanel = document.getElementById("statsPanel");
-  const hasEntries = anyTrue([
-    panel && panel.children && panel.children.length > 0,
-  ]);
+  const panel = document.getElementById('activityPanel');
+  const statsPanel = document.getElementById('statsPanel');
+  const hasEntries = anyTrue([panel && panel.children && panel.children.length > 0]);
   if (!hasEntries) {
     log(`[${ts()}] ❌ Copy Logs -> no entries to copy`);
     return;
@@ -225,18 +209,14 @@ export async function copyLogs() {
     .map((div) => div.textContent)
     .join(NL);
   const statsText = statsPanel
-    ? NL + "📊 Current Stats:" + NL + statsPanel.textContent
-    : NL + "📊 Stats not available";
+    ? NL + '📊 Current Stats:' + NL + statsPanel.textContent
+    : NL + '📊 Stats not available';
   const finalText = logsText + statsText;
   // Primary path: Clipboard API on secure context
   if (allTrue([navigator.clipboard, window.isSecureContext])) {
     try {
       await navigator.clipboard.writeText(finalText);
-      log(
-        `[${ts()}] ✅ Logs copied via Clipboard API -> ${
-          panel.children.length
-        } entries + stats`
-      );
+      log(`[${ts()}] ✅ Logs copied via Clipboard API -> ${panel.children.length} entries + stats`);
       return;
     } catch (err) {
       log(`[${ts()}] ⚠️ Clipboard API failed -> fallback (${err})`);
@@ -257,14 +237,14 @@ export async function copyLogs() {
 
 function unsecuredCopyToClipboard(text) {
   try {
-    const textArea = document.createElement("textarea");
+    const textArea = document.createElement('textarea');
     textArea.value = text;
-    textArea.setAttribute("readonly", "");
-    textArea.style.position = "absolute";
-    textArea.style.left = "-9999px";
+    textArea.setAttribute('readonly', '');
+    textArea.style.position = 'absolute';
+    textArea.style.left = '-9999px';
     document.body.appendChild(textArea);
     textArea.select();
-    const ok = document.execCommand("copy");
+    const ok = document.execCommand('copy');
     document.body.removeChild(textArea);
     return ok;
   } catch {
@@ -275,18 +255,18 @@ function unsecuredCopyToClipboard(text) {
 export function bindUiEvents() {
   const byId = (id) => document.getElementById(id);
   const m = new Map([
-    ["btnPlayAll", playAll],
-    ["btnStopAll", stopAll],
-    ["btnRestartAll", restartAll],
-    ["btnToggleTheme", toggleTheme],
-    ["btnCopyLogs", copyLogs],
-    ["btnClearLogs", clearLogs],
-    ["btnReloadList", reloadList],
+    ['btnPlayAll', playAll],
+    ['btnStopAll', stopAll],
+    ['btnRestartAll', restartAll],
+    ['btnToggleTheme', toggleTheme],
+    ['btnCopyLogs', copyLogs],
+    ['btnClearLogs', clearLogs],
+    ['btnReloadList', reloadList],
   ]);
   m.forEach((handler, id) => {
     const el = byId(id);
     if (el) {
-      el.addEventListener("click", handler);
+      el.addEventListener('click', handler);
     } else {
       log(`[${ts()}] ⚠️ UI bind skipped -> missing element #${id}`);
     }
@@ -299,19 +279,13 @@ export async function reloadList() {
     const { mainList, altList } = await reloadListsFromSource();
     setMainList(mainList);
     setAltList(altList);
-    log(
-      `[${ts()}] 🗂️ Lists applied to state -> Main:${mainList.length} Alt:${
-        altList.length
-      }`
-    );
+    log(`[${ts()}] 🗂️ Lists applied to state -> Main:${mainList.length} Alt:${altList.length}`);
   } catch (err) {
     log(`[${ts()}] ❌ Reload failed -> ${err}`);
   }
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(
-  `[${ts()}] ✅ Φόρτωση αρχείου: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`
-);
+log(`[${ts()}] ✅ Φόρτωση αρχείου: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---
