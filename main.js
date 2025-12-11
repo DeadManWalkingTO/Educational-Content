@@ -1,20 +1,28 @@
 // --- main.js ---
-// Έκδοση: v1.6.14
+// Έκδοση: v1.7.19
 // Entry point: DOM readiness, UI binding, lists load, versions report, YouTube API ready, Human Mode init, watchdog 
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness. 
 // Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded) και gate μέσω Start button. 
 // Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially(). 
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader). 
 // --- Versions --- 
-const MAIN_VERSION = "v1.6.11"; 
+const MAIN_VERSION = "v1.7.19"; 
 export function getVersion() { return MAIN_VERSION; } 
+
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου 
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: main.js ${MAIN_VERSION} -> Ξεκίνησε`); 
-import { log, ts, setUserGesture, bindSafeMessageHandler } from './globals.js';
 
+// Imports
+import { log, ts, setUserGesture, bindSafeMessageHandler } from './globals.js';
+import { loadVideoList, loadAltList } from './lists.js'; 
+import { createPlayerContainers, initPlayersSequentially } from './humanMode.js'; 
+import { reportAllVersions } from './versionReporter.js'; 
+import { bindUiEvents, setControlsEnabled } from './uiControls.js'; 
+import { startWatchdog } from './watchdog.js'; 
 
 // Guard helpers for State Machine (Rule 12)
-
+function anyTrue(flags){ for(let i=0;i<flags.length;i++){ if(flags[i]) return true; } return false; }
+function allTrue(flags){ for(let i=0;i<flags.length;i++){ if(!flags[i]) return false; } return true; }
 
 // Named guards (Rule 12)
 function isApiReady(){
@@ -28,14 +36,9 @@ function isDomInteractive(){
 function isHtmlVersionMissing(v){
   return anyTrue([ !v, !v.HTML, v.HTML === 'unknown' ]);
 }
-function anyTrue(flags){ for(let i=0;i<flags.length;i++){ if(flags[i]) return true; } return false; }
-function allTrue(flags){ for(let i=0;i<flags.length;i++){ if(!flags[i]) return false; } return true; }
+
 try { bindSafeMessageHandler(); } catch (e) { log(`[${ts()}] ⚠️ bindSafeMessageHandler failed → ${e}`); } 
-import { loadVideoList, loadAltList } from './lists.js'; 
-import { createPlayerContainers, initPlayersSequentially } from './humanMode.js'; 
-import { reportAllVersions } from './versionReporter.js'; 
-import { bindUiEvents, setControlsEnabled } from './uiControls.js'; 
-import { startWatchdog } from './watchdog.js'; 
+
 // ✅ YouTube API readiness (περιμένουμε YT.Player) 
 async function sanityCheck(versions) { 
  try { 
@@ -67,6 +70,7 @@ const youtubeReadyPromise = new Promise((resolve) => {
  }, 500); 
 }); 
 let appStarted = false; // Gate: τρέχουμε startApp() μόνο μία φορά 
+
 // ✅ Εκκίνηση εφαρμογής 
 async function startApp() { 
  try { 
@@ -118,6 +122,8 @@ document.addEventListener("DOMContentLoaded", () => {
  startApp(); 
  } 
 }); 
+
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου 
 log(`[${ts()}] ✅ Φόρτωση αρχείου: main.js ${MAIN_VERSION} -> Ολοκληρώθηκε`); 
+
 // --- End Of File ---

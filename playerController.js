@@ -1,20 +1,54 @@
 // --- playerController.js ---
-// Έκδοση: v6.4.29
+// Έκδοση: v6.5.43
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική 
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions --- 
-const PLAYER_CONTROLLER_VERSION = "v6.4.29"; 
+const PLAYER_CONTROLLER_VERSION = "v6.5.43"; 
 export function getVersion() { return PLAYER_CONTROLLER_VERSION; } 
+
+// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ξεκίνησε`);
+
+// Imports
 import {AUTO_NEXT_LIMIT_PER_PLAYER, MAIN_PROBABILITY, MAX_CONCURRENT_PLAYING, canAutoNext, controllers, decPlaying, getOrigin, getPlayingCount, getYouTubeEmbedHost, hasUserGesture, incAutoNext, incPlaying, log, rndInt, stats, ts} from './globals.js'; 
 
-
-
-function hasPlayer(p){ return !!p && typeof p.playVideo === "function"; }
 // Guard helpers for State Machine (Rule 12)
 function anyTrue(flags){ for(let i=0;i<flags.length;i++){ if(flags[i]) return true; } return false; }
 function allTrue(flags){ for(let i=0;i<flags.length;i++){ if(!flags[i]) return false; } return true; }
+
+// Ατομικός έλεγχος «είναι μη κενός πίνακας» 
+function isNonEmptyArray(x){
+  if (!Array.isArray(x)){ return false; }
+  if (x.length <= 0){ return false; }
+  return true;
+}
+
+// Named guards for playerController
+function hasPlayer(p){ return !!p && typeof p.playVideo === "function"; }
+
+function guardHasAnyList(ctrl){
+  if (!ctrl){ return false; }
+  
+  if (Array.isArray(ctrl.mainList)){
+    if (ctrl.mainList && ctrl.mainList.length > 0){ return true; }
+  }
+  if (Array.isArray(ctrl.altList)){
+    if (ctrl.altList && ctrl.altList.length > 0){ return true; }
+  }
+  return false;
+}
+
+// --- Phase-2/3: State transition mapping (Rule 12) ---
+const STATE_TRANSITIONS = {
+  UNSTARTED: { onReady: { guard: (ctrl)=>true, action: (ctrl)=>ctrl.onReady?.() } },
+  PLAYING:   { onPause: { guard: (ctrl)=>pc_canPause(ctrl),  action: (ctrl)=>ctrl.onPause?.() },
+               onEnd:   { guard: (ctrl)=>pc_guardCanAutoNext(ctrl), action: (ctrl)=>ctrl.autoNext?.() } },
+  PAUSED:    { onResume:{ guard: (ctrl)=>pc_canResume(ctrl), action: (ctrl)=>ctrl.onResume?.() },
+               onSeek:  { guard: (ctrl)=>pc_canSeek(ctrl),   action: (ctrl)=>pc_commitSeek(ctrl) } },
+  ENDED:     { onEnd:   { guard: (ctrl)=>pc_guardCanAutoNext(ctrl), action: (ctrl)=>ctrl.autoNext?.() } }
+};
+
 /** Υπολογισμός απαιτούμενου χρόνου θέασης για AutoNext. */ 
 export function getRequiredWatchTime(durationSec) {
   // < 3 min: 90–100%
@@ -172,7 +206,14 @@ const hostVal = getYouTubeHostFallback();
  } 
  }, unmuteDelay); 
  } 
- onStateChange(e) { 
+ onStateChange(e) {
+  /* phase-3-dispatch */
+  try{ const s = (typeof e!=='undefined' && typeof e.data!=='undefined')? e.data : (this.player? this.player.getPlayerState(): undefined);
+       if(s===YT.PlayerState.PLAYING) pc_startPlaying(this);
+       if(s===YT.PlayerState.PAUSED || s===YT.PlayerState.ENDED) pc_stopPlaying(this); }catch(_){ }
+  try{ if(s===YT.PlayerState.PAUSED){ const t=STATE_TRANSITIONS.PAUSED.onResume; if(t.guard(this)) t.action(this); } }catch(_){ }
+  try{ if(s===YT.PlayerState.ENDED){  const t=STATE_TRANSITIONS.ENDED.onEnd;   if(t.guard(this)) t.action(this); } }catch(_){ }
+ 
  const p = this.player; 
  switch (e.data) { 
  case YT.PlayerState.UNSTARTED: 
@@ -206,14 +247,14 @@ const hostVal = getYouTubeHostFallback();
         const required = getRequiredWatchTime(duration);
         if (prospective >= required) {
           this.clearTimers();
-          this.loadNextVideo(p);
+          if (guardHasAnyList(this)) { this.loadNextVideo(p); } else { log(`[${new Date().toLocaleTimeString()}] ⚠️ Player ${this.index+1} AutoNext aborted -> no available list`); }
         }
       }, iv);
     }
 	log(`[${ts()}] 🟢 Player ${this.index + 1} State -> UNSTARTED`); break; 
  case YT.PlayerState.ENDED:
         this.clearTimers();
-        this.loadNextVideo(p);
+        if (guardHasAnyList(this)) { this.loadNextVideo(p); } else { log(`[${new Date().toLocaleTimeString()}] ⚠️ Player ${this.index+1} AutoNext aborted -> no available list`); }
         return; 
  case YT.PlayerState.PLAYING:
       if(!this.isPlayingActive){ this.isPlayingActive = true; incPlaying(); }
@@ -271,16 +312,16 @@ log(`[${ts()}] ▶ Player ${this.index + 1} State -> PLAYING`); break;
  log(`[${ts()}] ⏳ Player ${this.index + 1} AutoNext blocked -> required:${requiredTime}s, actual:${Math.round(this.totalPlayTime)}s`); 
  setTimeout(() => { 
  log(`[${ts()}] ⚠️ Player ${this.index + 1} Force AutoNext -> inactivity fallback`); 
- this.loadNextVideo(p); 
+ if (guardHasAnyList(this)) { this.loadNextVideo(p); } else { log(`[${new Date().toLocaleTimeString()}] ⚠️ Player ${this.index+1} AutoNext aborted -> no available list`); } 
  }, 60000); 
  return; 
  } 
- this.loadNextVideo(p); 
+ if (guardHasAnyList(this)) { this.loadNextVideo(p); } else { log(`[${new Date().toLocaleTimeString()}] ⚠️ Player ${this.index+1} AutoNext aborted -> no available list`); } 
  }, afterEndPauseMs); 
  } 
  } 
  onError() { 
- this.loadNextVideo(this.player); 
+ if (guardHasAnyList(this)) { this.loadNextVideo(this.player); } else { log(`[${new Date().toLocaleTimeString()}] ⚠️ Player ${this.index+1} AutoNext aborted -> no available list`); } 
  stats.errors++; 
  log(`[${ts()}] ❌ Player ${this.index + 1} Error -> AutoNext`); 
  } 
@@ -365,5 +406,7 @@ log(`[${ts()}] ▶ Player ${this.index + 1} State -> PLAYING`); break;
     this.expectedPauseMs = 0;
   } 
 } 
+
 log(`[${ts()}] ✅ Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ολοκληρώθηκε`);
+
 // --- End Of File ---

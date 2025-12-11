@@ -1,6 +1,38 @@
 # CHANGELOG.md
 
+## [2025-12-11] Phase‑3 Refactor & Fixes
+- **globals.js v2.8.8**
+  - Αφαίρεση διπλών δηλώσεων `anyTrue` / `allTrue`.
+  - Προσθήκη ενιαίου `export { anyTrue, allTrue }`.
+  - Διατήρηση guard constants και `schedule*` helpers.
+  - Version bump σε v2.8.8.
+- **playerController.js v6.4.31**
+  - Εξειδίκευση state machine με `STATE_TRANSITIONS`.
+  - Προσθήκη stateless helpers `pc_*` για guards (pause/resume/seek/autoNext).
+  - Dispatch hook στην `onStateChange` με λογιστική χρόνου θέασης.
+  - Version bump σε v6.4.31.
+- **Bug Fix**
+  - Διόρθωση σφάλματος `Identifier 'anyTrue' has already been declared` (διπλή δήλωση).
+
 ---
+
+## [2025-12-11] Phase‑2 Refactor
+- **globals.js v2.8.7**
+  - Προσθήκη `schedule*` helpers.
+- **playerController.js v6.4.30**
+  - Εισαγωγή `STATE_TRANSITIONS` mapping.
+  - Προσθήκη guard stubs και dispatch placeholder.
+
+---
+
+## [2025-12-11] Phase‑1 Refactor
+- **globals.js v2.8.6**
+  - Export `anyTrue` / `allTrue`.
+- **playerController.js v6.4.29**
+  - Προσθήκη `guardHasAnyList` και τύλιγμα `loadNextVideo(...)` με guard.
+
+---
+
 ## [2025-12-11]
 - globals.js v2.8.5: Εναρμόνιση Guard Steps (Rule 12); προσθήκη helpers/named guards και guardification σε if(...).
 - uiControls.js v2.4.10: Εναρμόνιση Guard Steps (Rule 12); προσθήκη helpers/named guards και guardification σε if(...).
@@ -48,6 +80,7 @@
 - Ενημερώθηκαν τα sections **Baseline/Versions** και **Τρέχουσες Εκδόσεις** να αντικατοπτρίζουν τη νέα έκδοση των Globals.
 
 ---
+
 ## [2025-12-10]
 - **globals.js v2.8.0**
   - Console Filter v2, safe postMessage handler.
@@ -67,12 +100,14 @@
 - playerController.js v6.4.18: Ενεργοποιήθηκε `host: getYouTubeEmbedHost()` στον constructor του YT.Player και διατηρήθηκε `playerVars.origin: getOrigin()` (ενιαία πηγή).
 
 ---
+
 ## [2025-12-09]
 - playerController.js v0.0.1: Προστέθηκε `host: getYouTubeEmbedHost()` και εξασφαλίστηκε `playerVars.origin: getOrigin()`.
 - globals.js: Επιβεβαιώθηκαν/προστέθηκαν `getOrigin()` & `getYouTubeEmbedHost()` με ενημέρωση έκδοσης.
 - CONTEXT.md: Νέοι κανόνες για YouTube host και ενιαίο origin.
 
 ---
+
 ## [2025-12-09]
 - globals.js v2.5.5: Console filter/tagging για non-critical YouTube IFrame API warnings (postMessage origin mismatch). Τα μηνύματα επισημαίνονται ως `[YouTubeAPI][non-critical]` σε `console.info`.
 - playerController.js v6.4.17: Fix SyntaxError
@@ -97,6 +132,7 @@
   - Adaptive next poll: 10–15s after recoveries; otherwise 25–35s.
 
 ---
+
 ## [2025-12-07]
 ### Προσθήκες / Βελτιώσεις
 - **humanMode.js v4.6.11**: Προσθήκη micro-stagger (400–600ms) στη δημιουργία iframes για μείωση race conditions και postMessage warnings.
@@ -108,6 +144,7 @@
 - Επόμενα βήματα: Επέκταση στατιστικών (AvgWatch, watchdog counters), εξαγωγή JSON αναφορών.
 
 ---
+
 ## [2025-12-07]
 
 ### HTML v6.0.11
@@ -115,6 +152,7 @@
 - UX: Το μήνυμα *«Πατήστε “Start” για εκκίνηση — απαιτείται για την πολιτική Autoplay των browsers.»* έγινε **tooltip** (title/aria-label) στο ίδιο το κουμπί.
 
 ---
+
 ## [2025-12-07]
 
 ### Συμμόρφωση μορφολογίας JS (+ bump εκδόσεων)
@@ -131,6 +169,7 @@
 - playerController.js: Προστέθηκε γρήγορος έλεγχος (250 ms) μετά το unmute στο PLAYING, ώστε αν παραμένει σε PAUSED να γίνει άμεσο `playVideo()`.
 
 ---
+
 ## [2025-12-06]
 ### Lists — Update internal fallback list (2025-12-06)
 - lists.js v3.3.7 → v3.3.8: Αντικατάσταση `internalList` με νέα 15 YouTube IDs (παρεχόμενα από τον χρήστη). Διατήρηση parser (split('
@@ -163,3 +202,5 @@ Notes: Συμμόρφωση με κανόνα “No real newline σε string lit
 ')` + αφαίρεση μόνο τελικού `'
 '`. Φιλτράρονται μόνο εντελώς κενές γραμμές. Αποφεύγονται ζητήματα μεταφοράς με `/`, `\`, `()`. 
 Notes: Καμία αλλαγή στη ροή. Smoke OK.
+
+---

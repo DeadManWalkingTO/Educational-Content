@@ -1,18 +1,22 @@
 // --- watchdog.js ---
-// Έκδοση: v2.4.10
+// Έκδοση: v2.5.15
 // Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
-// Ενημέρωση v2.4.4: Αφαίρεση '||' από guard (συμμόρφωση με κανόνα No '||').
+// Συμμόρφωση με κανόνα Rule 12.
 // --- Versions ---
-const WATCHDOG_VERSION = "v2.4.7";
+const WATCHDOG_VERSION = "v2.5.15";
 export function getVersion() { return WATCHDOG_VERSION; }
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: watchdog.js ${WATCHDOG_VERSION} -> Ξεκίνησε`);
-import { log, ts, controllers, stats } from './globals.js';
 
+// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: watchdog.js ${WATCHDOG_VERSION} -> Ξεκίνησε`);
+
+// Imports
+import { log, ts, controllers, stats } from './globals.js';
 
 // Guard helpers for State Machine (Rule 12)
 function anyTrue(flags){ for(let i=0;i<flags.length;i++){ if(flags[i]) return true; } return false; }
 function allTrue(flags){ for(let i=0;i<flags.length;i++){ if(!flags[i]) return false; } return true; }
-/** Εκκίνηση watchdog (καλείται ρητά από main.js μετά το YouTube ready & Human Mode init). */
+
+/** Εκκίνηση watchdog (καλείται ρητά από main.js μετά το YouTube ready και Human Mode init). */
 export function startWatchdog() {
   log(`[${ts()}] 🧭 Watchdog -> start (adaptive): ${WATCHDOG_VERSION}`);
   const loop = () => {
@@ -48,7 +52,7 @@ export function startWatchdog() {
 
   setInterval(() => {
     controllers.forEach(c => {
-      // Guard χωρίς '||' (κανόνας No '||')
+      // Guard
       if (!allTrue([ c.player, typeof c.player.getPlayerState === 'function' ])) return;
       const state = c.player.getPlayerState();
       const now = Date.now();
@@ -82,5 +86,8 @@ export function startWatchdog() {
   }, 60_000);
   log(`[${ts()}] ✅ Watchdog started`);
 }
+
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
+
 // --- End Of File ---

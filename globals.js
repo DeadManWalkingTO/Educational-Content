@@ -1,11 +1,11 @@
 // --- globals.js ---
-// Έκδοση: v2.8.5
+// Έκδοση: v2.9.9
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const GLOBALS_VERSION = "v2.8.5";
+const GLOBALS_VERSION = "v2.9.9";
 export function getVersion() { return GLOBALS_VERSION; }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -21,6 +21,29 @@ export const stats = {
   errors: 0,
   volumeChanges: 0
 };
+
+// Guard helpers for State Machine (Rule 12)
+function anyTrue(flags){
+  for (let i=0;i<flags.length;i++){ if (flags[i]) { return true; } }
+  return false;
+}
+function allTrue(flags){
+	for(let i=0;i<flags.length;i++){ if(!flags[i]) return false; } return true; 
+}
+
+// Scheduling helpers (Phase-2)
+export function schedule(fn, delayMs){ return setTimeout(fn, delayMs); }
+export function schedulePause(ctrl, ms){ return schedule(()=>ctrl.requestPause?.(), ms); }
+export function scheduleResume(ctrl, ms){ return schedule(()=>ctrl.requestResume?.(), ms); }
+export function scheduleAutoNext(ctrl, ms){ return schedule(()=>ctrl.autoNext?.(), ms); }
+
+// Phase-3 guard constants
+export const GUARD_MIN_PAUSE_DELAY_SEC = 10;
+export const GUARD_MIN_SEEK_INTERVAL_MS = 5000;
+export const GUARD_REQUIRE_GESTURE_FOR_RESUME = true;
+
+// Named exports for guard helpers (single declaration)
+export { anyTrue, allTrue };
 
 // Named guards for globals
 function isObj(x){ return typeof x === 'object' && x !== null; }
@@ -160,14 +183,6 @@ export const consoleFilterConfig = {
   tag: '[YouTubeAPI][non-critical]'
 };
 
-function anyTrue(flags){
-  for (let i=0;i<flags.length;i++){ if (flags[i]) { return true; } }
-  return false;
-}
-function allTrue(flags){
-  for (let i=0;i<flags.length;i++){ if (!flags[i]) { return false; } }
-  return true;
-}
 
 (function(){
   var S_CHECK_ENV = 0;
