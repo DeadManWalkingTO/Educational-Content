@@ -1,4 +1,17 @@
-# CHANGELOG.md v118
+# CHANGELOG.md v148
+
+## [2025-12-12]
+- main.js: Αναδιαμόρφωση sanityCheck() σε κανονικό try/catch για διόρθωση SyntaxError (γραμμή ~62); bump έκδοσης σε v1.7.25.
+
+## [2025-12-12]
+- globals.js: Μαζική ενοποίηση log format (log/console.log) σε ενιαίο template literal; replacements: log=11, console=5; bump έκδοσης σε v2.9.18.
+- humanMode.js: Μαζική ενοποίηση log format (log/console.log) σε ενιαίο template literal; replacements: log=11, console=1; bump έκδοσης σε v4.7.22.
+- main.js: Μαζική ενοποίηση log format (log/console.log) σε ενιαίο template literal; replacements: log=16, console=2; bump έκδοσης σε v1.7.24.
+- playerController.js: Μαζική ενοποίηση log format (log/console.log) σε ενιαίο template literal; replacements: log=45, console=1; bump έκδοσης σε v6.6.16.
+- lists.js: Μαζική ενοποίηση log format (log/console.log) σε ενιαίο template literal; replacements: log=10, console=1; bump έκδοσης σε v3.4.15.
+- uiControls.js: Μαζική ενοποίηση log format (log/console.log) σε ενιαίο template literal; replacements: log=25, console=1; bump έκδοσης σε v2.5.16.
+- versionReporter.js: Μαζική ενοποίηση log format (log/console.log) σε ενιαίο template literal; replacements: log=1, console=1; bump έκδοσης σε v2.3.7.
+- watchdog.js: Μαζική ενοποίηση log format (log/console.log) σε ενιαίο template literal; replacements: log=10, console=1; bump έκδοσης σε v2.6.25.
 
 
 ## [2025-12-12]

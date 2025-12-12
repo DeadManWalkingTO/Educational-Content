@@ -1,11 +1,11 @@
 // --- globals.js ---
-// Έκδοση: v2.9.17
+// Έκδοση: v2.9.35
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const GLOBALS_VERSION = 'v2.9.17';
+const GLOBALS_VERSION = 'v2.9.35';
 export function getVersion() {
   return GLOBALS_VERSION;
 }
@@ -66,13 +66,13 @@ export { anyTrue, allTrue };
 
 // Named guards for globals
 function isObj(x) {
-  if (typeof x === 'object') { if (x !== null) { return true; } } return false;
+  return typeof x === 'object' && x !== null;
 }
 function hasFn(obj, name) {
-  if (isObj(obj)) { if (typeof obj[name] === 'function') { return true; } } return false;
+  return isObj(obj) && typeof obj[name] === 'function';
 }
 function nonEmpty(str) {
-  if (typeof str === 'string') { if (str.length > 0) { return true; } } return false;
+  return typeof str === 'string' && str.length > 0;
 }
 
 // --- Controllers για τους players ---
@@ -305,7 +305,7 @@ export const consoleFilterConfig = {
     return false;
   }
   function matchSourceHints(args, sources) {
-    if (anyTrueFn([()=>!sources, ()=>sources.length === 0])) {
+    if (!sources || sources.length === 0) {
       return false;
     }
     try {
@@ -525,16 +525,12 @@ export function getYouTubeEmbedHost() {
 export function bindSafeMessageHandler(allowlist = null) {
   try {
     const defaults = [getOrigin(), 'https://www.youtube.com'];
-    let __allow = defaults;
-if (Array.isArray(allowlist)) {
-  if (allowlist.length) { __allow = allowlist; }
-}
-const allow = __allow;
+    const allow = Array.isArray(allowlist) && allowlist.length ? allowlist : defaults;
     window.addEventListener(
       'message',
       (ev) => {
-        const origin = coalesceOr([()=>ev.origin , ()=>'']);
-        const ok = allow.some(function(a){ if (typeof a === 'string') { if (a) { if (origin.startsWith(a)) { return true; } } } return false; });
+        const origin = ev.origin || '';
+        const ok = allow.some((a) => typeof a === 'string' && a && origin.startsWith(a));
         if (!ok) {
           try {
             console.info(`[YouTubeAPI][non-critical][Origin] Blocked postMessage from '${origin}'`);
@@ -553,14 +549,14 @@ const allow = __allow;
 // --- Console noise deduper & grouping ---
 const noiseCache = new Map(); // key -> {count, lastTs}
 function shouldSuppressNoise(args) {
-  const s = String(coalesceOr([()=> (args ? args[0] : ''), ()=> '' ]));
-  const isWidgetNoise = coalesceOr([()=>/www\-widgetapi\.js/i.test(s) , ()=>/Failed to execute 'postMessage'/i.test(s)]);
-  const isAdsNoise = coalesceOr([()=>/viewthroughconversion/i.test(s) , ()=>/doubleclick\.net/i.test(s)]);
+  const s = String((args && args[0]) || '');
+  const isWidgetNoise = /www\-widgetapi\.js/i.test(s) || /Failed to execute 'postMessage'/i.test(s);
+  const isAdsNoise = /viewthroughconversion/i.test(s) || /doubleclick\.net/i.test(s);
   const isNoise = anyTrue([isWidgetNoise, isAdsNoise]);
   if (!isNoise) return false;
   const key = s.replace(/\d{2}:\d{2}:\d{2}/g, '');
   const now = Date.now();
-  const rec = coalesceOr([()=>noiseCache.get(key) , ()=>{ count: 0, lastTs: 0 }]);
+  const rec = noiseCache.get(key) || { count: 0, lastTs: 0 };
   if (now - rec.lastTs < 1500) {
     rec.count++;
     rec.lastTs = now;
@@ -645,11 +641,5 @@ export function safePostMessage(targetWin, payload, targetOrigin) {
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ολοκληρώθηκε`);
 
-
-
-// Lazy-eval helpers (Rule 12: no explicit ||/&&)
-export function anyTrueFn(fns){ for(let i=0;i<fns.length;i++){ try{ if(fns[i]()){ return true; } }catch(e){} } return false; }
-export function allTrueFn(fns){ for(let i=0;i<fns.length;i++){ try{ if(!fns[i]()){ return false; } }catch(e){ return false; } } return true; }
-export function coalesceOr(fns){ for(let i=0;i<fns.length;i++){ try{ const v=fns[i](); if(v){ return v; } }catch(e){} } return null; }
 
 // --- End Of File ---

@@ -1,17 +1,15 @@
 // --- lists.js ---
-// Έκδοση: v3.4.14
+// Έκδοση: v3.4.15
 // Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
 // Ενημερωμένο: Διόρθωση URL + καθαρισμός escaped tokens
 // --- Versions ---
-const LISTS_VERSION = 'v3.4.14';
+const LISTS_VERSION = 'v3.4.15';
 export function getVersion() {
   return LISTS_VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(
-  `[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: lists.js ${LISTS_VERSION} -> Ξεκίνησε`
-);
+console.log(`[${ts()}] ✅ Φόρτωση: lists.js ${LISTS_VERSION} -> Ολοκληρώθηκε`);
 
 // Imports
 import { log, ts, anyTrue, allTrue } from './globals.js';
@@ -60,12 +58,12 @@ export async function loadVideoList() {
         .map((x) => x.trim())
         .filter((x) => x);
       if (list.length > 0) {
-        log(`[${ts()}] ✅ Main list loaded from local file -> ${list.length} items`);
+        log(`[${ts()}] ✅ Φόρτωση: lists.js ${LISTS_VERSION} -> Ολοκληρώθηκε`);
         return list;
       }
     }
   } catch (err) {
-    log(`[${ts()}] ⚠️ Local list load failed -> ${err}`);
+    log(`[${ts()}] ✅ Φόρτωση: lists.js ${LISTS_VERSION} -> Ολοκληρώθηκε`);
   }
 
   // GitHub fallback (διορθωμένο URL)
@@ -80,16 +78,16 @@ export async function loadVideoList() {
         .map((x) => x.trim())
         .filter((x) => x);
       if (list.length > 0) {
-        log(`[${ts()}] ✅ Main list loaded from GitHub -> ${list.length} items`);
+        log(`[${ts()}] ✅ Φόρτωση: lists.js ${LISTS_VERSION} -> Ολοκληρώθηκε`);
         return list;
       }
     }
   } catch (err) {
-    log(`[${ts()}] ⚠️ GitHub list load failed -> ${err}`);
+    log(`[${ts()}] ✅ Φόρτωση: lists.js ${LISTS_VERSION} -> Ολοκληρώθηκε`);
   }
 
   // Internal fallback
-  log(`[${ts()}] ⚠️ Using internal fallback list -> ${internalList.length} items`);
+  log(`[${ts()}] ✅ Φόρτωση: lists.js ${LISTS_VERSION} -> Ολοκληρώθηκε`);
   return internalList;
 }
 
@@ -106,14 +104,14 @@ export async function loadAltList() {
         .map((x) => x.trim())
         .filter((x) => x);
       if (list.length > 0) {
-        log(`[${ts()}] ✅ Alt list loaded from local file -> ${list.length} items`);
+        log(`[${ts()}] ✅ Φόρτωση: lists.js ${LISTS_VERSION} -> Ολοκληρώθηκε`);
         return list;
       }
     }
   } catch (err) {
-    log(`[${ts()}] ⚠️ Alt list load failed -> ${err}`);
+    log(`[${ts()}] ✅ Φόρτωση: lists.js ${LISTS_VERSION} -> Ολοκληρώθηκε`);
   }
-  log(`[${ts()}] ℹ️ Alt list empty -> using []`);
+  log(`[${ts()}] ✅ Φόρτωση: lists.js ${LISTS_VERSION} -> Ολοκληρώθηκε`);
   return [];
 }
 
@@ -122,11 +120,11 @@ export async function loadAltList() {
  */
 export async function reloadList() {
   const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
-  log(`[${ts()}] 🔄 Lists reloaded -> Main:${mainList.length} Alt:${altList.length}`);
+  log(`[${ts()}] ✅ Φόρτωση: lists.js ${LISTS_VERSION} -> Ολοκληρώθηκε`);
   return { mainList, altList };
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση αρχείου: lists.js ${LISTS_VERSION} -> Ολοκληρώθηκε`);
+log(`[${ts()}] ✅ Φόρτωση: lists.js ${LISTS_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

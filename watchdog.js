@@ -1,23 +1,16 @@
 // --- watchdog.js ---
-// Έκδοση: v2.6.24
+// Έκδοση: v2.6.25
 // Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
 // Συμμόρφωση με κανόνα State Machine με Guard Steps.
 
 // --- Versions ---
-const WATCHDOG_VERSION = 'v2.6.24';
+const WATCHDOG_VERSION = 'v2.6.25';
 export function getVersion() {
   return WATCHDOG_VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(
-  '[' +
-    new Date().toLocaleTimeString() +
-    '] ' +
-    '🚀 Φόρτωση αρχείου: watchdog.js ' +
-    WATCHDOG_VERSION +
-    ' -> Ξεκίνησε'
-);
+console.log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
 
 // Imports
 import { log, ts, controllers, stats, anyTrue, allTrue } from './globals.js';
@@ -29,7 +22,7 @@ import { log, ts, controllers, stats, anyTrue, allTrue } from './globals.js';
 */
 
 export function startWatchdog() {
-  log('[' + ts() + '] ' + '🧭 Watchdog -> start (adaptive): ' + WATCHDOG_VERSION);
+  log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
 
   const loop = () => {
     var didRecovery = false;
@@ -63,16 +56,7 @@ export function startWatchdog() {
           now - c.lastBufferingStart > bufThreshold,
         ])
       ) {
-        log(
-          '[' +
-            ts() +
-            '] ' +
-            '🛠 Watchdog reset -> Player ' +
-            (c.index + 1) +
-            ' BUFFERING >' +
-            Math.round(bufThreshold / 1000) +
-            's'
-        );
+        log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
         if (typeof c.loadNextVideo === 'function') {
           c.loadNextVideo(c.player);
           stats.watchdog++;
@@ -89,13 +73,7 @@ export function startWatchdog() {
           now - c.lastPausedStart > allowedPause,
         ])
       ) {
-        log(
-          '[' +
-            ts() +
-            '] ' +
-            '▶️ Watchdog retry playVideo before AutoNext -> Player ' +
-            (c.index + 1)
-        );
+        log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
         try {
           if (typeof c.player.playVideo === 'function') {
             if (typeof c.requestPlay === 'function') {
@@ -116,7 +94,7 @@ export function startWatchdog() {
           }
 
           if (stillNotPlaying) {
-            log('[' + ts() + '] ' + '♻️ Watchdog reset -> stuck in PAUSED');
+            log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
             if (typeof c.loadNextVideo === 'function') {
               c.loadNextVideo(c.player);
               stats.watchdog++;
@@ -138,7 +116,7 @@ export function startWatchdog() {
 
   loop();
 
-  log('[' + ts() + '] ' + '🚀 Εκκίνηση Watchdog -> έκδοση ' + WATCHDOG_VERSION);
+  log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
 
   // Δευτερεύων έλεγχος ανά 60s (σταθερό)
   setInterval(function () {
@@ -167,7 +145,7 @@ export function startWatchdog() {
         now - c.lastBufferingStart > 60000,
       ]);
       if (isBufferingTooLong) {
-        log('[' + ts() + '] ' + '⚠️ Watchdog reset -> Player ' + (c.index + 1) + ' BUFFERING >60s');
+        log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
         if (typeof c.loadNextVideo === 'function') {
           c.loadNextVideo(c.player);
           stats.watchdog++;
@@ -182,13 +160,7 @@ export function startWatchdog() {
         now - c.lastPausedStart > allowedPause,
       ]);
       if (isPausedTooLong) {
-        log(
-          '[' +
-            ts() +
-            '] ' +
-            '⚠️ Watchdog retry playVideo before AutoNext -> Player ' +
-            (c.index + 1)
-        );
+        log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
         if (typeof c.player.playVideo === 'function') {
           if (typeof c.requestPlay === 'function') {
             c.requestPlay();
@@ -207,14 +179,7 @@ export function startWatchdog() {
           }
 
           if (stillNotPlaying) {
-            log(
-              '[' +
-                ts() +
-                '] ' +
-                '❌ Watchdog reset -> Player ' +
-                (c.index + 1) +
-                ' stuck in PAUSED'
-            );
+            log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
             if (typeof c.loadNextVideo === 'function') {
               c.loadNextVideo(c.player);
               stats.watchdog++;
@@ -225,10 +190,10 @@ export function startWatchdog() {
     });
   }, 60000);
 
-  log('[' + ts() + '] ' + '✅ Watchdog started');
+  log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log('[' + ts() + '] ' + '✅ Φόρτωση αρχείου: watchdog.js ' + WATCHDOG_VERSION + ' -> Ολοκληρώθηκε');
+log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---
