@@ -1,5 +1,15 @@
-# CHANGELOG.md v148
+# CHANGELOG.md - v152
 
+---
+
+## [2025-12-12]
+- watchdog.js: v2.6.25 → v2.6.26; αφαίρεση `||`/`&&` (fallbacks, state OR/AND, guards), διατήρηση semicolons/EOL LF.
+## [2025-12-12]
+- humanMode.js: v4.7.39 → v4.7.40; αφαίρεση `||`/`&&` (time window guards, ctrl/player guard, profile focus, list guards), διατήρηση semicolons/EOL LF.
+## [2025-12-12]
+- main.js: v1.7.42 → v1.7.43; αφαίρεση `||`/`&&` (hasYT/hasPlayer, lists validation), διατήρηση semicolons/EOL LF.
+## [2025-12-12]
+- playerController.js: v6.6.33 → v6.6.34; αφαίρεση `||`/`&&` (hasPlayer, lists guard, dynamic origin, PLAYING/PAUSED/ENDED, currentRate fallback), διατήρηση semicolons/EOL LF.
 ## [2025-12-12]
 - main.js: Αναδιαμόρφωση sanityCheck() σε κανονικό try/catch για διόρθωση SyntaxError (γραμμή ~62); bump έκδοσης σε v1.7.25.
 

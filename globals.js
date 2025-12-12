@@ -549,14 +549,14 @@ export function bindSafeMessageHandler(allowlist = null) {
 // --- Console noise deduper & grouping ---
 const noiseCache = new Map(); // key -> {count, lastTs}
 function shouldSuppressNoise(args) {
-  const s = String((args && args[0]) || '');
-  const isWidgetNoise = /www\-widgetapi\.js/i.test(s) || /Failed to execute 'postMessage'/i.test(s);
-  const isAdsNoise = /viewthroughconversion/i.test(s) || /doubleclick\.net/i.test(s);
-  const isNoise = anyTrue([isWidgetNoise, isAdsNoise]);
+  const sCandidate = args ? args[0] : undefined;
+  const s = String(sCandidate ? sCandidate : '');
+  const isWidgetNoise = anyTrue([/www\-widgetapi\.js/i.test(s), /Failed to execute 'postMessage'/i.test(s)]);
+  const isAdsNoise = anyTrue([/viewthroughconversion/i.test(s), /doubleclick\.net/i.test(s)]);
   if (!isNoise) return false;
   const key = s.replace(/\d{2}:\d{2}:\d{2}/g, '');
   const now = Date.now();
-  const rec = noiseCache.get(key) || { count: 0, lastTs: 0 };
+  const rec = noiseCache.get(key) ? noiseCache.get(key) : { count: 0, lastTs: 0 };
   if (now - rec.lastTs < 1500) {
     rec.count++;
     rec.lastTs = now;

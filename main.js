@@ -1,12 +1,12 @@
 // --- main.js ---
-// Έκδοση: v1.7.41
+// Έκδοση: v1.7.43
 // Entry point: DOM readiness, UI binding, lists load, versions report, YouTube API ready, Human Mode init, watchdog
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 // Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded) και gate μέσω Start button.
 // Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 // --- Versions ---
-const MAIN_VERSION = 'v1.7.41';
+const MAIN_VERSION = 'v1.7.43';
 export function getVersion() {
   return MAIN_VERSION;
 }
@@ -27,8 +27,8 @@ import { startWatchdog } from './watchdog.js';
 // Guard helpers for State Machine (Rule 12)
 // Named guards (Rule 12)
 function isApiReady() {
-  const hasYT = !!(window && window.YT);
-  const hasPlayer = !!(window && window.YT && typeof window.YT.Player === 'function');
+  const hasYT = (typeof window !== 'undefined') ? !!window.YT : false;
+  const hasPlayer = (typeof window !== 'undefined') ? allTrue([!!window.YT, typeof window.YT.Player === 'function']) : false;
   return allTrue([hasYT, hasPlayer]);
 }
 function isDomInteractive() {
@@ -53,7 +53,7 @@ async function sanityCheck(versions) {
       log(`[${ts()}] ✅ Sanity: HTML version -> ${versions.HTML}`);
     }
     const [ml, al] = await Promise.all([loadVideoList(), loadAltList()]);
-    if (!Array.isArray(ml) || !Array.isArray(al)) {
+    if (anyTrue([!Array.isArray(ml), !Array.isArray(al)])) {
       log(`[${ts()}] ❌ Sanity: Lists not arrays`);
     } else {
       log(`[${ts()}] ✅ Sanity: Lists ok -> Main:${ml.length} Alt:${al.length}`);
