@@ -1,4 +1,68 @@
-# CHANGELOG.md
+# CHANGELOG.md v118
+
+
+## [2025-12-12]
+
+- globals.js: Refactor (Rule 12) — πρόσθετες διορθώσεις (guarded coalesce, allowlist choice, some()) και bump έκδοση.
+- playerController.js: Refactor (Rule 12) — αντικατάσταση σύνθετων guards (typeof e) και bump έκδοση.
+- humanMode.js: Refactor (Rule 12) — καθαρισμός συνθηκών (anyTrue/allTrue) και bump έκδοση.
+- main.js: Refactor (Rule 12) — αντικατάσταση guards σε hasYT/hasPlayer και invalid list checks, bump έκδοση.
+- lists.js: Refactor (Rule 12) — αποφυγή && σε non-empty id, bump έκδοση.
+
+## [2025-12-12]
+
+- globals.js: Refactor (Rule 12) — αντικατάσταση ρητών τελεστών ||/&& με anyTrueFn/allTrueFn & guard steps; bump έκδοση σε v2.9.16.
+- playerController.js: Refactor (Rule 12) — αντικατάσταση ρητών τελεστών ||/&& με anyTrueFn/allTrueFn & guard steps; bump έκδοση σε v6.6.14.
+- watchdog.js: Refactor (Rule 12) — αντικατάσταση ρητών τελεστών ||/&& με anyTrueFn/allTrueFn & guard steps; bump έκδοση σε v2.6.24.
+- humanMode.js: Refactor (Rule 12) — αντικατάσταση ρητών τελεστών ||/&& με anyTrueFn/allTrueFn & guard steps; bump έκδοση σε v4.7.20.
+- main.js: Refactor (Rule 12) — αντικατάσταση ρητών τελεστών ||/&& με anyTrueFn/allTrueFn & guard steps; bump έκδοση σε v1.7.22.
+- lists.js: Refactor (Rule 12) — αντικατάσταση ρητών τελεστών ||/&& με anyTrueFn/allTrueFn & guard steps; bump έκδοση σε v3.4.13.
+
+## [2025-12-12]
+- globals.js v2.9.19: Fix isObj/hasFn/nonEmpty condition logic; remove broken inserts; no '||'/'&&'.
+
+## [2025-12-12]
+- main.js v1.7.24: Fix broken condition at sanityCheck() (Array.isArray checks) without using '||'/'&&'.
+
+## [2025-12-12]
+- globals.js: Safe rewrite of shouldSuppressNoise() to remove && and ||; bump version to v2.9.18
+
+## [2025-12-12]
+- globals.js: Remove template literals; bump version to v2.9.16
+- humanMode.js: Remove template literals; bump version to v4.7.20
+- lists.js: Remove template literals; bump version to v3.4.13
+- main.js: Remove template literals; bump version to v1.7.22
+- playerController.js: Remove template literals; bump version to v6.6.14
+- globals.js: Replace logical operators with anyTrue/allTrue; bump version to v2.9.17
+- humanMode.js: Replace logical operators with anyTrue/allTrue; bump version to v4.7.21
+- lists.js: Replace logical operators with anyTrue/allTrue; bump version to v3.4.14
+- main.js: Replace logical operators with anyTrue/allTrue; bump version to v1.7.23
+- playerController.js: Replace logical operators with anyTrue/allTrue; bump version to v6.6.15
+
+## [2025-12-12]
+- Συμμόρφωση συντακτικών κανόνων σε όλα τα JS:
+  - globals.js v2.9.17: replace ||/&&, remove backticks, fix line joins; format per .prettierrc.json
+  - humanMode.js v4.7.21: replace ||/&&, remove backticks, fix line joins; format per .prettierrc.json
+  - lists.js v3.4.14: replace ||/&&, remove backticks, fix line joins; format per .prettierrc.json
+  - main.js v1.7.23: replace ||/&&, remove backticks, fix line joins; format per .prettierrc.json
+  - playerController.js v6.6.15: replace ||/&&, remove backticks, fix line joins; format per .prettierrc.json
+  - uiControls.js v2.5.14: replace ||/&&, remove backticks, fix line joins; format per .prettierrc.json
+  - versionReporter.js v2.3.6: replace ||/&&, remove backticks, fix line joins; format per .prettierrc.json
+  - watchdog.js v2.5.22: replace ||/&&, remove backticks, fix line joins; format per .prettierrc.json
+## [2025-12-12]
+- lists.js v3.4.13: Αφαίρεση '&&' από guards; μετατροπή template literals σε μονοσειρικά strings; ευθυγράμμιση με singleQuote.
+
+## [2025-12-12]
+- watchdog.js v2.5.21: Αφαίρεση '&&' από guard, αναδιατύπωση σχολίων, διατήρηση single‑quote/μονοσειρικών strings.
+
+## [2025-12-12]
+- humanMode.js v4.7.20: Αφαίρεση '||' και '&&'; μετατροπή template literals σε μονοσειρικά strings; αντικατάσταση guards με allTrue/anyTrue; ευθυγράμμιση με singleQuote.
+
+## [2025-12-12]
+- playerController.js v6.6.14: Αφαίρεση '||' και '&&'; μετατροπή template literals σε μονοσειρικά strings με συνένωση; τροποποιήσεις σε guards με allTrue/anyTrue; αποφυγή '||' σε origin fallbacks.
+
+## [2025-12-12]
+- globals.js v2.9.16: Αφαίρεση '||' και '&&'; μετατροπή template literals σε μονόσειρα strings με συνένωση; ευθυγράμμιση singleQuote; αντικαταστάσεις με anyTrue/allTrue/if-steps.
 
 ---
 

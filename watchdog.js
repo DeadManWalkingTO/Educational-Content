@@ -1,10 +1,10 @@
 // --- watchdog.js ---
-// Έκδοση: v2.5.20
+// Έκδοση: v2.6.24
 // Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
 // Συμμόρφωση με κανόνα State Machine με Guard Steps.
 
 // --- Versions ---
-const WATCHDOG_VERSION = 'v2.5.20';
+const WATCHDOG_VERSION = 'v2.6.24';
 export function getVersion() {
   return WATCHDOG_VERSION;
 }
@@ -28,28 +28,6 @@ import { log, ts, controllers, stats, anyTrue, allTrue } from './globals.js';
   - PAUSED > (expectedPause + adaptive extra) -> retry + reset
 */
 
-function pauseExtraByProfile() {
-  try {
-    var cores = 0;
-    try {
-      var hc = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 0;
-      if (typeof hc === 'number') {
-        cores = hc;
-      }
-    } catch (_) {}
-    var extra = 180000; // default 180s
-    if (cores <= 4 && cores > 0) {
-      extra = 240000; // low-end: 240s
-    }
-    if (cores >= 10) {
-      extra = 120000; // high-end: 120s
-    }
-    return extra;
-  } catch (_) {
-    return 180000;
-  }
-}
-
 export function startWatchdog() {
   log('[' + ts() + '] ' + '🧭 Watchdog -> start (adaptive): ' + WATCHDOG_VERSION);
 
@@ -72,7 +50,7 @@ export function startWatchdog() {
           basePause = c.expectedPauseMs;
         }
       }
-      var allowedPause = basePause + pauseExtraByProfile();
+      var allowedPause = basePause;
 
       // BUFFERING threshold με ελαφρύ jitter (45–75s)
       var bufThreshold = (45 + Math.floor(Math.random() * 31)) * 1000;
@@ -180,7 +158,7 @@ export function startWatchdog() {
           basePause = c.expectedPauseMs;
         }
       }
-      var allowedPause = basePause + pauseExtraByProfile(); // adaptive margin
+      var allowedPause = basePause;
 
       // 1) BUFFERING > 60s -> AutoNext reset
       var isBufferingTooLong = allTrue([

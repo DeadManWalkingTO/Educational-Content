@@ -1,10 +1,10 @@
 // --- playerController.js ---
-// Έκδοση: v6.6.13
+// Έκδοση: v6.6.15
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions ---
-const PLAYER_CONTROLLER_VERSION = 'v6.6.13';
+const PLAYER_CONTROLLER_VERSION = 'v6.6.15';
 export function getVersion() {
   return PLAYER_CONTROLLER_VERSION;
 }
@@ -78,7 +78,7 @@ function isNonEmptyArray(x) {
 
 // Named guards for playerController
 function hasPlayer(p) {
-  return !!p && typeof p.playVideo === 'function';
+  if (p) { if (typeof p.playVideo === 'function') { return true; } } return false;
 }
 
 function guardHasAnyList(ctrl) {
@@ -87,12 +87,12 @@ function guardHasAnyList(ctrl) {
   }
 
   if (Array.isArray(ctrl.mainList)) {
-    if (ctrl.mainList && ctrl.mainList.length > 0) {
+    if (allTrueFn([()=>ctrl.mainList, ()=>ctrl.mainList.length > 0])) {
       return true;
     }
   }
   if (Array.isArray(ctrl.altList)) {
-    if (ctrl.altList && ctrl.altList.length > 0) {
+    if (allTrueFn([()=>ctrl.altList, ()=>ctrl.altList.length > 0])) {
       return true;
     }
   }
@@ -202,7 +202,7 @@ export function getPausePlan(duration) {
 function getDynamicOrigin() {
   try {
     if (allTrue([window.location, window.location.origin])) return window.location.origin;
-    const { protocol, hostname, port } = window.location || {};
+    const __loc = coalesceOr([()=>window.location, ()=>({})]); const { protocol, hostname, port } = __loc;
     if (allTrue([protocol, hostname])) return `${protocol}//${hostname}${port ? `:${port}` : ''}`;
   } catch (_) {}
   return '';
@@ -238,7 +238,7 @@ export class PlayerController {
         var count = getPlayingCount();
         var limit = MAX_CONCURRENT_PLAYING;
         if (count < limit) {
-          if (p && typeof p.playVideo === 'function') { p.playVideo(); }
+          if (allTrueFn([()=>p, ()=>typeof p.playVideo === 'function'])) { p.playVideo(); }
           return;
         }
         var backoffBase = 300;
@@ -247,7 +247,7 @@ export class PlayerController {
           try {
             var c = getPlayingCount();
             if (c < MAX_CONCURRENT_PLAYING) {
-              if (p && typeof p.playVideo === 'function') { p.playVideo(); }
+              if (allTrueFn([()=>p, ()=>typeof p.playVideo === 'function'])) { p.playVideo(); }
               return;
             }
             setTimeout(retry, backoffBase + Math.floor(Math.random() * 900));
@@ -274,9 +274,7 @@ export class PlayerController {
   /** Αρχικοποίηση του YouTube Player. */
   init(videoId) {
     const containerId = `player${this.index + 1}`;
-    const computedOrigin =
-      (typeof getDynamicOrigin === 'function' ? getDynamicOrigin() : '') ||
-      (window.location?.origin ?? '');
+    const computedOrigin = coalesceOr([()=>(typeof getDynamicOrigin === 'function' ? getDynamicOrigin() : '') , ()=>(window.location?.origin ?? '')]);
     const isValidOrigin = allTrue([
       typeof computedOrigin === 'string',
       /^https?:\/\/[^/]+$/.test(computedOrigin),
@@ -316,7 +314,7 @@ export class PlayerController {
     const __jitterMs = 100 + Math.floor(Math.random() * 120);
     setTimeout(() => {
       try {
-        if (typeof e.target.seekTo === 'function' && this.initialSeekSec) {
+        if (allTrueFn([()=>typeof e.target.seekTo === 'function', ()=>this.initialSeekSec])) {
           safeCmd(() => e.target.seekTo(this.initialSeekSec, true), 120);
         }
         if (typeof e.target.playVideo === 'function') {
@@ -395,13 +393,13 @@ export class PlayerController {
     /* phase-3-dispatch */
     try {
       const s =
-        typeof e !== 'undefined' && typeof e.data !== 'undefined'
+        (typeof e !== 'undefined') ? (typeof e.data !== 'undefined') : false
           ? e.data
           : this.player
           ? this.player.getPlayerState()
           : undefined;
       if (s === YT.PlayerState.PLAYING) pc_startPlaying(this);
-      if (s === YT.PlayerState.PAUSED || s === YT.PlayerState.ENDED) pc_stopPlaying(this);
+      if (anyTrue([s === YT.PlayerState.PAUSED, s === YT.PlayerState.ENDED])) pc_stopPlaying(this);
     } catch (_) {}
     try {
       if (s === YT.PlayerState.PAUSED) {
@@ -454,7 +452,7 @@ export class PlayerController {
             const now = Date.now();
             let prospective = this.totalPlayTime;
             if (this.playingStart) {
-              const delta = ((now - this.playingStart) / 1000) * (this.currentRate || 1.0);
+              const delta = coalesceOr([()=>((now - this.playingStart) / 1000) * (this.currentRate , ()=>1.0)]);
               prospective += delta;
             }
             const duration = p.getDuration();

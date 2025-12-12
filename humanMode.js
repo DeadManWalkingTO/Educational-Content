@@ -1,8 +1,8 @@
 // --- humanMode.js ---
-// Έκδοση: v4.7.19
+// Έκδοση: v4.7.21
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 // --- Versions ---
-const HUMAN_MODE_VERSION = 'v4.7.19';
+const HUMAN_MODE_VERSION = 'v4.7.21';
 export function getVersion() {
   return HUMAN_MODE_VERSION;
 }
@@ -38,13 +38,13 @@ function isFunction(fn) {
   return typeof fn === 'function';
 }
 function inStaggerWindow(ms) {
-  return anyTrue([ms >= 400 && ms <= 600, ms === undefined]);
+  return anyTrue([allTrue([ms >= 400, ms <= 600]), ms === undefined]);
 }
 function canSequentialInit(queue) {
   return hasArrayWithItems(queue);
 }
 function hasCtrlAndPlayer(ctrl) {
-  return !!ctrl && !!ctrl.player;
+  if (ctrl) { if (ctrl.player) { return true; } } return false;
 }
 
 // --- Δημιουργία containers για τους players ---
@@ -90,7 +90,7 @@ const BEHAVIOR_PROFILES = [
 // --- Δημιουργία τυχαίου config για κάθε player ---
 function createRandomPlayerConfig(profile) {
  var isFocus = false;
- try { if (profile && profile.name === 'Focused') { isFocus = true; } } catch (_) {}
+ try { if (allTrueFn([()=>profile, ()=>profile.name === 'Focused'])) { isFocus = true; } } catch (_) {}
  var low = isFocus ? 5 : 10;
  var high = isFocus ? 45 : 60;
  var initSeekSec = rndInt(low, high);
@@ -121,7 +121,7 @@ function createSessionPlan() {
 
 // --- Sequential Initialization των players ---
 export async function initPlayersSequentially(mainList, altList) {
-  if (Array.isArray(mainList) && Array.isArray(altList)) {
+  if (allTrueFn([()=>Array.isArray(mainList), ()=>Array.isArray(altList)])) {
     setMainList(mainList);
     setAltList(altList);
   }

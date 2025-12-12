@@ -1,16 +1,16 @@
 // --- uiControls.js ---
-// Έκδοση: v2.5.13
+// Έκδοση: v2.5.15
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const UICONTROLS_VERSION = 'v2.5.13';
+const UICONTROLS_VERSION = 'v2.5.15';
 export function getVersion() {
   return UICONTROLS_VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(
-  `[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: uiControls.js ${UICONTROLS_VERSION} -> Ξεκίνησε`
+  '[' + ts() + '] 🚀 Φόρτωση αρχείου: uiControls.js ' + UICONTROLS_VERSION + ' -> Ξεκίνησε'
 );
 
 // Imports
@@ -37,10 +37,22 @@ function hasEl(id) {
   return !!document.getElementById(id);
 }
 function isHttps() {
-  return typeof location !== 'undefined' && location.protocol === 'https:';
+  if (typeof location !== 'undefined') {
+    if (location.protocol === 'https:') {
+      return true;
+    }
+  }
+  return false;
 }
 function canClipboardNative() {
-  return isHttps() && !!(navigator && navigator.clipboard);
+  if (isHttps()) {
+    if (typeof navigator !== 'undefined') {
+      if (navigator.clipboard) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 // Βοηθητικό για newline: πάντα escaped (No real newline in literals)
@@ -61,14 +73,14 @@ export function setControlsEnabled(enabled) {
     const el = document.getElementById(id);
     if (el) el.disabled = !enabled;
   });
-  log(`[${ts()}] ✅ Controls ${enabled ? 'enabled' : 'disabled'}`);
+  log('[' + ts() + '] ✅ Controls ' + (enabled ? 'enabled' : 'disabled'));
 }
 
-/** ▶ Εκκίνηση όλων των players σε "sequential" mode με τυχαίες καθυστερήσεις. */
+/** ▶ Εκκίνηση όλων των players σε sequential mode με τυχαίες καθυστερήσεις. */
 export function playAll() {
   setIsStopping(false);
   clearStopTimers();
-  log(`[${ts()}] ▶ Stop All canceled -> starting Play All`);
+  log('[' + ts() + '] ▶ Stop All canceled -> starting Play All');
   const shuffled = [...controllers].sort(() => Math.random() - 0.5);
   let delay = 0;
   shuffled.forEach((c, i) => {
@@ -79,17 +91,17 @@ export function playAll() {
         if (typeof c.requestPlay === 'function') {
           c.requestPlay();
         } else {
-          if (c.player && typeof c.player.playVideo === 'function') {
+          if (allTrue([c.player, typeof c.player.playVideo === 'function'])) {
             c.player.playVideo();
           }
         }
-        log(`[${ts()}] ▶ Player ${c.index + 1} Play -> step ${i + 1}`);
+        log('[' + ts() + '] â–¶ Player ' + (c.index + 1) + ' Play -> step ' + (i + 1));
       } else {
         const mainList = getMainList();
         const altList = getAltList();
         const useMain = Math.random() < MAIN_PROBABILITY;
-        const hasMain = Array.isArray(mainList) && mainList.length > 0;
-        const hasAlt = Array.isArray(altList) && altList.length > 0;
+        const hasMain = Array.isArray(mainList) ? mainList.length > 0 : false;
+        const hasAlt = Array.isArray(altList) ? altList.length > 0 : false;
         let source;
         if (allTrue([useMain, hasMain])) source = mainList;
         else if (allTrue([!useMain, hasAlt])) source = altList;
@@ -97,19 +109,29 @@ export function playAll() {
         else source = altList;
         // Guard
         if ((source?.length ?? 0) === 0) {
-          log(`[${ts()}] ❌ Player ${c.index + 1} Init skipped -> no videos available`);
+          log('[' + ts() + '] ❌ Player ' + (c.index + 1) + ' Init skipped -> no videos available');
           return;
         }
         const newId = source[Math.floor(Math.random() * source.length)];
         c.init(newId);
-        log(`[${ts()}] ▶ Player ${c.index + 1} Initializing -> Source:${useMain ? 'main' : 'alt'}`);
+        log(
+          '[' +
+            ts() +
+            '] ▶ Player ' +
+            (c.index + 1) +
+            ' Initializing -> Source:' +
+            (useMain ? 'main' : 'alt')
+        );
       }
     }, delay);
   });
   log(
-    `[${ts()}] ▶ Play All -> sequential mode started, estimated duration ~${Math.round(
+    '[' +
+      ts() +
+      '] ▶ Play All -> sequential mode started, estimated duration ~' +
+      Math.round(delay / 1000) +
+      's' +
       delay / 1000
-    )}s`
   );
 }
 
@@ -125,17 +147,20 @@ export function stopAll() {
     const timer = setTimeout(() => {
       if (c.player) {
         c.player.stopVideo();
-        log(`[${ts()}] ⏹ Player ${c.index + 1} Stopped -> step ${i + 1}`);
+        log('[' + ts() + '] ⏹ Player ' + (c.index + 1) + ' Stopped -> step ' + (i + 1));
       } else {
-        log(`[${ts()}] ❌ Player ${c.index + 1} Stop skipped -> not initialized`);
+        log('[' + ts() + '] ❌ Player ' + (c.index + 1) + ' Stop skipped -> not initialized');
       }
     }, delay);
     pushStopTimer(timer);
   });
   log(
-    `[${ts()}] ⏹ Stop All -> sequential mode started, estimated duration ~${Math.round(
+    '[' +
+      ts() +
+      '] ⏹ Stop All -> sequential mode started, estimated duration ~' +
+      Math.round(delay / 1000) +
+      's' +
       delay / 1000
-    )}s`
   );
 }
 
@@ -148,8 +173,8 @@ export function restartAll() {
       c.loadNextVideo(c.player);
     } else {
       const useMain = Math.random() < MAIN_PROBABILITY;
-      const hasMain = Array.isArray(mainList) && mainList.length > 0;
-      const hasAlt = Array.isArray(altList) && altList.length > 0;
+      const hasMain = Array.isArray(mainList) ? mainList.length > 0 : false;
+      const hasAlt = Array.isArray(altList) ? altList.length > 0 : false;
       let source;
       if (allTrue([useMain, hasMain])) source = mainList;
       else if (allTrue([!useMain, hasAlt])) source = altList;
@@ -157,26 +182,35 @@ export function restartAll() {
       else source = altList;
       // Guard
       if ((source?.length ?? 0) === 0) {
-        log(`[${ts()}] ❌ Player ${c.index + 1} Restart skipped -> no videos available`);
+        log(
+          '[' + ts() + '] ❌ Player ' + (c.index + 1) + ' Restart skipped -> no videos available'
+        );
         return;
       }
       const newId = source[Math.floor(Math.random() * source.length)];
       c.init(newId);
       log(
-        `[${ts()}] 🔁 Player ${c.index + 1} Restart (init) -> ${newId} (Source:${
-          useMain ? 'main' : 'alt'
-        })`
+        '[' +
+          ts() +
+          '] 🔁 Player ' +
+          (c.index + 1) +
+          ' Restart (init) -> ' +
+          newId +
+          ' (Source:' +
+          useMain
+          ? 'main'
+          : 'alt' + ')'
       );
     }
   });
-  log(`[${ts()}] 🔁 Restart All -> completed`);
+  log('[' + ts() + '] 🔁 Restart All -> completed');
 }
 
 /** 🌗 Εναλλαγή Dark/Light theme. */
 export function toggleTheme() {
   document.body.classList.toggle('light');
   const mode = document.body.classList.contains('light') ? 'Light' : 'Dark';
-  log(`[${ts()}] 🌙 Theme toggled -> ${mode} mode`);
+  log('[' + ts() + '] 🌙 Theme toggled -> ' + mode + ' mode');
 }
 
 /** 🧹 Καθαρισμός activity panel. */
@@ -184,9 +218,9 @@ export function clearLogs() {
   const panel = document.getElementById('activityPanel');
   if (allTrue([panel, panel.children.length > 0])) {
     panel.innerHTML = '';
-    log(`[${ts()}] 🧹 Logs cleared -> all entries removed`);
+    log('[' + ts() + '] 🧹 Logs cleared -> all entries removed');
   } else {
-    log(`[${ts()}] ❌ Clear Logs -> no entries to remove`);
+    log('[' + ts() + '] ❌ Clear Logs -> no entries to remove');
   }
 }
 
@@ -194,9 +228,11 @@ export function clearLogs() {
 export async function copyLogs() {
   const panel = document.getElementById('activityPanel');
   const statsPanel = document.getElementById('statsPanel');
-  const hasEntries = anyTrue([panel && panel.children && panel.children.length > 0]);
+  const hasEntries = anyTrue([
+    panel ? (panel.children ? panel.children.length > 0 : false) : false,
+  ]);
   if (!hasEntries) {
-    log(`[${ts()}] ❌ Copy Logs -> no entries to copy`);
+    log('[' + ts() + '] ❌ Copy Logs -> no entries to copy');
     return;
   }
   const logsText = Array.from(panel.children)
@@ -210,22 +246,30 @@ export async function copyLogs() {
   if (allTrue([navigator.clipboard, window.isSecureContext])) {
     try {
       await navigator.clipboard.writeText(finalText);
-      log(`[${ts()}] ✅ Logs copied via Clipboard API -> ${panel.children.length} entries + stats`);
+      log(
+        '[' +
+          ts() +
+          '] ✅ Logs copied via Clipboard API -> ' +
+          panel.children.length +
+          ' entries + stats'
+      );
       return;
     } catch (err) {
-      log(`[${ts()}] ⚠️ Clipboard API failed -> fallback (${err})`);
+      log('[' + ts() + '] ⚠️ Clipboard API failed -> fallback (' + err + ')');
     }
   }
   // Fallback: textarea + execCommand
   const success = unsecuredCopyToClipboard(finalText);
   if (success) {
     log(
-      `[${ts()}] 📋 (Fallback) Logs copied via execCommand -> ${
-        panel.children.length
-      } entries + stats`
+      '[' +
+        ts() +
+        '] 📋 (Fallback) Logs copied via execCommand -> ' +
+        panel.children.length +
+        ' entries + stats'
     );
   } else {
-    log(`[${ts()}] ❌ Copy Logs failed (fallback)`);
+    log('[' + ts() + '] ❌ Copy Logs failed (fallback)');
   }
 }
 
@@ -262,10 +306,10 @@ export function bindUiEvents() {
     if (el) {
       el.addEventListener('click', handler);
     } else {
-      log(`[${ts()}] ⚠️ UI bind skipped -> missing element #${id}`);
+      log('[' + ts() + '] ⚠️ UI bind skipped -> missing element #' + id);
     }
   });
-  log(`[${ts()}] ✅ UI events bound (uiControls.js ${UICONTROLS_VERSION})`);
+  log('[' + ts() + '] ✅ UI events bound (uiControls.js ' + UICONTROLS_VERSION + ')');
 }
 
 export async function reloadList() {
@@ -273,13 +317,20 @@ export async function reloadList() {
     const { mainList, altList } = await reloadListsFromSource();
     setMainList(mainList);
     setAltList(altList);
-    log(`[${ts()}] 🗂️ Lists applied to state -> Main:${mainList.length} Alt:${altList.length}`);
+    log(
+      '[' +
+        ts() +
+        '] 🗂️ Lists applied to state -> Main:' +
+        mainList.length +
+        ' Alt:' +
+        altList.length
+    );
   } catch (err) {
-    log(`[${ts()}] ❌ Reload failed -> ${err}`);
+    log('[' + ts() + '] ❌ Reload failed -> ' + err);
   }
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση αρχείου: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+log('[' + ts() + '] ✅ Φόρτωση αρχείου: uiControls.js ' + UICONTROLS_VERSION + ' -> Ολοκληρώθηκε');
 
 // --- End Of File ---

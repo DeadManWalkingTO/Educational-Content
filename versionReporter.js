@@ -1,16 +1,20 @@
 // --- versionReporter.js ---
-// Έκδοση: v2.3.5
+// Έκδοση: v2.3.6
 // Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
 // Αφαίρεση κυκλικής εξάρτησης με main.js. Η έκδοση του main θα προστεθεί από το ίδιο το main.js.
 // --- Versions ---
-const VERSION_REPORTER_VERSION = 'v2.3.5';
+const VERSION_REPORTER_VERSION = 'v2.3.6';
 export function getVersion() {
   return VERSION_REPORTER_VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(
-  `[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: versionReporter.js ${VERSION_REPORTER_VERSION} -> Ξεκίνησε`
+  '[' +
+    ts() +
+    '] 🚀 Φόρτωση αρχείου: versionReporter.js ' +
+    VERSION_REPORTER_VERSION +
+    ' -> Ξεκίνησε'
 );
 
 //imports
@@ -25,7 +29,7 @@ import { log, ts } from './globals.js';
 // Guard helpers for State Machine (Rule 12)
 /**
  * Ανάκτηση της έκδοσης του HTML από το meta tag.
- * Στο return {string} Έκδοση HTML ή "unknown".
+ * Στο return {string} Έκδοση HTML ή 'unknown'.
  */
 function getHtmlVersion() {
   const metaTag = document.querySelector('meta[name="html-version"]');
@@ -51,6 +55,12 @@ export function reportAllVersions() {
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση αρχείου: versionReporter.js ${VERSION_REPORTER_VERSION} -> Ολοκληρώθηκε`);
+log(
+  '[' +
+    ts() +
+    '] ✅ Φόρτωση αρχείου: versionReporter.js ' +
+    VERSION_REPORTER_VERSION +
+    ' -> Ολοκληρώθηκε'
+);
 
 // --- End Of File ---
