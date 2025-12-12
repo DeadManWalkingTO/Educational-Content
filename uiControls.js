@@ -1,9 +1,9 @@
 // --- uiControls.js ---
-// Έκδοση: v2.5.12
+// Έκδοση: v2.5.13
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const UICONTROLS_VERSION = 'v2.5.12';
+const UICONTROLS_VERSION = 'v2.5.13';
 export function getVersion() {
   return UICONTROLS_VERSION;
 }
@@ -14,7 +14,8 @@ console.log(
 );
 
 // Imports
-import {log,
+import {
+  log,
   ts,
   rndInt,
   controllers,
@@ -25,10 +26,12 @@ import {log,
   getMainList,
   getAltList,
   setMainList,
-  setAltList, anyTrue, allTrue} from './globals.js';
+  setAltList,
+  anyTrue,
+  allTrue,
+} from './globals.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
 
-// Guard helpers for State Machine (Rule 12)
 // Named guards for UI Controls
 function hasEl(id) {
   return !!document.getElementById(id);
@@ -73,7 +76,13 @@ export function playAll() {
     delay += randomDelay;
     setTimeout(() => {
       if (c.player) {
-        c.player.playVideo();
+        if (typeof c.requestPlay === 'function') {
+          c.requestPlay();
+        } else {
+          if (c.player && typeof c.player.playVideo === 'function') {
+            c.player.playVideo();
+          }
+        }
         log(`[${ts()}] ▶ Player ${c.index + 1} Play -> step ${i + 1}`);
       } else {
         const mainList = getMainList();

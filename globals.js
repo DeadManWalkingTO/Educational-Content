@@ -1,11 +1,11 @@
 // --- globals.js ---
-// Έκδοση: v2.9.10
+// Έκδοση: v2.9.15
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const GLOBALS_VERSION = 'v2.9.10';
+const GLOBALS_VERSION = 'v2.9.15';
 export function getVersion() {
   return GLOBALS_VERSION;
 }
@@ -79,7 +79,7 @@ function nonEmpty(str) {
 export const controllers = [];
 
 // --- Concurrency Controls ---
-export const MAX_CONCURRENT_PLAYING = 2;
+export const MAX_CONCURRENT_PLAYING = 3;
 let _currentPlaying = 0;
 export function getPlayingCount() {
   return _currentPlaying;
@@ -574,7 +574,72 @@ function groupedLog(tag, msg, count) {
   } catch (_) {}
 }
 
+// Scheduler module
+export const scheduler = (function () {
+  var timers = [];
+  function schedule(fn, delayMs) {
+    var id = setTimeout(function () {
+      try {
+        fn();
+      } catch (e) {
+        try {
+          var msg = e;
+          try {
+            if (e) {
+              if (typeof e.message === 'string') {
+                msg = e.message;
+              }
+            }
+          } catch (_) {}
+          console.error('[sched] ' + msg);
+        } catch (_) {}
+      }
+    }, delayMs);
+    timers.push(id);
+    return id;
+  }
+  function cancel(id) {
+    try {
+      clearTimeout(id);
+    } catch (_) {}
+  }
+  function jitter(baseMs, spreadMs) {
+    var rnd = Math.random();
+    var delta = Math.floor(rnd * (spreadMs + 1));
+    return baseMs + delta;
+  }
+  return { schedule: schedule, cancel: cancel, jitter: jitter };
+})();
+
+function msgOf(e) {
+  try {
+    var m = e;
+    try {
+      if (e) {
+        if (typeof e.message === 'string') {
+          m = e.message;
+        }
+      }
+    } catch (_) {}
+    return m;
+  } catch (_) {
+    return e;
+  }
+}
+
+export function safePostMessage(targetWin, payload, targetOrigin) {
+  try {
+    console.log('postMessage → from=' + window.location.origin + ' to=' + targetOrigin);
+    targetWin.postMessage(payload, targetOrigin);
+  } catch (e) {
+    try {
+      console.error('postMessage error → ' + msgOf(e));
+    } catch (_) {}
+  }
+}
+
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ολοκληρώθηκε`);
+
 
 // --- End Of File ---

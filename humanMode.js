@@ -1,8 +1,8 @@
 // --- humanMode.js ---
-// Έκδοση: v4.7.17
+// Έκδοση: v4.7.19
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 // --- Versions ---
-const HUMAN_MODE_VERSION = 'v4.7.17';
+const HUMAN_MODE_VERSION = 'v4.7.19';
 export function getVersion() {
   return HUMAN_MODE_VERSION;
 }
@@ -26,6 +26,7 @@ import {
   anyTrue,
   allTrue,
 } from './globals.js';
+import { scheduler } from './globals.js';
 import { PlayerController } from './playerController.js';
 
 // Guard helpers for State Machine (Rule 12)
@@ -88,12 +89,18 @@ const BEHAVIOR_PROFILES = [
 ];
 // --- Δημιουργία τυχαίου config για κάθε player ---
 function createRandomPlayerConfig(profile) {
-  return {
+ var isFocus = false;
+ try { if (profile && profile.name === 'Focused') { isFocus = true; } } catch (_) {}
+ var low = isFocus ? 5 : 10;
+ var high = isFocus ? 45 : 60;
+ var initSeekSec = rndInt(low, high);
+ return {
     profileName: profile.name,
     startDelay: rndInt(5, 240),
     initSeekMax: rndInt(30, 120),
     unmuteDelayExtra: rndInt(30, 90),
     volumeRange: [rndInt(5, 15), rndInt(20, 40)],
+ initialSeekSec: initSeekSec,
     midSeekInterval:
       rndInt(profile.midSeekIntervalRange[0], profile.midSeekIntervalRange[1]) * 60000,
     pauseChance: profile.pauseChance,
@@ -170,6 +177,7 @@ export async function initPlayersSequentially(mainList, altList) {
     if (!controller) {
       controller = new PlayerController(i, mainList, altList, config);
       controllers.push(controller);
+ try { if (config) { if (typeof config.initialSeekSec === 'number') { controller.initialSeekSec = config.initialSeekSec; } } } catch (_) {}
     } else {
       controller.config = config;
       controller.profileName = config.profileName;
@@ -179,6 +187,30 @@ export async function initPlayersSequentially(mainList, altList) {
   }
   log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
+
+try {
+  if (typeof initPlayersSequentially === 'function') {
+    var __hm = initPlayersSequentially;
+    initPlayersSequentially = function () {
+      try {
+        return __hm.apply(null, arguments);
+      } catch (e) {
+        try {
+          var m = e;
+          try {
+            if (e) {
+              if (typeof e.message === 'string') {
+                m = e.message;
+              }
+            }
+          } catch (_) {}
+          log('HumanMode init error → ' + m);
+        } catch (_) {}
+      }
+    };
+  }
+} catch (_) {}
+
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: humanMode.js ${HUMAN_MODE_VERSION} -> Ολοκληρώθηκε`);
 

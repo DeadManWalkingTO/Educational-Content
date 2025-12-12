@@ -2,13 +2,61 @@
 
 ---
 
+## [2025-12-12]
+
+- playerController.js: Fix stray lines after getPausePlan() causing SyntaxError (Illegal return); version bump.
+
+## [2025-12-12]
+
+- humanMode.js: Add initialSeekSec (profile-aware 5–60s) and propagate to controller; version bump.
+- playerController.js: Fine-tune getRequiredWatchTime() and getPausePlan() thresholds (+bias); version bump.
+- globals.js: Install Pre-Console Filter (first-install) with early warn/error tagging and hooks; version bump.
+
+## [2025-12-12]
+
+- playerController.js: Added requestPlay() API and version bump.
+- uiControls.js: Play All now uses controller.requestPlay() (fallback to player.playVideo), version bump.
+
+## [2025-12-12]
+
+- playerController.js: v6.6.x → v6.6.x+1 — Introduced guardedPlay() and replaced direct/tryPlay calls; fixed Ready log (Seek=function...) to numeric seekSec with fallback '-'.
+- watchdog.js: v2.5.x → v2.5.x+1 — Use controller.requestPlay() when available to respect MAX_CONCURRENT_PLAYING; fallback to player.playVideo().
+
+## [2025-12-12]
+
+- index.html: Προστέθηκε meta html-version και ορατή ένδειξη HTML v6.0.14 (χωρίς cache-busting).
+
+## [2025-12-12]
+
+- globals.js v2.9.14: Αφαίρεση decideMaxConcurrent() και σταθερό MAX_CONCURRENT_PLAYING=3.
+
+## [2025-12-12]
+
+- globals.js v2.9.13: Προστέθηκε scheduler/jitter και adaptive MAX_CONCURRENT_PLAYING.
+- watchdog.js v2.5.18: Adaptive pause extra, αφαίρεση nullish coalescing, ενοποίηση lastPausedStart.
+- playerController.js v6.6.9: Καθαρισμός schedule→scheduler.schedule και jitter γραμμής.
+- index.html: Αφαίρεση modulepreload και ?v= cache‑busting (σύμφωνα με οδηγία).
+
+---
+
+# [2025-12-12] Full reset + reapply: scheduler, doSeek, window.seek shim, safePostMessage/msgOf, guards, versions, end-markers
+
+- Reset BASE from exact bundle and re-applied all patches from scratch.
+- Added global scheduler; introduced doSeek(...) and replaced legacy seek(...); added window.seek shim.
+- Added safePostMessage(...) and msgOf(e); removed logical operators from error formatting.
+- Guarded hotspots: tryPlay, autoNext, initPlayersSequentially (playerController & HumanMode).
+- Synced const \*\_VERSION with header versions; ensured // --- End Of File --- markers.
+
+---
+
 ## [2025-12-11] Fix: Template literal & Fine-tune (local 19:25)
+
 - Closed template literal and separated jitter/debounce logic.
 - Jitter 80–180 ms; seek/play via safeCmd at 100/200 ms.
 - File changed: playerController.js.
 
-
 ## [2025-12-11] Fine-tune #2 (local 19:31)
+
 - Increased onReady jitter to 100–220 ms.
 - Adjusted safeCmd delays: seek +120 ms, play +240 ms.
 - File changed: playerController.js.
@@ -16,6 +64,7 @@
 ---
 
 ## [2025-12-11] Unified helpers & concurrency
+
 - Ενοποίηση helpers `anyTrue`/`allTrue`: imports από `globals.js`, αφαίρεση τοπικών επαναδηλώσεων.
 - Ενεργοποίηση ορίου `MAX_CONCURRENT_PLAYING`: προστέθηκε `tryPlay()` σε `playerController.js` και αντικαταστάθηκαν άμεσες `playVideo()`.
 - **globals.js v2.9.10**: ενημέρωση έκδοσης λόγω λογικών διορθώσεων.
@@ -30,6 +79,7 @@
 ---
 
 ## [2025-12-11] Phase‑3 Refactor & Fixes
+
 - **globals.js v2.8.8**
   - Αφαίρεση διπλών δηλώσεων `anyTrue` / `allTrue`.
   - Προσθήκη ενιαίου `export { anyTrue, allTrue }`.
@@ -46,6 +96,7 @@
 ---
 
 ## [2025-12-11] Phase‑2 Refactor
+
 - **globals.js v2.8.7**
   - Προσθήκη `schedule*` helpers.
 - **playerController.js v6.4.30**
@@ -55,6 +106,7 @@
 ---
 
 ## [2025-12-11] Phase‑1 Refactor
+
 - **globals.js v2.8.6**
   - Export `anyTrue` / `allTrue`.
 - **playerController.js v6.4.29**
@@ -63,59 +115,75 @@
 ---
 
 ## [2025-12-11]
+
 - globals.js v2.8.5: Εναρμόνιση Guard Steps (Rule 12); προσθήκη helpers/named guards και guardification σε if(...).
 - uiControls.js v2.4.10: Εναρμόνιση Guard Steps (Rule 12); προσθήκη helpers/named guards και guardification σε if(...).
 - lists.js v3.3.10: Εναρμόνιση Guard Steps (Rule 12); προσθήκη helpers/named guards και guardification σε if(...).
 - versionReporter.js v2.2.3: Εναρμόνιση Guard Steps (Rule 12); προσθήκη helpers/named guards και guardification σε if(...).
 
 ## [2025-12-11]
+
 - humanMode.js v4.6.13: Εναρμόνιση Guard Steps (Rule 12); προστέθηκαν named guards και έγινε guardification σε arrays/function checks, generic &&/||.
 
 ## [2025-12-11]
+
 - main.js v1.6.14: Τελική εναρμόνιση Guard Steps (Rule 12); προστέθηκαν named guards (isApiReady/isDomInteractive/isHtmlVersionMissing), interval gate & sanity OR σε guards.
 
 ## [2025-12-11]
+
 - main.js v1.6.13: 2η/3η διέλευση Guard Steps (Rule 12); multi-term &&/|| σε if(...) → guards, YouTube/DOM gates εναρμονισμένα.
 
 ## [2025-12-11]
+
 - main.js v1.6.12: Εναρμόνιση Guard Steps (Rule 12); youTube API readiness gate με guards, DOM readiness OR → anyTrue, Start gate enablement → allTrue.
 
 ## [2025-12-11]
+
 - watchdog.js v2.4.10: 3η διέλευση Guard Steps (Rule 12); χειροποίητα guards σε BUFFERING/PAUSED thresholds και stuck check.
 
 ## [2025-12-11]
+
 - watchdog.js v2.4.9: 2η διέλευση Guard Steps (Rule 12); γενικευμένο guardify για multi-term συνθήκες σε if(...).
 
 ## [2025-12-11]
+
 - watchdog.js v2.4.8: 1η διέλευση Guard Steps (Rule 12); προσθήκη anyTrue/allTrue, guardified state/duration checks, μείωση inline &&/||.
 
 ## [2025-12-11]
+
 - playerController.js v6.4.27: Τελική εναρμόνιση — αντικατάσταση isValidOrigin chain με allTrue([...]); inline && → 0.
 
 ## [2025-12-11]
+
 - playerController.js v6.4.26: Τελική εναρμόνιση Guard Steps (Rule 12); εξομάλυνση isValidOrigin chain σε allTrue([...]), μείωση υπολοίπων inline τελεστών.
 
 ## [2025-12-11]
+
 - playerController.js v6.4.25: 4η διέλευση Guard Steps (Rule 12); guardified isValidOrigin και midSeek/schedulePauses checks, περαιτέρω μείωση inline τελεστών.
 
 ## [2025-12-11]
+
 - playerController.js v6.4.24: 3η διέλευση Guard Steps (Rule 12); περαιτέρω μείωση inline &&/||, generic guardify για απλές συνθήκες, διατήρηση semantics.
 
 ## [2025-12-11]
+
 - playerController.js v6.4.23: 2η διέλευση Guard Steps (Rule 12); μείωση inline &&/||, προσθήκη guards σε origin/player state/list checks.
 
 ## [2025-12-11]
-- **globals.js → v2.8.4**: Μετατροπή του *Console filter* σε **State Machine με guard steps** (χωρίς ρητούς τελεστές `||`/`&&`), βελτίωση συμβατότητας με parsers/minifiers, demotion/tagging για `postMessage origin mismatch` και `DoubleClick CORS` logs.
+
+- **globals.js → v2.8.4**: Μετατροπή του _Console filter_ σε **State Machine με guard steps** (χωρίς ρητούς τελεστές `||`/`&&`), βελτίωση συμβατότητας με parsers/minifiers, demotion/tagging για `postMessage origin mismatch` και `DoubleClick CORS` logs.
 - Ενημερώθηκαν τα sections **Baseline/Versions** και **Τρέχουσες Εκδόσεις** να αντικατοπτρίζουν τη νέα έκδοση των Globals.
 
 ---
 
 ## [2025-12-10]
+
 - **globals.js v2.8.0**
   - Console Filter v2, safe postMessage handler.
 - **main.js v1.6.10**
   - Import/call bindSafeMessageHandler early.
 - **playerController.js v6.4.19**
+
   - Micro‑jitter 100–400 ms πριν το `unMute()` (Auto Unmute & pending).
 
 - **globals.js v2.7.2**
@@ -131,6 +199,7 @@
 ---
 
 ## [2025-12-09]
+
 - playerController.js v0.0.1: Προστέθηκε `host: getYouTubeEmbedHost()` και εξασφαλίστηκε `playerVars.origin: getOrigin()`.
 - globals.js: Επιβεβαιώθηκαν/προστέθηκαν `getOrigin()` & `getYouTubeEmbedHost()` με ενημέρωση έκδοσης.
 - CONTEXT.md: Νέοι κανόνες για YouTube host και ενιαίο origin.
@@ -138,11 +207,12 @@
 ---
 
 ## [2025-12-09]
+
 - globals.js v2.5.5: Console filter/tagging για non-critical YouTube IFrame API warnings (postMessage origin mismatch). Τα μηνύματα επισημαίνονται ως `[YouTubeAPI][non-critical]` σε `console.info`.
 - playerController.js v6.4.17: Fix SyntaxError
 - watchdog.js v2.4.7: Fix SyntaxError
 - playerController.js v6.4.16: Fix SyntaxError (ορφανό `this.expectedPauseMs = 0;` εκτός `clearTimers()` & επιπλέον `}`)
-- playerController.js v6.4.15: Fix SyntaxError από ορφανό `else if` μπλοκ μετά το κλείσιμο της `getRequiredWatchTime()`. Αφαίρεση legacy/διπλού κώδικα, καμία λειτουργική αλλαγή στη νέα λογική. 
+- playerController.js v6.4.15: Fix SyntaxError από ορφανό `else if` μπλοκ μετά το κλείσιμο της `getRequiredWatchTime()`. Αφαίρεση legacy/διπλού κώδικα, καμία λειτουργική αλλαγή στη νέα λογική.
 - playerController.js v6.4.14: Προσαρμογή λογικής παρακολούθησης και παύσεων ανά διάρκεια.
   - Νέα κατηγορία για βίντεο < 3 λεπτά: ποσοστό 90–100%, παύσεις 1–2.
   - Αλλαγή για βίντεο < 5 λεπτά: ποσοστό 80–100%, παύσεις 1–2.
@@ -163,12 +233,15 @@
 ---
 
 ## [2025-12-07]
+
 ### Προσθήκες / Βελτιώσεις
+
 - **humanMode.js v4.6.11**: Προσθήκη micro-stagger (400–600ms) στη δημιουργία iframes για μείωση race conditions και postMessage warnings.
 - **playerController.js v6.4.11**: Ενοποίηση origin, προσθήκη `enablejsapi:1` και `playsinline:1` στα playerVars, ασφαλής έλεγχος εγκυρότητας origin, βελτιωμένο logging.
 - **main.js v1.6.9**: Επιβεβαίωση gate στο YouTube API Ready πριν την αρχικοποίηση των players.
 
 ### Σημειώσεις
+
 - Τα παραπάνω αρχεία αποτελούν το baseline για τις επόμενες αλλαγές.
 - Επόμενα βήματα: Επέκταση στατιστικών (AvgWatch, watchdog counters), εξαγωγή JSON αναφορών.
 
@@ -177,14 +250,16 @@
 ## [2025-12-07]
 
 ### HTML v6.0.11
+
 - UI: Το κουμπί **💻 Start** μεταφέρθηκε μπροστά από τα υπόλοιπα κουμπιά.
-- UX: Το μήνυμα *«Πατήστε “Start” για εκκίνηση — απαιτείται για την πολιτική Autoplay των browsers.»* έγινε **tooltip** (title/aria-label) στο ίδιο το κουμπί.
+- UX: Το μήνυμα _«Πατήστε “Start” για εκκίνηση — απαιτείται για την πολιτική Autoplay των browsers.»_ έγινε **tooltip** (title/aria-label) στο ίδιο το κουμπί.
 
 ---
 
 ## [2025-12-07]
 
 ### Συμμόρφωση μορφολογίας JS (+ bump εκδόσεων)
+
 - globals.js → v2.2.3
 - humanMode.js → v4.6.10
 - lists.js → v3.3.9
@@ -195,42 +270,51 @@
 - watchdog.js → v2.4.5
 
 ### Μικρή βελτίωση Auto Unmute
+
 - playerController.js: Προστέθηκε γρήγορος έλεγχος (250 ms) μετά το unmute στο PLAYING, ώστε αν παραμένει σε PAUSED να γίνει άμεσο `playVideo()`.
 
 ---
 
 ## [2025-12-06]
+
 ### Lists — Update internal fallback list (2025-12-06)
+
 - lists.js v3.3.7 → v3.3.8: Αντικατάσταση `internalList` με νέα 15 YouTube IDs (παρεχόμενα από τον χρήστη). Διατήρηση parser (split('
-'), CR handling).
-Notes: Smoke OK. Συμμόρφωση με κανόνα “No real newline σε string literals”.
+  '), CR handling).
+  Notes: Smoke OK. Συμμόρφωση με κανόνα “No real newline σε string literals”.
 
 ### Lists — Fix internal fallback IDs & consistency (2025-12-06)
+
 - lists.js v3.3.6 → v3.3.7: Καθαρισμός internal fallback IDs (αφαίρεση stray backslashes από export). Καμία αλλαγή ροής.
-Notes: Smoke OK. Συμμόρφωση με κανόνα “No real newline σε string literals”.
+  Notes: Smoke OK. Συμμόρφωση με κανόνα “No real newline σε string literals”.
 
 ### UI Controls — Fix real newline literals in clipboard strings (2025-12-06)
+
 - uiControls.js v2.4.6 → v2.4.7: Αντικατάσταση πιθανών πραγματικών newlines με σταθερά `NL='
 '` και χρήση escaped `
 ` σε `copyLogs()`. Συμμόρφωση με κανόνα “No real newline σε string literals”.
-Notes: Χωρίς αλλαγή ροής. Smoke OK.
+  Notes: Χωρίς αλλαγή ροής. Smoke OK.
 
 ### Lists Parsing — Fix real newline literal in parser (2025-12-06)
+
 - lists.js v3.3.5 → v3.3.6: Διόρθωση `parseList()` ώστε να χρησιμοποιεί `split('
 ')` (escaped) και αφαίρεση μόνο τελικού `'
 '` ανά γραμμή. Καθαρισμός backslashes σε internalList IDs.
-Notes: Συμμόρφωση με κανόνα “No real newline σε string literals”. Smoke OK.
+  Notes: Συμμόρφωση με κανόνα “No real newline σε string literals”. Smoke OK.
 
 ### Policy Update — Newline Splits rule (2025-12-05)
+
 - CONTEXT.md: Ενημέρωση Κανόνα για Newline Splits: Χρησιμοποιούμε **πάντα** split με `'
 '` και αφαιρούμε **μόνο** τελικό `'
 '` ανά γραμμή. **Απαγορεύεται** η χρήση regex literal `/?/` και η χρήση `trim()` (global/per-line) σε parsers λιστών.
-### Lists Parsing — Escaped 
- split (2025-12-05)
+
+### Lists Parsing — Escaped
+
+split (2025-12-05)
+
 - lists.js v3.3.4 → v3.3.5: Αντικατάσταση regex literal με `split('
 ')` + αφαίρεση μόνο τελικού `'
-'`. Φιλτράρονται μόνο εντελώς κενές γραμμές. Αποφεύγονται ζητήματα μεταφοράς με `/`, `\`, `()`. 
-Notes: Καμία αλλαγή στη ροή. Smoke OK.
+'`. Φιλτράρονται μόνο εντελώς κενές γραμμές. Αποφεύγονται ζητήματα μεταφοράς με `/`, `\`, `()`.
+  Notes: Καμία αλλαγή στη ροή. Smoke OK.
 
 ---
-

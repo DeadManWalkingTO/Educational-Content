@@ -1,10 +1,10 @@
 // --- playerController.js ---
-// Έκδοση: v6.6.7
+// Έκδοση: v6.6.13
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions ---
-const PLAYER_CONTROLLER_VERSION = 'v6.6.7';
+const PLAYER_CONTROLLER_VERSION = 'v6.6.13';
 export function getVersion() {
   return PLAYER_CONTROLLER_VERSION;
 }
@@ -35,6 +35,7 @@ import {
   anyTrue,
   allTrue,
 } from './globals.js';
+import { scheduler } from './globals.js';
 
 // Concurrency guard: tryPlay wraps player.playVideo with MAX_CONCURRENT_PLAYING
 function tryPlay(player, idx) {
@@ -47,7 +48,7 @@ function tryPlay(player, idx) {
         }`
       );
       const delay = rndInt(1500, 5000);
-      schedule(() => {
+      scheduler.schedule(() => {
         try {
           player.playVideo();
         } catch (e) {
@@ -56,7 +57,7 @@ function tryPlay(player, idx) {
       }, delay);
       return false;
     }
-    tryPlay(player, this.index);
+    this.guardPlay(player);
     return true;
   } catch (e) {
     log(`[${ts()}] ❗ tryPlay error → ${e}`);
@@ -64,7 +65,6 @@ function tryPlay(player, idx) {
   }
 }
 
-// Guard helpers for State Machine (Rule 12)
 // Ατομικός έλεγχος «είναι μη κενός πίνακας»
 function isNonEmptyArray(x) {
   if (!Array.isArray(x)) {
@@ -141,6 +141,25 @@ function safeCmd(fn, delay = 80) {
   }, delay);
 }
 
+function doSeek(player, seconds) {
+  try {
+    if (player) {
+      if (typeof player.seekTo === 'function') {
+        player.seekTo(seconds, true);
+        log('[Seek] seconds=' + seconds);
+      } else {
+        log('[Seek] skipped: player.seekTo unavailable');
+      }
+    } else {
+      log('[Seek] skipped: player unavailable');
+    }
+  } catch (e) {
+    try {
+      log('[Seek Error] ' + e.message);
+    } catch (_) {}
+  }
+}
+
 /** Υπολογισμός απαιτούμενου χρόνου θέασης για AutoNext. 
   // < 3 min: 90–100%
   // < 5 min: 80–100%
@@ -149,38 +168,34 @@ function safeCmd(fn, delay = 80) {
   // > 120 min: 10–15%
 */
 export function getRequiredWatchTime(durationSec) {
-  const capSec = (15 + rndInt(0, 5)) * 60; // 15–20 min cap
-  let minPct, maxPct;
-  if (durationSec < 180) {
-    // < 3 min
-    [minPct, maxPct] = [0.9, 1.0];
-  } else if (durationSec < 300) {
-    // < 5 min
-    [minPct, maxPct] = [0.8, 1.0];
-  } else if (durationSec < 1800) {
-    // 5–30 min
-    [minPct, maxPct] = [0.5, 0.7];
-  } else if (durationSec < 7200) {
-    // 30–120 min
-    [minPct, maxPct] = [0.2, 0.35];
-  } else {
-    // > 120 min
-    [minPct, maxPct] = [0.1, 0.15];
-  }
-  const pct = minPct + Math.random() * (maxPct - minPct);
-  let required = Math.floor(durationSec * pct);
-  if (required > capSec) required = capSec;
-  if (required < 15) required = 15;
-  return required;
-}
+ var capSec = (15 + rndInt(0, 5)) * 60;
+ var minPct = 0.5;
+ var maxPct = 0.7;
+ if (durationSec < 120) { minPct = 0.92; maxPct = 1.0; }
+ else if (durationSec < 300) { minPct = 0.85; maxPct = 1.0; }
+ else if (durationSec < 1800) { minPct = 0.55; maxPct = 0.75; }
+ else if (durationSec < 7200) { minPct = 0.25; maxPct = 0.38; }
+ else { minPct = 0.12; maxPct = 0.18; }
+ var span = maxPct - minPct;
+ if (span < 0) { span = 0; }
+ var pct = minPct + Math.random() * span;
+ var b = rndInt(-1, 1);
+ var bias = b * 0.01;
+ pct = pct + bias;
+ if (pct < 0.05) { pct = 0.05; }
+ var required = Math.floor(durationSec * pct);
+ if (required > capSec) { required = capSec; }
+ if (required < 15) { required = 15; }
+ return required;
+ }
 
 /** Σχέδιο παύσεων με βάση τη διάρκεια. */
 export function getPausePlan(duration) {
-  if (duration < 180) return { count: rndInt(1, 2), min: 10, max: 30 }; // < 3 min
-  if (duration < 300) return { count: rndInt(1, 2), min: 10, max: 30 }; // < 5 min
-  if (duration < 1800) return { count: rndInt(2, 3), min: 30, max: 60 }; // 5–30 min
-  if (duration < 7200) return { count: rndInt(3, 4), min: 60, max: 120 }; // 30–120 min
-  return { count: rndInt(4, 5), min: 120, max: 180 }; // > 120 min
+ if (duration < 120) { return { count: rndInt(1, 1), min: 6, max: 15 }; }
+ if (duration < 300) { return { count: rndInt(1, 2), min: 8, max: 20 }; }
+ if (duration < 1800) { return { count: rndInt(2, 3), min: 25, max: 55 }; }
+ if (duration < 7200) { return { count: rndInt(3, 4), min: 50, max: 110 }; }
+ return { count: rndInt(4, 5), min: 90, max: 160 };
 }
 
 // --- Utils: dynamic origin/host ---
@@ -208,7 +223,7 @@ export class PlayerController {
       const attempt = () => {
         if (getPlayingCount() < MAX_CONCURRENT_PLAYING) {
           if (typeof p.playVideo === 'function') {
-            this.tryPlay(p);
+            this.guardPlay(p);
           }
         } else {
           const backoff = 300 + Math.floor(Math.random() * 900);
@@ -218,6 +233,34 @@ export class PlayerController {
       setTimeout(attempt, jitter);
     };
     this.config = config;
+    this.guardPlay = function(p) {
+      try {
+        var count = getPlayingCount();
+        var limit = MAX_CONCURRENT_PLAYING;
+        if (count < limit) {
+          if (p && typeof p.playVideo === 'function') { p.playVideo(); }
+          return;
+        }
+        var backoffBase = 300;
+        var delta = Math.floor(Math.random() * 900);
+        var retry = function() {
+          try {
+            var c = getPlayingCount();
+            if (c < MAX_CONCURRENT_PLAYING) {
+              if (p && typeof p.playVideo === 'function') { p.playVideo(); }
+              return;
+            }
+            setTimeout(retry, backoffBase + Math.floor(Math.random() * 900));
+          } catch (_) {}
+        };
+        setTimeout(retry, backoffBase + delta);
+      } catch (_) {}
+    };
+
+    this.requestPlay = function() {
+      try { var p = this.player; if (p) { this.guardPlay(p); } } catch (_) {}
+    };
+
     this.profileName = config?.profileName ?? 'Unknown';
     this.startTime = null;
     this.playingStart = null;
@@ -277,7 +320,7 @@ export class PlayerController {
           safeCmd(() => e.target.seekTo(this.initialSeekSec, true), 120);
         }
         if (typeof e.target.playVideo === 'function') {
-          safeCmd(() => e.target.playVideo(), 240);
+          safeCmd((function(){ try { this.guardPlay(e.target); } catch(_){} }).bind(this), 240);
         }
       } catch (__err) {
         try {
@@ -286,7 +329,8 @@ export class PlayerController {
       }
     }, __jitterMs); // JITTER_APPLIED
     setTimeout(() => {
-      log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> Seek=${seek}s after ${startDelaySec}s`);
+      var seekSec = (typeof this.initialSeekSec === 'number') ? this.initialSeekSec : '-';
+    log('[' + ts() + '] ▶ Player ' + (this.index + 1) + ' Ready -> Seek=' + seekSec + 's after ' + startDelaySec + 's');;
       this.schedulePauses();
       this.scheduleMidSeek();
     }, startDelay);
@@ -323,7 +367,7 @@ export class PlayerController {
             log(
               `[${ts()}] 🔁 Player ${this.index + 1} Quick retry playVideo after immediate unmute`
             );
-            if (typeof p.playVideo === 'function') this.tryPlay(p);
+            if (typeof p.playVideo === 'function') this.guardPlay(p);
           }
         }, 250);
         setTimeout(() => {
@@ -334,7 +378,7 @@ export class PlayerController {
             ])
           ) {
             log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
-            if (typeof p.playVideo === 'function') this.tryPlay(p);
+            if (typeof p.playVideo === 'function') this.guardPlay(p);
           }
         }, 1000);
       } else {
@@ -388,7 +432,7 @@ export class PlayerController {
             const attempt = () => {
               if (getPlayingCount() < MAX_CONCURRENT_PLAYING) {
                 if (typeof p.playVideo === 'function') {
-                  this.tryPlay(p);
+                  this.guardPlay(p);
                 }
               } else {
                 const backoff = 300 + Math.floor(Math.random() * 900);
@@ -487,7 +531,7 @@ export class PlayerController {
             ])
           ) {
             log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
-            if (typeof p.playVideo === 'function') this.tryPlay(p);
+            if (typeof p.playVideo === 'function') this.guardPlay(p);
           }
         }, 1000);
       }
@@ -592,7 +636,7 @@ export class PlayerController {
     }
     const newId = list[Math.floor(Math.random() * list.length)];
     player.loadVideoById(newId);
-    tryPlay(player, this.index);
+    this.guardPlay(player);
     stats.autoNext++;
     incAutoNext(this.index);
     this.totalPlayTime = 0;
@@ -627,7 +671,7 @@ export class PlayerController {
           this.expectedPauseMs = pauseLen;
           log(`[${ts()}] ⏸️ Player ${this.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
           setTimeout(() => {
-            this.tryPlay(p);
+            this.guardPlay(p);
             this.expectedPauseMs = 0;
           }, pauseLen);
         }
@@ -682,6 +726,67 @@ export class PlayerController {
   }
 }
 
+// Guard wrappers for hotspots
+try {
+  if (typeof autoNext === 'function') {
+    var __an = autoNext;
+    autoNext = function () {
+      try {
+        return __an.apply(null, arguments);
+      } catch (e) {
+        try {
+          var m = e;
+          try {
+            if (e) {
+              if (typeof e.message === 'string') {
+                m = e.message;
+              }
+            }
+          } catch (_) {}
+          log('autoNext error → ' + m);
+        } catch (_) {}
+      }
+    };
+  }
+} catch (_) {}
+try {
+  if (typeof initPlayersSequentially === 'function') {
+    var __is = initPlayersSequentially;
+    initPlayersSequentially = function () {
+      try {
+        return __is.apply(null, arguments);
+      } catch (e) {
+        try {
+          var m2 = e;
+          try {
+            if (e) {
+              if (typeof e.message === 'string') {
+                m2 = e.message;
+              }
+            }
+          } catch (_) {}
+          log('initPlayersSequentially error → ' + m2);
+        } catch (_) {}
+      }
+    };
+  }
+} catch (_) {}
+
+try {
+  if (!window.seek) {
+    window.seek = function () {
+      try {
+        return doSeek.apply(null, arguments);
+      } catch (e) {
+        try {
+          log('[Shim seek Error] ' + e.message);
+        } catch (_) {}
+      }
+    };
+  }
+} catch (_) {}
+
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(
   `[${ts()}] ✅ Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ολοκληρώθηκε`
 );
