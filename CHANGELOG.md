@@ -3,11 +3,12 @@
 ---
 
 ## [2025-12-12]
-
-- playerController.js: Fix stray lines after getPausePlan() causing SyntaxError (Illegal return); version bump.
+- CONTEXT.md: Διευκρίνιση κανόνα — απαγορεύονται πάνω από δύο διαδοχικά template literals στην ίδια γραμμή.
+- CHANGELOG.md: Κανόνας για τις πρώτες γραμμές.
 
 ## [2025-12-12]
 
+- playerController.js: Fix stray lines after getPausePlan() causing SyntaxError (Illegal return); version bump.
 - humanMode.js: Add initialSeekSec (profile-aware 5–60s) and propagate to controller; version bump.
 - playerController.js: Fine-tune getRequiredWatchTime() and getPausePlan() thresholds (+bias); version bump.
 - globals.js: Install Pre-Console Filter (first-install) with early warn/error tagging and hooks; version bump.
@@ -16,22 +17,10 @@
 
 - playerController.js: Added requestPlay() API and version bump.
 - uiControls.js: Play All now uses controller.requestPlay() (fallback to player.playVideo), version bump.
-
-## [2025-12-12]
-
 - playerController.js: v6.6.x → v6.6.x+1 — Introduced guardedPlay() and replaced direct/tryPlay calls; fixed Ready log (Seek=function...) to numeric seekSec with fallback '-'.
 - watchdog.js: v2.5.x → v2.5.x+1 — Use controller.requestPlay() when available to respect MAX_CONCURRENT_PLAYING; fallback to player.playVideo().
-
-## [2025-12-12]
-
 - index.html: Προστέθηκε meta html-version και ορατή ένδειξη HTML v6.0.14 (χωρίς cache-busting).
-
-## [2025-12-12]
-
 - globals.js v2.9.14: Αφαίρεση decideMaxConcurrent() και σταθερό MAX_CONCURRENT_PLAYING=3.
-
-## [2025-12-12]
-
 - globals.js v2.9.13: Προστέθηκε scheduler/jitter και adaptive MAX_CONCURRENT_PLAYING.
 - watchdog.js v2.5.18: Adaptive pause extra, αφαίρεση nullish coalescing, ενοποίηση lastPausedStart.
 - playerController.js v6.6.9: Καθαρισμός schedule→scheduler.schedule και jitter γραμμής.
