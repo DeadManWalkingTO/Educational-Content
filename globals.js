@@ -1,11 +1,11 @@
 // --- globals.js ---
-// Έκδοση: v2.9.35
+// Έκδοση: v2.9.36
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const GLOBALS_VERSION = 'v2.9.35';
+const GLOBALS_VERSION = 'v2.9.36';
 export function getVersion() {
   return GLOBALS_VERSION;
 }
@@ -66,13 +66,13 @@ export { anyTrue, allTrue };
 
 // Named guards for globals
 function isObj(x) {
-  return typeof x === 'object' && x !== null;
+  return allTrue([typeof x === 'object', x !== null]);
 }
 function hasFn(obj, name) {
-  return isObj(obj) && typeof obj[name] === 'function';
+  return allTrue([isObj(obj), typeof obj[name] === 'function']);
 }
 function nonEmpty(str) {
-  return typeof str === 'string' && str.length > 0;
+  return allTrue([typeof str === 'string', str.length > 0]);
 }
 
 // --- Controllers για τους players ---
@@ -525,12 +525,16 @@ export function getYouTubeEmbedHost() {
 export function bindSafeMessageHandler(allowlist = null) {
   try {
     const defaults = [getOrigin(), 'https://www.youtube.com'];
-    const allow = Array.isArray(allowlist) && allowlist.length ? allowlist : defaults;
+    let allow = defaults;
+if (Array.isArray(allowlist)) {
+  if (allowlist.length > 0) { allow = allowlist; }
+}
     window.addEventListener(
       'message',
       (ev) => {
-        const origin = ev.origin || '';
-        const ok = allow.some((a) => typeof a === 'string' && a && origin.startsWith(a));
+        let origin = '';
+if (allTrue([typeof ev.origin === 'string', ev.origin.length > 0])) { origin = ev.origin; }
+        const ok = allow.some((a) => allTrue([typeof a === 'string', a.length > 0, origin.startsWith(a)]));
         if (!ok) {
           try {
             console.info(`[YouTubeAPI][non-critical][Origin] Blocked postMessage from '${origin}'`);

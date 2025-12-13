@@ -1,6 +1,9 @@
-# CHANGELOG.md - v152
+# CHANGELOG.md - v153
 
 ---
+
+## [2025-12-13]
+- globals.js: v2.9.35 → v2.9.36; Αντικατάσταση των τελεστών '||' και '&&' με helpers anyTrue/allTrue ή διαδοχικά if, σύμφωνα με CONTEXT.md.
 
 ## [2025-12-12]
 - watchdog.js: v2.6.25 → v2.6.26; αφαίρεση `||`/`&&` (fallbacks, state OR/AND, guards), διατήρηση semicolons/EOL LF.
