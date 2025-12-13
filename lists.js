@@ -1,9 +1,9 @@
 // --- lists.js ---
-// Έκδοση: v3.5.0
+// Έκδοση: v3.5.1
 // Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
 // Ενημερωμένο: Διόρθωση URL + καθαρισμός escaped tokens
 // --- Versions ---
-const LISTS_VERSION = 'v3.5.0';
+const LISTS_VERSION = 'v3.5.1';
 export function getVersion() {
   return LISTS_VERSION;
 }
@@ -22,7 +22,8 @@ function hasArrayWithItems(arr) {
 function isValidId(id) {
   if (typeof id !== 'string') return false;
   const s = id.trim();
-  if (s.length < 6 || s.length > 64) return false;
+  if (s.length < 6) return false;
+  if (s.length > 64) return false;
   return /^[A-Za-z0-9_-]+$/.test(s);
 }
 

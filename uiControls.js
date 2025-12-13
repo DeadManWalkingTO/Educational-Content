@@ -1,9 +1,9 @@
 // --- uiControls.js ---
-// Έκδοση: v2.6.0
+// Έκδοση: v2.6.1
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const UICONTROLS_VERSION = 'v2.6.0';
+const UICONTROLS_VERSION = 'v2.6.1';
 export function getVersion() {
   return UICONTROLS_VERSION;
 }
@@ -246,8 +246,8 @@ export function bindUiEvents() {
   // Guard to avoid re-binding (dataset.bound on sentinel button)
   try {
     const sentinel = document.getElementById('btnPlayAll');
-    if (sentinel && sentinel.dataset && sentinel.dataset.bound === '1') { return; }
-    if (sentinel && sentinel.dataset) { sentinel.dataset.bound = '1'; }
+    if (sentinel) { if (sentinel.dataset) { if (sentinel.dataset.bound === '1') { return; } } }
+    if (sentinel) { if (sentinel.dataset) { sentinel.dataset.bound = '1'; } }
   } catch(_){}
   const byId = (id) => document.getElementById(id);
   const m = new Map([

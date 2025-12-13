@@ -1,10 +1,10 @@
 // --- playerController.js ---
-// Έκδοση: v6.6.34
+// Έκδοση: v6.7.1
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions ---
-const PLAYER_CONTROLLER_VERSION = 'v6.7.0';
+const PLAYER_CONTROLLER_VERSION = 'v6.7.1';
 export function getVersion() {
   return PLAYER_CONTROLLER_VERSION;
 }
@@ -148,7 +148,7 @@ function doSeek(player, seconds) {
   try {
     if (player) {
       if (typeof player.seekTo === 'function') {
-        { try{ const d = player.getDuration ? player.getDuration() : 0; let s = seconds; if (typeof s==='number'){ if (s<0) s=0; if (d>0 && s>d-0.5) s = d-0.5; } player.seekTo(s,true); }catch(e){ player.seekTo(seconds,true); } }
+        { try{ const d = player.getDuration ? player.getDuration() : 0; let s = seconds; if (typeof s==='number'){ if (s<0) s=0; if (d>0) { if (s>d-0.5) s = d-0.5; } } player.seekTo(s,true); }catch(e){ player.seekTo(seconds,true); } }
         log('[Seek] seconds=' + seconds);
       } else {
         log('[Seek] skipped: player.seekTo unavailable');
@@ -234,7 +234,7 @@ function getDynamicOrigin() {
     if (allTrue([window.location, window.location.origin])) return window.location.origin;
     const __loc = typeof window !== 'undefined' ? (window.location ? window.location : {}) : {};
     const { protocol, hostname, port } = __loc;
-    if (allTrue([protocol, hostname])) return `${protocol}//${hostname}${port ? `:${port}` : ''}`;
+    if (allTrue([protocol, hostname])) return `${protocol}//${hostname}${port ? ':' + port : ''}`;
   } catch (_) {}
   return '';
 }

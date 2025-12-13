@@ -1,6 +1,12 @@
-# CHANGELOG.md - v154
+# CHANGELOG.md - v155
 
 ---
+
+## 2025-12-13 17:02
+- humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
+- lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
+- playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
+- uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
 
 
 ## Ημερομηνία: 2025-12-13 16:30
@@ -139,6 +145,12 @@
 
 ---
 
+## 2025-12-13 17:02
+- humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
+- lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
+- playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
+- uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
+
 ## [2025-12-12]
 - CONTEXT.md: Διευκρίνιση κανόνα — απαγορεύονται πάνω από δύο διαδοχικά template literals στην ίδια γραμμή.
 - CHANGELOG.md: Κανόνας για τις πρώτες γραμμές.
@@ -165,6 +177,12 @@
 
 ---
 
+## 2025-12-13 17:02
+- humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
+- lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
+- playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
+- uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
+
 # [2025-12-12] Full reset + reapply: scheduler, doSeek, window.seek shim, safePostMessage/msgOf, guards, versions, end-markers
 
 - Reset BASE from exact bundle and re-applied all patches from scratch.
@@ -174,6 +192,12 @@
 - Synced const \*\_VERSION with header versions; ensured // --- End Of File --- markers.
 
 ---
+
+## 2025-12-13 17:02
+- humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
+- lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
+- playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
+- uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
 
 ## [2025-12-11] Fix: Template literal & Fine-tune (local 19:25)
 
@@ -189,6 +213,12 @@
 
 ---
 
+## 2025-12-13 17:02
+- humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
+- lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
+- playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
+- uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
+
 ## [2025-12-11] Unified helpers & concurrency
 
 - Ενοποίηση helpers `anyTrue`/`allTrue`: imports από `globals.js`, αφαίρεση τοπικών επαναδηλώσεων.
@@ -203,6 +233,12 @@
 - **watchdog.js v2.5.16**: ενημέρωση έκδοσης λόγω λογικών διορθώσεων.
 
 ---
+
+## 2025-12-13 17:02
+- humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
+- lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
+- playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
+- uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
 
 ## [2025-12-11] Phase‑3 Refactor & Fixes
 
@@ -221,6 +257,12 @@
 
 ---
 
+## 2025-12-13 17:02
+- humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
+- lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
+- playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
+- uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
+
 ## [2025-12-11] Phase‑2 Refactor
 
 - **globals.js v2.8.7**
@@ -231,6 +273,12 @@
 
 ---
 
+## 2025-12-13 17:02
+- humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
+- lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
+- playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
+- uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
+
 ## [2025-12-11] Phase‑1 Refactor
 
 - **globals.js v2.8.6**
@@ -239,6 +287,12 @@
   - Προσθήκη `guardHasAnyList` και τύλιγμα `loadNextVideo(...)` με guard.
 
 ---
+
+## 2025-12-13 17:02
+- humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
+- lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
+- playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
+- uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
 
 ## [2025-12-11]
 
@@ -302,6 +356,12 @@
 
 ---
 
+## 2025-12-13 17:02
+- humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
+- lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
+- playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
+- uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
+
 ## [2025-12-10]
 
 - **globals.js v2.8.0**
@@ -324,6 +384,12 @@
 
 ---
 
+## 2025-12-13 17:02
+- humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
+- lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
+- playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
+- uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
+
 ## [2025-12-09]
 
 - playerController.js v0.0.1: Προστέθηκε `host: getYouTubeEmbedHost()` και εξασφαλίστηκε `playerVars.origin: getOrigin()`.
@@ -331,6 +397,12 @@
 - CONTEXT.md: Νέοι κανόνες για YouTube host και ενιαίο origin.
 
 ---
+
+## 2025-12-13 17:02
+- humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
+- lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
+- playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
+- uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
 
 ## [2025-12-09]
 
@@ -358,6 +430,12 @@
 
 ---
 
+## 2025-12-13 17:02
+- humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
+- lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
+- playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
+- uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
+
 ## [2025-12-07]
 
 ### Προσθήκες / Βελτιώσεις
@@ -373,6 +451,12 @@
 
 ---
 
+## 2025-12-13 17:02
+- humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
+- lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
+- playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
+- uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
+
 ## [2025-12-07]
 
 ### HTML v6.0.11
@@ -381,6 +465,12 @@
 - UX: Το μήνυμα _«Πατήστε “Start” για εκκίνηση — απαιτείται για την πολιτική Autoplay των browsers.»_ έγινε **tooltip** (title/aria-label) στο ίδιο το κουμπί.
 
 ---
+
+## 2025-12-13 17:02
+- humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
+- lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
+- playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
+- uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
 
 ## [2025-12-07]
 
@@ -400,6 +490,12 @@
 - playerController.js: Προστέθηκε γρήγορος έλεγχος (250 ms) μετά το unmute στο PLAYING, ώστε αν παραμένει σε PAUSED να γίνει άμεσο `playVideo()`.
 
 ---
+
+## 2025-12-13 17:02
+- humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
+- lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
+- playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
+- uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
 
 ## [2025-12-06]
 
