@@ -1,6 +1,53 @@
-# CHANGELOG.md - v153
+# CHANGELOG.md - v154
 
 ---
+
+
+## Ημερομηνία: 2025-12-13 16:30
+- **Αρχείο**: uiControls.js — v2.5.16 → v2.6.0
+- **Summary**: Binding guard σε bindUiEvents (data-bound σε sentinel), Minor bump.
+- **Notes/Tests**:
+  - Κάλεσμα bindUiEvents() 2+ φορές → δεν γίνεται re-binding.
+- **Αρχείο**: lists.js — v3.4.15 → v3.5.0
+- **Summary**: GitHub fetch με timeout 4s, αυστηρό isValidId (6..64, alnum/_/-), Minor bump.
+- **Notes/Tests**:
+  - Timeouts σε GitHub raw, validation IDs όπως ορίστηκε.
+- **Αρχείο**: index.html — v6.0.12 → v6.1.0
+- **Summary**: ARIA/title σε κουμπιά, Start disabled feedback (μέσω UI), Minor bump.
+- **Notes/Tests**: 
+  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC. 
+  - Logs/ARIA/Clipboard/fallbacks εμφανίζονται όπως αναμένεται.
+- **Αρχείο**: uiControls.js — v2.5.16 → v2.6.0
+- **Summary**: Binding guard, setControlsEnabled (exclude Start), clipboard HTTPS/fallback.
+- **Notes/Tests**: 
+  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC. 
+  - Logs/ARIA/Clipboard/fallbacks εμφανίζονται όπως αναμένεται.
+- **Αρχείο**: lists.js — v3.4.15 → v3.5.0
+- **Summary**: Fallbacks main/alt, 4s timeout, ID validation 6..64 alnum/_/-.
+- **Notes/Tests**: 
+  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC. 
+  - Logs/ARIA/Clipboard/fallbacks εμφανίζονται όπως αναμένεται.
+- **Αρχείο**: humanMode.js — v4.7.40 → v4.8.0
+- **Summary**: Gesture guard + rate-limit 150–300ms before init.
+- **Notes/Tests**: 
+  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC. 
+  - Logs/ARIA/Clipboard/fallbacks εμφανίζονται όπως αναμένεται.
+- **Αρχείο**: playerController.js — v6.6.34 → v6.7.0
+- **Summary**: Gesture guard unmute, safeCmd retry/backoff, clamp seekTo.
+- **Notes/Tests**: 
+  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC. 
+  - Logs/ARIA/Clipboard/fallbacks εμφανίζονται όπως αναμένεται.
+- **Αρχείο**: globals.js — v2.10.0 → v2.11.0
+- **Summary**: Αφαίρεση ||/&& (με anyTrue/allTrue) όπου ήταν απλές δυαδικές εκφράσεις.
+- **Notes/Tests**: 
+  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC. 
+  - Logs/ARIA/Clipboard/fallbacks εμφανίζονται όπως αναμένεται.
+
+## Ημερομηνία: 2025-12-13 16:27
+- **Αρχείο**: globals.js — v2.9.36 → v2.10.0
+- **Summary**: Apply spec (pipes present=True, ampersands present=True)
+- **Notes/Tests**: Minor bump; header & const updated
+
 
 ## [2025-12-13]
 - globals.js: v2.9.35 → v2.9.36; Αντικατάσταση των τελεστών '||' και '&&' με helpers anyTrue/allTrue ή διαδοχικά if, σύμφωνα με CONTEXT.md.

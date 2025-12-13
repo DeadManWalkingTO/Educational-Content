@@ -2,7 +2,7 @@
 // Έκδοση: v4.7.40
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 // --- Versions ---
-const HUMAN_MODE_VERSION = 'v4.7.40';
+const HUMAN_MODE_VERSION = 'v4.8.0';
 export function getVersion() {
   return HUMAN_MODE_VERSION;
 }
@@ -127,7 +127,8 @@ function createSessionPlan() {
 }
 
 // --- Sequential Initialization των players ---
-export async function initPlayersSequentially(mainList, altList) {
+export async function initPlayersSequentially(mainList, altList){
+  try{ if (typeof hasUserGesture !== 'undefined' && !hasUserGesture){ console.log('HumanMode: deferring init (no user gesture)'); return; } }catch(_){}
   if (allTrue([Array.isArray(mainList), Array.isArray(altList)])) {
     setMainList(mainList);
     setAltList(altList);
@@ -195,6 +196,7 @@ export async function initPlayersSequentially(mainList, altList) {
       controller.config = config;
       controller.profileName = config.profileName;
     }
+    await new Promise(r=>setTimeout(r, 150 + Math.floor(Math.random()*151)));
     controller.init(videoId);
     log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
   }

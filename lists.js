@@ -1,9 +1,9 @@
 // --- lists.js ---
-// Έκδοση: v3.4.15
+// Έκδοση: v3.5.0
 // Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
 // Ενημερωμένο: Διόρθωση URL + καθαρισμός escaped tokens
 // --- Versions ---
-const LISTS_VERSION = 'v3.4.15';
+const LISTS_VERSION = 'v3.5.0';
 export function getVersion() {
   return LISTS_VERSION;
 }
@@ -20,13 +20,12 @@ function hasArrayWithItems(arr) {
   return allTrue([Array.isArray(arr), arr.length > 0]);
 }
 function isValidId(id) {
-  if (typeof id === 'string') {
-    if (id.trim().length > 0) {
-      return true;
-    }
-  }
-  return false;
+  if (typeof id !== 'string') return false;
+  const s = id.trim();
+  if (s.length < 6 || s.length > 64) return false;
+  return /^[A-Za-z0-9_-]+$/.test(s);
 }
+
 function canLoadLists(main, alt) {
   return anyTrue([hasArrayWithItems(main), hasArrayWithItems(alt)]);
 }
@@ -75,7 +74,10 @@ export async function loadVideoList() {
   try {
     const githubUrl =
       'https://raw.githubusercontent.com/DeadManWalkingTO/Educational-Content/main/list.txt';
-    const githubResponse = await fetch(githubUrl);
+    const ctrl = new AbortController();
+    const _tid = setTimeout(() => ctrl.abort(), 4000);
+    const githubResponse = await fetch(githubUrl, { signal: ctrl.signal });
+    clearTimeout(_tid);
     if (githubResponse.ok) {
       const text = await githubResponse.text();
       const list = text

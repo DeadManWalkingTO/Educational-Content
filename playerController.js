@@ -4,7 +4,7 @@
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions ---
-const PLAYER_CONTROLLER_VERSION = 'v6.6.34';
+const PLAYER_CONTROLLER_VERSION = 'v6.7.0';
 export function getVersion() {
   return PLAYER_CONTROLLER_VERSION;
 }
@@ -148,7 +148,7 @@ function doSeek(player, seconds) {
   try {
     if (player) {
       if (typeof player.seekTo === 'function') {
-        player.seekTo(seconds, true);
+        { try{ const d = player.getDuration ? player.getDuration() : 0; let s = seconds; if (typeof s==='number'){ if (s<0) s=0; if (d>0 && s>d-0.5) s = d-0.5; } player.seekTo(s,true); }catch(e){ player.seekTo(seconds,true); } }
         log('[Seek] seconds=' + seconds);
       } else {
         log('[Seek] skipped: player.seekTo unavailable');
