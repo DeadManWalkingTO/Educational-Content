@@ -127,8 +127,13 @@ function createSessionPlan() {
 }
 
 // --- Sequential Initialization των players ---
-export async function initPlayersSequentially(mainList, altList){
-  try{ if (typeof hasUserGesture !== 'undefined' ? (!hasUserGesture) : false){ console.log('HumanMode: deferring init (no user gesture)'); return; } }catch(_){}
+export async function initPlayersSequentially(mainList, altList) {
+  try {
+    if (typeof hasUserGesture !== 'undefined' ? !hasUserGesture : false) {
+      console.log('HumanMode: deferring init (no user gesture)');
+      return;
+    }
+  } catch (_) {}
   if (allTrue([Array.isArray(mainList), Array.isArray(altList)])) {
     setMainList(mainList);
     setAltList(altList);
@@ -196,7 +201,7 @@ export async function initPlayersSequentially(mainList, altList){
       controller.config = config;
       controller.profileName = config.profileName;
     }
-    await new Promise(r=>setTimeout(r, 150 + Math.floor(Math.random()*151)));
+    await new Promise((r) => setTimeout(r, 150 + Math.floor(Math.random() * 151)));
     controller.init(videoId);
     log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
   }

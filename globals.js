@@ -1,11 +1,11 @@
 // --- globals.js ---
-// Έκδοση: v2.10.0
+// Έκδοση: v2.11.2
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const GLOBALS_VERSION = 'v2.11.0';
+const GLOBALS_VERSION = 'v2.11.2';
 export function getVersion() {
   return GLOBALS_VERSION;
 }
@@ -213,7 +213,7 @@ function updateStats() {
  * - Ενεργοποίηση/Απενεργοποίηση με σημαία.
  * - Tagging αντί για σιωπή (κρατάμε την ορατότητα, μειώνουμε «θόρυβο»).
  */
-// --- Console Filter (State Machine, χωρίς '||'/'&&') ---
+// --- Console Filter (State Machine) ---
 // Περιγραφή: Tagging & demotion για μη-κρίσιμα μηνύματα YouTube IFrame API (postMessage origin mismatch)
 // και DoubleClick CORS warnings. Χρήση guard steps και βοηθητικών anyTrue/allTrue για αποφυγή ρητών τελεστών.
 export const consoleFilterConfig = {
@@ -305,7 +305,7 @@ export const consoleFilterConfig = {
     return false;
   }
   function matchSourceHints(args, sources) {
-    if (!anyTrue([sources,sources]).length === 0) {
+    if (!anyTrue([sources, sources]).length === 0) {
       return false;
     }
     try {

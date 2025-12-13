@@ -3,6 +3,7 @@
 ---
 
 ## 2025-12-13 17:02
+- globals.js: v2.11.0 → v2.11.2 - Fix: Rule 12 
 - humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
 - lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
 - playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks

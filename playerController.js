@@ -148,7 +148,21 @@ function doSeek(player, seconds) {
   try {
     if (player) {
       if (typeof player.seekTo === 'function') {
-        { try{ const d = player.getDuration ? player.getDuration() : 0; let s = seconds; if (typeof s==='number'){ if (s<0) s=0; if (d>0) { if (s>d-0.5) s = d-0.5; } } player.seekTo(s,true); }catch(e){ player.seekTo(seconds,true); } }
+        {
+          try {
+            const d = player.getDuration ? player.getDuration() : 0;
+            let s = seconds;
+            if (typeof s === 'number') {
+              if (s < 0) s = 0;
+              if (d > 0) {
+                if (s > d - 0.5) s = d - 0.5;
+              }
+            }
+            player.seekTo(s, true);
+          } catch (e) {
+            player.seekTo(seconds, true);
+          }
+        }
         log('[Seek] seconds=' + seconds);
       } else {
         log('[Seek] skipped: player.seekTo unavailable');

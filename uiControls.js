@@ -246,9 +246,19 @@ export function bindUiEvents() {
   // Guard to avoid re-binding (dataset.bound on sentinel button)
   try {
     const sentinel = document.getElementById('btnPlayAll');
-    if (sentinel) { if (sentinel.dataset) { if (sentinel.dataset.bound === '1') { return; } } }
-    if (sentinel) { if (sentinel.dataset) { sentinel.dataset.bound = '1'; } }
-  } catch(_){}
+    if (sentinel) {
+      if (sentinel.dataset) {
+        if (sentinel.dataset.bound === '1') {
+          return;
+        }
+      }
+    }
+    if (sentinel) {
+      if (sentinel.dataset) {
+        sentinel.dataset.bound = '1';
+      }
+    }
+  } catch (_) {}
   const byId = (id) => document.getElementById(id);
   const m = new Map([
     ['btnPlayAll', playAll],
