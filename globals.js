@@ -526,15 +526,21 @@ export function bindSafeMessageHandler(allowlist = null) {
   try {
     const defaults = [getOrigin(), 'https://www.youtube.com'];
     let allow = defaults;
-if (Array.isArray(allowlist)) {
-  if (allowlist.length > 0) { allow = allowlist; }
-}
+    if (Array.isArray(allowlist)) {
+      if (allowlist.length > 0) {
+        allow = allowlist;
+      }
+    }
     window.addEventListener(
       'message',
       (ev) => {
         let origin = '';
-if (allTrue([typeof ev.origin === 'string', ev.origin.length > 0])) { origin = ev.origin; }
-        const ok = allow.some((a) => allTrue([typeof a === 'string', a.length > 0, origin.startsWith(a)]));
+        if (allTrue([typeof ev.origin === 'string', ev.origin.length > 0])) {
+          origin = ev.origin;
+        }
+        const ok = allow.some((a) =>
+          allTrue([typeof a === 'string', a.length > 0, origin.startsWith(a)])
+        );
         if (!ok) {
           try {
             console.info(`[YouTubeAPI][non-critical][Origin] Blocked postMessage from '${origin}'`);
@@ -555,7 +561,10 @@ const noiseCache = new Map(); // key -> {count, lastTs}
 function shouldSuppressNoise(args) {
   const sCandidate = args ? args[0] : undefined;
   const s = String(sCandidate ? sCandidate : '');
-  const isWidgetNoise = anyTrue([/www\-widgetapi\.js/i.test(s), /Failed to execute 'postMessage'/i.test(s)]);
+  const isWidgetNoise = anyTrue([
+    /www\-widgetapi\.js/i.test(s),
+    /Failed to execute 'postMessage'/i.test(s),
+  ]);
   const isAdsNoise = anyTrue([/viewthroughconversion/i.test(s), /doubleclick\.net/i.test(s)]);
   if (!isNoise) return false;
   const key = s.replace(/\d{2}:\d{2}:\d{2}/g, '');
@@ -644,6 +653,5 @@ export function safePostMessage(targetWin, payload, targetOrigin) {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 log(`[${ts()}] ✅ Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ολοκληρώθηκε`);
-
 
 // --- End Of File ---

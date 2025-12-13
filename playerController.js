@@ -78,7 +78,9 @@ function isNonEmptyArray(x) {
 
 // Named guards for playerController
 function hasPlayer(p) {
-  if (!p) { return false; }
+  if (!p) {
+    return false;
+  }
   return typeof p.playVideo === 'function';
 }
 
@@ -169,41 +171,68 @@ function doSeek(player, seconds) {
   // > 120 min: 10–15%
 */
 export function getRequiredWatchTime(durationSec) {
- var capSec = (15 + rndInt(0, 5)) * 60;
- var minPct = 0.5;
- var maxPct = 0.7;
- if (durationSec < 120) { minPct = 0.92; maxPct = 1.0; }
- else if (durationSec < 300) { minPct = 0.85; maxPct = 1.0; }
- else if (durationSec < 1800) { minPct = 0.55; maxPct = 0.75; }
- else if (durationSec < 7200) { minPct = 0.25; maxPct = 0.38; }
- else { minPct = 0.12; maxPct = 0.18; }
- var span = maxPct - minPct;
- if (span < 0) { span = 0; }
- var pct = minPct + Math.random() * span;
- var b = rndInt(-1, 1);
- var bias = b * 0.01;
- pct = pct + bias;
- if (pct < 0.05) { pct = 0.05; }
- var required = Math.floor(durationSec * pct);
- if (required > capSec) { required = capSec; }
- if (required < 15) { required = 15; }
- return required;
- }
+  var capSec = (15 + rndInt(0, 5)) * 60;
+  var minPct = 0.5;
+  var maxPct = 0.7;
+  if (durationSec < 120) {
+    minPct = 0.92;
+    maxPct = 1.0;
+  } else if (durationSec < 300) {
+    minPct = 0.85;
+    maxPct = 1.0;
+  } else if (durationSec < 1800) {
+    minPct = 0.55;
+    maxPct = 0.75;
+  } else if (durationSec < 7200) {
+    minPct = 0.25;
+    maxPct = 0.38;
+  } else {
+    minPct = 0.12;
+    maxPct = 0.18;
+  }
+  var span = maxPct - minPct;
+  if (span < 0) {
+    span = 0;
+  }
+  var pct = minPct + Math.random() * span;
+  var b = rndInt(-1, 1);
+  var bias = b * 0.01;
+  pct = pct + bias;
+  if (pct < 0.05) {
+    pct = 0.05;
+  }
+  var required = Math.floor(durationSec * pct);
+  if (required > capSec) {
+    required = capSec;
+  }
+  if (required < 15) {
+    required = 15;
+  }
+  return required;
+}
 
 /** Σχέδιο παύσεων με βάση τη διάρκεια. */
 export function getPausePlan(duration) {
- if (duration < 120) { return { count: rndInt(1, 1), min: 6, max: 15 }; }
- if (duration < 300) { return { count: rndInt(1, 2), min: 8, max: 20 }; }
- if (duration < 1800) { return { count: rndInt(2, 3), min: 25, max: 55 }; }
- if (duration < 7200) { return { count: rndInt(3, 4), min: 50, max: 110 }; }
- return { count: rndInt(4, 5), min: 90, max: 160 };
+  if (duration < 120) {
+    return { count: rndInt(1, 1), min: 6, max: 15 };
+  }
+  if (duration < 300) {
+    return { count: rndInt(1, 2), min: 8, max: 20 };
+  }
+  if (duration < 1800) {
+    return { count: rndInt(2, 3), min: 25, max: 55 };
+  }
+  if (duration < 7200) {
+    return { count: rndInt(3, 4), min: 50, max: 110 };
+  }
+  return { count: rndInt(4, 5), min: 90, max: 160 };
 }
 
 // --- Utils: dynamic origin/host ---
 function getDynamicOrigin() {
   try {
     if (allTrue([window.location, window.location.origin])) return window.location.origin;
-    const __loc = (typeof window !== 'undefined') ? (window.location ? window.location : {}) : {};
+    const __loc = typeof window !== 'undefined' ? (window.location ? window.location : {}) : {};
     const { protocol, hostname, port } = __loc;
     if (allTrue([protocol, hostname])) return `${protocol}//${hostname}${port ? `:${port}` : ''}`;
   } catch (_) {}
@@ -235,21 +264,25 @@ export class PlayerController {
       setTimeout(attempt, jitter);
     };
     this.config = config;
-    this.guardPlay = function(p) {
+    this.guardPlay = function (p) {
       try {
         var count = getPlayingCount();
         var limit = MAX_CONCURRENT_PLAYING;
         if (count < limit) {
-          if (p ? (typeof p.playVideo === 'function') : false) { p.playVideo(); }
+          if (p ? typeof p.playVideo === 'function' : false) {
+            p.playVideo();
+          }
           return;
         }
         var backoffBase = 300;
         var delta = Math.floor(Math.random() * 900);
-        var retry = function() {
+        var retry = function () {
           try {
             var c = getPlayingCount();
             if (c < MAX_CONCURRENT_PLAYING) {
-          if (p ? (typeof p.playVideo === 'function') : false) { p.playVideo(); }
+              if (p ? typeof p.playVideo === 'function' : false) {
+                p.playVideo();
+              }
               return;
             }
             setTimeout(retry, backoffBase + Math.floor(Math.random() * 900));
@@ -259,8 +292,13 @@ export class PlayerController {
       } catch (_) {}
     };
 
-    this.requestPlay = function() {
-      try { var p = this.player; if (p) { this.guardPlay(p); } } catch (_) {}
+    this.requestPlay = function () {
+      try {
+        var p = this.player;
+        if (p) {
+          this.guardPlay(p);
+        }
+      } catch (_) {}
     };
 
     this.profileName = config?.profileName ?? 'Unknown';
@@ -276,8 +314,8 @@ export class PlayerController {
   /** Αρχικοποίηση του YouTube Player. */
   init(videoId) {
     const containerId = `player${this.index + 1}`;
-    const dyn = (typeof getDynamicOrigin === 'function') ? getDynamicOrigin() : '';
-    const computedOrigin = dyn ? dyn : (window.location?.origin ?? '');
+    const dyn = typeof getDynamicOrigin === 'function' ? getDynamicOrigin() : '';
+    const computedOrigin = dyn ? dyn : window.location?.origin ?? '';
 
     const isValidOrigin = allTrue([
       typeof computedOrigin === 'string',
@@ -324,7 +362,14 @@ export class PlayerController {
           }
         }
         if (typeof e.target.playVideo === 'function') {
-          safeCmd((function(){ try { this.guardPlay(e.target); } catch(_){} }).bind(this), 240);
+          safeCmd(
+            function () {
+              try {
+                this.guardPlay(e.target);
+              } catch (_) {}
+            }.bind(this),
+            240
+          );
         }
       } catch (__err) {
         try {
@@ -333,8 +378,18 @@ export class PlayerController {
       }
     }, __jitterMs); // JITTER_APPLIED
     setTimeout(() => {
-      var seekSec = (typeof this.initialSeekSec === 'number') ? this.initialSeekSec : '-';
-    log('[' + ts() + '] ▶ Player ' + (this.index + 1) + ' Ready -> Seek=' + seekSec + 's after ' + startDelaySec + 's');;
+      var seekSec = typeof this.initialSeekSec === 'number' ? this.initialSeekSec : '-';
+      log(
+        '[' +
+          ts() +
+          '] ▶ Player ' +
+          (this.index + 1) +
+          ' Ready -> Seek=' +
+          seekSec +
+          's after ' +
+          startDelaySec +
+          's'
+      );
       this.schedulePauses();
       this.scheduleMidSeek();
     }, startDelay);
@@ -399,7 +454,7 @@ export class PlayerController {
     /* phase-3-dispatch */
     try {
       let s;
-      if (typeof e !== 'undefined' ? (typeof e.data !== 'undefined') : false) {
+      if (typeof e !== 'undefined' ? typeof e.data !== 'undefined' : false) {
         s = e.data;
       } else {
         s = this.player ? this.player.getPlayerState() : undefined;
@@ -458,7 +513,8 @@ export class PlayerController {
             const now = Date.now();
             let prospective = this.totalPlayTime;
             if (this.playingStart) {
-              const delta = ((now - this.playingStart) / 1000) * (this.currentRate ? this.currentRate : 1.0);
+              const delta =
+                ((now - this.playingStart) / 1000) * (this.currentRate ? this.currentRate : 1.0);
               prospective += delta;
             }
             const duration = p.getDuration();

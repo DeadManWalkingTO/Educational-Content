@@ -20,7 +20,12 @@ function hasArrayWithItems(arr) {
   return allTrue([Array.isArray(arr), arr.length > 0]);
 }
 function isValidId(id) {
-  if (typeof id === 'string') { if (id.trim().length > 0) { return true; } } return false;
+  if (typeof id === 'string') {
+    if (id.trim().length > 0) {
+      return true;
+    }
+  }
+  return false;
 }
 function canLoadLists(main, alt) {
   return anyTrue([hasArrayWithItems(main), hasArrayWithItems(alt)]);

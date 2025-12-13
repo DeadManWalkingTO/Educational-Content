@@ -27,8 +27,11 @@ import { startWatchdog } from './watchdog.js';
 // Guard helpers for State Machine (Rule 12)
 // Named guards (Rule 12)
 function isApiReady() {
-  const hasYT = (typeof window !== 'undefined') ? !!window.YT : false;
-  const hasPlayer = (typeof window !== 'undefined') ? allTrue([!!window.YT, typeof window.YT.Player === 'function']) : false;
+  const hasYT = typeof window !== 'undefined' ? !!window.YT : false;
+  const hasPlayer =
+    typeof window !== 'undefined'
+      ? allTrue([!!window.YT, typeof window.YT.Player === 'function'])
+      : false;
   return allTrue([hasYT, hasPlayer]);
 }
 function isDomInteractive() {

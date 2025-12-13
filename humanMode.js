@@ -44,7 +44,9 @@ function canSequentialInit(queue) {
   return hasArrayWithItems(queue);
 }
 function hasCtrlAndPlayer(ctrl) {
-  if (!ctrl) { return false; }
+  if (!ctrl) {
+    return false;
+  }
   return !!ctrl.player;
 }
 
@@ -90,20 +92,22 @@ const BEHAVIOR_PROFILES = [
 ];
 // --- Δημιουργία τυχαίου config για κάθε player ---
 function createRandomPlayerConfig(profile) {
- var isFocus = false;
- if (profile) {
-   if (profile.name === 'Focused') { isFocus = true; }
- }
- var low = isFocus ? 5 : 10;
- var high = isFocus ? 45 : 60;
- var initSeekSec = rndInt(low, high);
- return {
+  var isFocus = false;
+  if (profile) {
+    if (profile.name === 'Focused') {
+      isFocus = true;
+    }
+  }
+  var low = isFocus ? 5 : 10;
+  var high = isFocus ? 45 : 60;
+  var initSeekSec = rndInt(low, high);
+  return {
     profileName: profile.name,
     startDelay: rndInt(5, 240),
     initSeekMax: rndInt(30, 120),
     unmuteDelayExtra: rndInt(30, 90),
     volumeRange: [rndInt(5, 15), rndInt(20, 40)],
- initialSeekSec: initSeekSec,
+    initialSeekSec: initSeekSec,
     midSeekInterval:
       rndInt(profile.midSeekIntervalRange[0], profile.midSeekIntervalRange[1]) * 60000,
     pauseChance: profile.pauseChance,
@@ -180,7 +184,13 @@ export async function initPlayersSequentially(mainList, altList) {
     if (!controller) {
       controller = new PlayerController(i, mainList, altList, config);
       controllers.push(controller);
- try { if (config) { if (typeof config.initialSeekSec === 'number') { controller.initialSeekSec = config.initialSeekSec; } } } catch (_) {}
+      try {
+        if (config) {
+          if (typeof config.initialSeekSec === 'number') {
+            controller.initialSeekSec = config.initialSeekSec;
+          }
+        }
+      } catch (_) {}
     } else {
       controller.config = config;
       controller.profileName = config.profileName;
