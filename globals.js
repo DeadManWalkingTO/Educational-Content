@@ -11,7 +11,7 @@ export function getVersion() {
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: globals.js ${GLOBALS_VERSION} -> Ξεκίνησε`);
 
 // --- Στατιστικά για την εφαρμογή ---
 export const stats = {
@@ -84,13 +84,13 @@ export function getPlayingCount() {
 }
 export function incPlaying() {
   _currentPlaying++;
-  log(`[${new Date().toLocaleTimeString()}] ✅ Playing++ -> ${_currentPlaying}`);
+  log(`[${ts()}] ✅ Playing++ -> ${_currentPlaying}`);
 }
 export function decPlaying() {
   if (_currentPlaying > 0) {
     _currentPlaying--;
   }
-  log(`[${new Date().toLocaleTimeString()}] ✅ Playing-- -> ${_currentPlaying}`);
+  log(`[${ts()}] ✅ Playing-- -> ${_currentPlaying}`);
 }
 
 // --- Σταθερές εφαρμογής ---
@@ -637,6 +637,6 @@ export function safePostMessage(targetWin, payload, targetOrigin) {
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ολοκληρώθηκε`);
+log(`[${ts()}] ✅ Φόρτωση: globals.js ${GLOBALS_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

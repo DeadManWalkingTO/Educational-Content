@@ -10,7 +10,7 @@ export function getVersion() {
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ξεκίνησε`);
 
 // Imports
 import {
@@ -46,7 +46,7 @@ function tryPlay(player, idx) {
         try {
           player.playVideo();
         } catch (e) {
-          log(`[${ts()}] ❗ tryPlay error after delay → ${e}`);
+          log(`[${ts()}] ❌ Player ${this.index + 1} tryPlay error after delay → ${e}`);
         }
       }, delay);
       return false;
@@ -54,7 +54,7 @@ function tryPlay(player, idx) {
     this.guardPlay(player);
     return true;
   } catch (e) {
-    log(`[${ts()}] ❗ tryPlay error → ${e}`);
+    log(`[${ts()}] ❌ Player ${this.index + 1} tryPlay error → ${e}`);
     return false;
   }
 }
@@ -157,16 +157,16 @@ function doSeek(player, seconds) {
             player.seekTo(seconds, true);
           }
         }
-        log('[Seek] seconds=' + seconds);
+        log(`[${ts()}] ℹ️ Player ${this.index + 1} Seek -> seconds= ${seconds}`);
       } else {
-        log('[Seek] skipped: player.seekTo unavailable');
+        log(`[${ts()}] ⚠️ Player ${this.index + 1} Seek skipped -> player.seekTo unavailable`);
       }
     } else {
-      log('[Seek] skipped: player unavailable');
+      log(`[${ts()}] ⚠️ Player ${this.index + 1} Seek skipped -> player unavailable`);
     }
   } catch (e) {
     try {
-      log('[Seek Error] ' + e.message);
+      log('[${ts()}] ❌ Player ${this.index + 1} Seek Error ' + e.message);
     } catch (_) {}
   }
 }
@@ -378,7 +378,7 @@ export class PlayerController {
     }, __jitterMs); // JITTER_APPLIED
     setTimeout(() => {
       var seekSec = typeof this.initialSeekSec === 'number' ? this.initialSeekSec : '-';
-      log('[' + ts() + '] ▶ Player ' + (this.index + 1) + ' Ready -> Seek=' + seekSec + 's after ' + startDelaySec + 's');
+      log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> Seek= ${seekSec}s after ${startDelaySec}s`);
       this.schedulePauses();
       this.scheduleMidSeek();
     }, startDelay);
@@ -491,7 +491,7 @@ export class PlayerController {
               if (guardHasAnyList(this)) {
                 this.loadNextVideo(p);
               } else {
-                log(`[${new Date().toLocaleTimeString()}] ⚠️ Player ${this.index + 1} AutoNext aborted -> no available list`);
+                log(`[${ts()}] ⚠️ Player ${this.index + 1} AutoNext aborted -> no available list`);
               }
             }
           }, iv);
@@ -503,7 +503,7 @@ export class PlayerController {
         if (guardHasAnyList(this)) {
           this.loadNextVideo(p);
         } else {
-          log(`[${new Date().toLocaleTimeString()}] ⚠️ Player ${this.index + 1} AutoNext aborted -> no available list`);
+          log(`[${ts()}] ⚠️ Player ${this.index + 1} AutoNext aborted -> no available list`);
         }
         return;
       case YT.PlayerState.PLAYING:
@@ -579,7 +579,7 @@ export class PlayerController {
             if (guardHasAnyList(this)) {
               this.loadNextVideo(p);
             } else {
-              log(`[${new Date().toLocaleTimeString()}] ⚠️ Player ${this.index + 1} AutoNext aborted -> no available list`);
+              log(`[${ts()}] ⚠️ Player ${this.index + 1} AutoNext aborted -> no available list`);
             }
           }, 60000);
           return;
@@ -587,7 +587,7 @@ export class PlayerController {
         if (guardHasAnyList(this)) {
           this.loadNextVideo(p);
         } else {
-          log(`[${new Date().toLocaleTimeString()}] ⚠️ Player ${this.index + 1} AutoNext aborted -> no available list`);
+          log(`[${ts()}] ⚠️ Player ${this.index + 1} AutoNext aborted -> no available list`);
         }
       }, afterEndPauseMs);
     }
@@ -596,7 +596,7 @@ export class PlayerController {
     if (guardHasAnyList(this)) {
       this.loadNextVideo(this.player);
     } else {
-      log(`[${new Date().toLocaleTimeString()}] ⚠️ Player ${this.index + 1} AutoNext aborted -> no available list`);
+      log(`[${ts()}] ⚠️ Player ${this.index + 1} AutoNext aborted -> no available list`);
     }
     stats.errors++;
     log(`[${ts()}] ❌ Player ${this.index + 1} Error -> AutoNext`);
@@ -714,7 +714,7 @@ try {
               }
             }
           } catch (_) {}
-          log('autoNext error → ' + m);
+          log(`[${ts()}] ❌ Player ${this.index + 1} AutoNext Error -> ${m}`);
         } catch (_) {}
       }
     };
@@ -736,7 +736,7 @@ try {
               }
             }
           } catch (_) {}
-          log('initPlayersSequentially error → ' + m2);
+          log(`[${ts()}] ❌ Player ${this.index + 1} InitPlayersSequentially Error -> ${m2}`);
         } catch (_) {}
       }
     };
@@ -750,7 +750,7 @@ try {
         return doSeek.apply(null, arguments);
       } catch (e) {
         try {
-          log('[Shim seek Error] ' + e.message);
+          log(`[${ts()}] ❌ Player ${this.index + 1} Shim Seek Error ${e.message}`);
         } catch (_) {}
       }
     };
@@ -758,6 +758,6 @@ try {
 } catch (_) {}
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση αρχείου: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ολοκληρώθηκε`);
+log(`[${ts()}] ✅ Φόρτωση: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

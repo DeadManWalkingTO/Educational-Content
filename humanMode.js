@@ -8,7 +8,7 @@ export function getVersion() {
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: humanMode.js ${HUMAN_MODE_VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: humanMode.js ${HUMAN_MODE_VERSION} -> Ξεκίνησε`);
 
 // Imports
 import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, anyTrue, allTrue } from './globals.js';
@@ -205,7 +205,7 @@ try {
               }
             }
           } catch (_) {}
-          log('HumanMode init error → ' + m);
+          log(`[${ts()}] ❌ HumanMode init error → ${m}`);
         } catch (_) {}
       }
     };
@@ -213,6 +213,6 @@ try {
 } catch (_) {}
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση αρχείου: humanMode.js ${HUMAN_MODE_VERSION} -> Ολοκληρώθηκε`);
+log(`[${ts()}] ✅ Φόρτωση: humanMode.js ${HUMAN_MODE_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

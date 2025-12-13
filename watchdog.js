@@ -1,16 +1,16 @@
 // --- watchdog.js ---
-// Έκδοση: v2.6.26
+// Έκδοση: v2.7.27
 // Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
 // Συμμόρφωση με κανόνα State Machine με Guard Steps.
 
 // --- Versions ---
-const WATCHDOG_VERSION = 'v2.6.26';
+const WATCHDOG_VERSION = 'v2.7.27';
 export function getVersion() {
   return WATCHDOG_VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ξεκίνησε`);
 
 // Imports
 import { log, ts, controllers, stats, anyTrue, allTrue } from './globals.js';
@@ -22,7 +22,7 @@ import { log, ts, controllers, stats, anyTrue, allTrue } from './globals.js';
 */
 
 export function startWatchdog() {
-  log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
+  log(`[${ts()}] 🐶 Watchdog ${WATCHDOG_VERSION} Start -> From ExportFunction:`);
 
   const loop = () => {
     var didRecovery = false;
@@ -50,7 +50,7 @@ export function startWatchdog() {
 
       // Rule: BUFFERING > bufThreshold -> reset
       if (allTrue([state === YT.PlayerState.BUFFERING, c.lastBufferingStart, now - c.lastBufferingStart > bufThreshold])) {
-        log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
+        log(`[${ts()}] 🛠 Watchdog Info -> Player ${c.index + 1} BUFFERING -> Waiting for ${bufThreshold}s`);
         if (typeof c.loadNextVideo === 'function') {
           c.loadNextVideo(c.player);
           stats.watchdog++;
@@ -61,7 +61,7 @@ export function startWatchdog() {
 
       // Rule: PAUSED > allowedPause -> retry playVideo() πριν AutoNext
       if (allTrue([state === YT.PlayerState.PAUSED, c.lastPausedStart, now - c.lastPausedStart > allowedPause])) {
-        log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
+        log(`[${ts()}] 🛠 Watchdog Info -> Player ${c.index + 1} PAUSED -> Watchdog retry playVideo before AutoNext`);
         try {
           if (typeof c.player.playVideo === 'function') {
             if (typeof c.requestPlay === 'function') {
@@ -82,7 +82,7 @@ export function startWatchdog() {
           }
 
           if (stillNotPlaying) {
-            log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
+            log(`[${ts()}] ♻️ Watchdog Info -> Player ${c.index + 1} stuck in PAUSED -> Watchdog reset`);
             if (typeof c.loadNextVideo === 'function') {
               c.loadNextVideo(c.player);
               stats.watchdog++;
@@ -102,7 +102,7 @@ export function startWatchdog() {
 
   loop();
 
-  log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
+  log(`[${ts()}] 🐶 Watchdog ${WATCHDOG_VERSION} Start -> From Loop Start`);
 
   // Δευτερεύων έλεγχος ανά 60s (σταθερό)
   setInterval(function () {
@@ -127,7 +127,7 @@ export function startWatchdog() {
       // 1) BUFFERING > 60s -> AutoNext reset
       var isBufferingTooLong = allTrue([state === YT.PlayerState.BUFFERING, c.lastBufferingStart, now - c.lastBufferingStart > 60000]);
       if (isBufferingTooLong) {
-        log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
+        log(`[${ts()}] 🛡️ Watchdog Reset -> Player ${c.index + 1} BUFFERING > 60s`);
         if (typeof c.loadNextVideo === 'function') {
           c.loadNextVideo(c.player);
           stats.watchdog++;
@@ -138,7 +138,7 @@ export function startWatchdog() {
       // 2) PAUSED > allowedPause -> retry playVideo() πριν AutoNext
       var isPausedTooLong = allTrue([state === YT.PlayerState.PAUSED, c.lastPausedStart, now - c.lastPausedStart > allowedPause]);
       if (isPausedTooLong) {
-        log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
+        log(`[${ts()}] 🛡️ Watchdog Info -> Player ${c.index + 1} PAUSED -> Watchdog retry playVideo before AutoNext`);
         if (typeof c.player.playVideo === 'function') {
           if (typeof c.requestPlay === 'function') {
             c.requestPlay();
@@ -157,7 +157,7 @@ export function startWatchdog() {
           }
 
           if (stillNotPlaying) {
-            log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
+            log(`[${ts()}] ♻️ Watchdog Info -> Player ${c.index + 1} stuck in PAUSED -> Watchdog reset`);
             if (typeof c.loadNextVideo === 'function') {
               c.loadNextVideo(c.player);
               stats.watchdog++;
@@ -168,7 +168,7 @@ export function startWatchdog() {
     });
   }, 60000);
 
-  log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
+  log(`[${ts()}] 🐶 Watchdog ${WATCHDOG_VERSION} Start -> From Loop End`);
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου

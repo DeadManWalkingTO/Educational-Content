@@ -12,7 +12,7 @@ export function getVersion() {
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: main.js ${MAIN_VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js ${MAIN_VERSION} -> Ξεκίνησε`);
 
 // Imports
 import { log, ts, setUserGesture, bindSafeMessageHandler, anyTrue, allTrue } from './globals.js';
@@ -127,6 +127,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση αρχείου: main.js ${MAIN_VERSION} -> Ολοκληρώθηκε`);
+log(`[${ts()}] ✅ Φόρτωση: main.js ${MAIN_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

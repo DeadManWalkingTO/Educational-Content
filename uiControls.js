@@ -1,15 +1,15 @@
 // --- uiControls.js ---
-// Έκδοση: v2.6.1
+// Έκδοση: v2.7.8
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const UICONTROLS_VERSION = 'v2.6.1';
+const UICONTROLS_VERSION = 'v2.7.8';
 export function getVersion() {
   return UICONTROLS_VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ξεκίνησε`);
 
 // Imports
 import { log, ts, rndInt, controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, anyTrue, allTrue } from './globals.js';
@@ -48,14 +48,14 @@ export function setControlsEnabled(enabled) {
     const el = document.getElementById(id);
     if (el) el.disabled = !enabled;
   });
-  log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+  log(`[${ts()}] ✅ Controls ${enabled ? 'enabled' : 'disabled'}`);
 }
 
 /** ▶ Εκκίνηση όλων των players σε sequential mode με τυχαίες καθυστερήσεις. */
 export function playAll() {
   setIsStopping(false);
   clearStopTimers();
-  log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+  log(`[${ts()}] ▶ Stop All Canceled -> Starting Play All`);
   const shuffled = [...controllers].sort(() => Math.random() - 0.5);
   let delay = 0;
   shuffled.forEach((c, i) => {
@@ -70,7 +70,7 @@ export function playAll() {
             c.player.playVideo();
           }
         }
-        log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+        log(`[${ts()}] ▶ Player ${c.index + 1} Play -> Step ${i + 1}`);
       } else {
         const mainList = getMainList();
         const altList = getAltList();
@@ -84,16 +84,16 @@ export function playAll() {
         else source = altList;
         // Guard
         if ((source?.length ?? 0) === 0) {
-          log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+          log(`[${ts()}] ❌ Player ${c.index + 1} Init Skipped -> No Videos Available`);
           return;
         }
         const newId = source[Math.floor(Math.random() * source.length)];
         c.init(newId);
-        log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+        log(`[${ts()}] ▶ Player ${c.index + 1} Initializing -> Source:${useMain ? 'main' : 'alt'}`);
       }
     }, delay);
   });
-  log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+  log(`[${ts()}] ▶ Play All -> sequential mode started, estimated duration ~${Math.round(delay / 1000)}s`);
 }
 
 /** ⏹ Σταματά όλους τους players σε "sequential" mode με τυχαίες καθυστερήσεις. */
@@ -108,14 +108,14 @@ export function stopAll() {
     const timer = setTimeout(() => {
       if (c.player) {
         c.player.stopVideo();
-        log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+        log(`[${ts()}] ⏹ Player ${c.index + 1} Stopped -> Step ${i + 1}`);
       } else {
-        log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+        log(`[${ts()}] ❌ Player ${c.index + 1} Stop Skipped -> Not Initialized`);
       }
     }, delay);
     pushStopTimer(timer);
   });
-  log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+  log(`[${ts()}] ⏹ Stop All -> sequential mode started, estimated duration ~${Math.round(delay / 1000)}s`);
 }
 
 /** 🔁 Επανεκκίνηση όλων των players φορτώνοντας νέο video. */
@@ -136,22 +136,22 @@ export function restartAll() {
       else source = altList;
       // Guard
       if ((source?.length ?? 0) === 0) {
-        log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+        log(`[${ts()}] ❌ Player ${c.index + 1} Restart Skipped -> No Videos Available`);
         return;
       }
       const newId = source[Math.floor(Math.random() * source.length)];
       c.init(newId);
-      log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+      log(`[${ts()}] 🔁 Player ${c.index + 1} Restart (init) -> ${newId} (Source:${useMain ? 'main' : 'alt'})`);
     }
   });
-  log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+  log(`[${ts()}] 🔁 Restart All -> Completed`);
 }
 
 /** 🌗 Εναλλαγή Dark/Light theme. */
 export function toggleTheme() {
   document.body.classList.toggle('light');
   const mode = document.body.classList.contains('light') ? 'Light' : 'Dark';
-  log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+  log(`[${ts()}] 🌙 Theme Toggled -> ${mode} Mode`);
 }
 
 /** 🧹 Καθαρισμός activity panel. */
@@ -159,9 +159,9 @@ export function clearLogs() {
   const panel = document.getElementById('activityPanel');
   if (allTrue([panel, panel.children.length > 0])) {
     panel.innerHTML = '';
-    log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+    log(`[${ts()}] 🧹 Logs Cleared -> All Entries Removed`);
   } else {
-    log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+    log(`[${ts()}] ❌ Clear Logs -> No Entries to Remove`);
   }
 }
 
@@ -171,30 +171,30 @@ export async function copyLogs() {
   const statsPanel = document.getElementById('statsPanel');
   const hasEntries = anyTrue([panel ? (panel.children ? panel.children.length > 0 : false) : false]);
   if (!hasEntries) {
-    log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+    log(`[${ts()}] ❌ Copy Logs -> No Entries to Copy`);
     return;
   }
   const logsText = Array.from(panel.children)
     .map((div) => div.textContent)
     .join(NL);
-  const statsText = statsPanel ? NL + '📊 Current Stats:' + NL + statsPanel.textContent : NL + '📊 Stats not available';
+  const statsText = statsPanel ? NL + '📊 Current Stats:' + NL + statsPanel.textContent : NL + '📊 Stats Not Available';
   const finalText = logsText + statsText;
   // Primary path: Clipboard API on secure context
   if (allTrue([navigator.clipboard, window.isSecureContext])) {
     try {
       await navigator.clipboard.writeText(finalText);
-      log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+      log(`[${ts()}] ✅ Logs copied via Clipboard API -> ${panel.children.length} entries + stats`);
       return;
     } catch (err) {
-      log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+      log(`[${ts()}] ⚠️ Clipboard API Failed -> Fallback (${err})`);
     }
   }
   // Fallback: textarea + execCommand
   const success = unsecuredCopyToClipboard(finalText);
   if (success) {
-    log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+    log(`[${ts()}] 📋 (Fallback) Logs Copied via ExecCommand -> ${panel.children.length} Entries + stats`);
   } else {
-    log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+    log(`[${ts()}] ❌ Copy Logs Failed (Fallback)`);
   }
 }
 
@@ -247,10 +247,10 @@ export function bindUiEvents() {
     if (el) {
       el.addEventListener('click', handler);
     } else {
-      log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+      log(`[${ts()}] ⚠️ UI Bind Skipped -> Missing Element #${id}`);
     }
   });
-  log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+  log(`[${ts()}] ✅ UI Events Bound (uiControls.js ${UICONTROLS_VERSION})`);
 }
 
 export async function reloadList() {
@@ -258,9 +258,9 @@ export async function reloadList() {
     const { mainList, altList } = await reloadListsFromSource();
     setMainList(mainList);
     setAltList(altList);
-    log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+    log(`[${ts()}] 🗂️ Lists Applied to State -> Main: ${mainList.length} - Alt: ${altList.length}`);
   } catch (err) {
-    log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+    log(`[${ts()}] ❌ Reload Failed -> ${err}`);
   }
 }
 
