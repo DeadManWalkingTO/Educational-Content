@@ -8,24 +8,10 @@ export function getVersion() {
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(
-  `[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: humanMode.js ${HUMAN_MODE_VERSION} -> Ξεκίνησε`
-);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: humanMode.js ${HUMAN_MODE_VERSION} -> Ξεκίνησε`);
 
 // Imports
-import {
-  log,
-  ts,
-  rndInt,
-  controllers,
-  PLAYER_COUNT,
-  MAIN_PROBABILITY,
-  isStopping,
-  setMainList,
-  setAltList,
-  anyTrue,
-  allTrue,
-} from './globals.js';
+import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, anyTrue, allTrue } from './globals.js';
 import { scheduler } from './globals.js';
 import { PlayerController } from './playerController.js';
 
@@ -108,8 +94,7 @@ function createRandomPlayerConfig(profile) {
     unmuteDelayExtra: rndInt(30, 90),
     volumeRange: [rndInt(5, 15), rndInt(20, 40)],
     initialSeekSec: initSeekSec,
-    midSeekInterval:
-      rndInt(profile.midSeekIntervalRange[0], profile.midSeekIntervalRange[1]) * 60000,
+    midSeekInterval: rndInt(profile.midSeekIntervalRange[0], profile.midSeekIntervalRange[1]) * 60000,
     pauseChance: profile.pauseChance,
     seekChance: profile.seekChance,
     volumeChangeChance: profile.volumeChangeChance,
@@ -150,11 +135,7 @@ export async function initPlayersSequentially(mainList, altList) {
   const MICRO_STAGGER_MAX = 600; // ms
   for (let i = 0; i < PLAYER_COUNT; i++) {
     const playbackDelay = i === 0 ? 0 : rndInt(30, 180) * 1000;
-    log(
-      `[${ts()}] ⏳ Player ${i + 1} HumanMode Scheduled -> Start after ${Math.round(
-        playbackDelay / 1000
-      )}s`
-    );
+    log(`[${ts()}] ⏳ Player ${i + 1} HumanMode Scheduled -> Start after ${Math.round(playbackDelay / 1000)}s`);
     // Stagger τη ΣΤΙΓΜΗ ΔΗΜΙΟΥΡΓΙΑΣ του iframe (YT.Player)
     const microStagger = rndInt(MICRO_STAGGER_MIN, MICRO_STAGGER_MAX);
     await new Promise((resolve) => setTimeout(resolve, microStagger));

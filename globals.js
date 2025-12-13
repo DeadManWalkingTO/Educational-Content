@@ -11,9 +11,7 @@ export function getVersion() {
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(
-  `[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ξεκίνησε`
-);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: globals.js ${GLOBALS_VERSION} -> Ξεκίνησε`);
 
 // --- Στατιστικά για την εφαρμογή ---
 export const stats = {
@@ -483,15 +481,7 @@ export const consoleFilterConfig = {
       try {
         var now = new Date().toLocaleTimeString();
         if (allTrue([ctx.orig, ctx.orig.log])) {
-          ctx.orig.log(
-            '[' +
-              now +
-              '] 🛠️ Console filter active: ' +
-              ctx.stateObj.enabled +
-              ' (' +
-              ctx.stateObj.level +
-              ')'
-          );
+          ctx.orig.log('[' + now + '] 🛠️ Console filter active: ' + ctx.stateObj.enabled + ' (' + ctx.stateObj.level + ')');
         }
       } catch (_) {}
       s = S_DONE;
@@ -538,9 +528,7 @@ export function bindSafeMessageHandler(allowlist = null) {
         if (allTrue([typeof ev.origin === 'string', ev.origin.length > 0])) {
           origin = ev.origin;
         }
-        const ok = allow.some((a) =>
-          allTrue([typeof a === 'string', a.length > 0, origin.startsWith(a)])
-        );
+        const ok = allow.some((a) => allTrue([typeof a === 'string', a.length > 0, origin.startsWith(a)]));
         if (!ok) {
           try {
             console.info(`[YouTubeAPI][non-critical][Origin] Blocked postMessage from '${origin}'`);
@@ -561,10 +549,7 @@ const noiseCache = new Map(); // key -> {count, lastTs}
 function shouldSuppressNoise(args) {
   const sCandidate = args ? args[0] : undefined;
   const s = String(sCandidate ? sCandidate : '');
-  const isWidgetNoise = anyTrue([
-    /www\-widgetapi\.js/i.test(s),
-    /Failed to execute 'postMessage'/i.test(s),
-  ]);
+  const isWidgetNoise = anyTrue([/www\-widgetapi\.js/i.test(s), /Failed to execute 'postMessage'/i.test(s)]);
   const isAdsNoise = anyTrue([/viewthroughconversion/i.test(s), /doubleclick\.net/i.test(s)]);
   if (!isNoise) return false;
   const key = s.replace(/\d{2}:\d{2}:\d{2}/g, '');

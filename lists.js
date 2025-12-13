@@ -73,8 +73,7 @@ export async function loadVideoList() {
 
   // GitHub fallback (διορθωμένο URL)
   try {
-    const githubUrl =
-      'https://raw.githubusercontent.com/DeadManWalkingTO/Educational-Content/main/list.txt';
+    const githubUrl = 'https://raw.githubusercontent.com/DeadManWalkingTO/Educational-Content/main/list.txt';
     const ctrl = new AbortController();
     const _tid = setTimeout(() => ctrl.abort(), 4000);
     const githubResponse = await fetch(githubUrl, { signal: ctrl.signal });

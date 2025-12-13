@@ -12,9 +12,7 @@ export function getVersion() {
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(
-  `[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: main.js ${MAIN_VERSION} -> Ξεκίνησε`
-);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση αρχείου: main.js ${MAIN_VERSION} -> Ξεκίνησε`);
 
 // Imports
 import { log, ts, setUserGesture, bindSafeMessageHandler, anyTrue, allTrue } from './globals.js';
@@ -28,10 +26,7 @@ import { startWatchdog } from './watchdog.js';
 // Named guards (Rule 12)
 function isApiReady() {
   const hasYT = typeof window !== 'undefined' ? !!window.YT : false;
-  const hasPlayer =
-    typeof window !== 'undefined'
-      ? allTrue([!!window.YT, typeof window.YT.Player === 'function'])
-      : false;
+  const hasPlayer = typeof window !== 'undefined' ? allTrue([!!window.YT, typeof window.YT.Player === 'function']) : false;
   return allTrue([hasYT, hasPlayer]);
 }
 function isDomInteractive() {

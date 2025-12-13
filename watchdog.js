@@ -49,13 +49,7 @@ export function startWatchdog() {
       var bufThreshold = (45 + Math.floor(Math.random() * 31)) * 1000;
 
       // Rule: BUFFERING > bufThreshold -> reset
-      if (
-        allTrue([
-          state === YT.PlayerState.BUFFERING,
-          c.lastBufferingStart,
-          now - c.lastBufferingStart > bufThreshold,
-        ])
-      ) {
+      if (allTrue([state === YT.PlayerState.BUFFERING, c.lastBufferingStart, now - c.lastBufferingStart > bufThreshold])) {
         log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
         if (typeof c.loadNextVideo === 'function') {
           c.loadNextVideo(c.player);
@@ -66,13 +60,7 @@ export function startWatchdog() {
       }
 
       // Rule: PAUSED > allowedPause -> retry playVideo() πριν AutoNext
-      if (
-        allTrue([
-          state === YT.PlayerState.PAUSED,
-          c.lastPausedStart,
-          now - c.lastPausedStart > allowedPause,
-        ])
-      ) {
+      if (allTrue([state === YT.PlayerState.PAUSED, c.lastPausedStart, now - c.lastPausedStart > allowedPause])) {
         log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
         try {
           if (typeof c.player.playVideo === 'function') {
@@ -107,9 +95,7 @@ export function startWatchdog() {
     });
 
     // Βάση επανάληψης βρόχου (πιο πυκνά όταν έγινε recovery)
-    var baseMs = didRecovery
-      ? (10 + Math.floor(Math.random() * 6)) * 1000
-      : (25 + Math.floor(Math.random() * 11)) * 1000;
+    var baseMs = didRecovery ? (10 + Math.floor(Math.random() * 6)) * 1000 : (25 + Math.floor(Math.random() * 11)) * 1000;
 
     setTimeout(loop, baseMs);
   };
@@ -139,11 +125,7 @@ export function startWatchdog() {
       var allowedPause = basePause;
 
       // 1) BUFFERING > 60s -> AutoNext reset
-      var isBufferingTooLong = allTrue([
-        state === YT.PlayerState.BUFFERING,
-        c.lastBufferingStart,
-        now - c.lastBufferingStart > 60000,
-      ]);
+      var isBufferingTooLong = allTrue([state === YT.PlayerState.BUFFERING, c.lastBufferingStart, now - c.lastBufferingStart > 60000]);
       if (isBufferingTooLong) {
         log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
         if (typeof c.loadNextVideo === 'function') {
@@ -154,11 +136,7 @@ export function startWatchdog() {
       }
 
       // 2) PAUSED > allowedPause -> retry playVideo() πριν AutoNext
-      var isPausedTooLong = allTrue([
-        state === YT.PlayerState.PAUSED,
-        c.lastPausedStart,
-        now - c.lastPausedStart > allowedPause,
-      ]);
+      var isPausedTooLong = allTrue([state === YT.PlayerState.PAUSED, c.lastPausedStart, now - c.lastPausedStart > allowedPause]);
       if (isPausedTooLong) {
         log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
         if (typeof c.player.playVideo === 'function') {

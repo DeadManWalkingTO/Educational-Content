@@ -12,22 +12,7 @@ export function getVersion() {
 console.log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
 
 // Imports
-import {
-  log,
-  ts,
-  rndInt,
-  controllers,
-  MAIN_PROBABILITY,
-  setIsStopping,
-  clearStopTimers,
-  pushStopTimer,
-  getMainList,
-  getAltList,
-  setMainList,
-  setAltList,
-  anyTrue,
-  allTrue,
-} from './globals.js';
+import { log, ts, rndInt, controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, anyTrue, allTrue } from './globals.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
 
 // Named guards for UI Controls
@@ -58,15 +43,7 @@ const NL = '\n';
 
 /** ΝΕΟ: Μαζική ενεργοποίηση/απενεργοποίηση controls (πλην Start). */
 export function setControlsEnabled(enabled) {
-  const ids = [
-    'btnPlayAll',
-    'btnStopAll',
-    'btnRestartAll',
-    'btnToggleTheme',
-    'btnCopyLogs',
-    'btnClearLogs',
-    'btnReloadList',
-  ];
+  const ids = ['btnPlayAll', 'btnStopAll', 'btnRestartAll', 'btnToggleTheme', 'btnCopyLogs', 'btnClearLogs', 'btnReloadList'];
   ids.forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.disabled = !enabled;
@@ -192,9 +169,7 @@ export function clearLogs() {
 export async function copyLogs() {
   const panel = document.getElementById('activityPanel');
   const statsPanel = document.getElementById('statsPanel');
-  const hasEntries = anyTrue([
-    panel ? (panel.children ? panel.children.length > 0 : false) : false,
-  ]);
+  const hasEntries = anyTrue([panel ? (panel.children ? panel.children.length > 0 : false) : false]);
   if (!hasEntries) {
     log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
     return;
@@ -202,9 +177,7 @@ export async function copyLogs() {
   const logsText = Array.from(panel.children)
     .map((div) => div.textContent)
     .join(NL);
-  const statsText = statsPanel
-    ? NL + '📊 Current Stats:' + NL + statsPanel.textContent
-    : NL + '📊 Stats not available';
+  const statsText = statsPanel ? NL + '📊 Current Stats:' + NL + statsPanel.textContent : NL + '📊 Stats not available';
   const finalText = logsText + statsText;
   // Primary path: Clipboard API on secure context
   if (allTrue([navigator.clipboard, window.isSecureContext])) {
