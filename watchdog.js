@@ -1,10 +1,10 @@
 // --- watchdog.js ---
-// Έκδοση: v2.15.2
+// Έκδοση: v2.16.2
 // // Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
 // Συμμόρφωση με κανόνα State Machine με Guard Steps.
 
 // --- Versions ---
-const VERSION = 'v2.15.2';
+const VERSION = 'v2.16.2';
 export function getVersion() {
   return VERSION;
 }
@@ -13,7 +13,7 @@ export function getVersion() {
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: watchdog.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { log, ts, controllers, stats, anyTrue, allTrue } from './globals.js';
+import { log, ts, controllers, stats, anyTrue, allTrue, rndInt } from './globals.js';
 
 /*
   Thresholds:
@@ -48,7 +48,7 @@ export function startWatchdog() {
       var allowedPause = basePause;
 
       // BUFFERING threshold με ελαφρύ jitter (45–75s)
-      var bufThreshold = wdRndInt(WD_RUNTIME.thresholds.bufferingMinMs, WD_RUNTIME.thresholds.bufferingMaxMs);
+      var bufThreshold = rndInt(WD_RUNTIME.thresholds.bufferingMinMs, WD_RUNTIME.thresholds.bufferingMaxMs);
 
       // Rule: BUFFERING > bufThreshold -> reset
       if (allTrue([WD_ADAPTER.isBuffering(c), c.lastBufferingStart, now - c.lastBufferingStart > bufThreshold])) {

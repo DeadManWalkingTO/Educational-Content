@@ -4,7 +4,7 @@
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions ---
-const VERSION = 'v7.9.8';
+const VERSION = 'v7.9.9';
 export function getVersion() {
   return VERSION;
 }
@@ -139,7 +139,9 @@ function safeCmd(fn, delay = 80) {
 }
 // Seek command with bounds checking
 function doSeek(player, seconds) {
-  if (this && this.isReadyGate === false) { return; }
+  if (this && this.isReadyGate === false) {
+    return;
+  }
   try {
     if (player) {
       if (typeof player.seekTo === 'function') {
@@ -153,9 +155,17 @@ function doSeek(player, seconds) {
                 if (s > d - 0.5) s = d - 0.5;
               }
             }
-            this.execStateCommand(function(){ try { player.seekTo(s, true); } catch(_){} });
+            this.execStateCommand(function () {
+              try {
+                player.seekTo(s, true);
+              } catch (_) {}
+            });
           } catch (e) {
-            this.execStateCommand(function(){ try { player.seekTo(seconds, true); } catch(_){} });
+            this.execStateCommand(function () {
+              try {
+                player.seekTo(seconds, true);
+              } catch (_) {}
+            });
           }
         }
         log(`[${ts()}] ℹ️ Player ${this.index + 1} Seek -> seconds= ${seconds}`);
@@ -256,14 +266,22 @@ export class PlayerController {
     this.isReadyGate = false;
     this.firstCommandUsed = false;
     this.execStateCommand = function (cmd) {
-      if (!this.isReadyGate) { return; }
+      if (!this.isReadyGate) {
+        return;
+      }
       if (!this.firstCommandUsed) {
         this.firstCommandUsed = true;
         var jitter = 250 + Math.floor(Math.random() * 251);
-        schedule(function(){ try { cmd(); } catch (_) {} }, jitter);
+        schedule(function () {
+          try {
+            cmd();
+          } catch (_) {}
+        }, jitter);
         return;
       }
-      try { cmd(); } catch (_) {}
+      try {
+        cmd();
+      } catch (_) {}
     };
 
     this.pendingUnmute = false;
@@ -277,7 +295,15 @@ export class PlayerController {
       const attempt = () => {
         if (getPlayingCount() < MAX_CONCURRENT_PLAYING) {
           if (typeof p.playVideo === 'function') {
-            this.execStateCommand(function(){ try { this.execStateCommand(function(){ try { this.guardPlay(p); } catch(_){} }); } catch(_){} });
+            this.execStateCommand(function () {
+              try {
+                this.execStateCommand(function () {
+                  try {
+                    this.guardPlay(p);
+                  } catch (_) {}
+                });
+              } catch (_) {}
+            });
           }
         } else {
           const backoff = 300 + Math.floor(Math.random() * 900);
@@ -287,7 +313,7 @@ export class PlayerController {
       schedule(attempt, jitter);
     };
     this.config = config;
-    
+
     // Initialize initialSeekSec from config
     if (config) {
       if (typeof config.initialSeekSec === 'number') {
@@ -298,13 +324,17 @@ export class PlayerController {
     } else {
       this.initialSeekSec = 0;
     }
-this.guardPlay = function (p) {
+    this.guardPlay = function (p) {
       try {
         var count = getPlayingCount();
         var limit = MAX_CONCURRENT_PLAYING;
         if (count < limit) {
           if (p ? typeof p.playVideo === 'function' : false) {
-            this.execStateCommand(function(){ try { p.playVideo(); } catch(_){} });
+            this.execStateCommand(function () {
+              try {
+                p.playVideo();
+              } catch (_) {}
+            });
           }
           return;
         }
@@ -315,7 +345,11 @@ this.guardPlay = function (p) {
             var c = getPlayingCount();
             if (c < MAX_CONCURRENT_PLAYING) {
               if (p ? typeof p.playVideo === 'function' : false) {
-                this.execStateCommand(function(){ try { p.playVideo(); } catch(_){} });
+                this.execStateCommand(function () {
+                  try {
+                    p.playVideo();
+                  } catch (_) {}
+                });
               }
               return;
             }
@@ -330,7 +364,15 @@ this.guardPlay = function (p) {
       try {
         var p = this.player;
         if (p) {
-          this.execStateCommand(function(){ try { this.execStateCommand(function(){ try { this.guardPlay(p); } catch(_){} }); } catch(_){} });
+          this.execStateCommand(function () {
+            try {
+              this.execStateCommand(function () {
+                try {
+                  this.guardPlay(p);
+                } catch (_) {}
+              });
+            } catch (_) {}
+          });
         }
       } catch (_) {}
     };
@@ -380,11 +422,23 @@ this.guardPlay = function (p) {
       try {
         if (typeof e.target.seekTo === 'function') {
           if (this.initialSeekSec) {
-            this.execStateCommand(function(){ try { e.target.seekTo(this.initialSeekSec, true); } catch(_){} }.bind(this));
+            this.execStateCommand(
+              function () {
+                try {
+                  e.target.seekTo(this.initialSeekSec, true);
+                } catch (_) {}
+              }.bind(this)
+            );
           }
         }
         if (typeof e.target.playVideo === 'function') {
-          this.execStateCommand(function(){ try { this.guardPlay(e.target); } catch(_){} }.bind(this));
+          this.execStateCommand(
+            function () {
+              try {
+                this.guardPlay(e.target);
+              } catch (_) {}
+            }.bind(this)
+          );
         }
       } catch (__err) {
         try {
@@ -419,13 +473,31 @@ this.guardPlay = function (p) {
         schedule(() => {
           if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
             log(`[${ts()}] 🔁 Player ${this.index + 1} Quick retry playVideo after immediate unmute`);
-            if (typeof p.playVideo === 'function') this.execStateCommand(function(){ try { this.execStateCommand(function(){ try { this.guardPlay(p); } catch(_){} }); } catch(_){} });
+            if (typeof p.playVideo === 'function')
+              this.execStateCommand(function () {
+                try {
+                  this.execStateCommand(function () {
+                    try {
+                      this.guardPlay(p);
+                    } catch (_) {}
+                  });
+                } catch (_) {}
+              });
           }
         }, 250);
         schedule(() => {
           if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
             log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
-            if (typeof p.playVideo === 'function') this.execStateCommand(function(){ try { this.execStateCommand(function(){ try { this.guardPlay(p); } catch(_){} }); } catch(_){} });
+            if (typeof p.playVideo === 'function')
+              this.execStateCommand(function () {
+                try {
+                  this.execStateCommand(function () {
+                    try {
+                      this.guardPlay(p);
+                    } catch (_) {}
+                  });
+                } catch (_) {}
+              });
           }
         }, 1000);
       } else {
@@ -475,7 +547,15 @@ this.guardPlay = function (p) {
             const attempt = () => {
               if (getPlayingCount() < MAX_CONCURRENT_PLAYING) {
                 if (typeof p.playVideo === 'function') {
-                  this.execStateCommand(function(){ try { this.execStateCommand(function(){ try { this.guardPlay(p); } catch(_){} }); } catch(_){} });
+                  this.execStateCommand(function () {
+                    try {
+                      this.execStateCommand(function () {
+                        try {
+                          this.guardPlay(p);
+                        } catch (_) {}
+                      });
+                    } catch (_) {}
+                  });
                 }
               } else {
                 const backoff = 300 + Math.floor(Math.random() * 900);
@@ -561,7 +641,16 @@ this.guardPlay = function (p) {
         schedule(() => {
           if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
             log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
-            if (typeof p.playVideo === 'function') this.execStateCommand(function(){ try { this.execStateCommand(function(){ try { this.guardPlay(p); } catch(_){} }); } catch(_){} });
+            if (typeof p.playVideo === 'function')
+              this.execStateCommand(function () {
+                try {
+                  this.execStateCommand(function () {
+                    try {
+                      this.guardPlay(p);
+                    } catch (_) {}
+                  });
+                } catch (_) {}
+              });
           }
         }, 1000);
       }
@@ -638,7 +727,13 @@ this.guardPlay = function (p) {
     }
     const newId = list[Math.floor(Math.random() * list.length)];
     player.loadVideoById(newId);
-    this.execStateCommand(function(){ try { this.guardPlay(player); } catch(_){} }.bind(this));
+    this.execStateCommand(
+      function () {
+        try {
+          this.guardPlay(player);
+        } catch (_) {}
+      }.bind(this)
+    );
     stats.autoNext++;
     incAutoNext(this.index);
     this.totalPlayTime = 0;
@@ -659,12 +754,24 @@ this.guardPlay = function (p) {
       const pauseLen = rndInt(plan.min, plan.max) * 1000;
       const timer = schedule(() => {
         if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING])) {
-          this.execStateCommand(function(){ try { p.pauseVideo(); } catch(_){} });
+          this.execStateCommand(function () {
+            try {
+              p.pauseVideo();
+            } catch (_) {}
+          });
           stats.pauses++;
           this.expectedPauseMs = pauseLen;
           log(`[${ts()}] ⏸️ Player ${this.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
           schedule(() => {
-            this.execStateCommand(function(){ try { this.execStateCommand(function(){ try { this.guardPlay(p); } catch(_){} }); } catch(_){} });
+            this.execStateCommand(function () {
+              try {
+                this.execStateCommand(function () {
+                  try {
+                    this.guardPlay(p);
+                  } catch (_) {}
+                });
+              } catch (_) {}
+            });
             this.expectedPauseMs = 0;
           }, pauseLen);
         }
@@ -683,7 +790,11 @@ this.guardPlay = function (p) {
     this.timers.midSeek = schedule(() => {
       if (allTrue([duration > 0, typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING])) {
         const seek = rndInt(Math.floor(duration * 0.2), Math.floor(duration * 0.6));
-        this.execStateCommand(function(){ try { p.seekTo(seek, true); } catch(_){} });
+        this.execStateCommand(function () {
+          try {
+            p.seekTo(seek, true);
+          } catch (_) {}
+        });
         stats.midSeeks++;
         log(`[${ts()}] 🔁 Player ${this.index + 1} Mid-seek -> ${seek}s`);
       }

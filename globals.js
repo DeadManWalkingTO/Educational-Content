@@ -5,7 +5,7 @@
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const VERSION = 'v4.6.1';
+const VERSION = 'v4.6.2';
 export function getVersion() {
   return VERSION;
 }
@@ -95,6 +95,21 @@ export const controllers = [];
 // Μέγιστος αριθμός ταυτόχρονα playing players
 export const MAX_CONCURRENT_PLAYING = 8;
 /** --- Σταθερές εφαρμογής - End --- */
+
+/** --- Global unmute limiter - Start --- */
+export const unmuteLimiter = { limit: 2, pending: 0 };
+export function canUnmuteNow() {
+  return unmuteLimiter.pending < unmuteLimiter.limit;
+}
+export function incUnmutePending() {
+  unmuteLimiter.pending += 1;
+}
+export function decUnmutePending() {
+  if (unmuteLimiter.pending > 0) {
+    unmuteLimiter.pending -= 1;
+  }
+}
+/** --- Global unmute limiter - End --- */
 
 /** -- Ρυθμίσεις για Players - Start --- */
 // Τρέχων αριθμός ταυτόχρονα playing players
