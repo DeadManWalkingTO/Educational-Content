@@ -1,12 +1,12 @@
 // --- main.js ---
-// Έκδοση: v1.16.2
+// Έκδοση: v2.2.6
 // Entry point: DOM readiness, UI binding, lists load, versions report, YouTube API ready, Human Mode init, watchdog
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 // Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded) και gate μέσω Start button.
 // Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 // --- Versions ---
-const VERSION = 'v1.16.4';
+const VERSION = 'v2.2.6';
 export function getVersion() {
   return VERSION;
 }
@@ -18,12 +18,10 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js $
 import { log, ts, setUserGesture, anyTrue, allTrue } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
-import { reportAllVersions } from './versionReporter.js';
+import { reportAllVersions, renderVersionsPanel } from './versionReporter.js';
 import { bindUiEvents, setControlsEnabled } from './uiControls.js';
 import { startWatchdog, configure } from './watchdog-instance.js';
 
-// Guard helpers for State Machine (Rule 12)
-// Named guards (Rule 12)
 // ✅ YouTube API readiness check
 function isApiReady() {
   const hasYT = typeof window !== 'undefined' ? !!window.YT : false;
@@ -35,7 +33,7 @@ function isHtmlVersionMissing(v) {
   return anyTrue([!v, !v.HTML, v.HTML === 'unknown']);
 }
 
-// ✅ YouTube API readiness (περιμένουμε YT.Player)
+// ✅ Files missing check
 async function sanityCheck(versions) {
   try {
     if (isHtmlVersionMissing(versions)) {
@@ -56,6 +54,20 @@ async function sanityCheck(versions) {
     log(`[${ts()}] ❌ SanityCheck error -> ${e}`);
   }
 }
+
+/** --- Αναφορά εκδόσεων - Start --- */
+const versions = reportAllVersions();
+versions.Main = VERSION;
+
+const panel = document.getElementById('activityPanel');
+if (panel) {
+  panel.innerHTML = renderVersionsPanel(versions);
+} else {
+  log(`[${ts()}] ✅ Εκδόσεις: ${JSON.stringify(versions)}`);
+}
+/** --- Αναφορά εκδόσεων - End --- */
+
+// ✅ YouTube API readiness (περιμένουμε YT.Player)
 const youtubeReadyPromise = new Promise((resolve) => {
   const checkInterval = setInterval(() => {
     if (isApiReady()) {
