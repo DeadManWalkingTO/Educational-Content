@@ -1,12 +1,12 @@
 // --- main.js ---
-// Έκδοση: v2.8.0
+// Έκδοση: v2.10.2
 // Entry point: DOM readiness, UI binding, lists load, versions report, YouTube API ready, Human Mode init, watchdog
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 // Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded) και gate μέσω Start button.
 // Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 // --- Versions ---
-const VERSION = 'v2.8.0';
+const VERSION = 'v2.10.2';
 export function getVersion() {
   return VERSION;
 }
@@ -99,12 +99,18 @@ async function startApp() {
     await youtubeReadyPromise;
     log(`[${ts()}] ✅ YouTubeAPI -> Έτοιμο`);
     // Human Mode (sequential init)
-    await initPlayersSequentially(mainList, altList);
+    initPlayersSequentially(mainList, altList)
+      .catch((e) => console.error('[startApp] initPlayersSequentially error', e));
     log(`[${ts()}] ✅ Human Mode -> sequential initialization completed`);
     // 🐶 Watchdog: εκκίνηση ΜΕΤΑ το YouTube readiness & ΜΕΤΑ το Human Mode init
-    configure({ earlyNextPolicy: 'auto', jitter: { minMs: 120, maxMs: 300 }, requiredPlayTimeMs: 12000 });
-    startWatchdog();
-    log(`[${ts()}] ✅ Watchdog started from main.js`);
+    configure({ earlyNextPolicy: 'disabled', jitter: { minMs: 5000, maxMs: 12000  }, requiredPlayTimeMs: 12000 });
+    try {
+      startWatchdog();
+      log(`[${ts()}] ✅ Watchdog started from main.js`);
+    } catch (err) {
+      console.error('[start] Watchdog start failed', err);
+      setTimeout(() => { try { startWatchdog(); log(`[${ts()}] ✅ Watchdog started (retry)`); } catch (e) { console.error('[start] retry failed', e); } }, 0);
+    }
   } catch (err) {
     log(`[${ts()}] ❌ Σφάλμα κατά την εκκίνηση -> ${err}`);
   }

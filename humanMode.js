@@ -1,8 +1,8 @@
 // --- humanMode.js ---
-// Έκδοση: v4.10.4
+// Έκδοση: v4.10.7
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 // --- Versions ---
-const VERSION = 'v4.10.6';
+const VERSION = 'v4.10.7';
 export function getVersion() {
   return VERSION;
 }
@@ -12,8 +12,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: humanMode
 
 // Imports
 import { schedule } from './watchdog-instance.js';
-import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, anyTrue, allTrue } from './globals.js';
-import { scheduler } from './globals.js';
+import {log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, anyTrue, allTrue, scheduler} from './globals.js';
 import { PlayerController } from './playerController.js';
 
 // Guard helpers for State Machine (Rule 12)
@@ -139,8 +138,10 @@ export async function initPlayersSequentially(mainList, altList) {
     log(`[${ts()}] ⏳ Player ${i + 1} HumanMode Scheduled -> Start after ${Math.round(playbackDelay / 1000)}s`);
     // Stagger τη ΣΤΙΓΜΗ ΔΗΜΙΟΥΡΓΙΑΣ του iframe (YT.Player)
     const microStagger = rndInt(MICRO_STAGGER_MIN, MICRO_STAGGER_MAX);
-    await new Promise((resolve) => schedule(resolve, microStagger));
-    await new Promise((resolve) => schedule(resolve, playbackDelay));
+    await new Promise((resolve) => scheduler.schedule(resolve, microStagger));
+    log(`[${ts()}] 🔎 HumanMode: microStagger done for Player ${i + 1}`);
+    await new Promise((resolve) => scheduler.schedule(resolve, playbackDelay));
+    log(`[${ts()}] 🔎 HumanMode: playbackDelay done for Player ${i + 1}`);
     if (isStopping) {
       log(`[${ts()}] 👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
       continue;
@@ -183,7 +184,8 @@ export async function initPlayersSequentially(mainList, altList) {
       controller.config = config;
       controller.profileName = config.profileName;
     }
-    await new Promise((r) => schedule(r, 150 + Math.floor(Math.random() * 151)));
+    await new Promise((r) => scheduler.schedule(r, 150 + Math.floor(Math.random() * 151)));
+    log(`[${ts()}] 🔎 HumanMode: about to init Player ${i + 1} with videoId=${videoId}`);
     controller.init(videoId);
     log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
   }

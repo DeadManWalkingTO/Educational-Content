@@ -1,4 +1,44 @@
-# CHANGELOG.md - v178
+# CHANGELOG.md - v2
+
+---
+
+2025-12-15 watchdog-api.js Tick=10s; jitter 9.5–11.5s; auto(5/1s)+manual(3/1s) rate-limits; helper gating; log discipline; success tolerance.
+2025-12-15 uiControls.js/humanMode.js/main.js textContent for logs.
+2025-12-15 playerController.js v6.10.12 logs with '->'.
+2025-12-15 watchdog-instance.js v0.1.1 patch bump.
+
+## 2025-12-15 12:55
+- watchdog-api.js: v0.2.3 → v0.2.4 | Fix: Δέσμευση timerFactory (setTimeout/clearTimeout) στο window για αποφυγή `TypeError: Illegal invocation`; χρήση tf.clearTimeout στο _clearTimers().
+  Notes/Tests: Smoke test με startWatchdog(), scheduleNext(hint)· δεν εμφανίζεται Illegal invocation· WD logs OK.
+## 2025-12-15 14:28 (GMT+02:00)
+- humanMode.js: v4.10.6 → v4.10.7 — Fix: scheduler.scheduler → scheduler.schedule (TypeError on start).
+- main.js: v2.8.1 → v2.8.2 — Patch: remove await from initPlayersSequentially; startWatchdog() immediately.
+
+# CHANGELOG.md - v187
+
+## 2025-12-15 13:30
+- humanMode.js: Fixed import path typo 'globbals.js' → './globals.js'; ensured single globals import; version bump.
+
+## 2025-12-15 13:27
+- humanMode.js: version -> v4.10.5 (Solution A + traces + import fix)
+- watchdog-api.js: version -> v0.2.2 (added diagnostic logs)
+- main.js: version -> v2.8.1 (guarded startWatchdog)
+
+## 2025-12-15 13:03
+- watchdog-api.js: v0.2.0 → v0.2.1 — Added diagnostic logs (start, scheduleNext, notifyPlayStarted/Ended, _scheduleTick) via _safeLog().
+
+## 2025-12-15 13:03
+- uiControls.js: v2.12.2 → v2.12.3 — Added const NL='\n' to fix ReferenceError in copyLogs().
+
+## 2025-12-15 13:03
+- humanMode.js: v4.10.8 → v4.10.9 — Switched pre‑init mini delay to globals.scheduler.schedule(...) and added trace log before controller.init(videoId).
+
+## 2025-12-15 13:03
+- humanMode.js: v4.10.7 → v4.10.8 — Added trace logs after microStagger/playbackDelay awaits to diagnose sequential init flow.
+
+## 2025-12-15 13:03
+- humanMode.js: v4.10.6 → v4.10.7 — Switched pre‑Watchdog delays to globals.scheduler.schedule(...); fixed hang after 'HumanMode Scheduled'.
+
 ## 2025-12-15 06:26
 - consoleFilter.js: hotfix — defined const VERSION and export getVersion(); replaced CONSOLE_FILTER_VERSION with VERSION; version bump.
 ## 2025-12-15 06:24

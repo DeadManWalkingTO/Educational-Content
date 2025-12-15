@@ -1,10 +1,10 @@
 // --- playerController.js ---
-// Έκδοση: v6.10.4
+// Έκδοση: v6.11.4
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions ---
-const VERSION = 'v6.10.9';
+const VERSION = 'v6.11.4';
 export function getVersion() {
   return VERSION;
 }
@@ -13,8 +13,7 @@ export function getVersion() {
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: playerController.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-
-import { notifyPlayStarted, notifyPlayEnded, schedule } from './watchdog-instance.js';
+import { schedule, startWatchdog } from './watchdog-instance.js';
 import {
   AUTO_NEXT_LIMIT_PER_PLAYER,
   MAIN_PROBABILITY,
@@ -134,7 +133,13 @@ const STATE_TRANSITIONS = {
 // Debounce helper for initial commands (postMessage race mitigation)
 function safeCmd(fn, delay = 80) {
   schedule({ via: 'safeCmd' });
-  try { setTimeout(() => { try { fn(); } catch (_) {} }, delay); } catch (_) {}
+  try {
+    setTimeout(() => {
+      try {
+        fn();
+      } catch (_) {}
+    }, delay);
+  } catch (_) {}
 }
 
 // Seek command with bounds checking
@@ -427,7 +432,9 @@ export class PlayerController {
         s = this.player ? this.player.getPlayerState() : undefined;
       }
       if (s === YT.PlayerState.PLAYING) pc_startPlaying(this);
-      try { notifyPlayStarted(); } catch (_) {}
+      try {
+        notifyPlayStarted();
+      } catch (_) {}
       if (anyTrue([s === YT.PlayerState.PAUSED, s === YT.PlayerState.ENDED])) pc_stopPlaying(this);
     } catch (_) {}
     try {
@@ -438,7 +445,9 @@ export class PlayerController {
     } catch (_) {}
     try {
       if (s === YT.PlayerState.ENDED) {
-        try { notifyPlayEnded(true); } catch (_) {}
+        try {
+          notifyPlayEnded(true);
+        } catch (_) {}
         const t = STATE_TRANSITIONS.ENDED.onEnd;
         if (t.guard(this)) t.action(this);
       }
@@ -594,7 +603,9 @@ export class PlayerController {
     }
   }
   onError() {
-    try { notifyPlayEnded(false); } catch (_) {}
+    try {
+      notifyPlayEnded(false);
+    } catch (_) {}
     if (guardHasAnyList(this)) {
       this.loadNextVideo(this.player);
     } else {
