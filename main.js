@@ -1,12 +1,12 @@
 // --- main.js ---
-// Έκδοση: v2.10.2
+// Έκδοση: v2.10.3
 // Entry point: DOM readiness, UI binding, lists load, versions report, YouTube API ready, Human Mode init, watchdog
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 // Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded) και gate μέσω Start button.
 // Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 // --- Versions ---
-const VERSION = 'v2.10.2';
+const VERSION = 'v2.10.3';
 export function getVersion() {
   return VERSION;
 }
@@ -16,7 +16,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js $
 
 // Imports
 import { log, ts, setUserGesture, anyTrue, allTrue } from './globals.js';
-import { loadVideoList, loadAltList } from './lists.js';
+import { loadVideoList, loadAltList } from './lists-api.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions, renderVersionsPanel, renderVersionsText } from './versionReporter.js';
 import { bindUiEvents, setControlsEnabled } from './uiControls.js';

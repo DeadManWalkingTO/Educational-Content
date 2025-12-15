@@ -1,6 +1,14 @@
-# CHANGELOG.md - v2
+# CHANGELOG.md - v3
 
 ---
+
+
+## 2025-12-15 21:24 (GMT+02:00)
+- lists-api.js: v1.0.0 — Νέο αυτόνομο API για λίστες (Local list.txt, GitHub fallback, internal; Alt: random.txt → []), ESM, semicolons, LF.
+- main.js: minor patch — import από lists-api.js, καμία αλλαγή λογικής.
+- versionReporter.js: v2.30.1 — Προσθήκη ListsAPI στο συγκεντρωτικό και στο versions panel.
+- consoleFilter.js: set const VERSION='v1.3.3' ώστε να ταιριάζει με το header (ευθυγράμμιση έκδοσης).
+
 
 2025-12-15 watchdog-api.js Tick=10s; jitter 9.5–11.5s; auto(5/1s)+manual(3/1s) rate-limits; helper gating; log discipline; success tolerance.
 2025-12-15 uiControls.js/humanMode.js/main.js textContent for logs.

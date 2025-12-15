@@ -3,7 +3,7 @@
 // Console Filter: αυτόνομο module για state machine, tagging και wrapping των console.* χωρίς χρήση OR και AND.
 
 // --- Versions ---
-const VERSION = 'v1.2.4';
+const VERSION = 'v1.3.3';
 export function getVersion() {
   return VERSION;
 }

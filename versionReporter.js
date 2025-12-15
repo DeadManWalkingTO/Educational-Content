@@ -1,9 +1,9 @@
 // --- versionReporter.js ---
-// Έκδοση: v2.30.0
+// Έκδοση: v2.30.1
 // Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
 // Αφαίρεση κυκλικής εξάρτησης με main.js. Η έκδοση του main θα προστεθεί από το ίδιο το main.js.
 // --- Versions ---
-const VERSION = 'v2.10.3';
+const VERSION = 'v2.30.1';
 export function getVersion() {
   return VERSION;
 }
@@ -13,7 +13,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: versionRe
 
 //imports
 import { getVersion as getGlobalsVersion } from './globals.js';
-import { getVersion as getListsVersion } from './lists.js';
+import { getVersion as getListsApiVersion } from './lists-api.js';
 import { getVersion as getHumanModeVersion } from './humanMode.js';
 import { getVersion as getPlayerControllerVersion } from './playerController.js';
 import { getVersion as getUiControlsVersion } from './uiControls.js';
@@ -41,7 +41,7 @@ export function reportAllVersions() {
   return {
     HTML: getHtmlVersion(),
     Globals: getGlobalsVersion(),
-    Lists: getListsVersion(),
+    ListsAPI: getListsApiVersion(),
     HumanMode: getHumanModeVersion(),
     PlayerController: getPlayerControllerVersion(),
     UiControls: getUiControlsVersion(),
