@@ -1,17 +1,17 @@
 // --- globals.js ---
-// Έκδοση: v3.6.0
+// Έκδοση: v4.6.0
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const GLOBALS_VERSION = 'v3.6.0';
+const VERSION = 'v4.6.0';
 export function getVersion() {
-  return GLOBALS_VERSION;
+  return VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: globals.js ${GLOBALS_VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: globals.js ${VERSION} -> Ξεκίνησε`);
 
 /** --- Console Filter (external) Early Install - Start --- */
 // Imports
@@ -273,6 +273,6 @@ export const scheduler = (function () {
 /* --- Utilities - End --- */
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: globals.js ${GLOBALS_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: globals.js ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

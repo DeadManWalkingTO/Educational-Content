@@ -1,29 +1,27 @@
 // --- main.js ---
-// Έκδοση: v1.15.2
+// Έκδοση: v3.32.2
 // Entry point: DOM readiness, UI binding, lists load, versions report, YouTube API ready, Human Mode init, watchdog
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 // Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded) και gate μέσω Start button.
 // Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 // --- Versions ---
-const MAIN_VERSION = 'v1.15.2';
+const VERSION = 'v3.32.2';
 export function getVersion() {
-  return MAIN_VERSION;
+  return VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js ${MAIN_VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
 import { log, ts, setUserGesture, anyTrue, allTrue } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
-import { reportAllVersions } from './versionReporter.js';
+import { reportAllVersions, renderVersionsPanel, renderVersionsText } from './versionReporter.js';
 import { bindUiEvents, setControlsEnabled } from './uiControls.js';
 import { startWatchdog } from './watchdog.js';
 
-// Guard helpers for State Machine (Rule 12)
-// Named guards (Rule 12)
 // ✅ YouTube API readiness check
 function isApiReady() {
   const hasYT = typeof window !== 'undefined' ? !!window.YT : false;
@@ -35,7 +33,7 @@ function isHtmlVersionMissing(v) {
   return anyTrue([!v, !v.HTML, v.HTML === 'unknown']);
 }
 
-// ✅ YouTube API readiness (περιμένουμε YT.Player)
+// ✅ Sanity Check: Έλεγχος βασικών συνθηκών λειτουργίας
 async function sanityCheck(versions) {
   try {
     if (isHtmlVersionMissing(versions)) {
@@ -56,6 +54,21 @@ async function sanityCheck(versions) {
     log(`[${ts()}] ❌ SanityCheck error -> ${e}`);
   }
 }
+
+/** --- Αναφορά εκδόσεων - Start --- */
+const versions = reportAllVersions();
+versions.Main = VERSION;
+
+const panel = document.getElementById('activityPanel');
+if (panel) {
+  panel.innerHTML = renderVersionsPanel(versions);
+} else {
+  log(`[${ts()}] ✅ Εκδόσεις: ${JSON.stringify(versions)}`);
+}
+
+/** --- Αναφορά εκδόσεων - End --- */
+
+// ✅ YouTube API readiness (περιμένουμε YT.Player)
 const youtubeReadyPromise = new Promise((resolve) => {
   const checkInterval = setInterval(() => {
     if (isApiReady()) {
@@ -70,15 +83,22 @@ let appStarted = false; // Gate: τρέχουμε startApp() μόνο μία φ�
 // ✅ Εκκίνηση εφαρμογής
 async function startApp() {
   try {
-    log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> main.js ${MAIN_VERSION}`);
+    log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> main.js ${VERSION}`);
+    // Αναφορά εκδόσεων
+    if (panel) {
+      panel.style.whiteSpace = 'pre-line';
+    }
+    log(`[${ts()}] ${renderVersionsText(versions)}`);
     // Φόρτωση λιστών
     const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
     // Δημιουργία containers για τους players
     createPlayerContainers();
     // Αναφορά εκδόσεων
-    const versions = reportAllVersions();
-    versions.Main = MAIN_VERSION;
-    log(`[${ts()}] ✅ Εκδόσεις: ${JSON.stringify(versions)}`);
+    if (panel) {
+      panel.style.whiteSpace = 'pre-line';
+    }
+    log(`[${ts()}] ${renderVersionsText(versions)}`);
+    // Φόρτωση λιστών
     log(`[${ts()}] 📂 Lists Loaded -> Main:${mainList.length} Alt:${altList.length}`);
     // Αναμονή για YouTube API
     log(`[${ts()}] ⏳ YouTubeAPI -> Αναμονή`);
@@ -114,12 +134,14 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     // Fallback: αν λείπει το κουμπί, ξεκινάμε όπως πριν
     bindUiEvents();
+    // Enable controls
     setControlsEnabled(true);
+    // Start app
     startApp();
   }
 });
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: main.js ${MAIN_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: main.js ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

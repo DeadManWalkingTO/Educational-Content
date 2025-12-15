@@ -4,13 +4,13 @@
 // Συμμόρφωση με κανόνα State Machine με Guard Steps.
 
 // --- Versions ---
-const WATCHDOG_VERSION = 'v2.15.1';
+const VERSION = 'v2.15.1';
 export function getVersion() {
-  return WATCHDOG_VERSION;
+  return VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: watchdog.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
 import { log, ts, controllers, stats, anyTrue, allTrue } from './globals.js';
@@ -169,7 +169,7 @@ export function startWatchdog() {
     });
   }, 60000);
 
-  log(`[${ts()}] 🐶 Watchdog ${WATCHDOG_VERSION} Start -> From Loop End`);
+  log(`[${ts()}] 🐶 Watchdog ${VERSION} Start -> From Loop End`);
 }
 
 // =============================
@@ -397,6 +397,6 @@ export function getStats() {
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: watchdog.js ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

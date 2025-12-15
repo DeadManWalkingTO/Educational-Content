@@ -1,15 +1,15 @@
 // consoleFilter.js
-// v1.2.3
+// v2.2.3
 // Console Filter: αυτόνομο module για state machine, tagging και wrapping των console.* χωρίς χρήση OR και AND.
 
 // --- Versions ---
-const CONSOLE_FILTER_VERSION = 'v1.2.3';
+const VERSION = 'v2.2.3';
 export function getVersion() {
-  return CONSOLE_FILTER_VERSION;
+  return VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: consoleFilter.js ${CONSOLE_FILTER_VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: consoleFilter.js ${VERSION} -> Ξεκίνησε`);
 
 let _installed = false;
 let _orig = { error: null, warn: null, info: null, log: null };
@@ -38,7 +38,11 @@ function safeToString(x) {
       return x;
     }
     if (anyTrue([typeof x === 'object', !!x])) {
-      if (!x) { /* noop */ } else if (!x.message) { /* noop */ } else {
+      if (!x) {
+        /* noop */
+      } else if (!x.message) {
+        /* noop */
+      } else {
         return String(x.message);
       }
       return String(x);
@@ -78,7 +82,11 @@ function matchSourceHints(args, sources) {
   try {
     for (let i = 0; i < args.length; i++) {
       const a = args[i];
-      if (!a) { /* skip */ } else if (!a.stack) { /* skip */ } else {
+      if (!a) {
+        /* skip */
+      } else if (!a.stack) {
+        /* skip */
+      } else {
         const st = String(a.stack);
         for (let j = 0; j < sources.length; j++) {
           if (sources[j].test(st)) {
@@ -144,7 +152,9 @@ export function installConsoleFilter(cfg) {
     return;
   }
   let __cfg = cfg;
-  if (!__cfg) { __cfg = {}; }
+  if (!__cfg) {
+    __cfg = {};
+  }
   _st = buildState(__cfg);
 
   _orig.error = console.error ? console.error.bind(console) : null;
@@ -244,6 +254,6 @@ export function restoreConsole() {
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: consoleFilter.js ${CONSOLE_FILTER_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: consoleFilter.js ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---
