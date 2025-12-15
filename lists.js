@@ -1,11 +1,11 @@
 // --- lists.js ---
-// Έκδοση: v3.9.3
+// Έκδοση: v3.10.3
 // Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
 // Ενημερωμένο: Διόρθωση URL + καθαρισμός escaped tokens
 // --- Versions ---
-const LISTS_VERSION = 'v3.9.3';
+const VERSION = 'v3.10.3';
 export function getVersion() {
-  return LISTS_VERSION;
+  return VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου

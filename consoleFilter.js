@@ -1,11 +1,11 @@
 // consoleFilter.js
-// v1.2.3
+// v1.3.3
 // Console Filter: αυτόνομο module για state machine, tagging και wrapping των console.* χωρίς χρήση OR και AND.
 
 // --- Versions ---
-const CONSOLE_FILTER_VERSION = 'v1.2.3';
+const VERSION = 'v1.2.3';
 export function getVersion() {
-  return CONSOLE_FILTER_VERSION;
+  return VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου

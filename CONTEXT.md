@@ -52,7 +52,8 @@
 - Γραμμή 2: σχόλιο με έκδοση.
 - Γραμμή 3: σύντομη περιγραφή.
 - `// --- Versions ---`
-- `const <NAME>_VERSION = 'vX.Y.Z';` και `export function getVersion()`
+- `const VERSION = 'vX.Y.Z';` και `export function getVersion()`
+- Από εδώ και μετά ο κώδικας
 - Τελευταία γραμμή: `// --- End Of File ---`
 
 **Μορφοποίηση & Συμβατότητα**

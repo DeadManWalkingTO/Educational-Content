@@ -1,11 +1,11 @@
 // --- uiControls.js ---
-// Έκδοση: v2.11.2
+// Έκδοση: v2.12.2
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const UICONTROLS_VERSION = 'v2.11.2';
+const VERSION = 'v2.12.2';
 export function getVersion() {
-  return UICONTROLS_VERSION;
+  return VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου

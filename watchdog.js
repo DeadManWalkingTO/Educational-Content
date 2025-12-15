@@ -1,12 +1,11 @@
 // --- watchdog.js ---
-// Έκδοση: v2.16.0
+// Έκδοση: v2.17.0
 // Περιγραφή: Αυτόνομος watchdog με καθαρό API, ενιαίος βρόχος,
 //            κανόνες BUFFERING/PAUSED χωρίς διπλό κώδικα, cooldown per player.
-
 // --- Versions ---
-const WATCHDOG_VERSION = 'v2.16.0';
+const VERSION = 'v2.17.0';
 export function getVersion() {
-  return WATCHDOG_VERSION;
+  return VERSION;
 }
 
 /* ============================================================================
