@@ -1,6 +1,11 @@
-# CHANGELOG.md - v167
+# CHANGELOG.md - v168
 
 
+
+## 2025-12-15 22:26
+- playerController.js: v7.9.7 → v7.9.8 — Initialize initialSeekSec from HumanMode config; Ready log now prints integer seconds;
+- humanMode.js: v5.10.1 → v5.10.2 — Reduced chained startDelay to 3–7s after previous PLAYING;
+- watchdog.js: v2.15.1 → v2.15.2 — Fixed undefined WATCHDOG_VERSION (use VERSION);
 
 ## 2025-12-15 22:09
 - playerController.js: v7.9.6 → v7.9.7 — Fixed ReferenceError by removing legacy startDelaySec from unmuteDelay;

@@ -1,8 +1,8 @@
 // --- humanMode.js ---
-// Έκδοση: v5.10.1
+// Έκδοση: v5.10.2
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 // --- Versions ---
-const VERSION = 'v5.10.1';
+const VERSION = 'v5.10.2';
 export function getVersion() {
   return VERSION;
 }
@@ -89,7 +89,7 @@ function createRandomPlayerConfig(profile) {
   var initSeekSec = rndInt(low, high);
   return {
     profileName: profile.name,
-    startDelay: rndInt(5, 240),
+    startDelay: rndInt(3, 7),
     initSeekMax: rndInt(30, 120),
     unmuteDelayExtra: rndInt(30, 90),
     volumeRange: [rndInt(5, 15), rndInt(20, 40)],

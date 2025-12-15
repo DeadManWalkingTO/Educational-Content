@@ -1,10 +1,10 @@
 // --- playerController.js ---
-// Έκδοση: v7.9.5
+// Έκδοση: v7.9.8
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions ---
-const VERSION = 'v7.9.7';
+const VERSION = 'v7.9.8';
 export function getVersion() {
   return VERSION;
 }
@@ -287,7 +287,18 @@ export class PlayerController {
       schedule(attempt, jitter);
     };
     this.config = config;
-    this.guardPlay = function (p) {
+    
+    // Initialize initialSeekSec from config
+    if (config) {
+      if (typeof config.initialSeekSec === 'number') {
+        this.initialSeekSec = Math.floor(config.initialSeekSec);
+      } else {
+        this.initialSeekSec = 0;
+      }
+    } else {
+      this.initialSeekSec = 0;
+    }
+this.guardPlay = function (p) {
       try {
         var count = getPlayingCount();
         var limit = MAX_CONCURRENT_PLAYING;
@@ -382,7 +393,7 @@ export class PlayerController {
       }
     }, __jitterMs); // JITTER_APPLIED
     schedule(() => {
-      var seekSec = typeof this.initialSeekSec === 'number' ? this.initialSeekSec : '-';
+      var seekSec = typeof this.initialSeekSec === 'number' ? Math.floor(this.initialSeekSec) : 0;
       log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> Seek= ${seekSec}s (chained)`);
       this.schedulePauses();
       this.scheduleMidSeek();
