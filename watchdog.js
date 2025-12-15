@@ -1,10 +1,10 @@
 // --- watchdog.js ---
-// Έκδοση: v2.13.0
+// Έκδοση: v2.15.1
 // // Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
 // Συμμόρφωση με κανόνα State Machine με Guard Steps.
 
 // --- Versions ---
-const WATCHDOG_VERSION = 'v2.13.0';
+const WATCHDOG_VERSION = 'v2.15.1';
 export function getVersion() {
   return WATCHDOG_VERSION;
 }
@@ -48,13 +48,13 @@ export function startWatchdog() {
       var allowedPause = basePause;
 
       // BUFFERING threshold με ελαφρύ jitter (45–75s)
-      var bufThreshold = (45 + Math.floor(Math.random() * 31)) * 1000;
+      var bufThreshold = wdRndInt(WD_RUNTIME.thresholds.bufferingMinMs, WD_RUNTIME.thresholds.bufferingMaxMs);
 
       // Rule: BUFFERING > bufThreshold -> reset
-      if (allTrue([state === YT.PlayerState.BUFFERING, c.lastBufferingStart, now - c.lastBufferingStart > bufThreshold])) {
+      if (allTrue([WD_ADAPTER.isBuffering(c), c.lastBufferingStart, now - c.lastBufferingStart > bufThreshold])) {
         log(`[${ts()}] 🛠 Watchdog Info -> Player ${c.index + 1} BUFFERING -> Waiting for ${bufThreshold}s`);
         if (typeof c.loadNextVideo === 'function') {
-          c.loadNextVideo(c.player);
+          WD_ADAPTER.loadNext(c);
           stats.watchdog++;
           didRecovery = true;
         }
@@ -62,30 +62,30 @@ export function startWatchdog() {
       }
 
       // Rule: PAUSED > allowedPause -> retry playVideo() πριν AutoNext
-      if (allTrue([state === YT.PlayerState.PAUSED, c.lastPausedStart, now - c.lastPausedStart > allowedPause])) {
+      if (allTrue([WD_ADAPTER.isPaused(c), c.lastPausedStart, now - c.lastPausedStart > allowedPause])) {
         log(`[${ts()}] 🛠 Watchdog Info -> Player ${c.index + 1} PAUSED -> Watchdog retry playVideo before AutoNext`);
         try {
           if (typeof c.player.playVideo === 'function') {
             if (typeof c.requestPlay === 'function') {
-              c.requestPlay();
+              WD_ADAPTER.play(c);
             } else {
               if (typeof c.player.playVideo === 'function') {
-                c.player.playVideo();
+                WD_ADAPTER.play(c);
               }
             }
           }
         } catch (_) {}
-        setTimeout(function () {
+        schedule(function () {
           var canCheck = allTrue([typeof c.player.getPlayerState === 'function', true]);
           var stillNotPlaying = false;
           if (canCheck) {
-            stillNotPlaying = c.player.getPlayerState() !== YT.PlayerState.PLAYING;
+            stillNotPlaying = !WD_ADAPTER.isPlaying(c);
           }
 
           if (stillNotPlaying) {
             log(`[${ts()}] ♻️ Watchdog Info -> Player ${c.index + 1} stuck in PAUSED -> Watchdog reset`);
             if (typeof c.loadNextVideo === 'function') {
-              c.loadNextVideo(c.player);
+              WD_ADAPTER.loadNext(c);
               stats.watchdog++;
             }
           }
@@ -126,41 +126,41 @@ export function startWatchdog() {
       var allowedPause = basePause;
 
       // 1) BUFFERING > 60s -> AutoNext reset
-      var isBufferingTooLong = allTrue([state === YT.PlayerState.BUFFERING, c.lastBufferingStart, now - c.lastBufferingStart > 60000]);
+      var isBufferingTooLong = allTrue([WD_ADAPTER.isBuffering(c), c.lastBufferingStart, now - c.lastBufferingStart > 60000]);
       if (isBufferingTooLong) {
         log(`[${ts()}] 🛡️ Watchdog Reset -> Player ${c.index + 1} BUFFERING > 60s`);
         if (typeof c.loadNextVideo === 'function') {
-          c.loadNextVideo(c.player);
+          WD_ADAPTER.loadNext(c);
           stats.watchdog++;
         }
         return;
       }
 
       // 2) PAUSED > allowedPause -> retry playVideo() πριν AutoNext
-      var isPausedTooLong = allTrue([state === YT.PlayerState.PAUSED, c.lastPausedStart, now - c.lastPausedStart > allowedPause]);
+      var isPausedTooLong = allTrue([WD_ADAPTER.isPaused(c), c.lastPausedStart, now - c.lastPausedStart > allowedPause]);
       if (isPausedTooLong) {
         log(`[${ts()}] 🛡️ Watchdog Info -> Player ${c.index + 1} PAUSED -> Watchdog retry playVideo before AutoNext`);
         if (typeof c.player.playVideo === 'function') {
           if (typeof c.requestPlay === 'function') {
-            c.requestPlay();
+            WD_ADAPTER.play(c);
           } else {
             if (typeof c.player.playVideo === 'function') {
-              c.player.playVideo();
+              WD_ADAPTER.play(c);
             }
           }
         }
 
-        setTimeout(function () {
+        schedule(function () {
           var canCheck = allTrue([typeof c.player.getPlayerState === 'function', true]);
           var stillNotPlaying = false;
           if (canCheck) {
-            stillNotPlaying = c.player.getPlayerState() !== YT.PlayerState.PLAYING;
+            stillNotPlaying = !WD_ADAPTER.isPlaying(c);
           }
 
           if (stillNotPlaying) {
             log(`[${ts()}] ♻️ Watchdog Info -> Player ${c.index + 1} stuck in PAUSED -> Watchdog reset`);
             if (typeof c.loadNextVideo === 'function') {
-              c.loadNextVideo(c.player);
+              WD_ADAPTER.loadNext(c);
               stats.watchdog++;
             }
           }

@@ -1,7 +1,14 @@
-# CHANGELOG.md - v161
+# CHANGELOG.md - v163
 
 ---
 
+
+## 2025-12-15 03:28
+- watchdog.js: v2.15.0 → v2.15.1 — Fix critical recursion bug στο schedule(): αντί για schedule→schedule (infinite recursion),
+  χρήση setTimeout για την εκτέλεση του fn. Συμπτώματα: RangeError: Maximum call stack size exceeded στην εκκίνηση HumanMode.
+
+## 2025-12-15 03:16
+- watchdog.js: v2.14.0 → v2.15.0 — Προσθήκη setPlayerAdapter(), αντικατάσταση YT checks με WD_ADAPTER (isPlaying/isPaused/isBuffering/getState), ενοποίηση play/loadNext μέσω adapter, διατήρηση συμβατότητας με startWatchdog().
 
 ## 2025-12-15 02:51
 - humanMode.js / playerController.js: Επιπλέον αντικαταστάσεις setTimeout/setInterval (βέλη, ονοματοδοτημένες κλήσεις, Promise wrappers) με schedule/scheduleInterval.
