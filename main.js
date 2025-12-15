@@ -1,12 +1,12 @@
 // --- main.js ---
-// Έκδοση: v1.7.43
+// Έκδοση: v1.10.2
 // Entry point: DOM readiness, UI binding, lists load, versions report, YouTube API ready, Human Mode init, watchdog
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 // Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded) και gate μέσω Start button.
 // Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 // --- Versions ---
-const MAIN_VERSION = 'v1.7.43';
+const MAIN_VERSION = 'v1.10.2';
 export function getVersion() {
   return MAIN_VERSION;
 }
@@ -15,7 +15,7 @@ export function getVersion() {
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js ${MAIN_VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { log, ts, setUserGesture, bindSafeMessageHandler, anyTrue, allTrue } from './globals.js';
+import { log, ts, setUserGesture, anyTrue, allTrue } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions } from './versionReporter.js';
@@ -34,12 +34,6 @@ function isDomInteractive() {
 }
 function isHtmlVersionMissing(v) {
   return anyTrue([!v, !v.HTML, v.HTML === 'unknown']);
-}
-
-try {
-  bindSafeMessageHandler();
-} catch (e) {
-  log(`[${ts()}] ⚠️ bindSafeMessageHandler failed → ${e}`);
 }
 
 // ✅ YouTube API readiness (περιμένουμε YT.Player)

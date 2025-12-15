@@ -1,6 +1,16 @@
-# CHANGELOG.md - v155
+# CHANGELOG.md - v157
 
 ---
+
+## 2025-12-13 23:47
+- globals.js: 2.16.0 → v2.17.0 — Αφαίρεση legacy Console Filter (state machine & wrappers), διατήρηση import & early install από consoleFilter.js.
+- consoleFilter.js: v1.0.1 — Αντικατάσταση με καθαρό module (χωρίς || και &&).
+- versionReporter.js: Προστέθηκε έκδοση ConsoleFilter στο report, patch bump.
+
+## 2025-12-13 23:30
+- globals.js: v2.15.2 → v2.16.0 — Προστέθηκε import & early install του consoleFilter.js.
+- versionReporter.js: v2.3.7 → v2.3.8 — Προστέθηκε αναφορά έκδοσης ConsoleFilter στο consolidated report.
+- consoleFilter.js: v1.0.0 — Νέο αρχείο Console Filter (χωρίς || και &&).
 
 ## 2025-12-13 17:02
 - globals.js: v2.11.0 → v2.11.2 - Fix: Rule 12 
