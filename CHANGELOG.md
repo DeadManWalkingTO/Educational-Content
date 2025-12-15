@@ -1,4 +1,44 @@
-# CHANGELOG.md - v164
+# CHANGELOG.md - v178
+## 2025-12-15 06:26
+- consoleFilter.js: hotfix — defined const VERSION and export getVersion(); replaced CONSOLE_FILTER_VERSION with VERSION; version bump.
+## 2025-12-15 06:24
+- versionReporter.js: restored exports getHtmlVersion() & renderVersionsPanel(); reportAllVersions() now includes WatchdogInstance; version bump.
+## 2025-12-15 06:22
+- playerController.js: hotfix — fixed 'Date.now(, iv)' -> 'Date.now()' and replaced 'cancel(...)' with 'clearInterval(...)'; version bump (patch).
+## 2025-12-15 06:19
+- playerController.js: hotfix — repaired malformed safeCmd (removed stray '} catch' and dangling '}, delay);'); version bump (patch).
+## 2025-12-15 06:14
+- watchdog.js: removed file — all functionality moved to watchdog-instance.js; versionReporter updated.
+- versionReporter.js: switched import from watchdog.js to watchdog-instance.js; now exports WATCHDOG_INSTANCE_VERSION and shows it in panel.
+## 2025-12-15 06:13
+- watchdog.js: v2.17.2 → v2.17.3 — Cleaned to thin wrapper (version + getVersion only); all API moved to watchdog-instance.js.
+- humanMode.js: Phase-3 — imports updated to use schedule from watchdog-instance.js; version bump.
+- versionReporter.js: patch bump (no functional change).
+## 2025-12-15 06:11
+- watchdog-instance.js: new → v0.1.0 — Singleton wrapper over Watchdog API (configure/start/stop/schedule/notify*/getStats).
+- main.js: Phase-3 — imports moved to watchdog-instance.js (direct Watchdog API usage).
+- playerController.js: Phase-3 — switched imports to watchdog-instance.js; safeCmd now uses local setTimeout and schedules next via instance schedule().
+## 2025-12-15 06:10
+- main.js: Phase-2 migration — added configure({ earlyNextPolicy:'auto', jitter:{minMs:120,maxMs:300}, requiredPlayTimeMs:12000 }) before startWatchdog().
+## 2025-12-15 06:09
+- playerController.js: Phase-2 migration — removed scheduleInterval import & replaced progressCheck with local setInterval(() => ..., iv).
+- humanMode.js: Phase-2 migration — removed scheduleInterval import (no runtime usage).
+## 2025-12-15 06:08
+- watchdog.js: v2.17.1 → v2.17.2 — Added exported forwarders notifyPlayStarted()/notifyPlayEnded(success) (phase-1 migration).
+- playerController.js: v6.10.4 → v6.10.5 — Imported notify* from watchdog.js and wired calls: on PLAYING -> notifyPlayStarted(), on ENDED -> notifyPlayEnded(true), onError() -> notifyPlayEnded(false).
+## 2025-12-15 06:05
+- watchdog.js: v2.17.0 → v2.17.1 — Adapter to new watchdog-api.js (bridge); preserved old public API (startWatchdog/stopWatchdog/schedule/scheduleInterval/cancel/getStats/configure).
+  Notes/Tests: delegates to Watchdog instance; simple serial onRequestPlay over globals.controllers; interval bridge added.
+## 2025-12-15 06:03
+- versionReporter.js: +reportAllVersions(), +getHtmlVersion(), +renderVersionsPanel(containerId) for UI panel integration.
+- main.js: import renderVersionsPanel and invoke on startup to show versions in #activityPanel.
+## 2025-12-15 06:00
+- watchdog-api.js: v0.1.0 → v0.2.0 — Implemented scheduler (tick loop), jitter, guards, backoff; added notifyPlayStarted/notifyPlayEnded; public getState().
+  Notes/Tests: host callbacks required (onRequestPlay/onStats); deterministic tests via timerFactory/random.
+- versionReporter.js: patch bump; import watchdog-api.js, export WATCHDOG_API_VERSION.
+## 2025-12-15 05:58
+- watchdog-api.js: new → v0.1.0 — Added autonomous API skeleton (start/stop/pause/resume/scheduleNext, options & callbacks).
+  Notes/Tests: skeleton only; integration pending.
 ## 2025-12-15 04:39
 - watchdog.js: v2.15.1 → v2.16.0 — Single-file refactor with Sections; clean API (configure/setControllers/start/stop/getStats/getVersion + scheduler exports), unified BUFFERING/PAUSED rules, per-player cooldown, removed duplicate logic.
   Notes/Tests: Maintains no &&/|| (anyTrue/allTrue); ESM exports; no imports; scheduling API kept for humanMode; loop jitter & thresholds centralized; minor logging adjustments.

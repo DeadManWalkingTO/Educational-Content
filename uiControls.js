@@ -9,7 +9,7 @@ export function getVersion() {
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: uiControls.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
 import { log, ts, rndInt, controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, anyTrue, allTrue } from './globals.js';
@@ -249,7 +249,7 @@ export function bindUiEvents() {
       log(`[${ts()}] ⚠️ UI Bind Skipped -> Missing Element #${id}`);
     }
   });
-  log(`[${ts()}] ✅ UI Events Bound (uiControls.js ${UICONTROLS_VERSION})`);
+  log(`[${ts()}] ✅ UI Events Bound (uiControls.js ${VERSION})`);
 }
 // Φόρτωση λιστών από πηγή και εφαρμογή στην κατάσταση
 export async function reloadList() {
@@ -264,6 +264,6 @@ export async function reloadList() {
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: uiControls.js ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

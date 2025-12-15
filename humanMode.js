@@ -2,16 +2,16 @@
 // Έκδοση: v4.10.4
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 // --- Versions ---
-const VERSION = 'v4.10.4';
+const VERSION = 'v4.10.6';
 export function getVersion() {
   return VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: humanMode.js ${HUMAN_MODE_VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: humanMode.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { cancel, schedule, scheduleInterval } from './watchdog.js';
+import { schedule } from './watchdog-instance.js';
 import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, anyTrue, allTrue } from './globals.js';
 import { scheduler } from './globals.js';
 import { PlayerController } from './playerController.js';
@@ -214,6 +214,6 @@ try {
 } catch (_) {}
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: humanMode.js ${HUMAN_MODE_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: humanMode.js ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

@@ -11,7 +11,7 @@ export function getVersion() {
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: globals.js ${GLOBALS_VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: globals.js ${VERSION} -> Ξεκίνησε`);
 
 /** --- Console Filter (external) Early Install - Start --- */
 // Imports
@@ -273,6 +273,6 @@ export const scheduler = (function () {
 /* --- Utilities - End --- */
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: globals.js ${GLOBALS_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: globals.js ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

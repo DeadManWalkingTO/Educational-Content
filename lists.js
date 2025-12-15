@@ -9,7 +9,7 @@ export function getVersion() {
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: lists.js ${LISTS_VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: lists.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
 import { log, ts, anyTrue, allTrue } from './globals.js';
@@ -132,6 +132,6 @@ export async function reloadList() {
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: lists.js ${LISTS_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: lists.js ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

@@ -4,16 +4,17 @@
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions ---
-const VERSION = 'v6.10.4';
+const VERSION = 'v6.10.9';
 export function getVersion() {
   return VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: playerController.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { cancel, schedule, scheduleInterval } from './watchdog.js';
+
+import { notifyPlayStarted, notifyPlayEnded, schedule } from './watchdog-instance.js';
 import {
   AUTO_NEXT_LIMIT_PER_PLAYER,
   MAIN_PROBABILITY,
@@ -132,12 +133,10 @@ const STATE_TRANSITIONS = {
 
 // Debounce helper for initial commands (postMessage race mitigation)
 function safeCmd(fn, delay = 80) {
-  schedule(() => {
-    try {
-      fn();
-    } catch (_) {}
-  }, delay);
+  schedule({ via: 'safeCmd' });
+  try { setTimeout(() => { try { fn(); } catch (_) {} }, delay); } catch (_) {}
 }
+
 // Seek command with bounds checking
 function doSeek(player, seconds) {
   try {
@@ -428,6 +427,7 @@ export class PlayerController {
         s = this.player ? this.player.getPlayerState() : undefined;
       }
       if (s === YT.PlayerState.PLAYING) pc_startPlaying(this);
+      try { notifyPlayStarted(); } catch (_) {}
       if (anyTrue([s === YT.PlayerState.PAUSED, s === YT.PlayerState.ENDED])) pc_stopPlaying(this);
     } catch (_) {}
     try {
@@ -438,6 +438,7 @@ export class PlayerController {
     } catch (_) {}
     try {
       if (s === YT.PlayerState.ENDED) {
+        try { notifyPlayEnded(true); } catch (_) {}
         const t = STATE_TRANSITIONS.ENDED.onEnd;
         if (t.guard(this)) t.action(this);
       }
@@ -470,13 +471,13 @@ export class PlayerController {
           };
           if (this.timers.progressCheck) {
             try {
-              cancel(this.timers.progressCheck);
+              clearInterval(this.timers.progressCheck);
             } catch (_) {}
             this.timers.progressCheck = null;
           }
           const iv = (9 + Math.floor(Math.random() * 4)) * 1000;
           const p = this.player;
-          this.timers.progressCheck = scheduleInterval(() => {
+          this.timers.progressCheck = setInterval(() => {
             if (!allTrue([this.player, typeof p.getDuration === 'function'])) return;
             const now = Date.now();
             let prospective = this.totalPlayTime;
@@ -593,6 +594,7 @@ export class PlayerController {
     }
   }
   onError() {
+    try { notifyPlayEnded(false); } catch (_) {}
     if (guardHasAnyList(this)) {
       this.loadNextVideo(this.player);
     } else {
@@ -689,7 +691,7 @@ export class PlayerController {
     }
     if (this.timers.progressCheck) {
       try {
-        cancel(this.timers.progressCheck);
+        clearInterval(this.timers.progressCheck);
       } catch (_) {}
       this.timers.progressCheck = null;
     }
@@ -758,6 +760,6 @@ try {
 } catch (_) {}
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: playerController.js ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

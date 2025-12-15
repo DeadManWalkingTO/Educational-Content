@@ -6,13 +6,13 @@
 // Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 // --- Versions ---
-const VERSION = 'v1.16.2';
+const VERSION = 'v1.16.4';
 export function getVersion() {
   return VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js ${MAIN_VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
 import { log, ts, setUserGesture, anyTrue, allTrue } from './globals.js';
@@ -20,7 +20,7 @@ import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions } from './versionReporter.js';
 import { bindUiEvents, setControlsEnabled } from './uiControls.js';
-import { startWatchdog } from './watchdog.js';
+import { startWatchdog, configure } from './watchdog-instance.js';
 
 // Guard helpers for State Machine (Rule 12)
 // Named guards (Rule 12)
@@ -70,14 +70,14 @@ let appStarted = false; // Gate: τρέχουμε startApp() μόνο μία φ�
 // ✅ Εκκίνηση εφαρμογής
 async function startApp() {
   try {
-    log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> main.js ${MAIN_VERSION}`);
+    log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> main.js ${VERSION}`);
     // Φόρτωση λιστών
     const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
     // Δημιουργία containers για τους players
     createPlayerContainers();
     // Αναφορά εκδόσεων
     const versions = reportAllVersions();
-    versions.Main = MAIN_VERSION;
+    versions.Main = VERSION;
     log(`[${ts()}] ✅ Εκδόσεις: ${JSON.stringify(versions)}`);
     log(`[${ts()}] 📂 Lists Loaded -> Main:${mainList.length} Alt:${altList.length}`);
     // Αναμονή για YouTube API
@@ -88,6 +88,7 @@ async function startApp() {
     await initPlayersSequentially(mainList, altList);
     log(`[${ts()}] ✅ Human Mode -> sequential initialization completed`);
     // 🐶 Watchdog: εκκίνηση ΜΕΤΑ το YouTube readiness & ΜΕΤΑ το Human Mode init
+    configure({ earlyNextPolicy: 'auto', jitter: { minMs: 120, maxMs: 300 }, requiredPlayTimeMs: 12000 });
     startWatchdog();
     log(`[${ts()}] ✅ Watchdog started from main.js`);
   } catch (err) {
@@ -120,6 +121,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: main.js ${MAIN_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: main.js ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---
