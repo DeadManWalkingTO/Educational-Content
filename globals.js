@@ -1,11 +1,11 @@
 // --- globals.js ---
-// Έκδοση: v4.6.0
+// Έκδοση: v4.6.1
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const VERSION = 'v4.6.0';
+const VERSION = 'v4.6.1';
 export function getVersion() {
   return VERSION;
 }
@@ -93,7 +93,7 @@ export const MAIN_PROBABILITY = 0.5;
 // Κενός πίνακας controllers, θα γεμίσει από main.js
 export const controllers = [];
 // Μέγιστος αριθμός ταυτόχρονα playing players
-export const MAX_CONCURRENT_PLAYING = 3;
+export const MAX_CONCURRENT_PLAYING = 8;
 /** --- Σταθερές εφαρμογής - End --- */
 
 /** -- Ρυθμίσεις για Players - Start --- */

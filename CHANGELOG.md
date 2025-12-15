@@ -1,5 +1,21 @@
-# CHANGELOG.md - v163
+# CHANGELOG.md - v167
 
+
+
+## 2025-12-15 22:09
+- playerController.js: v7.9.6 → v7.9.7 — Fixed ReferenceError by removing legacy startDelaySec from unmuteDelay;
+  now uses only config.unmuteDelayExtra under chained Human Mode.
+
+## 2025-12-15 22:06
+- humanMode.js: chained sequential start; startDelay counts after previous PLAYING.
+- playerController.js: onReady logging/scheduling aligned to chained policy (Ready->Seek '(chained)').
+
+## 2025-12-15 21:46
+- humanMode.js: v5.9.4 → v5.10.0 — New chained start policy: next player starts only after previous reaches PLAYING;
+  the per-player delay (startDelay) now counts *after* the previous is PLAYING; preserved micro-stagger (400–600 ms).
+## 2025-12-15 21:31
+- playerController.js: v7.9.4 → v7.9.5 — Added onReady gate + 250–500 ms debounce for first state command;
+  replaced direct play/pause/seek with guarded execStateCommand() calls; reduced postMessage race warnings.
 ---
 
 
@@ -572,3 +588,5 @@ split (2025-12-05)
   Notes: Καμία αλλαγή στη ροή. Smoke OK.
 
 ---
+- Notes: Added gate in doSeek() and routed seekTo via execStateCommand to enforce onReady rule.
+  Tests: Reduced www-widgetapi origin mismatch warnings; PLAYING sequence unaffected.

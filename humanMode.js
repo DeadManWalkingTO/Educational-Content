@@ -1,8 +1,8 @@
 // --- humanMode.js ---
-// Έκδοση: v5.9.4
+// Έκδοση: v5.10.1
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 // --- Versions ---
-const VERSION = 'v5.9.4';
+const VERSION = 'v5.10.1';
 export function getVersion() {
   return VERSION;
 }
@@ -123,33 +123,69 @@ export async function initPlayersSequentially(mainList, altList) {
     setMainList(mainList);
     setAltList(altList);
   }
-  // Ασφαλείς guards για κενές λίστες
   const mainEmpty = (mainList?.length ?? 0) === 0;
   const altEmpty = (altList?.length ?? 0) === 0;
   if (allTrue([mainEmpty, altEmpty])) {
     log(`[${ts()}] ❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκκίνηση σταματά.`);
     return;
   }
-  // Micro-stagger για δημιουργία iframes, επιπλέον του startDelay που αφορά playback
-  const MICRO_STAGGER_MIN = 400; // ms
-  const MICRO_STAGGER_MAX = 600; // ms
+  // ΝΕΑ ΠΟΛΙΤΙΚΗ: Σειριακή εκκίνηση με gate στο PLAYING του προηγούμενου.
+  const MICRO_STAGGER_MIN = 400;
+  const MICRO_STAGGER_MAX = 600;
+  function hasVideos(listA, listB) {
+    if (Array.isArray(listA)) {
+      if (listA.length > 0) {
+        return true;
+      }
+    }
+    if (Array.isArray(listB)) {
+      if (listB.length > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+  if (!hasVideos(mainList, altList)) {
+    log(`[${ts()}] ❌ HumanMode: no videos available`);
+    return;
+  }
+  // Βοηθητικό: περίμενε έως ότου ο προηγούμενος να είναι PLAYING
+  function waitUntilPlaying(prevCtrl) {
+    return new Promise(function (resolve) {
+      const iv = scheduleInterval(function () {
+        try {
+          let playing = false;
+          if (prevCtrl) {
+            if (prevCtrl.isPlayingActive) {
+              playing = true;
+            } else {
+              const p = prevCtrl.player;
+              if (p) {
+                if (typeof p.getPlayerState === 'function') {
+                  if (p.getPlayerState() === YT.PlayerState.PLAYING) {
+                    playing = true;
+                  }
+                }
+              }
+            }
+          }
+          if (playing) {
+            try {
+              cancel(iv);
+            } catch (_) {}
+            resolve();
+          }
+        } catch (_) {}
+      }, 300);
+    });
+  }
+  // Βρόχος: δημιούργησε/αρχικοποίησε τον πρώτο, έπειτα περίμενε PLAYING πριν ξεκινήσει η καθυστέρηση του επόμενου.
   for (let i = 0; i < PLAYER_COUNT; i++) {
-    const playbackDelay = i === 0 ? 0 : rndInt(30, 180) * 1000;
-    log(`[${ts()}] ⏳ Player ${i + 1} HumanMode Scheduled -> Start after ${Math.round(playbackDelay / 1000)}s`);
-    // Stagger τη ΣΤΙΓΜΗ ΔΗΜΙΟΥΡΓΙΑΣ του iframe (YT.Player)
-    const microStagger = rndInt(MICRO_STAGGER_MIN, MICRO_STAGGER_MAX);
-    await new Promise((resolve) => schedule(resolve, microStagger));
-    await new Promise((resolve) => schedule(resolve, playbackDelay));
     if (isStopping) {
       log(`[${ts()}] 👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
       continue;
     }
-    // Εύρεση controller ή null
-    let controller = controllers.find((c) => c.index === i) ?? null;
-    if (allTrue([hasCtrlAndPlayer(controller)])) {
-      log(`[${ts()}] ⚠️ Player ${i + 1} already initialized, skipping re-init`);
-      continue;
-    }
+    // Διάλεξε λίστα & videoId με ασφαλείς guards
     const useMain = Math.random() < MAIN_PROBABILITY;
     const hasMain = hasArrayWithItems(mainList);
     const hasAlt = hasArrayWithItems(altList);
@@ -158,7 +194,6 @@ export async function initPlayersSequentially(mainList, altList) {
     else if (allTrue([!useMain, hasAlt])) sourceList = altList;
     else if (hasMain) sourceList = mainList;
     else sourceList = altList;
-    // Ασφαλής επιλογή videoId
     if ((sourceList?.length ?? 0) === 0) {
       log(`[${ts()}] ❌ HumanMode skipped Player ${i + 1} -> no videos available`);
       continue;
@@ -166,25 +201,38 @@ export async function initPlayersSequentially(mainList, altList) {
     const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
     const profile = BEHAVIOR_PROFILES[Math.floor(Math.random() * BEHAVIOR_PROFILES.length)];
     const config = createRandomPlayerConfig(profile);
-    if (i == 0) config.startDelay = Math.max(config.startDelay ?? 0, 1);
     const session = createSessionPlan();
+    let controller = controllers.find((c) => c.index === i) ?? null;
     if (!controller) {
       controller = new PlayerController(i, mainList, altList, config);
       controllers.push(controller);
-      try {
-        if (config) {
-          if (typeof config.initialSeekSec === 'number') {
-            controller.initialSeekSec = config.initialSeekSec;
-          }
-        }
-      } catch (_) {}
     } else {
       controller.config = config;
       controller.profileName = config.profileName;
     }
-    await new Promise((r) => schedule(r, 150 + Math.floor(Math.random() * 151)));
-    controller.init(videoId);
-    log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
+    // Πρώτος player: init άμεσα (με μικρό stagger). Οι υπόλοιποι: gate από τον προηγούμενο.
+    if (i === 0) {
+      log(`[${ts()}] ⏳ Player ${i + 1} HumanMode Scheduled -> Start after 0s`);
+      const ms = rndInt(MICRO_STAGGER_MIN, MICRO_STAGGER_MAX);
+      await new Promise((r) => schedule(r, ms));
+      controller.init(videoId);
+      log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
+    } else {
+      const prev = controllers.find((c) => c.index === i - 1) ?? null;
+      log(`[${ts()}] ⏳ Player ${i + 1} Chained -> waiting Player ${i} PLAYING`);
+      await waitUntilPlaying(prev);
+      const delaySec = typeof config.startDelay === 'number' ? config.startDelay : rndInt(5, 240);
+      log(`[${ts()}] ⏳ Player ${i + 1} HumanMode Scheduled -> Start after ${delaySec}s (after Player ${i} PLAYING)`);
+      await new Promise((r) => schedule(r, delaySec * 1000));
+      if (isStopping) {
+        log(`[${ts()}] 👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
+        continue;
+      }
+      const ms2 = rndInt(MICRO_STAGGER_MIN, MICRO_STAGGER_MAX);
+      await new Promise((r) => schedule(r, ms2));
+      controller.init(videoId);
+      log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
+    }
   }
   log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
