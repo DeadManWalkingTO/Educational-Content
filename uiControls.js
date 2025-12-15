@@ -1,20 +1,19 @@
 // --- uiControls.js ---
-// Έκδοση: v2.14.3
+// Έκδοση: v2.11.2
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const VERSION = 'v2.14.3';
+const UICONTROLS_VERSION = 'v2.11.2';
 export function getVersion() {
-  return VERSION;
+  return UICONTROLS_VERSION;
 }
 
-const NL = '\n';
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: uiControls.js ${VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ξεκίνησε`);
 
 // Imports
 import { log, ts, rndInt, controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, anyTrue, allTrue } from './globals.js';
-import { reloadList as reloadListsFromSource } from './lists-api.js';
+import { reloadList as reloadListsFromSource } from './lists.js';
 
 // Named guards for UI Controls
 function hasEl(id) {
@@ -250,7 +249,7 @@ export function bindUiEvents() {
       log(`[${ts()}] ⚠️ UI Bind Skipped -> Missing Element #${id}`);
     }
   });
-  log(`[${ts()}] ✅ UI Events Bound (uiControls.js ${VERSION})`);
+  log(`[${ts()}] ✅ UI Events Bound (uiControls.js ${UICONTROLS_VERSION})`);
 }
 // Φόρτωση λιστών από πηγή και εφαρμογή στην κατάσταση
 export async function reloadList() {
@@ -265,6 +264,6 @@ export async function reloadList() {
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: uiControls.js ${VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

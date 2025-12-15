@@ -1,27 +1,29 @@
 // --- main.js ---
-// Έκδοση: v2.10.3
+// Έκδοση: v1.15.2
 // Entry point: DOM readiness, UI binding, lists load, versions report, YouTube API ready, Human Mode init, watchdog
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 // Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded) και gate μέσω Start button.
 // Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 // --- Versions ---
-const VERSION = 'v2.10.3';
+const MAIN_VERSION = 'v1.15.2';
 export function getVersion() {
-  return VERSION;
+  return MAIN_VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js ${VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js ${MAIN_VERSION} -> Ξεκίνησε`);
 
 // Imports
 import { log, ts, setUserGesture, anyTrue, allTrue } from './globals.js';
-import { loadVideoList, loadAltList } from './lists-api.js';
+import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
-import { reportAllVersions, renderVersionsPanel, renderVersionsText } from './versionReporter.js';
+import { reportAllVersions } from './versionReporter.js';
 import { bindUiEvents, setControlsEnabled } from './uiControls.js';
-import { startWatchdog, configure } from './watchdog-instance.js';
+import { startWatchdog } from './watchdog.js';
 
+// Guard helpers for State Machine (Rule 12)
+// Named guards (Rule 12)
 // ✅ YouTube API readiness check
 function isApiReady() {
   const hasYT = typeof window !== 'undefined' ? !!window.YT : false;
@@ -33,7 +35,7 @@ function isHtmlVersionMissing(v) {
   return anyTrue([!v, !v.HTML, v.HTML === 'unknown']);
 }
 
-// ✅ Files missing check
+// ✅ YouTube API readiness (περιμένουμε YT.Player)
 async function sanityCheck(versions) {
   try {
     if (isHtmlVersionMissing(versions)) {
@@ -54,21 +56,6 @@ async function sanityCheck(versions) {
     log(`[${ts()}] ❌ SanityCheck error -> ${e}`);
   }
 }
-
-/** --- Αναφορά εκδόσεων - Start --- */
-const versions = reportAllVersions();
-versions.Main = VERSION;
-
-const panel = document.getElementById('activityPanel');
-if (panel) {
-  panel.innerHTML = renderVersionsPanel(versions);
-} else {
-  log(`[${ts()}] ✅ Εκδόσεις: ${JSON.stringify(versions)}`);
-}
-
-/** --- Αναφορά εκδόσεων - End --- */
-
-// ✅ YouTube API readiness (περιμένουμε YT.Player)
 const youtubeReadyPromise = new Promise((resolve) => {
   const checkInterval = setInterval(() => {
     if (isApiReady()) {
@@ -83,34 +70,26 @@ let appStarted = false; // Gate: τρέχουμε startApp() μόνο μία φ�
 // ✅ Εκκίνηση εφαρμογής
 async function startApp() {
   try {
-    log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> main.js ${VERSION}`);
-    // Αναφορά εκδόσεων
-    if (panel) {
-      panel.style.whiteSpace = 'pre-line';
-    }
-    log(`[${ts()}] ${renderVersionsText(versions)}`);
+    log(`[${ts()}] 🚀 Εκκίνηση Εφαρμογής -> main.js ${MAIN_VERSION}`);
     // Φόρτωση λιστών
     const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
     // Δημιουργία containers για τους players
     createPlayerContainers();
+    // Αναφορά εκδόσεων
+    const versions = reportAllVersions();
+    versions.Main = MAIN_VERSION;
+    log(`[${ts()}] ✅ Εκδόσεις: ${JSON.stringify(versions)}`);
     log(`[${ts()}] 📂 Lists Loaded -> Main:${mainList.length} Alt:${altList.length}`);
     // Αναμονή για YouTube API
     log(`[${ts()}] ⏳ YouTubeAPI -> Αναμονή`);
     await youtubeReadyPromise;
     log(`[${ts()}] ✅ YouTubeAPI -> Έτοιμο`);
     // Human Mode (sequential init)
-    initPlayersSequentially(mainList, altList)
-      .catch((e) => console.error('[startApp] initPlayersSequentially error', e));
+    await initPlayersSequentially(mainList, altList);
     log(`[${ts()}] ✅ Human Mode -> sequential initialization completed`);
     // 🐶 Watchdog: εκκίνηση ΜΕΤΑ το YouTube readiness & ΜΕΤΑ το Human Mode init
-    configure({ earlyNextPolicy: 'disabled', jitter: { minMs: 5000, maxMs: 12000  }, requiredPlayTimeMs: 12000 });
-    try {
-      startWatchdog();
-      log(`[${ts()}] ✅ Watchdog started from main.js`);
-    } catch (err) {
-      console.error('[start] Watchdog start failed', err);
-      setTimeout(() => { try { startWatchdog(); log(`[${ts()}] ✅ Watchdog started (retry)`); } catch (e) { console.error('[start] retry failed', e); } }, 0);
-    }
+    startWatchdog();
+    log(`[${ts()}] ✅ Watchdog started from main.js`);
   } catch (err) {
     log(`[${ts()}] ❌ Σφάλμα κατά την εκκίνηση -> ${err}`);
   }
@@ -141,6 +120,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: main.js ${VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: main.js ${MAIN_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

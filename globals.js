@@ -1,17 +1,17 @@
 // --- globals.js ---
-// Έκδοση: v3.8.2
+// Έκδοση: v3.6.0
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const VERSION = 'v3.8.2';
+const GLOBALS_VERSION = 'v3.6.0';
 export function getVersion() {
-  return VERSION;
+  return GLOBALS_VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: globals.js ${VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: globals.js ${GLOBALS_VERSION} -> Ξεκίνησε`);
 
 /** --- Console Filter (external) Early Install - Start --- */
 // Imports
@@ -93,7 +93,7 @@ export const MAIN_PROBABILITY = 0.5;
 // Κενός πίνακας controllers, θα γεμίσει από main.js
 export const controllers = [];
 // Μέγιστος αριθμός ταυτόχρονα playing players
-export const MAX_CONCURRENT_PLAYING = 8;
+export const MAX_CONCURRENT_PLAYING = 3;
 /** --- Σταθερές εφαρμογής - End --- */
 
 /** -- Ρυθμίσεις για Players - Start --- */
@@ -273,6 +273,6 @@ export const scheduler = (function () {
 /* --- Utilities - End --- */
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: globals.js ${VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: globals.js ${GLOBALS_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---
