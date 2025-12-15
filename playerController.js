@@ -1,10 +1,10 @@
 // --- playerController.js ---
-// Έκδοση: v6.7.1
+// Έκδοση: v6.9.1
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions ---
-const PLAYER_CONTROLLER_VERSION = 'v6.7.1';
+const PLAYER_CONTROLLER_VERSION = 'v6.9.1';
 export function getVersion() {
   return PLAYER_CONTROLLER_VERSION;
 }
@@ -77,17 +77,17 @@ function hasPlayer(p) {
   }
   return typeof p.playVideo === 'function';
 }
-
 function guardHasAnyList(ctrl) {
   if (!ctrl) {
     return false;
   }
-
+  // Check mainList
   if (Array.isArray(ctrl.mainList)) {
     if (ctrl.mainList.length > 0) {
       return true;
     }
   }
+  // Check altList
   if (Array.isArray(ctrl.altList)) {
     if (ctrl.altList.length > 0) {
       return true;
@@ -137,7 +137,7 @@ function safeCmd(fn, delay = 80) {
     } catch (_) {}
   }, delay);
 }
-
+// Seek command with bounds checking
 function doSeek(player, seconds) {
   try {
     if (player) {
@@ -308,7 +308,6 @@ export class PlayerController {
         }
       } catch (_) {}
     };
-
     this.profileName = config?.profileName ?? 'Unknown';
     this.startTime = null;
     this.playingStart = null;
@@ -758,6 +757,6 @@ try {
 } catch (_) {}
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

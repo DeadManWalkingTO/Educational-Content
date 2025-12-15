@@ -1,12 +1,12 @@
 // --- main.js ---
-// Έκδοση: v1.10.2
+// Έκδοση: v1.15.2
 // Entry point: DOM readiness, UI binding, lists load, versions report, YouTube API ready, Human Mode init, watchdog
 // Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 // Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded) και gate μέσω Start button.
 // Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 // --- Versions ---
-const MAIN_VERSION = 'v1.10.2';
+const MAIN_VERSION = 'v1.15.2';
 export function getVersion() {
   return MAIN_VERSION;
 }
@@ -24,14 +24,13 @@ import { startWatchdog } from './watchdog.js';
 
 // Guard helpers for State Machine (Rule 12)
 // Named guards (Rule 12)
+// ✅ YouTube API readiness check
 function isApiReady() {
   const hasYT = typeof window !== 'undefined' ? !!window.YT : false;
   const hasPlayer = typeof window !== 'undefined' ? allTrue([!!window.YT, typeof window.YT.Player === 'function']) : false;
   return allTrue([hasYT, hasPlayer]);
 }
-function isDomInteractive() {
-  return anyTrue([document.readyState === 'complete', document.readyState === 'interactive']);
-}
+// ✅ HTML version missing check
 function isHtmlVersionMissing(v) {
   return anyTrue([!v, !v.HTML, v.HTML === 'unknown']);
 }
@@ -61,7 +60,7 @@ const youtubeReadyPromise = new Promise((resolve) => {
   const checkInterval = setInterval(() => {
     if (isApiReady()) {
       clearInterval(checkInterval);
-      console.log(`[${new Date().toLocaleTimeString()}] ✅ YouTube API Ready`);
+      log(`[${ts()}] ✅ YouTube API Ready`);
       resolve();
     }
   }, 500);
@@ -121,6 +120,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση: main.js ${MAIN_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: main.js ${MAIN_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

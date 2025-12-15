@@ -1,12 +1,15 @@
 // consoleFilter.js
-// v1.0.1
+// v1.2.2
 // Console Filter: αυτόνομο module για state machine, tagging και wrapping των console.* χωρίς χρήση || και &&.
 
 // --- Versions ---
-const CONSOLE_FILTER_VERSION = 'v1.0.1';
+const CONSOLE_FILTER_VERSION = 'v1.2.2';
 export function getVersion() {
   return CONSOLE_FILTER_VERSION;
 }
+
+// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: consoleFilter.js ${CONSOLE_FILTER_VERSION} -> Ξεκίνησε`);
 
 let _installed = false;
 let _orig = { error: null, warn: null, info: null, log: null };
@@ -91,7 +94,7 @@ function buildState(cfg) {
     level: cfg.tagLevel === 'warn' ? 'warn' : 'info',
     patterns: cfg.patterns ? cfg.patterns.slice() : [],
     sources: cfg.sources ? cfg.sources.slice() : [],
-    tag: cfg.tag ? cfg.tag : '[YouTubeAPI][non-critical]'
+    tag: cfg.tag ? cfg.tag : '[YouTubeAPI][non-critical]',
   };
   return st;
 }
@@ -234,5 +237,8 @@ export function restoreConsole() {
   }
   _installed = false;
 }
+
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: consoleFilter.js ${CONSOLE_FILTER_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

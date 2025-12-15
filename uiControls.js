@@ -1,9 +1,9 @@
 // --- uiControls.js ---
-// Έκδοση: v2.7.8
+// Έκδοση: v2.11.2
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const UICONTROLS_VERSION = 'v2.7.8';
+const UICONTROLS_VERSION = 'v2.11.2';
 export function getVersion() {
   return UICONTROLS_VERSION;
 }
@@ -19,6 +19,7 @@ import { reloadList as reloadListsFromSource } from './lists.js';
 function hasEl(id) {
   return !!document.getElementById(id);
 }
+// Guard for secure context (HTTPS) for Clipboard API
 function isHttps() {
   if (typeof location !== 'undefined') {
     if (location.protocol === 'https:') {
@@ -27,6 +28,7 @@ function isHttps() {
   }
   return false;
 }
+// Guard for Clipboard API availability
 function canClipboardNative() {
   if (isHttps()) {
     if (typeof navigator !== 'undefined') {
@@ -37,9 +39,6 @@ function canClipboardNative() {
   }
   return false;
 }
-
-// Βοηθητικό για newline: πάντα escaped (No real newline in literals)
-const NL = '\n';
 
 /** ΝΕΟ: Μαζική ενεργοποίηση/απενεργοποίηση controls (πλην Start). */
 export function setControlsEnabled(enabled) {
@@ -197,7 +196,7 @@ export async function copyLogs() {
     log(`[${ts()}] ❌ Copy Logs Failed (Fallback)`);
   }
 }
-
+// Fallback function for clipboard copy using textarea and execCommand
 function unsecuredCopyToClipboard(text) {
   try {
     const textArea = document.createElement('textarea');
@@ -214,7 +213,7 @@ function unsecuredCopyToClipboard(text) {
     return false;
   }
 }
-
+// Δέσιμο χειριστών συμβάντων UI
 export function bindUiEvents() {
   // Guard to avoid re-binding (dataset.bound on sentinel button)
   try {
@@ -252,7 +251,7 @@ export function bindUiEvents() {
   });
   log(`[${ts()}] ✅ UI Events Bound (uiControls.js ${UICONTROLS_VERSION})`);
 }
-
+// Φόρτωση λιστών από πηγή και εφαρμογή στην κατάσταση
 export async function reloadList() {
   try {
     const { mainList, altList } = await reloadListsFromSource();
@@ -265,6 +264,6 @@ export async function reloadList() {
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: uiControls.js ${UICONTROLS_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

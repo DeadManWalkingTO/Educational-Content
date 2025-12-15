@@ -1,25 +1,24 @@
 // --- versionReporter.js ---
-// Έκδοση: v2.5.0
+// Έκδοση: v2.9.2
 // Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
 // Αφαίρεση κυκλικής εξάρτησης με main.js. Η έκδοση του main θα προστεθεί από το ίδιο το main.js.
 // --- Versions ---
-const VERSION_REPORTER_VERSION = 'v2.5.0';
+const VERSION_REPORTER_VERSION = 'v2.9.2';
 export function getVersion() {
   return VERSION_REPORTER_VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${ts()}] ✅ Φόρτωση: versionReporter.js ${VERSION_REPORTER_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: versionReporter.js ${VERSION_REPORTER_VERSION} -> Ξεκίνησε`);
 
 //imports
-import { getVersion as getGlobalsVersion, anyTrue, allTrue } from './globals.js';
+import { getVersion as getGlobalsVersion } from './globals.js';
 import { getVersion as getListsVersion } from './lists.js';
 import { getVersion as getHumanModeVersion } from './humanMode.js';
 import { getVersion as getPlayerControllerVersion } from './playerController.js';
 import { getVersion as getUiControlsVersion } from './uiControls.js';
 import { getVersion as getWatchdogVersion } from './watchdog.js';
 import { getVersion as getConsoleFilterVersion } from './consoleFilter.js';
-import { log, ts } from './globals.js';
 
 /**
  * Ανάκτηση της έκδοσης του HTML από το meta tag.
@@ -44,12 +43,12 @@ export function reportAllVersions() {
     UiControls: getUiControlsVersion(),
     Watchdog: getWatchdogVersion(),
     ConsoleFilter: getConsoleFilterVersion(),
-	VersionReporter: VERSION_REPORTER_VERSION,
+    VersionReporter: VERSION_REPORTER_VERSION,
     // Σημείωση: Η έκδοση του Main θα προστεθεί από το main.js.
   };
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση: versionReporter.js ${VERSION_REPORTER_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: versionReporter.js ${VERSION_REPORTER_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

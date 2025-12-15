@@ -1,10 +1,10 @@
 // --- watchdog.js ---
-// Έκδοση: v2.7.27
-// Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
+// Έκδοση: v2.12.2
+// // Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
 // Συμμόρφωση με κανόνα State Machine με Guard Steps.
 
 // --- Versions ---
-const WATCHDOG_VERSION = 'v2.7.27';
+const WATCHDOG_VERSION = 'v2.12.2';
 export function getVersion() {
   return WATCHDOG_VERSION;
 }
@@ -21,18 +21,20 @@ import { log, ts, controllers, stats, anyTrue, allTrue } from './globals.js';
   - PAUSED > (expectedPause + adaptive extra) -> retry + reset
 */
 
+// Exported function to start the watchdog
 export function startWatchdog() {
+  // Αρχική ενημέρωση εκκίνησης
   log(`[${ts()}] 🐶 Watchdog ${WATCHDOG_VERSION} Start -> From ExportFunction:`);
-
+  // Επαναληπτικός βρόχος ελέγχου
   const loop = () => {
+    // Κουτάκι για αν έγινε recovery σε αυτόν τον κύκλο
     var didRecovery = false;
-
+    // Κύριος έλεγχος
     controllers.forEach(function (c) {
       // Guard: απαιτείται έγκυρος player + getPlayerState function
       if (!allTrue([c.player, typeof c.player.getPlayerState === 'function'])) {
         return;
       }
-
       var state = c.player.getPlayerState();
       var now = Date.now();
 
@@ -73,7 +75,6 @@ export function startWatchdog() {
             }
           }
         } catch (_) {}
-
         setTimeout(function () {
           var canCheck = allTrue([typeof c.player.getPlayerState === 'function', true]);
           var stillNotPlaying = false;
@@ -99,9 +100,9 @@ export function startWatchdog() {
 
     setTimeout(loop, baseMs);
   };
-
+  // Έναρξη βρόχου
   loop();
-
+  // Αρχική ενημέρωση εκκίνησης
   log(`[${ts()}] 🐶 Watchdog ${WATCHDOG_VERSION} Start -> From Loop Start`);
 
   // Δευτερεύων έλεγχος ανά 60s (σταθερό)
@@ -172,6 +173,6 @@ export function startWatchdog() {
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: watchdog.js ${WATCHDOG_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

@@ -1,22 +1,22 @@
 // --- globals.js ---
-// Έκδοση: v3.3.0
+// Έκδοση: v3.6.0
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const GLOBALS_VERSION = 'v3.3.0';
+const GLOBALS_VERSION = 'v3.6.0';
 export function getVersion() {
-  return GLOBALS_VERSION ;
+  return GLOBALS_VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: globals.js ${GLOBALS_VERSION} -> Ξεκίνησε`);
 
+/** --- Console Filter (external) Early Install - Start --- */
 // Imports
 import { installConsoleFilter, setFilterLevel } from './consoleFilter.js';
 
-/** --- Console Filter (external) Early Install --- */
 const consoleFilterConfig = {
   enabled: true,
   tagLevel: 'info',
@@ -33,10 +33,9 @@ const consoleFilterConfig = {
 };
 installConsoleFilter(consoleFilterConfig);
 setFilterLevel('info');
+/** --- Console Filter (external) Early Install - End --- */
 
-/* Guard helpers */
-
-/* Guard helpers for State Machine (Rule 12) */
+/** --- Guard helpers for State Machine - Start --- */
 function anyTrue(flags) {
   for (let i = 0; i < flags.length; i++) {
     if (flags[i]) {
@@ -52,20 +51,12 @@ function allTrue(flags) {
   return true;
 }
 
-// Scheduling helpers (Phase-2)
-export function schedule(fn, delayMs) {
-  return setTimeout(fn, delayMs);
-}
-
 // Named exports for guard helpers (single declaration)
 export { anyTrue, allTrue };
 
-// Named guards for globals
-function isObj(x) {
-  return allTrue([typeof x === 'object', x !== null]);
-}
+/** --- Guard helpers for State Machine - End --- */
 
-/** ---  Core API --- */
+/** ---  YouTube API Helpers - Start --- */
 // Επιστρέφει ενιαίο origin (πηγή αλήθειας)
 export function getOrigin() {
   try {
@@ -80,8 +71,9 @@ export function getYouTubeEmbedHost() {
   return 'https://www.youtube.com';
 }
 
-/** --- State/μετρητές --- */
-/* --- Στατιστικά για την εφαρμογή --- */
+/** ---  YouTube API Helpers - End --- */
+
+/** --- Στατιστικά για την εφαρμογή - Start --- */
 export const stats = {
   autoNext: 0,
   replay: 0,
@@ -91,22 +83,31 @@ export const stats = {
   errors: 0,
   volumeChanges: 0,
 };
+/** --- Στατιστικά για την εφαρμογή - End --- */
 
-// --- Controllers για τους players ---
+/** --- Σταθερές εφαρμογής - Start --- */
+// Αριθμός Players
+export const PLAYER_COUNT = 8;
+// Πιθανότητα επιλογής κύριας λίστας (Main List) έναντι εναλλακτικής (Alt List)
+export const MAIN_PROBABILITY = 0.5;
+// Κενός πίνακας controllers, θα γεμίσει από main.js
 export const controllers = [];
-
-/* Players */
-
-// --- Concurrency Controls ---
+// Μέγιστος αριθμός ταυτόχρονα playing players
 export const MAX_CONCURRENT_PLAYING = 3;
+/** --- Σταθερές εφαρμογής - End --- */
+
+/** -- Ρυθμίσεις για Players - Start --- */
+// Τρέχων αριθμός ταυτόχρονα playing players
 let _currentPlaying = 0;
 export function getPlayingCount() {
   return _currentPlaying;
 }
+// Αύξηση/Μείωση τρεχόντων playing players
 export function incPlaying() {
   _currentPlaying++;
   log(`[${ts()}] ✅ Playing++ -> ${_currentPlaying}`);
 }
+// Αύξηση/Μείωση τρεχόντων playing players
 export function decPlaying() {
   if (_currentPlaying > 0) {
     _currentPlaying--;
@@ -114,16 +115,14 @@ export function decPlaying() {
   log(`[${ts()}] ✅ Playing-- -> ${_currentPlaying}`);
 }
 
-// --- Σταθερές εφαρμογής ---
-export const PLAYER_COUNT = 8;
-export const MAIN_PROBABILITY = 0.5;
+/** -- Ρυθμίσεις για Players - End --- */
 
-// --- AutoNext counters (ενοποιημένοι) ---
+/** --- AutoNext counters (ενοποιημένοι) - Start --- */
 export let autoNextCounter = 0; // Global συνολικός μετρητής AutoNext (για reporting)
 export let lastResetTime = Date.now(); // Χρόνος τελευταίου reset (ωριαίο)
 export const AUTO_NEXT_LIMIT_PER_PLAYER = 50; // Όριο ανά player/ώρα (ίδιο με παλιό design)
-export const autoNextPerPlayer = Array(PLAYER_COUNT).fill(0);
-/** Έλεγχος ωριαίου reset counters (global & per-player). */
+export const autoNextPerPlayer = Array(PLAYER_COUNT).fill(0); // Πίνακας μετρητών ανά player
+/// Έλεγχος ωριαίου reset counters (global & per-player).
 export function resetAutoNextCountersIfNeeded() {
   const now = Date.now();
   if (now - lastResetTime >= 3600000) {
@@ -145,15 +144,20 @@ export function incAutoNext(playerIndex) {
   autoNextPerPlayer[playerIndex]++;
 }
 
-/* --- Lists state --- */
+/** --- AutoNext counters (ενοποιημένοι) - End --- */
+
+/* --- Lists state - Start --- */
+// Κύρια και Εναλλακτική λίστα video IDs
 let _mainList = [];
 let _altList = [];
+// Named exports για λίστες
 export function getMainList() {
   return _mainList;
 }
 export function getAltList() {
   return _altList;
 }
+/** Επαναφόρτωση λιστών από την πηγή (lists.js). */
 export function setMainList(list) {
   _mainList = Array.isArray(list) ? list : [];
   log(`[${ts()}] 📂 Main list applied -> ${_mainList.length} videos`);
@@ -162,8 +166,9 @@ export function setAltList(list) {
   _altList = Array.isArray(list) ? list : [];
   log(`[${ts()}] 📂 Alt list applied -> ${_altList.length} videos`);
 }
+/** --- Lists state - End --- */
 
-/* --- Stop All state & helpers --- */
+/* --- Stop All state & helpers - Start --- */
 export let isStopping = false;
 const stopTimers = [];
 export function setIsStopping(flag) {
@@ -182,27 +187,28 @@ export function clearStopTimers() {
   }
   log(`[${ts()}] 🧹 Stop timers cleared`);
 }
+/* --- Stop All state & helpers - End --- */
 
-// --- User gesture flag ---
+/** --- User gesture flag - Start --- */
+// Καταγράφει αν έχει γίνει αλληλεπίδραση από τον χρήστη (κλικ, πληκτρολόγηση)
 export let hasUserGesture = false;
 export function setUserGesture() {
   hasUserGesture = true;
   console.log(`[${new Date().toLocaleTimeString()}] 💻 Αλληλεπίδραση Χρήστη`);
 }
+/** --- User gesture flag - End --- */
 
-/* --- Utilities --- */
+/* --- Utilities - Start --- */
+// Επιστρέφει τρέχον timestamp σε μορφή ώρας
 export function ts() {
   return new Date().toLocaleTimeString();
 }
+// Ρυθμίζει τυχαίο ακέραιο μεταξύ min και max (συμπεριλαμβανομένων)
 export function rndInt(min, max) {
   return Math.floor(min + Math.random() * (max - min + 1));
 }
 
 export function log(msg) {
-  try {
-    if (shouldSuppressNoise(arguments)) return;
-  } catch (_) {}
-
   console.log(msg);
   if (typeof document !== 'undefined') {
     const panel = document.getElementById('activityPanel');
@@ -264,7 +270,9 @@ export const scheduler = (function () {
   return { schedule: schedule, cancel: cancel, jitter: jitter };
 })();
 
+/* --- Utilities - End --- */
+
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-log(`[${ts()}] ✅ Φόρτωση: globals.js ${GLOBALS_VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: globals.js ${GLOBALS_VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---
