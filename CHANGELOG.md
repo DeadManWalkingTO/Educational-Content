@@ -1,7 +1,21 @@
-# CHANGELOG.md - v157
+# CHANGELOG.md - v161
 
 ---
 
+
+## 2025-12-15 02:51
+- humanMode.js / playerController.js: Επιπλέον αντικαταστάσεις setTimeout/setInterval (βέλη, ονοματοδοτημένες κλήσεις, Promise wrappers) με schedule/scheduleInterval.
+
+## 2025-12-15 02:51
+- humanMode.js: v4.9.2 → v4.9.3 — Αντικατάσταση setTimeout/setInterval με schedule/scheduleInterval· αντικατάσταση clearTimeout/clearInterval με cancel.
+- playerController.js: v6.9.2 → v6.9.3 — Αντικατάσταση setTimeout/setInterval με schedule/scheduleInterval· αντικατάσταση clearTimeout/clearInterval με cancel.
+
+## 2025-12-15 02:50
+- humanMode.js: v4.9.1 → v4.9.2 — Αντικατάσταση ad-hoc setTimeout/setInterval με schedule/scheduleInterval (ενιαία πολιτική jitter/guard).
+- playerController.js: v6.9.1 → v6.9.2 — Αντικατάσταση ad-hoc setTimeout/setInterval με schedule/scheduleInterval (ενιαία πολιτική jitter/guard).
+
+## 2025-12-15 02:48
+- watchdog.js: v2.12.2 → v2.13.0 — Προσθήκη Autonomous Scheduler API (initWatchdog, schedule, cancel, stopAll, getStats, onError) και optionals scheduleInterval/setPolicy· καμία αλλαγή στη startWatchdog ροή.
 ## 2025-12-13 23:47
 - globals.js: 2.16.0 → v2.17.0 — Αφαίρεση legacy Console Filter (state machine & wrappers), διατήρηση import & early install από consoleFilter.js.
 - consoleFilter.js: v1.0.1 — Αντικατάσταση με καθαρό module (χωρίς || και &&).

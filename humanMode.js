@@ -1,8 +1,8 @@
 // --- humanMode.js ---
-// Έκδοση: v4.9.1
+// Έκδοση: v4.9.4
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 // --- Versions ---
-const HUMAN_MODE_VERSION = 'v4.9.1';
+const HUMAN_MODE_VERSION = 'v4.9.4';
 export function getVersion() {
   return HUMAN_MODE_VERSION;
 }
@@ -11,6 +11,7 @@ export function getVersion() {
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: humanMode.js ${HUMAN_MODE_VERSION} -> Ξεκίνησε`);
 
 // Imports
+import { cancel, schedule, scheduleInterval } from './watchdog.js';
 import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, anyTrue, allTrue } from './globals.js';
 import { scheduler } from './globals.js';
 import { PlayerController } from './playerController.js';
@@ -138,8 +139,8 @@ export async function initPlayersSequentially(mainList, altList) {
     log(`[${ts()}] ⏳ Player ${i + 1} HumanMode Scheduled -> Start after ${Math.round(playbackDelay / 1000)}s`);
     // Stagger τη ΣΤΙΓΜΗ ΔΗΜΙΟΥΡΓΙΑΣ του iframe (YT.Player)
     const microStagger = rndInt(MICRO_STAGGER_MIN, MICRO_STAGGER_MAX);
-    await new Promise((resolve) => setTimeout(resolve, microStagger));
-    await new Promise((resolve) => setTimeout(resolve, playbackDelay));
+    await new Promise((resolve) => schedule(resolve, microStagger));
+    await new Promise((resolve) => schedule(resolve, playbackDelay));
     if (isStopping) {
       log(`[${ts()}] 👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
       continue;
@@ -182,7 +183,7 @@ export async function initPlayersSequentially(mainList, altList) {
       controller.config = config;
       controller.profileName = config.profileName;
     }
-    await new Promise((r) => setTimeout(r, 150 + Math.floor(Math.random() * 151)));
+    await new Promise((r) => schedule(r, 150 + Math.floor(Math.random() * 151)));
     controller.init(videoId);
     log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
   }

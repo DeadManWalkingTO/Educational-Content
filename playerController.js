@@ -1,10 +1,10 @@
 // --- playerController.js ---
-// Έκδοση: v6.9.1
+// Έκδοση: v6.9.4
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions ---
-const PLAYER_CONTROLLER_VERSION = 'v6.9.1';
+const PLAYER_CONTROLLER_VERSION = 'v6.9.4';
 export function getVersion() {
   return PLAYER_CONTROLLER_VERSION;
 }
@@ -13,6 +13,7 @@ export function getVersion() {
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: playerController.js ${PLAYER_CONTROLLER_VERSION} -> Ξεκίνησε`);
 
 // Imports
+import { cancel, schedule, scheduleInterval } from './watchdog.js';
 import {
   AUTO_NEXT_LIMIT_PER_PLAYER,
   MAIN_PROBABILITY,
@@ -131,7 +132,7 @@ const STATE_TRANSITIONS = {
 
 // Debounce helper for initial commands (postMessage race mitigation)
 function safeCmd(fn, delay = 80) {
-  setTimeout(() => {
+  schedule(() => {
     try {
       fn();
     } catch (_) {}
@@ -266,10 +267,10 @@ export class PlayerController {
           }
         } else {
           const backoff = 300 + Math.floor(Math.random() * 900);
-          setTimeout(attempt, backoff);
+          schedule(attempt, backoff);
         }
       };
-      setTimeout(attempt, jitter);
+      schedule(attempt, jitter);
     };
     this.config = config;
     this.guardPlay = function (p) {
@@ -293,10 +294,10 @@ export class PlayerController {
               }
               return;
             }
-            setTimeout(retry, backoffBase + Math.floor(Math.random() * 900));
+            schedule(retry, backoffBase + Math.floor(Math.random() * 900));
           } catch (_) {}
         };
-        setTimeout(retry, backoffBase + delta);
+        schedule(retry, backoffBase + delta);
       } catch (_) {}
     };
 
@@ -352,7 +353,7 @@ export class PlayerController {
     const startDelay = startDelaySec * 1000;
     log(`[${ts()}] ⏳ Player ${this.index + 1} Scheduled -> start after ${startDelaySec}s`);
     const __jitterMs = 100 + Math.floor(Math.random() * 120);
-    setTimeout(() => {
+    schedule(() => {
       try {
         if (typeof e.target.seekTo === 'function') {
           if (this.initialSeekSec) {
@@ -375,7 +376,7 @@ export class PlayerController {
         } catch (_e) {}
       }
     }, __jitterMs); // JITTER_APPLIED
-    setTimeout(() => {
+    schedule(() => {
       var seekSec = typeof this.initialSeekSec === 'number' ? this.initialSeekSec : '-';
       log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> Seek= ${seekSec}s after ${startDelaySec}s`);
       this.schedulePauses();
@@ -384,7 +385,7 @@ export class PlayerController {
     // Auto Unmute + fallback
     const unmuteDelayExtra = this.config?.unmuteDelayExtra ?? rndInt(30, 90);
     const unmuteDelay = (startDelaySec + unmuteDelayExtra) * 1000;
-    setTimeout(() => {
+    schedule(() => {
       // Αν δεν υπάρχει user gesture, περιμένουμε
       if (!hasUserGesture) {
         this.pendingUnmute = true;
@@ -399,13 +400,13 @@ export class PlayerController {
         stats.volumeChanges++;
         log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
         // Quick check: if immediately paused after unmute, push play (250ms)
-        setTimeout(() => {
+        schedule(() => {
           if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
             log(`[${ts()}] 🔁 Player ${this.index + 1} Quick retry playVideo after immediate unmute`);
             if (typeof p.playVideo === 'function') this.guardPlay(p);
           }
         }, 250);
-        setTimeout(() => {
+        schedule(() => {
           if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
             log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
             if (typeof p.playVideo === 'function') this.guardPlay(p);
@@ -462,20 +463,20 @@ export class PlayerController {
                 }
               } else {
                 const backoff = 300 + Math.floor(Math.random() * 900);
-                setTimeout(attempt, backoff);
+                schedule(attempt, backoff);
               }
             };
-            setTimeout(attempt, jitter);
+            schedule(attempt, jitter);
           };
           if (this.timers.progressCheck) {
             try {
-              clearInterval(this.timers.progressCheck);
+              cancel(this.timers.progressCheck);
             } catch (_) {}
             this.timers.progressCheck = null;
           }
           const iv = (9 + Math.floor(Math.random() * 4)) * 1000;
           const p = this.player;
-          this.timers.progressCheck = setInterval(() => {
+          this.timers.progressCheck = scheduleInterval(() => {
             if (!allTrue([this.player, typeof p.getDuration === 'function'])) return;
             const now = Date.now();
             let prospective = this.totalPlayTime;
@@ -541,7 +542,7 @@ export class PlayerController {
         this.pendingUnmute = false;
         stats.volumeChanges++;
         log(`[${ts()}] 🔊 Player ${this.index + 1} Unmute after PLAYING -> ${v}%`);
-        setTimeout(() => {
+        schedule(() => {
           if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
             log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
             if (typeof p.playVideo === 'function') this.guardPlay(p);
@@ -569,11 +570,11 @@ export class PlayerController {
       const percentWatched = duration > 0 ? Math.round((this.totalPlayTime / duration) * 100) : 0;
       log(`[${ts()}] ✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(this.totalPlayTime)}s)`);
       const afterEndPauseMs = rndInt(15000, 60000);
-      setTimeout(() => {
+      schedule(() => {
         const requiredTime = getRequiredWatchTime(duration);
         if (this.totalPlayTime < requiredTime) {
           log(`[${ts()}] ⏳ Player ${this.index + 1} AutoNext blocked -> required:${requiredTime}s, actual:${Math.round(this.totalPlayTime)}s`);
-          setTimeout(() => {
+          schedule(() => {
             log(`[${ts()}] ⚠️ Player ${this.index + 1} Force AutoNext -> inactivity fallback`);
             if (guardHasAnyList(this)) {
               this.loadNextVideo(p);
@@ -640,13 +641,13 @@ export class PlayerController {
     for (let i = 0; i < plan.count; i++) {
       const delay = rndInt(Math.floor(duration * 0.1), Math.floor(duration * 0.8)) * 1000;
       const pauseLen = rndInt(plan.min, plan.max) * 1000;
-      const timer = setTimeout(() => {
+      const timer = schedule(() => {
         if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING])) {
           p.pauseVideo();
           stats.pauses++;
           this.expectedPauseMs = pauseLen;
           log(`[${ts()}] ⏸️ Player ${this.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
-          setTimeout(() => {
+          schedule(() => {
             this.guardPlay(p);
             this.expectedPauseMs = 0;
           }, pauseLen);
@@ -663,7 +664,7 @@ export class PlayerController {
     const duration = p.getDuration();
     if (duration < 300) return;
     const interval = this.config?.midSeekInterval ?? rndInt(8, 12) * 60000;
-    this.timers.midSeek = setTimeout(() => {
+    this.timers.midSeek = schedule(() => {
       if (allTrue([duration > 0, typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING])) {
         const seek = rndInt(Math.floor(duration * 0.2), Math.floor(duration * 0.6));
         p.seekTo(seek, true);
@@ -676,19 +677,19 @@ export class PlayerController {
   clearTimers() {
     this.timers.pauseTimers.forEach((t) => {
       try {
-        clearTimeout(t);
+        cancel(t);
       } catch (_) {}
     });
     this.timers.pauseTimers = [];
     if (this.timers.midSeek) {
       try {
-        clearTimeout(this.timers.midSeek);
+        cancel(this.timers.midSeek);
       } catch (_) {}
       this.timers.midSeek = null;
     }
     if (this.timers.progressCheck) {
       try {
-        clearInterval(this.timers.progressCheck);
+        cancel(this.timers.progressCheck);
       } catch (_) {}
       this.timers.progressCheck = null;
     }
