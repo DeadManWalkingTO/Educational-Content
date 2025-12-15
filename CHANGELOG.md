@@ -1,4 +1,8 @@
-# CHANGELOG.md - v163
+# CHANGELOG.md - v164
+## 2025-12-15 04:39
+- watchdog.js: v2.15.1 → v2.16.0 — Single-file refactor with Sections; clean API (configure/setControllers/start/stop/getStats/getVersion + scheduler exports), unified BUFFERING/PAUSED rules, per-player cooldown, removed duplicate logic.
+  Notes/Tests: Maintains no &&/|| (anyTrue/allTrue); ESM exports; no imports; scheduling API kept for humanMode; loop jitter & thresholds centralized; minor logging adjustments.
+
 
 ---
 
