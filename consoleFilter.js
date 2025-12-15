@@ -1,9 +1,9 @@
 // consoleFilter.js
-// v1.2.2
-// Console Filter: αυτόνομο module για state machine, tagging και wrapping των console.* χωρίς χρήση || και &&.
+// v1.2.3
+// Console Filter: αυτόνομο module για state machine, tagging και wrapping των console.* χωρίς χρήση OR και AND.
 
 // --- Versions ---
-const CONSOLE_FILTER_VERSION = 'v1.2.2';
+const CONSOLE_FILTER_VERSION = 'v1.2.3';
 export function getVersion() {
   return CONSOLE_FILTER_VERSION;
 }
@@ -38,7 +38,7 @@ function safeToString(x) {
       return x;
     }
     if (anyTrue([typeof x === 'object', !!x])) {
-      if (x && x.message) {
+      if (!x) { /* noop */ } else if (!x.message) { /* noop */ } else {
         return String(x.message);
       }
       return String(x);
@@ -69,13 +69,16 @@ function matchAnyArg(args, regexList) {
 }
 
 function matchSourceHints(args, sources) {
-  if (!sources || sources.length === 0) {
+  if (!sources) {
+    return false;
+  }
+  if (sources.length === 0) {
     return false;
   }
   try {
     for (let i = 0; i < args.length; i++) {
       const a = args[i];
-      if (a && a.stack) {
+      if (!a) { /* skip */ } else if (!a.stack) { /* skip */ } else {
         const st = String(a.stack);
         for (let j = 0; j < sources.length; j++) {
           if (sources[j].test(st)) {
@@ -140,7 +143,9 @@ export function installConsoleFilter(cfg) {
   if (_installed) {
     return;
   }
-  _st = buildState(cfg || {});
+  let __cfg = cfg;
+  if (!__cfg) { __cfg = {}; }
+  _st = buildState(__cfg);
 
   _orig.error = console.error ? console.error.bind(console) : null;
   _orig.warn = console.warn ? console.warn.bind(console) : null;
@@ -204,7 +209,7 @@ export function setFilterLevel(level) {
 }
 
 export function addPatterns(regexList) {
-  if (regexList && regexList.length) {
+  if (allTrue([!!regexList, !!regexList.length])) {
     for (let i = 0; i < regexList.length; i++) {
       _st.patterns.push(regexList[i]);
     }
@@ -212,7 +217,7 @@ export function addPatterns(regexList) {
 }
 
 export function addSources(regexList) {
-  if (regexList && regexList.length) {
+  if (allTrue([!!regexList, !!regexList.length])) {
     for (let i = 0; i < regexList.length; i++) {
       _st.sources.push(regexList[i]);
     }
