@@ -1,9 +1,9 @@
 // --- uiControls.js ---
-// Έκδοση: v3.11.2
+// Έκδοση: v3.14.15
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const VERSION = 'v3.11.2';
+const VERSION = 'v3.14.15';
 export function getVersion() {
   return VERSION;
 }
@@ -175,14 +175,15 @@ export async function copyLogs() {
   }
   const logsText = Array.from(panel.children)
     .map((div) => div.textContent)
-    .join(NL);
-  const statsText = statsPanel ? NL + '📊 Current Stats:' + NL + statsPanel.textContent : NL + '📊 Stats Not Available';
+    .join('\n');
+  const statsText = statsPanel ? statsPanel.textContent : '📊 Stats Not Available';
   const finalText = logsText + statsText;
   // Primary path: Clipboard API on secure context
   if (allTrue([navigator.clipboard, window.isSecureContext])) {
     try {
       await navigator.clipboard.writeText(finalText);
       log(`[${ts()}] ✅ Logs copied via Clipboard API -> ${panel.children.length} entries + stats`);
+      log(`[${ts()}] ${statsText}`);
       return;
     } catch (err) {
       log(`[${ts()}] ⚠️ Clipboard API Failed -> Fallback (${err})`);

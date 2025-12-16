@@ -1,18 +1,18 @@
 // --- playerController.js ---
-// Έκδοση: v7.9.8
+// Έκδοση: v6.9.1
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions ---
-const VERSION = 'v7.9.9';
+const VERSION = 'v6.9.1';
 export function getVersion() {
   return VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: playerController.js ${VERSION} -> Ξεκίνησε`);
+
 // Imports
-import { cancel, schedule, scheduleInterval } from './watchdog.js';
 import {
   AUTO_NEXT_LIMIT_PER_PLAYER,
   MAIN_PROBABILITY,
@@ -131,7 +131,7 @@ const STATE_TRANSITIONS = {
 
 // Debounce helper for initial commands (postMessage race mitigation)
 function safeCmd(fn, delay = 80) {
-  schedule(() => {
+  setTimeout(() => {
     try {
       fn();
     } catch (_) {}
@@ -139,9 +139,6 @@ function safeCmd(fn, delay = 80) {
 }
 // Seek command with bounds checking
 function doSeek(player, seconds) {
-  if (this && this.isReadyGate === false) {
-    return;
-  }
   try {
     if (player) {
       if (typeof player.seekTo === 'function') {
@@ -155,17 +152,9 @@ function doSeek(player, seconds) {
                 if (s > d - 0.5) s = d - 0.5;
               }
             }
-            this.execStateCommand(function () {
-              try {
-                player.seekTo(s, true);
-              } catch (_) {}
-            });
+            player.seekTo(s, true);
           } catch (e) {
-            this.execStateCommand(function () {
-              try {
-                player.seekTo(seconds, true);
-              } catch (_) {}
-            });
+            player.seekTo(seconds, true);
           }
         }
         log(`[${ts()}] ℹ️ Player ${this.index + 1} Seek -> seconds= ${seconds}`);
@@ -183,7 +172,7 @@ function doSeek(player, seconds) {
 }
 
 /** Υπολογισμός απαιτούμενου χρόνου θέασης για AutoNext. 
-  // < 3 min: 90–100%
+  // < 2 min: 90–100%
   // < 5 min: 80–100%
   // 5–30 min: 50–70%
   // 30–120 min: 20–35%
@@ -262,28 +251,6 @@ function getYouTubeHostFallback() {
 }
 export class PlayerController {
   constructor(index, mainList, altList, config = null) {
-    // onReady gate + first-command debounce (250–500 ms)
-    this.isReadyGate = false;
-    this.firstCommandUsed = false;
-    this.execStateCommand = function (cmd) {
-      if (!this.isReadyGate) {
-        return;
-      }
-      if (!this.firstCommandUsed) {
-        this.firstCommandUsed = true;
-        var jitter = 250 + Math.floor(Math.random() * 251);
-        schedule(function () {
-          try {
-            cmd();
-          } catch (_) {}
-        }, jitter);
-        return;
-      }
-      try {
-        cmd();
-      } catch (_) {}
-    };
-
     this.pendingUnmute = false;
     this.index = index;
     this.mainList = Array.isArray(mainList) ? mainList : [];
@@ -295,46 +262,23 @@ export class PlayerController {
       const attempt = () => {
         if (getPlayingCount() < MAX_CONCURRENT_PLAYING) {
           if (typeof p.playVideo === 'function') {
-            this.execStateCommand(function () {
-              try {
-                this.execStateCommand(function () {
-                  try {
-                    this.guardPlay(p);
-                  } catch (_) {}
-                });
-              } catch (_) {}
-            });
+            this.guardPlay(p);
           }
         } else {
           const backoff = 300 + Math.floor(Math.random() * 900);
-          schedule(attempt, backoff);
+          setTimeout(attempt, backoff);
         }
       };
-      schedule(attempt, jitter);
+      setTimeout(attempt, jitter);
     };
     this.config = config;
-
-    // Initialize initialSeekSec from config
-    if (config) {
-      if (typeof config.initialSeekSec === 'number') {
-        this.initialSeekSec = Math.floor(config.initialSeekSec);
-      } else {
-        this.initialSeekSec = 0;
-      }
-    } else {
-      this.initialSeekSec = 0;
-    }
     this.guardPlay = function (p) {
       try {
         var count = getPlayingCount();
         var limit = MAX_CONCURRENT_PLAYING;
         if (count < limit) {
           if (p ? typeof p.playVideo === 'function' : false) {
-            this.execStateCommand(function () {
-              try {
-                p.playVideo();
-              } catch (_) {}
-            });
+            p.playVideo();
           }
           return;
         }
@@ -345,18 +289,14 @@ export class PlayerController {
             var c = getPlayingCount();
             if (c < MAX_CONCURRENT_PLAYING) {
               if (p ? typeof p.playVideo === 'function' : false) {
-                this.execStateCommand(function () {
-                  try {
-                    p.playVideo();
-                  } catch (_) {}
-                });
+                p.playVideo();
               }
               return;
             }
-            schedule(retry, backoffBase + Math.floor(Math.random() * 900));
+            setTimeout(retry, backoffBase + Math.floor(Math.random() * 900));
           } catch (_) {}
         };
-        schedule(retry, backoffBase + delta);
+        setTimeout(retry, backoffBase + delta);
       } catch (_) {}
     };
 
@@ -364,15 +304,7 @@ export class PlayerController {
       try {
         var p = this.player;
         if (p) {
-          this.execStateCommand(function () {
-            try {
-              this.execStateCommand(function () {
-                try {
-                  this.guardPlay(p);
-                } catch (_) {}
-              });
-            } catch (_) {}
-          });
+          this.guardPlay(p);
         }
       } catch (_) {}
     };
@@ -413,31 +345,28 @@ export class PlayerController {
     log(`[${ts()}] 👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
   }
   onReady(e) {
-    this.isReadyGate = true;
     const p = e.target;
     this.startTime = Date.now();
     p.mute();
+    const startDelaySec = this.config?.startDelay ?? rndInt(5, 180);
+    const startDelay = startDelaySec * 1000;
+    log(`[${ts()}] ⏳ Player ${this.index + 1} Scheduled -> start after ${startDelaySec}s`);
     const __jitterMs = 100 + Math.floor(Math.random() * 120);
-    schedule(() => {
+    setTimeout(() => {
       try {
         if (typeof e.target.seekTo === 'function') {
           if (this.initialSeekSec) {
-            this.execStateCommand(
-              function () {
-                try {
-                  e.target.seekTo(this.initialSeekSec, true);
-                } catch (_) {}
-              }.bind(this)
-            );
+            safeCmd(() => e.target.seekTo(this.initialSeekSec, true), 120);
           }
         }
         if (typeof e.target.playVideo === 'function') {
-          this.execStateCommand(
+          safeCmd(
             function () {
               try {
                 this.guardPlay(e.target);
               } catch (_) {}
-            }.bind(this)
+            }.bind(this),
+            240
           );
         }
       } catch (__err) {
@@ -446,16 +375,16 @@ export class PlayerController {
         } catch (_e) {}
       }
     }, __jitterMs); // JITTER_APPLIED
-    schedule(() => {
-      var seekSec = typeof this.initialSeekSec === 'number' ? Math.floor(this.initialSeekSec) : 0;
-      log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> Seek= ${seekSec}s (chained)`);
+    setTimeout(() => {
+      var seekSec = typeof this.initialSeekSec === 'number' ? this.initialSeekSec : '-';
+      log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> Seek= ${seekSec}s after ${startDelaySec}s`);
       this.schedulePauses();
       this.scheduleMidSeek();
-    }, 0);
+    }, startDelay);
     // Auto Unmute + fallback
     const unmuteDelayExtra = this.config?.unmuteDelayExtra ?? rndInt(30, 90);
-    const unmuteDelay = (0 + unmuteDelayExtra) * 1000;
-    schedule(() => {
+    const unmuteDelay = (startDelaySec + unmuteDelayExtra) * 1000;
+    setTimeout(() => {
       // Αν δεν υπάρχει user gesture, περιμένουμε
       if (!hasUserGesture) {
         this.pendingUnmute = true;
@@ -470,34 +399,16 @@ export class PlayerController {
         stats.volumeChanges++;
         log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
         // Quick check: if immediately paused after unmute, push play (250ms)
-        schedule(() => {
+        setTimeout(() => {
           if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
             log(`[${ts()}] 🔁 Player ${this.index + 1} Quick retry playVideo after immediate unmute`);
-            if (typeof p.playVideo === 'function')
-              this.execStateCommand(function () {
-                try {
-                  this.execStateCommand(function () {
-                    try {
-                      this.guardPlay(p);
-                    } catch (_) {}
-                  });
-                } catch (_) {}
-              });
+            if (typeof p.playVideo === 'function') this.guardPlay(p);
           }
         }, 250);
-        schedule(() => {
+        setTimeout(() => {
           if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
             log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
-            if (typeof p.playVideo === 'function')
-              this.execStateCommand(function () {
-                try {
-                  this.execStateCommand(function () {
-                    try {
-                      this.guardPlay(p);
-                    } catch (_) {}
-                  });
-                } catch (_) {}
-              });
+            if (typeof p.playVideo === 'function') this.guardPlay(p);
           }
         }, 1000);
       } else {
@@ -547,32 +458,24 @@ export class PlayerController {
             const attempt = () => {
               if (getPlayingCount() < MAX_CONCURRENT_PLAYING) {
                 if (typeof p.playVideo === 'function') {
-                  this.execStateCommand(function () {
-                    try {
-                      this.execStateCommand(function () {
-                        try {
-                          this.guardPlay(p);
-                        } catch (_) {}
-                      });
-                    } catch (_) {}
-                  });
+                  this.guardPlay(p);
                 }
               } else {
                 const backoff = 300 + Math.floor(Math.random() * 900);
-                schedule(attempt, backoff);
+                setTimeout(attempt, backoff);
               }
             };
-            schedule(attempt, jitter);
+            setTimeout(attempt, jitter);
           };
           if (this.timers.progressCheck) {
             try {
-              cancel(this.timers.progressCheck);
+              clearInterval(this.timers.progressCheck);
             } catch (_) {}
             this.timers.progressCheck = null;
           }
           const iv = (9 + Math.floor(Math.random() * 4)) * 1000;
           const p = this.player;
-          this.timers.progressCheck = scheduleInterval(() => {
+          this.timers.progressCheck = setInterval(() => {
             if (!allTrue([this.player, typeof p.getDuration === 'function'])) return;
             const now = Date.now();
             let prospective = this.totalPlayTime;
@@ -638,19 +541,10 @@ export class PlayerController {
         this.pendingUnmute = false;
         stats.volumeChanges++;
         log(`[${ts()}] 🔊 Player ${this.index + 1} Unmute after PLAYING -> ${v}%`);
-        schedule(() => {
+        setTimeout(() => {
           if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
             log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
-            if (typeof p.playVideo === 'function')
-              this.execStateCommand(function () {
-                try {
-                  this.execStateCommand(function () {
-                    try {
-                      this.guardPlay(p);
-                    } catch (_) {}
-                  });
-                } catch (_) {}
-              });
+            if (typeof p.playVideo === 'function') this.guardPlay(p);
           }
         }, 1000);
       }
@@ -675,11 +569,11 @@ export class PlayerController {
       const percentWatched = duration > 0 ? Math.round((this.totalPlayTime / duration) * 100) : 0;
       log(`[${ts()}] ✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(this.totalPlayTime)}s)`);
       const afterEndPauseMs = rndInt(15000, 60000);
-      schedule(() => {
+      setTimeout(() => {
         const requiredTime = getRequiredWatchTime(duration);
         if (this.totalPlayTime < requiredTime) {
           log(`[${ts()}] ⏳ Player ${this.index + 1} AutoNext blocked -> required:${requiredTime}s, actual:${Math.round(this.totalPlayTime)}s`);
-          schedule(() => {
+          setTimeout(() => {
             log(`[${ts()}] ⚠️ Player ${this.index + 1} Force AutoNext -> inactivity fallback`);
             if (guardHasAnyList(this)) {
               this.loadNextVideo(p);
@@ -727,13 +621,7 @@ export class PlayerController {
     }
     const newId = list[Math.floor(Math.random() * list.length)];
     player.loadVideoById(newId);
-    this.execStateCommand(
-      function () {
-        try {
-          this.guardPlay(player);
-        } catch (_) {}
-      }.bind(this)
-    );
+    this.guardPlay(player);
     stats.autoNext++;
     incAutoNext(this.index);
     this.totalPlayTime = 0;
@@ -752,26 +640,14 @@ export class PlayerController {
     for (let i = 0; i < plan.count; i++) {
       const delay = rndInt(Math.floor(duration * 0.1), Math.floor(duration * 0.8)) * 1000;
       const pauseLen = rndInt(plan.min, plan.max) * 1000;
-      const timer = schedule(() => {
+      const timer = setTimeout(() => {
         if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING])) {
-          this.execStateCommand(function () {
-            try {
-              p.pauseVideo();
-            } catch (_) {}
-          });
+          p.pauseVideo();
           stats.pauses++;
           this.expectedPauseMs = pauseLen;
           log(`[${ts()}] ⏸️ Player ${this.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
-          schedule(() => {
-            this.execStateCommand(function () {
-              try {
-                this.execStateCommand(function () {
-                  try {
-                    this.guardPlay(p);
-                  } catch (_) {}
-                });
-              } catch (_) {}
-            });
+          setTimeout(() => {
+            this.guardPlay(p);
             this.expectedPauseMs = 0;
           }, pauseLen);
         }
@@ -787,14 +663,10 @@ export class PlayerController {
     const duration = p.getDuration();
     if (duration < 300) return;
     const interval = this.config?.midSeekInterval ?? rndInt(8, 12) * 60000;
-    this.timers.midSeek = schedule(() => {
+    this.timers.midSeek = setTimeout(() => {
       if (allTrue([duration > 0, typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING])) {
         const seek = rndInt(Math.floor(duration * 0.2), Math.floor(duration * 0.6));
-        this.execStateCommand(function () {
-          try {
-            p.seekTo(seek, true);
-          } catch (_) {}
-        });
+        p.seekTo(seek, true);
         stats.midSeeks++;
         log(`[${ts()}] 🔁 Player ${this.index + 1} Mid-seek -> ${seek}s`);
       }
@@ -804,19 +676,19 @@ export class PlayerController {
   clearTimers() {
     this.timers.pauseTimers.forEach((t) => {
       try {
-        cancel(t);
+        clearTimeout(t);
       } catch (_) {}
     });
     this.timers.pauseTimers = [];
     if (this.timers.midSeek) {
       try {
-        cancel(this.timers.midSeek);
+        clearTimeout(this.timers.midSeek);
       } catch (_) {}
       this.timers.midSeek = null;
     }
     if (this.timers.progressCheck) {
       try {
-        cancel(this.timers.progressCheck);
+        clearInterval(this.timers.progressCheck);
       } catch (_) {}
       this.timers.progressCheck = null;
     }
