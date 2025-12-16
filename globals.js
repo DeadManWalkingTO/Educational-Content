@@ -1,11 +1,11 @@
 // --- globals.js ---
-// Έκδοση: v4.7.2
+// Έκδοση: v4.8.2
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const VERSION = 'v4.7.2';
+const VERSION = 'v4.8.2';
 export function getVersion() {
   return VERSION;
 }
@@ -92,8 +92,6 @@ export const PLAYER_COUNT = 8;
 export const MAIN_PROBABILITY = 0.5;
 // Κενός πίνακας controllers, θα γεμίσει από main.js
 export const controllers = [];
-// Μέγιστος αριθμός ταυτόχρονα playing players
-export const MAX_CONCURRENT_PLAYING = 8;
 /** --- Σταθερές εφαρμογής - End --- */
 
 /** --- Global unmute limiter - Start --- */
@@ -110,27 +108,6 @@ export function decUnmutePending() {
   }
 }
 /** --- Global unmute limiter - End --- */
-
-/** -- Ρυθμίσεις για Players - Start --- */
-// Τρέχων αριθμός ταυτόχρονα playing players
-let _currentPlaying = 0;
-export function getPlayingCount() {
-  return _currentPlaying;
-}
-// Αύξηση/Μείωση τρεχόντων playing players
-export function incPlaying() {
-  _currentPlaying++;
-  log(`[${ts()}] ✅ Playing++ -> ${_currentPlaying}`);
-}
-// Αύξηση/Μείωση τρεχόντων playing players
-export function decPlaying() {
-  if (_currentPlaying > 0) {
-    _currentPlaying--;
-  }
-  log(`[${ts()}] ✅ Playing-- -> ${_currentPlaying}`);
-}
-
-/** -- Ρυθμίσεις για Players - End --- */
 
 /** --- AutoNext counters (ενοποιημένοι) - Start --- */
 export let autoNextCounter = 0; // Global συνολικός μετρητής AutoNext (για reporting)

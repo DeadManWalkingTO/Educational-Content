@@ -1,8 +1,8 @@
 // --- humanMode.js ---
-// Έκδοση: v4.9.8
+// Έκδοση: v4.11.8
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 // --- Versions ---
-const VERSION = 'v4.9.8';
+const VERSION = 'v4.11.8';
 export function getVersion() {
   return VERSION;
 }
@@ -20,15 +20,7 @@ import { PlayerController } from './playerController.js';
 function hasArrayWithItems(arr) {
   return allTrue([Array.isArray(arr), arr.length > 0]);
 }
-function isFunction(fn) {
-  return typeof fn === 'function';
-}
-function inStaggerWindow(ms) {
-  return anyTrue([allTrue([ms >= 400, ms <= 600]), ms === undefined]);
-}
-function canSequentialInit(queue) {
-  return hasArrayWithItems(queue);
-}
+
 function hasCtrlAndPlayer(ctrl) {
   if (!ctrl) {
     return false;

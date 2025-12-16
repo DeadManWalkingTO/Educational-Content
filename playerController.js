@@ -1,10 +1,10 @@
 // --- playerController.js ---
-// Έκδοση: v6.15.6
+// Έκδοση: v6.21.9
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions ---
-const VERSION = 'v6.15.6';
+const VERSION = 'v6.21.9';
 export function getVersion() {
   return VERSION;
 }
@@ -16,16 +16,12 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: playerCon
 import {
   AUTO_NEXT_LIMIT_PER_PLAYER,
   MAIN_PROBABILITY,
-  MAX_CONCURRENT_PLAYING,
   canAutoNext,
   controllers,
-  decPlaying,
   getOrigin,
-  getPlayingCount,
   getYouTubeEmbedHost,
   hasUserGesture,
   incAutoNext,
-  incPlaying,
   log,
   rndInt,
   stats,
@@ -34,32 +30,6 @@ import {
   allTrue,
 } from './globals.js';
 import { scheduler } from './globals.js';
-
-// Concurrency guard: tryPlay wraps player.playVideo with MAX_CONCURRENT_PLAYING
-function tryPlay(player, idx) {
-  try {
-    const count = getPlayingCount();
-    if (count >= MAX_CONCURRENT_PLAYING) {
-      log(`[${ts()}] ⏳ Concurrency limit reached (${count}/${MAX_CONCURRENT_PLAYING}) — deferring Player ${idx + 1}`);
-      const delay = rndInt(1500, 5000);
-      scheduler.schedule(() => {
-        try {
-          player.playVideo();
-        } catch (e) {
-          stats.errors++;
-          log(`[${ts()}] ❌ Player ${this.index + 1} tryPlay error after delay → ${e}`);
-        }
-      }, delay);
-      return false;
-    }
-    this.guardPlay(player);
-    return true;
-  } catch (e) {
-    stats.errors++;
-    log(`[${ts()}] ❌ Player ${this.index + 1} tryPlay error → ${e}`);
-    return false;
-  }
-}
 
 // Ατομικός έλεγχος «είναι μη κενός πίνακας»
 function isNonEmptyArray(x) {
@@ -263,13 +233,8 @@ export class PlayerController {
     this.tryPlay = (p) => {
       const jitter = 50 + Math.floor(Math.random() * 200);
       const attempt = () => {
-        if (getPlayingCount() < MAX_CONCURRENT_PLAYING) {
-          if (typeof p.playVideo === 'function') {
-            this.guardPlay(p);
-          }
-        } else {
-          const backoff = 300 + Math.floor(Math.random() * 900);
-          setTimeout(attempt, backoff);
+        if (typeof p.playVideo === 'function') {
+          this.guardPlay(p);
         }
       };
       setTimeout(attempt, jitter);
@@ -277,29 +242,9 @@ export class PlayerController {
     this.config = config;
     this.guardPlay = function (p) {
       try {
-        var count = getPlayingCount();
-        var limit = MAX_CONCURRENT_PLAYING;
-        if (count < limit) {
-          if (p ? typeof p.playVideo === 'function' : false) {
-            p.playVideo();
-          }
-          return;
+        if (p ? typeof p.playVideo === 'function' : false) {
+          p.playVideo();
         }
-        var backoffBase = 300;
-        var delta = Math.floor(Math.random() * 900);
-        var retry = function () {
-          try {
-            var c = getPlayingCount();
-            if (c < MAX_CONCURRENT_PLAYING) {
-              if (p ? typeof p.playVideo === 'function' : false) {
-                p.playVideo();
-              }
-              return;
-            }
-            setTimeout(retry, backoffBase + Math.floor(Math.random() * 900));
-          } catch (_) {}
-        };
-        setTimeout(retry, backoffBase + delta);
       } catch (_) {}
     };
 
@@ -422,7 +367,6 @@ export class PlayerController {
     }, unmuteDelay);
   }
   onStateChange(e) {
-    /* phase-3-dispatch */
     try {
       let s;
       if (typeof e !== 'undefined' ? typeof e.data !== 'undefined' : false) {
@@ -430,8 +374,6 @@ export class PlayerController {
       } else {
         s = this.player ? this.player.getPlayerState() : undefined;
       }
-      if (s === YT.PlayerState.PLAYING) pc_startPlaying(this);
-      if (anyTrue([s === YT.PlayerState.PAUSED, s === YT.PlayerState.ENDED])) pc_stopPlaying(this);
     } catch (_) {}
     try {
       if (s === YT.PlayerState.PAUSED) {
@@ -449,57 +391,6 @@ export class PlayerController {
     const p = this.player;
     switch (e.data) {
       case YT.PlayerState.UNSTARTED:
-        // EARLY-NEXT: periodic progress check while PLAYING
-        if (e.data === YT.PlayerState.PLAYING) {
-          if (!this.timers)
-            this.timers = {
-              midSeek: null,
-              pauseTimers: [],
-              progressCheck: null,
-            };
-          this.tryPlay = (p) => {
-            const jitter = 50 + Math.floor(Math.random() * 200);
-            const attempt = () => {
-              if (getPlayingCount() < MAX_CONCURRENT_PLAYING) {
-                if (typeof p.playVideo === 'function') {
-                  this.guardPlay(p);
-                }
-              } else {
-                const backoff = 300 + Math.floor(Math.random() * 900);
-                setTimeout(attempt, backoff);
-              }
-            };
-            setTimeout(attempt, jitter);
-          };
-          if (this.timers.progressCheck) {
-            try {
-              clearInterval(this.timers.progressCheck);
-            } catch (_) {}
-            this.timers.progressCheck = null;
-          }
-          const iv = (9 + Math.floor(Math.random() * 4)) * 1000;
-          const p = this.player;
-          this.timers.progressCheck = setInterval(() => {
-            if (!allTrue([this.player, typeof p.getDuration === 'function'])) return;
-            const now = Date.now();
-            let prospective = this.totalPlayTime;
-            if (this.playingStart) {
-              const delta = ((now - this.playingStart) / 1000) * (this.currentRate ? this.currentRate : 1.0);
-              prospective += delta;
-            }
-            const duration = p.getDuration();
-            const required = getRequiredWatchTime(duration);
-            if (prospective >= required) {
-              this.clearTimers();
-              if (guardHasAnyList(this)) {
-                this.loadNextVideo(p);
-              } else {
-                stats.errors++;
-                log(`[${ts()}] ❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
-              }
-            }
-          }, iv);
-        }
         log(`[${ts()}] 🟢 Player ${this.index + 1} State -> UNSTARTED`);
         break;
       case YT.PlayerState.ENDED:
@@ -514,7 +405,6 @@ export class PlayerController {
       case YT.PlayerState.PLAYING:
         if (!this.isPlayingActive) {
           this.isPlayingActive = true;
-          incPlaying();
         }
         log(`[${ts()}] ▶ Player ${this.index + 1} State -> PLAYING`);
         break;
@@ -531,7 +421,6 @@ export class PlayerController {
         log(`[${ts()}] 🔴 Player ${this.index + 1} State -> UNKNOWN (${e.data})`);
         if (allTrue([this.isPlayingActive, e.data !== YT.PlayerState.PLAYING])) {
           this.isPlayingActive = false;
-          decPlaying();
         }
     }
     // Retry unmute αν ήταν pending
