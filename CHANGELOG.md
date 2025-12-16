@@ -1,128 +1,176 @@
 # CHANGELOG.md - v168
 
+## 2025-12-16
 
+- **playerController.js**: v6.21.8 → v6.21.9
+  - Αφαιρέθηκε πλήρως η λογική `MAX_CONCURRENT_PLAYING` (gates, retries, counters).
+  - Καθαρίστηκε η `guardPlay` (χωρίς ορφανό retry).
+  - Αφαιρέθηκε το import `scheduler` (unused).
+  - Διορθώθηκε το `onStateChange` (αφαίρεση decPlaying).
+  - Προαιρετικά: έλεγχος για `pc_startPlaying` / `pc_stopPlaying` (να αφαιρεθούν ή να εισαχθούν σωστά).
+
+## 2025-12-16
+
+- **humanMode.js**: v4.9.8 → v4.9.9
+  - Επιβεβαιώθηκε ότι δεν υπάρχει λογική concurrency limit.
+  - Αφαιρέθηκε το import `scheduler` (unused).
+  - Καθαρίστηκαν αχρησιμοποίητα helpers (`isFunction`, `inStaggerWindow`, `canSequentialInit`).
+
+## 2025-12-16
+
+- **globals.js**: v4.8.2 → v4.8.3
+  - Επιβεβαιώθηκε πλήρης αφαίρεση `MAX_CONCURRENT_PLAYING`.
+  - Καθαρίστηκε το αρχείο (προαιρετικά: αφαίρεση Scheduler αν δεν χρησιμοποιείται).
+  - Stats panel ενημερώνεται χωρίς `AvgWatch`.
 
 ## 2025-12-15 22:26
+
 - playerController.js: v7.9.7 → v7.9.8 — Initialize initialSeekSec from HumanMode config; Ready log now prints integer seconds;
 - humanMode.js: v5.10.1 → v5.10.2 — Reduced chained startDelay to 3–7s after previous PLAYING;
 - watchdog.js: v2.15.1 → v2.15.2 — Fixed undefined WATCHDOG_VERSION (use VERSION);
 
 ## 2025-12-15 22:09
+
 - playerController.js: v7.9.6 → v7.9.7 — Fixed ReferenceError by removing legacy startDelaySec from unmuteDelay;
   now uses only config.unmuteDelayExtra under chained Human Mode.
 
 ## 2025-12-15 22:06
+
 - humanMode.js: chained sequential start; startDelay counts after previous PLAYING.
 - playerController.js: onReady logging/scheduling aligned to chained policy (Ready->Seek '(chained)').
 
 ## 2025-12-15 21:46
+
 - humanMode.js: v5.9.4 → v5.10.0 — New chained start policy: next player starts only after previous reaches PLAYING;
-  the per-player delay (startDelay) now counts *after* the previous is PLAYING; preserved micro-stagger (400–600 ms).
+  the per-player delay (startDelay) now counts _after_ the previous is PLAYING; preserved micro-stagger (400–600 ms).
+
 ## 2025-12-15 21:31
+
 - playerController.js: v7.9.4 → v7.9.5 — Added onReady gate + 250–500 ms debounce for first state command;
   replaced direct play/pause/seek with guarded execStateCommand() calls; reduced postMessage race warnings.
+
 ---
 
-
 ## 2025-12-15 03:28
+
 - watchdog.js: v2.15.0 → v2.15.1 — Fix critical recursion bug στο schedule(): αντί για schedule→schedule (infinite recursion),
   χρήση setTimeout για την εκτέλεση του fn. Συμπτώματα: RangeError: Maximum call stack size exceeded στην εκκίνηση HumanMode.
 
 ## 2025-12-15 03:16
+
 - watchdog.js: v2.14.0 → v2.15.0 — Προσθήκη setPlayerAdapter(), αντικατάσταση YT checks με WD_ADAPTER (isPlaying/isPaused/isBuffering/getState), ενοποίηση play/loadNext μέσω adapter, διατήρηση συμβατότητας με startWatchdog().
 
 ## 2025-12-15 02:51
+
 - humanMode.js / playerController.js: Επιπλέον αντικαταστάσεις setTimeout/setInterval (βέλη, ονοματοδοτημένες κλήσεις, Promise wrappers) με schedule/scheduleInterval.
 
 ## 2025-12-15 02:51
+
 - humanMode.js: v4.9.2 → v4.9.3 — Αντικατάσταση setTimeout/setInterval με schedule/scheduleInterval· αντικατάσταση clearTimeout/clearInterval με cancel.
 - playerController.js: v6.9.2 → v6.9.3 — Αντικατάσταση setTimeout/setInterval με schedule/scheduleInterval· αντικατάσταση clearTimeout/clearInterval με cancel.
 
 ## 2025-12-15 02:50
+
 - humanMode.js: v4.9.1 → v4.9.2 — Αντικατάσταση ad-hoc setTimeout/setInterval με schedule/scheduleInterval (ενιαία πολιτική jitter/guard).
 - playerController.js: v6.9.1 → v6.9.2 — Αντικατάσταση ad-hoc setTimeout/setInterval με schedule/scheduleInterval (ενιαία πολιτική jitter/guard).
 
 ## 2025-12-15 02:48
+
 - watchdog.js: v2.12.2 → v2.13.0 — Προσθήκη Autonomous Scheduler API (initWatchdog, schedule, cancel, stopAll, getStats, onError) και optionals scheduleInterval/setPolicy· καμία αλλαγή στη startWatchdog ροή.
+
 ## 2025-12-13 23:47
+
 - globals.js: 2.16.0 → v2.17.0 — Αφαίρεση legacy Console Filter (state machine & wrappers), διατήρηση import & early install από consoleFilter.js.
 - consoleFilter.js: v1.0.1 — Αντικατάσταση με καθαρό module (χωρίς || και &&).
 - versionReporter.js: Προστέθηκε έκδοση ConsoleFilter στο report, patch bump.
 
 ## 2025-12-13 23:30
+
 - globals.js: v2.15.2 → v2.16.0 — Προστέθηκε import & early install του consoleFilter.js.
 - versionReporter.js: v2.3.7 → v2.3.8 — Προστέθηκε αναφορά έκδοσης ConsoleFilter στο consolidated report.
 - consoleFilter.js: v1.0.0 — Νέο αρχείο Console Filter (χωρίς || και &&).
 
 ## 2025-12-13 17:02
-- globals.js: v2.11.0 → v2.11.2 - Fix: Rule 12 
+
+- globals.js: v2.11.0 → v2.11.2 - Fix: Rule 12
 - humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
 - lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
 - playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
 - uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
 
-
 ## Ημερομηνία: 2025-12-13 16:30
+
 - **Αρχείο**: uiControls.js — v2.5.16 → v2.6.0
 - **Summary**: Binding guard σε bindUiEvents (data-bound σε sentinel), Minor bump.
 - **Notes/Tests**:
   - Κάλεσμα bindUiEvents() 2+ φορές → δεν γίνεται re-binding.
 - **Αρχείο**: lists.js — v3.4.15 → v3.5.0
-- **Summary**: GitHub fetch με timeout 4s, αυστηρό isValidId (6..64, alnum/_/-), Minor bump.
+- **Summary**: GitHub fetch με timeout 4s, αυστηρό isValidId (6..64, alnum/\_/-), Minor bump.
 - **Notes/Tests**:
   - Timeouts σε GitHub raw, validation IDs όπως ορίστηκε.
 - **Αρχείο**: index.html — v6.0.12 → v6.1.0
 - **Summary**: ARIA/title σε κουμπιά, Start disabled feedback (μέσω UI), Minor bump.
-- **Notes/Tests**: 
-  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC. 
+- **Notes/Tests**:
+  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC.
   - Logs/ARIA/Clipboard/fallbacks εμφανίζονται όπως αναμένεται.
 - **Αρχείο**: uiControls.js — v2.5.16 → v2.6.0
 - **Summary**: Binding guard, setControlsEnabled (exclude Start), clipboard HTTPS/fallback.
-- **Notes/Tests**: 
-  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC. 
+- **Notes/Tests**:
+  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC.
   - Logs/ARIA/Clipboard/fallbacks εμφανίζονται όπως αναμένεται.
 - **Αρχείο**: lists.js — v3.4.15 → v3.5.0
-- **Summary**: Fallbacks main/alt, 4s timeout, ID validation 6..64 alnum/_/-.
-- **Notes/Tests**: 
-  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC. 
+- **Summary**: Fallbacks main/alt, 4s timeout, ID validation 6..64 alnum/\_/-.
+- **Notes/Tests**:
+  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC.
   - Logs/ARIA/Clipboard/fallbacks εμφανίζονται όπως αναμένεται.
 - **Αρχείο**: humanMode.js — v4.7.40 → v4.8.0
 - **Summary**: Gesture guard + rate-limit 150–300ms before init.
-- **Notes/Tests**: 
-  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC. 
+- **Notes/Tests**:
+  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC.
   - Logs/ARIA/Clipboard/fallbacks εμφανίζονται όπως αναμένεται.
 - **Αρχείο**: playerController.js — v6.6.34 → v6.7.0
 - **Summary**: Gesture guard unmute, safeCmd retry/backoff, clamp seekTo.
-- **Notes/Tests**: 
-  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC. 
+- **Notes/Tests**:
+  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC.
   - Logs/ARIA/Clipboard/fallbacks εμφανίζονται όπως αναμένεται.
 - **Αρχείο**: globals.js — v2.10.0 → v2.11.0
 - **Summary**: Αφαίρεση ||/&& (με anyTrue/allTrue) όπου ήταν απλές δυαδικές εκφράσεις.
-- **Notes/Tests**: 
-  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC. 
+- **Notes/Tests**:
+  - Έλεγχος λειτουργιών/guards όπως ορίζεται στο SPEC.
   - Logs/ARIA/Clipboard/fallbacks εμφανίζονται όπως αναμένεται.
 
 ## Ημερομηνία: 2025-12-13 16:27
+
 - **Αρχείο**: globals.js — v2.9.36 → v2.10.0
 - **Summary**: Apply spec (pipes present=True, ampersands present=True)
 - **Notes/Tests**: Minor bump; header & const updated
 
-
 ## [2025-12-13]
+
 - globals.js: v2.9.35 → v2.9.36; Αντικατάσταση των τελεστών '||' και '&&' με helpers anyTrue/allTrue ή διαδοχικά if, σύμφωνα με CONTEXT.md.
 
 ## [2025-12-12]
+
 - watchdog.js: v2.6.25 → v2.6.26; αφαίρεση `||`/`&&` (fallbacks, state OR/AND, guards), διατήρηση semicolons/EOL LF.
+
 ## [2025-12-12]
+
 - humanMode.js: v4.7.39 → v4.7.40; αφαίρεση `||`/`&&` (time window guards, ctrl/player guard, profile focus, list guards), διατήρηση semicolons/EOL LF.
+
 ## [2025-12-12]
+
 - main.js: v1.7.42 → v1.7.43; αφαίρεση `||`/`&&` (hasYT/hasPlayer, lists validation), διατήρηση semicolons/EOL LF.
+
 ## [2025-12-12]
+
 - playerController.js: v6.6.33 → v6.6.34; αφαίρεση `||`/`&&` (hasPlayer, lists guard, dynamic origin, PLAYING/PAUSED/ENDED, currentRate fallback), διατήρηση semicolons/EOL LF.
+
 ## [2025-12-12]
+
 - main.js: Αναδιαμόρφωση sanityCheck() σε κανονικό try/catch για διόρθωση SyntaxError (γραμμή ~62); bump έκδοσης σε v1.7.25.
 
 ## [2025-12-12]
+
 - globals.js: Μαζική ενοποίηση log format (log/console.log) σε ενιαίο template literal; replacements: log=11, console=5; bump έκδοσης σε v2.9.18.
 - humanMode.js: Μαζική ενοποίηση log format (log/console.log) σε ενιαίο template literal; replacements: log=11, console=1; bump έκδοσης σε v4.7.22.
 - main.js: Μαζική ενοποίηση log format (log/console.log) σε ενιαίο template literal; replacements: log=16, console=2; bump έκδοσης σε v1.7.24.
@@ -131,7 +179,6 @@
 - uiControls.js: Μαζική ενοποίηση log format (log/console.log) σε ενιαίο template literal; replacements: log=25, console=1; bump έκδοσης σε v2.5.16.
 - versionReporter.js: Μαζική ενοποίηση log format (log/console.log) σε ενιαίο template literal; replacements: log=1, console=1; bump έκδοσης σε v2.3.7.
 - watchdog.js: Μαζική ενοποίηση log format (log/console.log) σε ενιαίο template literal; replacements: log=10, console=1; bump έκδοσης σε v2.6.25.
-
 
 ## [2025-12-12]
 
@@ -151,15 +198,19 @@
 - lists.js: Refactor (Rule 12) — αντικατάσταση ρητών τελεστών ||/&& με anyTrueFn/allTrueFn & guard steps; bump έκδοση σε v3.4.13.
 
 ## [2025-12-12]
+
 - globals.js v2.9.19: Fix isObj/hasFn/nonEmpty condition logic; remove broken inserts; no '||'/'&&'.
 
 ## [2025-12-12]
+
 - main.js v1.7.24: Fix broken condition at sanityCheck() (Array.isArray checks) without using '||'/'&&'.
 
 ## [2025-12-12]
+
 - globals.js: Safe rewrite of shouldSuppressNoise() to remove && and ||; bump version to v2.9.18
 
 ## [2025-12-12]
+
 - globals.js: Remove template literals; bump version to v2.9.16
 - humanMode.js: Remove template literals; bump version to v4.7.20
 - lists.js: Remove template literals; bump version to v3.4.13
@@ -172,6 +223,7 @@
 - playerController.js: Replace logical operators with anyTrue/allTrue; bump version to v6.6.15
 
 ## [2025-12-12]
+
 - Συμμόρφωση συντακτικών κανόνων σε όλα τα JS:
   - globals.js v2.9.17: replace ||/&&, remove backticks, fix line joins; format per .prettierrc.json
   - humanMode.js v4.7.21: replace ||/&&, remove backticks, fix line joins; format per .prettierrc.json
@@ -181,30 +233,38 @@
   - uiControls.js v2.5.14: replace ||/&&, remove backticks, fix line joins; format per .prettierrc.json
   - versionReporter.js v2.3.6: replace ||/&&, remove backticks, fix line joins; format per .prettierrc.json
   - watchdog.js v2.5.22: replace ||/&&, remove backticks, fix line joins; format per .prettierrc.json
+
 ## [2025-12-12]
+
 - lists.js v3.4.13: Αφαίρεση '&&' από guards; μετατροπή template literals σε μονοσειρικά strings; ευθυγράμμιση με singleQuote.
 
 ## [2025-12-12]
+
 - watchdog.js v2.5.21: Αφαίρεση '&&' από guard, αναδιατύπωση σχολίων, διατήρηση single‑quote/μονοσειρικών strings.
 
 ## [2025-12-12]
+
 - humanMode.js v4.7.20: Αφαίρεση '||' και '&&'; μετατροπή template literals σε μονοσειρικά strings; αντικατάσταση guards με allTrue/anyTrue; ευθυγράμμιση με singleQuote.
 
 ## [2025-12-12]
+
 - playerController.js v6.6.14: Αφαίρεση '||' και '&&'; μετατροπή template literals σε μονοσειρικά strings με συνένωση; τροποποιήσεις σε guards με allTrue/anyTrue; αποφυγή '||' σε origin fallbacks.
 
 ## [2025-12-12]
+
 - globals.js v2.9.16: Αφαίρεση '||' και '&&'; μετατροπή template literals σε μονόσειρα strings με συνένωση; ευθυγράμμιση singleQuote; αντικαταστάσεις με anyTrue/allTrue/if-steps.
 
 ---
 
 ## 2025-12-13 17:02
+
 - humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
 - lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
 - playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
 - uiControls.js: v2.6.0 → v2.6.1 – Fix: Removed && via nested ifs
 
 ## [2025-12-12]
+
 - CONTEXT.md: Διευκρίνιση κανόνα — απαγορεύονται πάνω από δύο διαδοχικά template literals στην ίδια γραμμή.
 - CHANGELOG.md: Κανόνας για τις πρώτες γραμμές.
 
@@ -231,6 +291,7 @@
 ---
 
 ## 2025-12-13 17:02
+
 - humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
 - lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
 - playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
@@ -247,6 +308,7 @@
 ---
 
 ## 2025-12-13 17:02
+
 - humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
 - lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
 - playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
@@ -267,6 +329,7 @@
 ---
 
 ## 2025-12-13 17:02
+
 - humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
 - lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
 - playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
@@ -288,6 +351,7 @@
 ---
 
 ## 2025-12-13 17:02
+
 - humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
 - lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
 - playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
@@ -311,6 +375,7 @@
 ---
 
 ## 2025-12-13 17:02
+
 - humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
 - lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
 - playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
@@ -327,6 +392,7 @@
 ---
 
 ## 2025-12-13 17:02
+
 - humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
 - lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
 - playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
@@ -342,6 +408,7 @@
 ---
 
 ## 2025-12-13 17:02
+
 - humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
 - lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
 - playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
@@ -410,6 +477,7 @@
 ---
 
 ## 2025-12-13 17:02
+
 - humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
 - lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
 - playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
@@ -438,6 +506,7 @@
 ---
 
 ## 2025-12-13 17:02
+
 - humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
 - lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
 - playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
@@ -452,6 +521,7 @@
 ---
 
 ## 2025-12-13 17:02
+
 - humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
 - lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
 - playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
@@ -484,6 +554,7 @@
 ---
 
 ## 2025-12-13 17:02
+
 - humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
 - lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
 - playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
@@ -505,6 +576,7 @@
 ---
 
 ## 2025-12-13 17:02
+
 - humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
 - lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
 - playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
@@ -520,6 +592,7 @@
 ---
 
 ## 2025-12-13 17:02
+
 - humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
 - lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
 - playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
@@ -545,6 +618,7 @@
 ---
 
 ## 2025-12-13 17:02
+
 - humanMode.js: v4.8.0 → v4.8.1 – Fix: Removed && via ternary guard for hasUserGesture
 - lists.js: v3.5.0 → v3.5.1 – Fix: Split || length guard into sequential ifs
 - playerController.js: v6.7.0 → v6.7.1 – Fix: Removed && with nested ifs, Reduced template literals to ≤2 backticks
@@ -593,5 +667,6 @@ split (2025-12-05)
   Notes: Καμία αλλαγή στη ροή. Smoke OK.
 
 ---
+
 - Notes: Added gate in doSeek() and routed seekTo via execStateCommand to enforce onReady rule.
   Tests: Reduced www-widgetapi origin mismatch warnings; PLAYING sequence unaffected.
