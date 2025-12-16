@@ -1,11 +1,11 @@
 // --- globals.js ---
-// Έκδοση: v4.6.1
+// Έκδοση: v4.7.2
 // Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
 // --- Versions ---
-const VERSION = 'v4.6.2';
+const VERSION = 'v4.7.2';
 export function getVersion() {
   return VERSION;
 }
@@ -243,8 +243,7 @@ function updateStats() {
   if (typeof document === 'undefined') return;
   const el = document.getElementById('statsPanel');
   if (el) {
-    const avgWatch = controllers.length ? Math.round(stats.pauses / controllers.length) : 0;
-    el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Replay:${stats.replay} - Pauses:${stats.pauses} - MidSeeks:${stats.midSeeks} - AvgWatch:${avgWatch}% - Watchdog:${stats.watchdog} - Errors:${stats.errors} - VolumeChanges:${stats.volumeChanges}`;
+    el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Replay:${stats.replay} - Pauses:${stats.pauses} - MidSeeks:${stats.midSeeks} - Watchdog:${stats.watchdog} - Errors:${stats.errors} - VolumeChanges:${stats.volumeChanges}`;
   }
 }
 
