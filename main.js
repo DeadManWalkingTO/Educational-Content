@@ -15,7 +15,7 @@ export function getVersion() {
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { log, ts, setUserGesture, anyTrue, allTrue } from './globals.js';
+import { log, ts, setUserGesture, anyTrue, allTrue, stats } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions, renderVersionsPanel, renderVersionsText } from './versionReporter.js';
@@ -43,6 +43,7 @@ async function sanityCheck(versions) {
     }
     const [ml, al] = await Promise.all([loadVideoList(), loadAltList()]);
     if (anyTrue([!Array.isArray(ml), !Array.isArray(al)])) {
+      stats.errors++;
       log(`[${ts()}] ❌ Sanity: Lists not arrays`);
     } else {
       log(`[${ts()}] ✅ Sanity: Lists ok -> Main:${ml.length} Alt:${al.length}`);
@@ -51,6 +52,7 @@ async function sanityCheck(versions) {
     const boxes = cont ? cont.querySelectorAll('.player-box').length : 0;
     if (!boxes) log(`[${ts()}] ⚠️ Sanity: No player boxes yet (created later)`);
   } catch (e) {
+    stats.errors++;
     log(`[${ts()}] ❌ SanityCheck error -> ${e}`);
   }
 }
@@ -111,6 +113,7 @@ async function startApp() {
     startWatchdog();
     log(`[${ts()}] ✅ Watchdog started from main.js`);
   } catch (err) {
+    stats.errors++;
     log(`[${ts()}] ❌ Σφάλμα κατά την εκκίνηση -> ${err}`);
   }
 }

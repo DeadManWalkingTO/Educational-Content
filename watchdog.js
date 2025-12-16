@@ -1,10 +1,10 @@
 // --- watchdog.js ---
-// Έκδοση: v2.14.8
+// Έκδοση: v2.15.8
 // // Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
 // Συμμόρφωση με κανόνα State Machine με Guard Steps.
 
 // --- Versions ---
-const VERSION = 'v2.14.8';
+const VERSION = 'v2.15.8';
 export function getVersion() {
   return VERSION;
 }

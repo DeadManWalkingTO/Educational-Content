@@ -11,7 +11,7 @@ export function getVersion() {
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: humanMode.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, anyTrue, allTrue } from './globals.js';
+import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, anyTrue, allTrue, stats } from './globals.js';
 import { scheduler } from './globals.js';
 import { PlayerController } from './playerController.js';
 
@@ -40,6 +40,7 @@ function hasCtrlAndPlayer(ctrl) {
 export function createPlayerContainers() {
   const container = document.getElementById('playersContainer');
   if (!container) {
+    stats.errors++;
     log(`[${ts()}] ❌ Δεν βρέθηκε το στοιχείο playersContainer στο HTML`);
     return;
   }
@@ -127,6 +128,7 @@ export async function initPlayersSequentially(mainList, altList) {
   const mainEmpty = (mainList?.length ?? 0) === 0;
   const altEmpty = (altList?.length ?? 0) === 0;
   if (allTrue([mainEmpty, altEmpty])) {
+    stats.errors++;
     log(`[${ts()}] ❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκκίνηση σταματά.`);
     return;
   }
@@ -160,6 +162,7 @@ export async function initPlayersSequentially(mainList, altList) {
     else sourceList = altList;
     // Ασφαλής επιλογή videoId
     if ((sourceList?.length ?? 0) === 0) {
+      stats.errors++;
       log(`[${ts()}] ❌ HumanMode skipped Player ${i + 1} -> no videos available`);
       continue;
     }
@@ -205,6 +208,7 @@ try {
               }
             }
           } catch (_) {}
+          stats.errors++;
           log(`[${ts()}] ❌ HumanMode init error → ${m}`);
         } catch (_) {}
       }

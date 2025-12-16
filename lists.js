@@ -11,7 +11,7 @@ export function getVersion() {
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: lists.js ${VERSION} -> Ξεκίνησε`);
 // Imports
-import { log, ts, anyTrue, allTrue } from './globals.js';
+import { log, ts, anyTrue, allTrue, stats } from './globals.js';
 
 // Guard helpers for State Machine (Rule 12)
 // Named guards for Lists
@@ -93,6 +93,7 @@ export async function loadVideoList() {
   }
 
   // Internal fallback
+  stats.errors++;
   log(`[${ts()}] ❌ Using internal fallback list -> ${internalList.length} items`);
   return internalList;
 }
@@ -117,6 +118,7 @@ export async function loadAltList() {
   } catch (err) {
     log(`[${ts()}] ⚠️ Alt List Load Failed -> ${err}`);
   }
+  stats.errors++;
   log(`[${ts()}] ❌ Alt List Empty -> Using []`);
   return [];
 }

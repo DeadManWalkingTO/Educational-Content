@@ -1,9 +1,9 @@
 // --- uiControls.js ---
-// Έκδοση: v3.14.15
+// Έκδοση: v3.16.15
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const VERSION = 'v3.14.15';
+const VERSION = 'v3.16.15';
 export function getVersion() {
   return VERSION;
 }
@@ -12,7 +12,7 @@ export function getVersion() {
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: uiControls.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { log, ts, rndInt, controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, anyTrue, allTrue } from './globals.js';
+import { log, ts, rndInt, controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, stats, anyTrue, allTrue } from './globals.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
 
 // Named guards for UI Controls
@@ -83,6 +83,7 @@ export function playAll() {
         else source = altList;
         // Guard
         if ((source?.length ?? 0) === 0) {
+          stats.errors++;
           log(`[${ts()}] ❌ Player ${c.index + 1} Init Skipped -> No Videos Available`);
           return;
         }
@@ -109,6 +110,7 @@ export function stopAll() {
         c.player.stopVideo();
         log(`[${ts()}] ⏹ Player ${c.index + 1} Stopped -> Step ${i + 1}`);
       } else {
+        stats.errors++;
         log(`[${ts()}] ❌ Player ${c.index + 1} Stop Skipped -> Not Initialized`);
       }
     }, delay);
@@ -135,6 +137,7 @@ export function restartAll() {
       else source = altList;
       // Guard
       if ((source?.length ?? 0) === 0) {
+        stats.errors++;
         log(`[${ts()}] ❌ Player ${c.index + 1} Restart Skipped -> No Videos Available`);
         return;
       }
@@ -160,6 +163,7 @@ export function clearLogs() {
     panel.innerHTML = '';
     log(`[${ts()}] 🧹 Logs Cleared -> All Entries Removed`);
   } else {
+    stats.errors++;
     log(`[${ts()}] ❌ Clear Logs -> No Entries to Remove`);
   }
 }
@@ -170,6 +174,7 @@ export async function copyLogs() {
   const statsPanel = document.getElementById('statsPanel');
   const hasEntries = anyTrue([panel ? (panel.children ? panel.children.length > 0 : false) : false]);
   if (!hasEntries) {
+    stats.errors++;
     log(`[${ts()}] ❌ Copy Logs -> No Entries to Copy`);
     return;
   }
@@ -186,7 +191,8 @@ export async function copyLogs() {
       log(`[${ts()}] ${statsText}`);
       return;
     } catch (err) {
-      log(`[${ts()}] ⚠️ Clipboard API Failed -> Fallback (${err})`);
+      stats.errors++;
+      log(`[${ts()}] ❌ Clipboard API Failed -> Fallback (${err})`);
     }
   }
   // Fallback: textarea + execCommand
@@ -194,6 +200,7 @@ export async function copyLogs() {
   if (success) {
     log(`[${ts()}] 📋 (Fallback) Logs Copied via ExecCommand -> ${panel.children.length} Entries + stats`);
   } else {
+    stats.errors++;
     log(`[${ts()}] ❌ Copy Logs Failed (Fallback)`);
   }
 }
@@ -260,6 +267,7 @@ export async function reloadList() {
     setAltList(altList);
     log(`[${ts()}] 🗂️ Lists Applied to State -> Main: ${mainList.length} - Alt: ${altList.length}`);
   } catch (err) {
+    stats.errors++;
     log(`[${ts()}] ❌ Reload Failed -> ${err}`);
   }
 }

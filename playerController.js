@@ -1,10 +1,10 @@
 // --- playerController.js ---
-// Έκδοση: v6.9.1
+// Έκδοση: v6.15.6
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions ---
-const VERSION = 'v6.9.1';
+const VERSION = 'v6.15.6';
 export function getVersion() {
   return VERSION;
 }
@@ -46,6 +46,7 @@ function tryPlay(player, idx) {
         try {
           player.playVideo();
         } catch (e) {
+          stats.errors++;
           log(`[${ts()}] ❌ Player ${this.index + 1} tryPlay error after delay → ${e}`);
         }
       }, delay);
@@ -54,6 +55,7 @@ function tryPlay(player, idx) {
     this.guardPlay(player);
     return true;
   } catch (e) {
+    stats.errors++;
     log(`[${ts()}] ❌ Player ${this.index + 1} tryPlay error → ${e}`);
     return false;
   }
@@ -166,6 +168,7 @@ function doSeek(player, seconds) {
     }
   } catch (e) {
     try {
+      stats.errors++;
       log('[${ts()}] ❌ Player ${this.index + 1} Seek Error ' + e.message);
     } catch (_) {}
   }
@@ -371,7 +374,8 @@ export class PlayerController {
         }
       } catch (__err) {
         try {
-          log(`[${ts()}] ⚠️ onReady jitter failed: ${__err.message}`);
+          stats.errors++;
+          log(`[${ts()}] ❌ onReady jitter failed: ${__err.message}`);
         } catch (_e) {}
       }
     }, __jitterMs); // JITTER_APPLIED
@@ -490,7 +494,8 @@ export class PlayerController {
               if (guardHasAnyList(this)) {
                 this.loadNextVideo(p);
               } else {
-                log(`[${ts()}] ⚠️ Player ${this.index + 1} AutoNext aborted -> no available list`);
+                stats.errors++;
+                log(`[${ts()}] ❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
               }
             }
           }, iv);
@@ -502,7 +507,8 @@ export class PlayerController {
         if (guardHasAnyList(this)) {
           this.loadNextVideo(p);
         } else {
-          log(`[${ts()}] ⚠️ Player ${this.index + 1} AutoNext aborted -> no available list`);
+          stats.errors++;
+          log(`[${ts()}] ❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
         }
         return;
       case YT.PlayerState.PLAYING:
@@ -578,15 +584,17 @@ export class PlayerController {
             if (guardHasAnyList(this)) {
               this.loadNextVideo(p);
             } else {
-              log(`[${ts()}] ⚠️ Player ${this.index + 1} AutoNext aborted -> no available list`);
+              stats.errors++;
+              log(`[${ts()}] ❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
             }
-          }, 60000);
+          }, 15000);
           return;
         }
         if (guardHasAnyList(this)) {
           this.loadNextVideo(p);
         } else {
-          log(`[${ts()}] ⚠️ Player ${this.index + 1} AutoNext aborted -> no available list`);
+          stats.errors++;
+          log(`[${ts()}] ❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
         }
       }, afterEndPauseMs);
     }
@@ -595,13 +603,13 @@ export class PlayerController {
     if (guardHasAnyList(this)) {
       this.loadNextVideo(this.player);
     } else {
-      log(`[${ts()}] ⚠️ Player ${this.index + 1} AutoNext aborted -> no available list`);
+      stats.errors++;
+      log(`[${ts()}] ❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
     }
     stats.errors++;
     log(`[${ts()}] ❌ Player ${this.index + 1} Error -> AutoNext`);
   }
   loadNextVideo(player) {
-    // Guard χωρίς '\n'
     if (!allTrue([player, typeof player.loadVideoById === 'function'])) return;
     if (!canAutoNext(this.index)) {
       log(`[${ts()}] ⚠️ AutoNext limit reached -> ${AUTO_NEXT_LIMIT_PER_PLAYER}/hour for Player ${this.index + 1}`);
@@ -616,7 +624,9 @@ export class PlayerController {
     else if (hasMain) list = this.mainList;
     else list = this.altList;
     if ((list?.length ?? 0) === 0) {
+      stats.errors++;
       log(`[${ts()}] ❌ AutoNext aborted -> no available list`);
+
       return;
     }
     const newId = list[Math.floor(Math.random() * list.length)];
@@ -713,6 +723,7 @@ try {
               }
             }
           } catch (_) {}
+          stats.errors++;
           log(`[${ts()}] ❌ Player ${this.index + 1} AutoNext Error -> ${m}`);
         } catch (_) {}
       }
@@ -735,6 +746,7 @@ try {
               }
             }
           } catch (_) {}
+          stats.errors++;
           log(`[${ts()}] ❌ Player ${this.index + 1} InitPlayersSequentially Error -> ${m2}`);
         } catch (_) {}
       }
@@ -749,6 +761,7 @@ try {
         return doSeek.apply(null, arguments);
       } catch (e) {
         try {
+          stats.errors++;
           log(`[${ts()}] ❌ Player ${this.index + 1} Shim Seek Error ${e.message}`);
         } catch (_) {}
       }
