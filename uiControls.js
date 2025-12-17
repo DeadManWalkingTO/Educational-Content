@@ -50,7 +50,6 @@ export function setControlsEnabled(enabled) {
   log(`[${ts()}] ✅ Controls ${enabled ? 'enabled' : 'disabled'}`);
 }
 
-/** ▶ Εκκίνηση όλων των players σε sequential mode με τυχαίες καθυστερήσεις. */
 /** ⏹ Σταματά όλους τους players σε "sequential" mode με τυχαίες καθυστερήσεις. */
 export function stopAll() {
   setIsStopping(true);

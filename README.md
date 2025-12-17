@@ -32,7 +32,6 @@
 ## 🖥️ Panel Ελέγχου
 
 - 💻 Start
-- ▶ Play All
 - ⏹ Stop All
 - 🔁 Restart All
 - 🌙 Dark/Light Mode Toggle
@@ -111,7 +110,7 @@ BASE/
 ## ⚙️ Σημειώσεις Συμβατότητας
 
 - **Autoplay Policy**: Unmute χωρίς προηγούμενο user gesture μπορεί να προκαλέσει παύση από τον browser. Το **Start gate** λύνει αυτό το ζήτημα.
-- **No `||`** στον κώδικα: εφαρμόζονται `??`, `?.`, ρητά guards και membership με `includes()`.
+- **No `||`** και ** `&&` ** στον κώδικα: εφαρμόζονται `??`, `?.`, ρητά guards και membership με `includes()`.
 - **Activity cap**: ~250 εγγραφές (προσαρμόσιμο στο `globals.js`).
 
 ---
