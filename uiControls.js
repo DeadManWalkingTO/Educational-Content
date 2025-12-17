@@ -3,7 +3,7 @@
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const VERSION = 'v3.16.15';
+const VERSION = 'v3.16.16';
 export function getVersion() {
   return VERSION;
 }
@@ -42,7 +42,7 @@ function canClipboardNative() {
 
 /** ΝΕΟ: Μαζική ενεργοποίηση/απενεργοποίηση controls (πλην Start). */
 export function setControlsEnabled(enabled) {
-  const ids = ['btnPlayAll', 'btnStopAll', 'btnRestartAll', 'btnToggleTheme', 'btnCopyLogs', 'btnClearLogs', 'btnReloadList'];
+  const ids = ['btnStopAll', 'btnRestartAll', 'btnToggleTheme', 'btnCopyLogs', 'btnClearLogs', 'btnReloadList'];
   ids.forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.disabled = !enabled;
@@ -51,51 +51,6 @@ export function setControlsEnabled(enabled) {
 }
 
 /** ▶ Εκκίνηση όλων των players σε sequential mode με τυχαίες καθυστερήσεις. */
-export function playAll() {
-  setIsStopping(false);
-  clearStopTimers();
-  log(`[${ts()}] ▶ Stop All Canceled -> Starting Play All`);
-  const shuffled = [...controllers].sort(() => Math.random() - 0.5);
-  let delay = 0;
-  shuffled.forEach((c, i) => {
-    const randomDelay = rndInt(5000, 15000);
-    delay += randomDelay;
-    setTimeout(() => {
-      if (c.player) {
-        if (typeof c.requestPlay === 'function') {
-          c.requestPlay();
-        } else {
-          if (allTrue([c.player, typeof c.player.playVideo === 'function'])) {
-            c.player.playVideo();
-          }
-        }
-        log(`[${ts()}] ▶ Player ${c.index + 1} Play -> Step ${i + 1}`);
-      } else {
-        const mainList = getMainList();
-        const altList = getAltList();
-        const useMain = Math.random() < MAIN_PROBABILITY;
-        const hasMain = Array.isArray(mainList) ? mainList.length > 0 : false;
-        const hasAlt = Array.isArray(altList) ? altList.length > 0 : false;
-        let source;
-        if (allTrue([useMain, hasMain])) source = mainList;
-        else if (allTrue([!useMain, hasAlt])) source = altList;
-        else if (hasMain) source = mainList;
-        else source = altList;
-        // Guard
-        if ((source?.length ?? 0) === 0) {
-          stats.errors++;
-          log(`[${ts()}] ❌ Player ${c.index + 1} Init Skipped -> No Videos Available`);
-          return;
-        }
-        const newId = source[Math.floor(Math.random() * source.length)];
-        c.init(newId);
-        log(`[${ts()}] ▶ Player ${c.index + 1} Initializing -> Source:${useMain ? 'main' : 'alt'}`);
-      }
-    }, delay);
-  });
-  log(`[${ts()}] ▶ Play All -> sequential mode started, estimated duration ~${Math.round(delay / 1000)}s`);
-}
-
 /** ⏹ Σταματά όλους τους players σε "sequential" mode με τυχαίες καθυστερήσεις. */
 export function stopAll() {
   setIsStopping(true);
@@ -225,7 +180,6 @@ function unsecuredCopyToClipboard(text) {
 export function bindUiEvents() {
   // Guard to avoid re-binding (dataset.bound on sentinel button)
   try {
-    const sentinel = document.getElementById('btnPlayAll');
     if (sentinel) {
       if (sentinel.dataset) {
         if (sentinel.dataset.bound === '1') {
@@ -241,7 +195,6 @@ export function bindUiEvents() {
   } catch (_) {}
   const byId = (id) => document.getElementById(id);
   const m = new Map([
-    ['btnPlayAll', playAll],
     ['btnStopAll', stopAll],
     ['btnRestartAll', restartAll],
     ['btnToggleTheme', toggleTheme],

@@ -1,4 +1,9 @@
-# CHANGELOG.md - v168
+# CHANGELOG.md - v169
+
+## 2025-12-17
+
+- index.html: v6.1.0 → v6.1.1 — Removed Play All button; bumped html-version.
+- uiControls.js: patch bumped; Removed playAll() export & binding; updated setControlsEnabled ids.
 
 ## 2025-12-16
 
