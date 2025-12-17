@@ -1,4 +1,14 @@
-# CHANGELOG.md - v169
+# CHANGELOG.md - v170
+
+---
+
+## 2025-12-17 22:48
+
+- index.html: +fade-out CSS (.player-box.fade-out), bump HTML version.
+- uiControls.js: +stopAllVisualJitter() reverse (last→first), fade-out 150ms, countdown logs (60–180s); +startAllInterruptible(); +bindStopStartJitter().
+- watchdog.js: +requestQuiet(ms) API (quiet window 60–120s).
+- opManager.js: NEW file (op epochs, timers, cancellation).
+- versionReporter.js: import opManager version & include in report.
 
 ---
 

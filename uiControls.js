@@ -3,7 +3,7 @@
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const VERSION = 'v3.16.16';
+const VERSION = 'v3.17.16';
 export function getVersion() {
   return VERSION;
 }
@@ -14,6 +14,8 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: uiControl
 // Imports
 import { log, ts, rndInt, controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, stats, anyTrue, allTrue } from './globals.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
+import { requestQuiet } from './watchdog.js';
+import { newOperation, isOpActive, pushOpTimer } from './opManager.js';
 
 // Named guards for UI Controls
 function hasEl(id) {
@@ -226,5 +228,132 @@ export async function reloadList() {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: uiControls.js ${VERSION} -> Ολοκληρώθηκε`);
+
+/** ⏹ Stop All με reverse order, fade-out 150ms, μεγάλο οπτικό jitter (60–180s), countdown logs και quiet window στο Watchdog. */
+export function stopAllVisualJitter() {
+  const opId = newOperation('stop');
+  try {
+    const quietMs = rndInt(60000, 120000);
+    try {
+      requestQuiet(quietMs);
+    } catch (_) {}
+    log(`[${ts()}] ⏹ Stop All -> op=${opId} (quiet ${quietMs}ms)`);
+    const total = controllers.length;
+    log(`[${ts()}] ⏱️ Scheduled ${total} visual removals (1–3min each)`);
+    for (let idx = controllers.length - 1; idx >= 0; idx -= 1) {
+      const c = controllers[idx];
+      const delay = rndInt(60000, 180000);
+      const steps = Math.floor(delay / 60000);
+      for (let k = 1; k <= steps; k += 1) {
+        const tC = setTimeout(() => {
+          if (!isOpActive(opId)) {
+            return;
+          }
+          const remain = (steps - k) * 60;
+          log(`[${ts()}] ⏱️ Player ${idx + 1} will close in ~${remain}s (op=${opId})`);
+        }, k * 60000);
+        pushOpTimer(opId, tC);
+      }
+      const t = setTimeout(() => {
+        if (!isOpActive(opId)) {
+          return;
+        }
+        try {
+          const boxId = 'player' + (idx + 1);
+          const box = document.getElementById(boxId);
+          if (box) {
+            box.classList.add('fade-out');
+            const tFade = setTimeout(() => {
+              try {
+                box.innerHTML = '';
+              } catch (_) {}
+            }, 150);
+            pushOpTimer(opId, tFade);
+          }
+        } catch (_) {}
+        try {
+          if (c) {
+            if (c.player) {
+              c.player.destroy();
+              c.player = null;
+            }
+          }
+        } catch (_) {}
+        log(`[${ts()}] 🗑️ Player ${idx + 1} -> removed after ${delay}ms (op=${opId})`);
+      }, delay);
+      pushOpTimer(opId, t);
+    }
+  } catch (e) {
+    stats.errors += 1;
+    log(`[${ts()}] ❌ Stop All Visual Jitter failed -> ${e}`);
+  }
+}
+
+/** 🚀 Start με interruptible sequence (μικρό jitter 80–180ms). */
+export function startAllInterruptible() {
+  const opId = newOperation('start');
+  log(`[${ts()}] 🚀 Start -> op=${opId}`);
+  try {
+    const cont = document.getElementById('playersContainer');
+    if (cont) {
+      const boxes = cont.querySelectorAll('.player-box').length;
+      if (!boxes) {
+        for (let i = 0; i < controllers.length; i += 1) {
+          const div = document.createElement('div');
+          div.id = 'player' + (i + 1);
+          div.className = 'player-box';
+          cont.appendChild(div);
+        }
+      }
+    }
+    for (let i = 0; i < controllers.length; i += 1) {
+      const t = setTimeout(() => {
+        if (!isOpActive(opId)) {
+          return;
+        }
+        const c = controllers[i];
+        try {
+          if (c) {
+            if (c.player) {
+              c.player.playVideo();
+              log(`[${ts()}] ▶ Player ${i + 1} -> resume (op=${opId})`);
+            } else {
+              if (c.init) {
+                c.init();
+              }
+              log(`[${ts()}] ▶ Player ${i + 1} -> init (op=${opId})`);
+            }
+          }
+        } catch (_) {}
+      }, rndInt(80, 180));
+      pushOpTimer(opId, t);
+    }
+  } catch (e) {
+    stats.errors += 1;
+    log(`[${ts()}] ❌ Start Interruptible failed -> ${e}`);
+  }
+}
+
+/** Δέσιμο Stop/Start στα νέα handlers με αντικατάσταση listeners (avoid double-binding). */
+export function bindStopStartJitter() {
+  try {
+    const btnStop = document.getElementById('btnStopAll');
+    if (btnStop) {
+      const clone = btnStop.cloneNode(true);
+      btnStop.parentNode.replaceChild(clone, btnStop);
+      clone.addEventListener('click', () => {
+        stopAllVisualJitter();
+      });
+    }
+    const btnStart = document.getElementById('btnStart');
+    if (btnStart) {
+      const cloneS = btnStart.cloneNode(true);
+      btnStart.parentNode.replaceChild(cloneS, btnStart);
+      cloneS.addEventListener('click', () => {
+        startAllInterruptible();
+      });
+    }
+  } catch (_) {}
+}
 
 // --- End Of File ---
