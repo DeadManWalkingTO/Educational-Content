@@ -1,6 +1,13 @@
-# CHANGELOG.md - v170
+# CHANGELOG.md - v171
 
 ---
+
+## 2025-12-17 23:15
+
+- main.js: replaced bindUiEvents() with bindStopStartJitter(); version bump.
+- watchdog.js: added isQuiet() guard in startWatchdog loop; version bump.
+- versionReporter.js: added import/report for opManager; version bump.
+- Runtime policy: only bindStopStartJitter() (legacy stopAll() not wired).
 
 ## 2025-12-17 22:48
 

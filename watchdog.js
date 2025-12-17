@@ -4,7 +4,7 @@
 // Συμμόρφωση με κανόνα State Machine με Guard Steps.
 
 // --- Versions ---
-const VERSION = 'v2.15.9';
+const VERSION = 'v2.15.10';
 export function getVersion() {
   return VERSION;
 }
@@ -23,6 +23,8 @@ import { log, ts, controllers, stats, anyTrue, allTrue } from './globals.js';
 
 // Exported function to start the watchdog
 export function startWatchdog() {
+  try { if (isQuiet()) { return; } } catch (_) {}
+
   // Αρχική ενημέρωση εκκίνησης
   log(`[${ts()}] 🐶 Watchdog ${VERSION} Start -> From ExportFunction:`);
   // Επαναληπτικός βρόχος ελέγχου

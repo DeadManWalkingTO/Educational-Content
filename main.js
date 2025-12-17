@@ -6,7 +6,7 @@
 // Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 // --- Versions ---
-const VERSION = 'v3.32.2';
+const VERSION = 'v3.32.3';
 export function getVersion() {
   return VERSION;
 }
@@ -19,7 +19,7 @@ import { log, ts, setUserGesture, anyTrue, allTrue, stats } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions, renderVersionsPanel, renderVersionsText } from './versionReporter.js';
-import { bindUiEvents, setControlsEnabled } from './uiControls.js';
+import { bindStopStartJitter, setControlsEnabled } from './uiControls.js';
 import { startWatchdog } from './watchdog.js';
 
 // ✅ YouTube API readiness check
@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnStart = document.getElementById('btnStartSession');
   if (btnStart) {
     // Δέσμευση UI events μία φορά εδώ (ώστε τα handlers να υπάρχουν πριν το enable)
-    bindUiEvents();
+    bindStopStartJitter();
     btnStart.addEventListener('click', async () => {
       // 1) Καταγραφή/σηματοδότηση gesture (πάντα)
       setUserGesture(); // γράφει και console.log με 💻
@@ -136,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   } else {
     // Fallback: αν λείπει το κουμπί, ξεκινάμε όπως πριν
-    bindUiEvents();
+    bindStopStartJitter();
     // Enable controls
     setControlsEnabled(true);
     // Start app

@@ -1,9 +1,9 @@
 // --- versionReporter.js ---
-// Έκδοση: v3.9.2
+// Έκδοση: v3.10.4
 // Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
 // Αφαίρεση κυκλικής εξάρτησης με main.js. Η έκδοση του main θα προστεθεί από το ίδιο το main.js.
 // --- Versions ---
-const VERSION = 'v3.9.2';
+const VERSION = 'v3.10.4';
 export function getVersion() {
   return VERSION;
 }
@@ -19,6 +19,7 @@ import { getVersion as getPlayerControllerVersion } from './playerController.js'
 import { getVersion as getUiControlsVersion } from './uiControls.js';
 import { getVersion as getWatchdogVersion } from './watchdog.js';
 import { getVersion as getConsoleFilterVersion } from './consoleFilter.js';
+import { getVersion as getOpManagerVersion } from './opManager.js';
 
 /**
  * Ανάκτηση της έκδοσης του HTML από το meta tag.
@@ -43,6 +44,7 @@ export function reportAllVersions() {
     UiControls: getUiControlsVersion(),
     Watchdog: getWatchdogVersion(),
     ConsoleFilter: getConsoleFilterVersion(),
+    OpManager: getOpManagerVersion(),
     VersionReporter: VERSION,
     // Σημείωση: Η έκδοση του Main θα προστεθεί από το main.js.
   };
@@ -107,6 +109,9 @@ function iconFor(name) {
   }
   if (name === 'Main') {
     return '🚀';
+  }
+  if (name === 'OpManager') {
+    return '⚙️';
   }
   return '✅';
 }
