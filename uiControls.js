@@ -1,9 +1,9 @@
 // --- uiControls.js ---
-// Έκδοση: v3.20.20
+// Έκδοση: v3.22.20
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const VERSION = 'v3.20.20';
+const VERSION = 'v3.22.20';
 export function getVersion() {
   return VERSION;
 }
@@ -44,7 +44,7 @@ function canClipboardNative() {
 
 /** ΝΕΟ: Μαζική ενεργοποίηση/απενεργοποίηση controls (πλην Start). */
 export function setControlsEnabled(enabled) {
-  const ids = ['btnStop', 'btnRestartAll', 'btnToggleTheme', 'btnCopyLogs', 'btnClearLogs', 'btnReloadList'];
+  const ids = ['btnStop', 'btnToggleTheme', 'btnCopyLogs', 'btnClearLogs', 'btnReloadList'];
   ids.forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.disabled = !enabled;
@@ -278,28 +278,6 @@ export function startAllInterruptible() {
     stats.errors += 1;
     log(`[${ts()}] ❌ Start Interruptible failed -> ${e}`);
   }
-}
-
-/** Δέσιμο Stop/Start στα νέα handlers με αντικατάσταση listeners (avoid double-binding). */
-export function bindStopStartJitter() {
-  try {
-    const btnStop = document.getElementById('btnStop');
-    if (btnStop) {
-      const clone = btnStop.cloneNode(true);
-      btnStop.parentNode.replaceChild(clone, btnStop);
-      clone.addEventListener('click', () => {
-        stopAllVisualJitter();
-      });
-    }
-    const btnStart = document.getElementById('btnStart');
-    if (btnStart) {
-      const cloneS = btnStart.cloneNode(true);
-      btnStart.parentNode.replaceChild(cloneS, btnStart);
-      cloneS.addEventListener('click', () => {
-        startAllInterruptible();
-      });
-    }
-  } catch (_) {}
 }
 
 // --- End Of File ---
