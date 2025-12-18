@@ -4,7 +4,7 @@
 // Συμμόρφωση με κανόνα State Machine με Guard Steps.
 
 // --- Versions ---
-const VERSION = 'v2.15.10';
+const VERSION = 'v2.15.11';
 export function getVersion() {
   return VERSION;
 }
@@ -179,7 +179,7 @@ let quietUntil = 0;
 export function requestQuiet(ms) {
   try {
     quietUntil = Date.now() + ms;
-    console.log(`[${new Date().toLocaleTimeString()}] 💤 Watchdog quiet window -> ${ms}ms`);
+    log(`[${ts()}] 💤 Watchdog quiet window -> ${Math.floor(ms/1000)}s`);
   } catch (_) {}
 }
 function isQuiet() {

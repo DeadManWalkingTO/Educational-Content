@@ -4,7 +4,7 @@
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 
 // --- Versions ---
-const VERSION = 'v3.23.22';
+const VERSION = 'v3.23.23';
 export function getVersion() {
   return VERSION;
 }
@@ -173,9 +173,6 @@ export async function reloadList() {
   }
 }
 
-// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: uiControls.js ${VERSION} -> Ολοκληρώθηκε`);
-
 /** ⏹ Stop All με reverse order, fade-out 150ms, μεγάλο οπτικό jitter (60–180s), countdown logs και quiet window στο Watchdog. */
 export function stopAllVisualJitter() {
   const opId = newOperation('stop');
@@ -184,7 +181,7 @@ export function stopAllVisualJitter() {
     try {
       requestQuiet(quietMs);
     } catch (_) {}
-    log(`[${ts()}] ⏹ Stop All -> op=${opId} (quiet ${quietMs}ms)`);
+    log(`[${ts()}] ⏹ Stop -> op=${opId} (quiet ${Math.floor(quietMs / 1000)}s)`);
     const total = controllers.length;
     log(`[${ts()}] ⏱️ Scheduled ${total} visual removals (1–3min each)`);
     for (let idx = controllers.length - 1; idx >= 0; idx -= 1) {
@@ -234,7 +231,10 @@ export function stopAllVisualJitter() {
             } catch (_) {}
           }
         } catch (_) {}
-        log(`[${ts()}] 🗑️ Player ${idx + 1} -> removed after ${delay}ms (op=${opId})`);
+        log(`[${ts()}] 🗑️ Player ${idx + 1} -> removed after ${Math.floor(delay / 1000)}s (op=${opId})`);
+        if (idx === 0) {
+          log(`[${ts()}] 🗑️ Όλοι οι players αφαιρέθηκαν`);
+        }
       }, delay);
       pushOpTimer(opId, t);
     }
@@ -288,5 +288,8 @@ export function startAllInterruptible() {
     log(`[${ts()}] ❌ Start Interruptible failed -> ${e}`);
   }
 }
+
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: uiControls.js ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

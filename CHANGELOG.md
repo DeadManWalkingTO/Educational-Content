@@ -2,6 +2,10 @@
 
 ---
 
+## 2025-12-18 03:39
+- uiControls.js: v3.23.22 → v3.23.23; Logs now show quiet window in seconds and Stop wording; removal logs in seconds; added final message when last player removed; switched load console.log to app style.
+- watchdog.js: v2.15.10 → v2.15.11; Quiet window log now in seconds, using app style log() + ts().
+
 ## 2025-12-18 03:17
 - uiControls.js: v3.22.20 → v3.23.20; Set quiet window to 60–180s (rndInt(60000, 180000)) in stopAllVisualJitter(); kept reverse order, fade-out 150ms, countdown logs, opId guards.
 ## 2025-12-18 02:27
