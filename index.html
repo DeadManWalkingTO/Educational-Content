@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <title>Educational Content</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="html-version" content="v6.1.1" />
+    <meta name="html-version" content="v6.10.10" />
     <link rel="icon" type="image/x-icon" href="./favicon.ico" />
     <style>
       body {
@@ -156,11 +156,13 @@
         white-space: nowrap;
         border: 0;
       }
-    
-/* Fade-out for player boxes */
-.player-box.fade-out{opacity:0;transition:opacity 150ms ease-in;}
 
-</style>
+      /* Fade-out for player boxes */
+      .player-box.fade-out {
+        opacity: 0;
+        transition: opacity 150ms ease-in;
+      }
+    </style>
   </head>
   <body>
     <div class="controls">
@@ -175,8 +177,7 @@
           💻 Start
         </button>
         <!-- ΧΩΡΙΣ inline onclick — μόνο IDs -->
-        <button id="btnStopAll" disabled aria-label="Stop All" title="Stop All">⏹ Stop All</button>
-        <button id="btnRestartAll" disabled aria-label="Restart All" title="Restart All">🔁 Restart All</button>
+        <button id="btnStop" disabled aria-label="Stop" title="Stop">⏹ Stop</button>
         <button id="btnToggleTheme" disabled aria-label="Dark/Light Mode" title="Dark/Light Mode">🌙 Dark/Light Mode</button>
         <button id="btnCopyLogs" disabled aria-label="Copy Logs" title="Copy Logs">📋 Copy Logs</button>
         <button id="btnClearLogs" disabled aria-label="Clear Logs" title="Clear Logs">🧹 Clear Logs</button>

@@ -1,6 +1,10 @@
-# CHANGELOG.md - v171
+# CHANGELOG.md - v172
 
 ---
+
+## 2025-12-18 02:27
+
+- uiControls.js: v3.17.16 → v3.17.17; ensure exported async copyLogs/reloadList exist; mapped Stop to btnStop; version bump (patch).
 
 ## 2025-12-17 23:15
 

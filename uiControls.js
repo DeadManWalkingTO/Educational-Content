@@ -1,9 +1,9 @@
 // --- uiControls.js ---
-// Έκδοση: v3.16.15
+// Έκδοση: v3.20.20
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const VERSION = 'v3.17.16';
+const VERSION = 'v3.20.20';
 export function getVersion() {
   return VERSION;
 }
@@ -44,65 +44,12 @@ function canClipboardNative() {
 
 /** ΝΕΟ: Μαζική ενεργοποίηση/απενεργοποίηση controls (πλην Start). */
 export function setControlsEnabled(enabled) {
-  const ids = ['btnStopAll', 'btnRestartAll', 'btnToggleTheme', 'btnCopyLogs', 'btnClearLogs', 'btnReloadList'];
+  const ids = ['btnStop', 'btnRestartAll', 'btnToggleTheme', 'btnCopyLogs', 'btnClearLogs', 'btnReloadList'];
   ids.forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.disabled = !enabled;
   });
   log(`[${ts()}] ✅ Controls ${enabled ? 'enabled' : 'disabled'}`);
-}
-
-/** ⏹ Σταματά όλους τους players σε "sequential" mode με τυχαίες καθυστερήσεις. */
-export function stopAll() {
-  setIsStopping(true);
-  clearStopTimers();
-  const shuffled = [...controllers].sort(() => Math.random() - 0.5);
-  let delay = 0;
-  shuffled.forEach((c, i) => {
-    const randomDelay = rndInt(30000, 60000);
-    delay += randomDelay;
-    const timer = setTimeout(() => {
-      if (c.player) {
-        c.player.stopVideo();
-        log(`[${ts()}] ⏹ Player ${c.index + 1} Stopped -> Step ${i + 1}`);
-      } else {
-        stats.errors++;
-        log(`[${ts()}] ❌ Player ${c.index + 1} Stop Skipped -> Not Initialized`);
-      }
-    }, delay);
-    pushStopTimer(timer);
-  });
-  log(`[${ts()}] ⏹ Stop All -> sequential mode started, estimated duration ~${Math.round(delay / 1000)}s`);
-}
-
-/** 🔁 Επανεκκίνηση όλων των players φορτώνοντας νέο video. */
-export function restartAll() {
-  const mainList = getMainList();
-  const altList = getAltList();
-  controllers.forEach((c) => {
-    if (c.player) {
-      c.loadNextVideo(c.player);
-    } else {
-      const useMain = Math.random() < MAIN_PROBABILITY;
-      const hasMain = Array.isArray(mainList) ? mainList.length > 0 : false;
-      const hasAlt = Array.isArray(altList) ? altList.length > 0 : false;
-      let source;
-      if (allTrue([useMain, hasMain])) source = mainList;
-      else if (allTrue([!useMain, hasAlt])) source = altList;
-      else if (hasMain) source = mainList;
-      else source = altList;
-      // Guard
-      if ((source?.length ?? 0) === 0) {
-        stats.errors++;
-        log(`[${ts()}] ❌ Player ${c.index + 1} Restart Skipped -> No Videos Available`);
-        return;
-      }
-      const newId = source[Math.floor(Math.random() * source.length)];
-      c.init(newId);
-      log(`[${ts()}] 🔁 Player ${c.index + 1} Restart (init) -> ${newId} (Source:${useMain ? 'main' : 'alt'})`);
-    }
-  });
-  log(`[${ts()}] 🔁 Restart All -> Completed`);
 }
 
 /** 🌗 Εναλλαγή Dark/Light theme. */
@@ -196,8 +143,7 @@ export function bindUiEvents() {
   } catch (_) {}
   const byId = (id) => document.getElementById(id);
   const m = new Map([
-    ['btnStopAll', stopAll],
-    ['btnRestartAll', restartAll],
+    ['btnStop', stopAllVisualJitter],
     ['btnToggleTheme', toggleTheme],
     ['btnCopyLogs', copyLogs],
     ['btnClearLogs', clearLogs],
@@ -337,7 +283,7 @@ export function startAllInterruptible() {
 /** Δέσιμο Stop/Start στα νέα handlers με αντικατάσταση listeners (avoid double-binding). */
 export function bindStopStartJitter() {
   try {
-    const btnStop = document.getElementById('btnStopAll');
+    const btnStop = document.getElementById('btnStop');
     if (btnStop) {
       const clone = btnStop.cloneNode(true);
       btnStop.parentNode.replaceChild(clone, btnStop);
