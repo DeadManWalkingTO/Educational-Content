@@ -2,6 +2,10 @@
 
 ---
 
+## 2025-12-18 04:09
+- watchdog.js: +cancelQuiet(); version bump; Start can cancel quiet window.
+- main.js: +cancelQuiet import; Start button now cancels quiet and restarts app when no player boxes exist; version bump.
+
 ## 2025-12-18 03:39
 - uiControls.js: v3.23.22 → v3.23.23; Logs now show quiet window in seconds and Stop wording; removal logs in seconds; added final message when last player removed; switched load console.log to app style.
 - watchdog.js: v2.15.10 → v2.15.11; Quiet window log now in seconds, using app style log() + ts().

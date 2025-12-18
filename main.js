@@ -7,7 +7,7 @@
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 
 // --- Versions ---
-const VERSION = 'v3.45.5';
+const VERSION = 'v3.45.6';
 export function getVersion() {
   return VERSION;
 }
@@ -21,7 +21,8 @@ import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions, renderVersionsPanel, renderVersionsText } from './versionReporter.js';
 import { bindUiEvents, setControlsEnabled } from './uiControls.js';
-import { startWatchdog } from './watchdog.js';
+import { startWatchdog, cancelQuiet } from './watchdog.js';
+import { controllers } from './globals.js';
 
 // ✅ YouTube API readiness check
 function isApiReady() {
@@ -128,8 +129,26 @@ document.addEventListener('DOMContentLoaded', () => {
       // 1) Καταγραφή/σηματοδότηση gesture (πάντα)
       setUserGesture(); // γράφει και console.log με 💻
       // 2) Enable των υπολοίπων controls (κάθε φορά)
+      try {
+        cancelQuiet();
+      } catch (_) {} // ακύρωση quiet window
       setControlsEnabled(true);
+
       // 3) Μία φορά: startApp()
+      // Ανίχνευση «κενού» σε τρία επίπεδα: DOM boxes, controllers, ενεργοί YT players.
+      const cont = document.getElementById('playersContainer');
+      const boxes = cont ? cont.querySelectorAll('.player-box').length : 0;
+      const noControllers = !Array.isArray(controllers) || controllers.length === 0;
+
+      // Προσπάθεια ανίχνευσης ενεργών YT players (προαιρετικό, ασφαλές):
+      const hasYT = typeof window !== 'undefined' && !!window.YT;
+      const hasAnyActiveYTPlayer = hasYT && Array.isArray(window.__YT_ACTIVE_INSTANCES__) ? window.__YT_ACTIVE_INSTANCES__.length > 0 : false;
+
+      // Αν δεν υπάρχουν boxes Ή δεν υπάρχουν controllers// Αν δεν υπάρχουν boxes Ή δεν υπάρχουν controllers Ή δεν υπάρχουν ενεργοί YT players → επαναφορά gate.
+      if (!boxes || noControllers || !hasAnyActiveYTPlayer) {
+        appStarted = false;
+      }
+
       if (!appStarted) {
         appStarted = true;
         await startApp();

@@ -4,7 +4,7 @@
 // Συμμόρφωση με κανόνα State Machine με Guard Steps.
 
 // --- Versions ---
-const VERSION = 'v2.15.11';
+const VERSION = 'v2.15.12';
 export function getVersion() {
   return VERSION;
 }
@@ -23,7 +23,11 @@ import { log, ts, controllers, stats, anyTrue, allTrue } from './globals.js';
 
 // Exported function to start the watchdog
 export function startWatchdog() {
-  try { if (isQuiet()) { return; } } catch (_) {}
+  try {
+    if (isQuiet()) {
+      return;
+    }
+  } catch (_) {}
 
   // Αρχική ενημέρωση εκκίνησης
   log(`[${ts()}] 🐶 Watchdog ${VERSION} Start -> From ExportFunction:`);
@@ -175,13 +179,22 @@ export function startWatchdog() {
 }
 
 /** --- Quiet Window API --- */
+
+/** --- Quiet Window API --- */
 let quietUntil = 0;
+
 export function requestQuiet(ms) {
   try {
     quietUntil = Date.now() + ms;
-    log(`[${ts()}] 💤 Watchdog quiet window -> ${Math.floor(ms/1000)}s`);
+    log(`[${ts()}] 💤 Watchdog quiet window -> ${Math.floor(ms / 1000)}s`);
   } catch (_) {}
 }
+
+export function cancelQuiet() {
+  quietUntil = 0;
+  log(`[${ts()}] 🟦 Watchdog quiet window -> canceled`);
+}
+
 function isQuiet() {
   if (quietUntil > 0) {
     if (Date.now() < quietUntil) {
@@ -190,6 +203,7 @@ function isQuiet() {
   }
   return false;
 }
+
 /** --- End Quiet Window API --- */
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
