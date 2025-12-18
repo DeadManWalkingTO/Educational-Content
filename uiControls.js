@@ -3,7 +3,7 @@
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const VERSION = 'v3.23.20';
+const VERSION = 'v3.23.22';
 export function getVersion() {
   return VERSION;
 }
@@ -219,10 +219,18 @@ export function stopAllVisualJitter() {
         } catch (_) {}
         try {
           if (c) {
-            if (c.player) {
-              c.player.destroy();
-              c.player = null;
-            }
+            try {
+              if (typeof c.dispose === 'function') {
+                c.dispose();
+              } else {
+                if (c.player) {
+                  if (typeof c.player.destroy === 'function') {
+                    c.player.destroy();
+                  }
+                  c.player = null;
+                }
+              }
+            } catch (_) {}
           }
         } catch (_) {}
         log(`[${ts()}] 🗑️ Player ${idx + 1} -> removed after ${delay}ms (op=${opId})`);

@@ -2,7 +2,7 @@
 // Έκδοση: v4.11.8
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 // --- Versions ---
-const VERSION = 'v4.11.8';
+const VERSION = 'v4.11.13';
 export function getVersion() {
   return VERSION;
 }
@@ -12,6 +12,45 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: humanMode
 
 // Imports
 import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, anyTrue, allTrue, stats } from './globals.js';
+import { isOpActive } from './opManager.js';
+/* DUPLICATE REMOVED guardQuietOff */ let __HM_TIMERS = [];
+
+function hm_schedule(fn, delay) {
+  try {
+    const id = setTimeout(fn, delay);
+    __HM_TIMERS.push(id);
+    return id;
+  } catch (_) {
+    return null;
+  }
+}
+function hm_sleep(ms) {
+  return new Promise((resolve) => {
+    hm_schedule(() => {
+      if (!guardQuietOff()) {
+        return;
+      }
+      resolve();
+    }, ms);
+  });
+}
+export function humanModeCancelAll() {
+  try {
+    while (__HM_TIMERS.length) {
+      try {
+        clearTimeout(__HM_TIMERS.pop());
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+function guardQuietOff() {
+  try {
+    return allTrue([typeof isOpActive === 'function', !isOpActive(1)]);
+  } catch (_) {
+    return true;
+  }
+}
+
 import { scheduler } from './globals.js';
 import { PlayerController } from './playerController.js';
 
@@ -132,8 +171,8 @@ export async function initPlayersSequentially(mainList, altList) {
     log(`[${ts()}] ⏳ Player ${i + 1} HumanMode Scheduled -> Start after ${Math.round(playbackDelay / 1000)}s`);
     // Stagger τη ΣΤΙΓΜΗ ΔΗΜΙΟΥΡΓΙΑΣ του iframe (YT.Player)
     const microStagger = rndInt(MICRO_STAGGER_MIN, MICRO_STAGGER_MAX);
-    await new Promise((resolve) => setTimeout(resolve, microStagger));
-    await new Promise((resolve) => setTimeout(resolve, playbackDelay));
+    await hm_sleep(microStagger);
+    await hm_sleep(playbackDelay);
     if (isStopping) {
       log(`[${ts()}] 👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
       continue;
@@ -177,7 +216,7 @@ export async function initPlayersSequentially(mainList, altList) {
       controller.config = config;
       controller.profileName = config.profileName;
     }
-    await new Promise((r) => setTimeout(r, 150 + Math.floor(Math.random() * 151)));
+    await hm_sleep(150 + Math.floor(Math.random() * 151));
     controller.init(videoId);
     log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
   }

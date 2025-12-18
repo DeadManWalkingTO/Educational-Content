@@ -4,7 +4,7 @@
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
 // --- Versions ---
-const VERSION = 'v6.21.9';
+const VERSION = 'v6.21.13';
 export function getVersion() {
   return VERSION;
 }
@@ -30,6 +30,14 @@ import {
   allTrue,
 } from './globals.js';
 import { scheduler } from './globals.js';
+import { isOpActive } from './opManager.js';
+function guardQuietOff() {
+  try {
+    return allTrue([typeof isOpActive === 'function', !isOpActive(1)]);
+  } catch (_) {
+    return true;
+  }
+}
 
 // Ατομικός έλεγχος «είναι μη κενός πίνακας»
 function isNonEmptyArray(x) {
@@ -103,7 +111,10 @@ const STATE_TRANSITIONS = {
 
 // Debounce helper for initial commands (postMessage race mitigation)
 function safeCmd(fn, delay = 80) {
-  setTimeout(() => {
+  const __t1 = setTimeout(() => {
+    if (!guardQuietOff()) {
+      return;
+    }
     try {
       fn();
     } catch (_) {}
@@ -266,7 +277,39 @@ export class PlayerController {
     this.lastPausedStart = null;
     this.expectedPauseMs = 0;
   }
+  scheduleTimer(fn, delay) {
+    try {
+      const id = setTimeout(fn, delay);
+      this._timers.push(id);
+      return id;
+    } catch (_) {
+      return null;
+    }
+  }
+  cancelAllTimers() {
+    try {
+      while (this._timers.length) {
+        try {
+          clearTimeout(this._timers.pop());
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
   /** Αρχικοποίηση του YouTube Player. */
+  dispose() {
+    try {
+      this.cancelAllTimers();
+    } catch (_) {}
+    try {
+      if (this.player) {
+        if (typeof this.player.destroy === 'function') {
+          this.player.destroy();
+        }
+      }
+    } catch (_) {}
+    this.player = null;
+    this.pendingUnmute = false;
+  }
   init(videoId) {
     const containerId = `player${this.index + 1}`;
     const dyn = typeof getDynamicOrigin === 'function' ? getDynamicOrigin() : '';
@@ -300,7 +343,10 @@ export class PlayerController {
     const startDelay = startDelaySec * 1000;
     log(`[${ts()}] ⏳ Player ${this.index + 1} Scheduled -> start after ${startDelaySec}s`);
     const __jitterMs = 100 + Math.floor(Math.random() * 120);
-    setTimeout(() => {
+    const __t1 = setTimeout(() => {
+      if (!guardQuietOff()) {
+        return;
+      }
       try {
         if (typeof e.target.seekTo === 'function') {
           if (this.initialSeekSec) {
@@ -324,16 +370,40 @@ export class PlayerController {
         } catch (_e) {}
       }
     }, __jitterMs); // JITTER_APPLIED
-    setTimeout(() => {
+    try {
+      this._timers.push(__t1);
+    } catch (_) {}
+    const __t2 = setTimeout(() => {
+      if (!guardQuietOff()) {
+        return;
+      }
+      if (!this.player) {
+        return;
+      }
+      if (!getIframeSafe(this.player)) {
+        return;
+      }
       var seekSec = typeof this.initialSeekSec === 'number' ? this.initialSeekSec : '-';
       log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> Seek= ${seekSec}s after ${startDelaySec}s`);
       this.schedulePauses();
       this.scheduleMidSeek();
     }, startDelay);
+    try {
+      this._timers.push(__t2);
+    } catch (_) {}
     // Auto Unmute + fallback
     const unmuteDelayExtra = this.config?.unmuteDelayExtra ?? rndInt(30, 90);
     const unmuteDelay = (startDelaySec + unmuteDelayExtra) * 1000;
-    setTimeout(() => {
+    const __t3 = setTimeout(() => {
+      if (!guardQuietOff()) {
+        return;
+      }
+      if (!this.player) {
+        return;
+      }
+      if (!getIframeSafe(this.player)) {
+        return;
+      }
       // Αν δεν υπάρχει user gesture, περιμένουμε
       if (!hasUserGesture) {
         this.pendingUnmute = true;
@@ -348,9 +418,18 @@ export class PlayerController {
         stats.volumeChanges++;
         log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
         // Quick check: if immediately paused after unmute, push play (250ms)
-        setTimeout(() => {
+        this.scheduleTimer(() => {
+          if (!guardQuietOff()) {
+            return;
+          }
+          if (!this.player) {
+            return;
+          }
+          if (!getIframeSafe(this.player)) {
+            return;
+          }
           if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
-            log(`[${ts()}] 🔁 Player ${this.index + 1} Quick retry playVideo after immediate unmute`);
+            log(`[${ts()}]  Player ${this.index + 1} Quick retry playVideo after immediate unmute`);
             if (typeof p.playVideo === 'function') this.guardPlay(p);
           }
         }, 250);
@@ -365,6 +444,9 @@ export class PlayerController {
         log(`[${ts()}] ⚠️ Player ${this.index + 1} Auto Unmute skipped -> not playing (will retry on PLAYING)`);
       }
     }, unmuteDelay);
+    try {
+      this._timers.push(__t3);
+    } catch (_) {}
   }
   onStateChange(e) {
     try {
@@ -540,8 +622,11 @@ export class PlayerController {
       const delay = rndInt(Math.floor(duration * 0.1), Math.floor(duration * 0.8)) * 1000;
       const pauseLen = rndInt(plan.min, plan.max) * 1000;
       const timer = setTimeout(() => {
+        if (!guardQuietOff()) {
+          return;
+        }
         if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING])) {
-          p.pauseVideo();
+          guardedCall(p, 'pauseVideo');
           stats.pauses++;
           this.expectedPauseMs = pauseLen;
           log(`[${ts()}] ⏸️ Player ${this.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
