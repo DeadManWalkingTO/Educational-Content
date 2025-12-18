@@ -1,6 +1,7 @@
 // --- opManager.js ---
 // Έκδοση: v1.0.0
 // Περιγραφή: Operation epochs (opId) και χρονοδιακόπτες ανά op για interruptible Start/Stop
+
 // --- Versions ---
 const VERSION = 'v1.0.0';
 export function getVersion() {

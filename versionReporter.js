@@ -2,6 +2,7 @@
 // Έκδοση: v3.10.4
 // Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
 // Αφαίρεση κυκλικής εξάρτησης με main.js. Η έκδοση του main θα προστεθεί από το ίδιο το main.js.
+
 // --- Versions ---
 const VERSION = 'v3.10.4';
 export function getVersion() {

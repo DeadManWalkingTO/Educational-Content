@@ -4,6 +4,7 @@
 // Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
 // Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
 // Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
+
 // --- Versions ---
 const VERSION = 'v4.8.2';
 export function getVersion() {

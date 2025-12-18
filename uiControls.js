@@ -2,6 +2,7 @@
 // Έκδοση: v3.22.20
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
+
 // --- Versions ---
 const VERSION = 'v3.23.22';
 export function getVersion() {

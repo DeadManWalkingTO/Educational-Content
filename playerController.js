@@ -3,6 +3,7 @@
 // Lifecycle για YouTube players (auto-unmute, pauses, mid-seek, volume/rate, errors), με retry λογική
 // Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 // Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
+
 // --- Versions ---
 const VERSION = 'v6.21.13';
 export function getVersion() {

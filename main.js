@@ -5,6 +5,7 @@
 // Επιλογή Β: binding των UI events από main.js (μετά το DOMContentLoaded) και gate μέσω Start button.
 // Watchdog: καλείται ρητά μετά το youtubeReadyPromise & initPlayersSequentially().
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
+
 // --- Versions ---
 const VERSION = 'v3.45.5';
 export function getVersion() {
