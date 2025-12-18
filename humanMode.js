@@ -1,9 +1,9 @@
 // --- humanMode.js ---
-// Έκδοση: v4.11.8
+// Έκδοση: v4.11.15
 // Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 
 // --- Versions ---
-const VERSION = 'v4.11.13';
+const VERSION = 'v4.11.14';
 export function getVersion() {
   return VERSION;
 }
@@ -13,7 +13,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: humanMode
 
 // Imports
 import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, anyTrue, allTrue, stats } from './globals.js';
-import { isOpActive } from './opManager.js';
+import { isOpActive, isStopActive } from './opManager.js';
 /* DUPLICATE REMOVED guardQuietOff */ let __HM_TIMERS = [];
 
 function hm_schedule(fn, delay) {

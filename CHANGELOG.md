@@ -2,6 +2,11 @@
 
 ---
 
+## 2025-12-18 05:01
+- opManager.js: added closeAllOperations() reset, +isStopActive() / +getCurrentOpType(); version bump.
+- humanMode.js: added humanModeCancelAll() & __HM_TIMERS; guardQuietOff() now checks !isStopActive(); version bump.
+- main.js: Start now closes previous ops, opens new op=start, cancels HM timers, adds fallback kick and microtask guard; version bump.
+
 ## 2025-12-18 04:09
 - watchdog.js: +cancelQuiet(); version bump; Start can cancel quiet window.
 - main.js: +cancelQuiet import; Start button now cancels quiet and restarts app when no player boxes exist; version bump.

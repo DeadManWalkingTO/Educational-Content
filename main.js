@@ -7,7 +7,7 @@
 // Απλοποίηση: ΑΦΑΙΡΕΘΗΚΕ το checkModulePaths() (βασιζόμαστε στον ESM loader).
 
 // --- Versions ---
-const VERSION = 'v3.45.6';
+const VERSION = 'v3.45.7';
 export function getVersion() {
   return VERSION;
 }
@@ -18,9 +18,10 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js $
 // Imports
 import { log, ts, setUserGesture, anyTrue, allTrue, stats } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
-import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
+import { createPlayerContainers, humanModeCancelAll, initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions, renderVersionsPanel, renderVersionsText } from './versionReporter.js';
 import { bindUiEvents, setControlsEnabled } from './uiControls.js';
+import { newOperation, closeAllOperations } from './opManager.js';
 import { startWatchdog, cancelQuiet } from './watchdog.js';
 import { controllers } from './globals.js';
 
@@ -128,6 +129,14 @@ document.addEventListener('DOMContentLoaded', () => {
     btnStart.addEventListener('click', async () => {
       // 1) Καταγραφή/σηματοδότηση gesture (πάντα)
       setUserGesture(); // γράφει και console.log με 💻
+      // Close all previous operations & timers before new Start
+      try { closeAllOperations(); } catch (_) {}
+      const __startOpId = newOperation('start');
+      log(`[${ts()}] 🚀 Start -> op=${__startOpId}`);
+      // Human Mode: clear any pending timers before new Start
+      try { humanModeCancelAll(); } catch (_) {}
+      // Fallback kick: if first player does not start quickly, requestPlay(force) & restart watchdog
+      try { setTimeout(() => { try { requestPlay({ force: true }); } catch (_) {} try { startWatchdog(); } catch (_) {} }, 150); } catch (_) {}
       // 2) Enable των υπολοίπων controls (κάθε φορά)
       try {
         cancelQuiet();
@@ -152,6 +161,15 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!appStarted) {
         appStarted = true;
         await startApp();
+      // Microtask flush & guard: ensure controller/player exists; else fallback init
+      try {
+        await Promise.resolve();
+        const ok = Array.isArray(controllers) && controllers.length > 0 && controllers[0] && controllers[0].player;
+        if (!ok) {
+          const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
+          try { await initPlayersSequentially(mainList, altList); } catch (_) {}
+        }
+      } catch (_) {}
       }
     });
   } else {
