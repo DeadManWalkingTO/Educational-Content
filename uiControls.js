@@ -1,10 +1,9 @@
 // --- uiControls.js ---
-// Έκδοση: v3.22.20
+// Έκδοση: v3.16.15
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
-
 // --- Versions ---
-const VERSION = 'v3.23.23';
+const VERSION = 'v3.16.16';
 export function getVersion() {
   return VERSION;
 }
@@ -15,8 +14,6 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: uiControl
 // Imports
 import { log, ts, rndInt, controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, stats, anyTrue, allTrue } from './globals.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
-import { requestQuiet } from './watchdog.js';
-import { newOperation, isOpActive, pushOpTimer } from './opManager.js';
 
 // Named guards for UI Controls
 function hasEl(id) {
@@ -45,12 +42,65 @@ function canClipboardNative() {
 
 /** ΝΕΟ: Μαζική ενεργοποίηση/απενεργοποίηση controls (πλην Start). */
 export function setControlsEnabled(enabled) {
-  const ids = ['btnStop', 'btnToggleTheme', 'btnCopyLogs', 'btnClearLogs', 'btnReloadList'];
+  const ids = ['btnStopAll', 'btnRestartAll', 'btnToggleTheme', 'btnCopyLogs', 'btnClearLogs', 'btnReloadList'];
   ids.forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.disabled = !enabled;
   });
   log(`[${ts()}] ✅ Controls ${enabled ? 'enabled' : 'disabled'}`);
+}
+
+/** ⏹ Σταματά όλους τους players σε "sequential" mode με τυχαίες καθυστερήσεις. */
+export function stopAll() {
+  setIsStopping(true);
+  clearStopTimers();
+  const shuffled = [...controllers].sort(() => Math.random() - 0.5);
+  let delay = 0;
+  shuffled.forEach((c, i) => {
+    const randomDelay = rndInt(30000, 60000);
+    delay += randomDelay;
+    const timer = setTimeout(() => {
+      if (c.player) {
+        c.player.stopVideo();
+        log(`[${ts()}] ⏹ Player ${c.index + 1} Stopped -> Step ${i + 1}`);
+      } else {
+        stats.errors++;
+        log(`[${ts()}] ❌ Player ${c.index + 1} Stop Skipped -> Not Initialized`);
+      }
+    }, delay);
+    pushStopTimer(timer);
+  });
+  log(`[${ts()}] ⏹ Stop All -> sequential mode started, estimated duration ~${Math.round(delay / 1000)}s`);
+}
+
+/** 🔁 Επανεκκίνηση όλων των players φορτώνοντας νέο video. */
+export function restartAll() {
+  const mainList = getMainList();
+  const altList = getAltList();
+  controllers.forEach((c) => {
+    if (c.player) {
+      c.loadNextVideo(c.player);
+    } else {
+      const useMain = Math.random() < MAIN_PROBABILITY;
+      const hasMain = Array.isArray(mainList) ? mainList.length > 0 : false;
+      const hasAlt = Array.isArray(altList) ? altList.length > 0 : false;
+      let source;
+      if (allTrue([useMain, hasMain])) source = mainList;
+      else if (allTrue([!useMain, hasAlt])) source = altList;
+      else if (hasMain) source = mainList;
+      else source = altList;
+      // Guard
+      if ((source?.length ?? 0) === 0) {
+        stats.errors++;
+        log(`[${ts()}] ❌ Player ${c.index + 1} Restart Skipped -> No Videos Available`);
+        return;
+      }
+      const newId = source[Math.floor(Math.random() * source.length)];
+      c.init(newId);
+      log(`[${ts()}] 🔁 Player ${c.index + 1} Restart (init) -> ${newId} (Source:${useMain ? 'main' : 'alt'})`);
+    }
+  });
+  log(`[${ts()}] 🔁 Restart All -> Completed`);
 }
 
 /** 🌗 Εναλλαγή Dark/Light theme. */
@@ -144,7 +194,8 @@ export function bindUiEvents() {
   } catch (_) {}
   const byId = (id) => document.getElementById(id);
   const m = new Map([
-    ['btnStop', stopAllVisualJitter],
+    ['btnStopAll', stopAll],
+    ['btnRestartAll', restartAll],
     ['btnToggleTheme', toggleTheme],
     ['btnCopyLogs', copyLogs],
     ['btnClearLogs', clearLogs],
@@ -170,122 +221,6 @@ export async function reloadList() {
   } catch (err) {
     stats.errors++;
     log(`[${ts()}] ❌ Reload Failed -> ${err}`);
-  }
-}
-
-/** ⏹ Stop All με reverse order, fade-out 150ms, μεγάλο οπτικό jitter (60–180s), countdown logs και quiet window στο Watchdog. */
-export function stopAllVisualJitter() {
-  const opId = newOperation('stop');
-  try {
-    const quietMs = rndInt(60000, 180000);
-    try {
-      requestQuiet(quietMs);
-    } catch (_) {}
-    log(`[${ts()}] ⏹ Stop -> op=${opId} (quiet ${Math.floor(quietMs / 1000)}s)`);
-    const total = controllers.length;
-    log(`[${ts()}] ⏱️ Scheduled ${total} visual removals (1–3min each)`);
-    for (let idx = controllers.length - 1; idx >= 0; idx -= 1) {
-      const c = controllers[idx];
-      const delay = rndInt(60000, 180000);
-      const steps = Math.floor(delay / 60000);
-      for (let k = 1; k <= steps; k += 1) {
-        const tC = setTimeout(() => {
-          if (!isOpActive(opId)) {
-            return;
-          }
-          const remain = (steps - k) * 60;
-          log(`[${ts()}] ⏱️ Player ${idx + 1} will close in ~${remain}s (op=${opId})`);
-        }, k * 60000);
-        pushOpTimer(opId, tC);
-      }
-      const t = setTimeout(() => {
-        if (!isOpActive(opId)) {
-          return;
-        }
-        try {
-          const boxId = 'player' + (idx + 1);
-          const box = document.getElementById(boxId);
-          if (box) {
-            box.classList.add('fade-out');
-            const tFade = setTimeout(() => {
-              try {
-                box.innerHTML = '';
-              } catch (_) {}
-            }, 150);
-            pushOpTimer(opId, tFade);
-          }
-        } catch (_) {}
-        try {
-          if (c) {
-            try {
-              if (typeof c.dispose === 'function') {
-                c.dispose();
-              } else {
-                if (c.player) {
-                  if (typeof c.player.destroy === 'function') {
-                    c.player.destroy();
-                  }
-                  c.player = null;
-                }
-              }
-            } catch (_) {}
-          }
-        } catch (_) {}
-        log(`[${ts()}] 🗑️ Player ${idx + 1} -> removed after ${Math.floor(delay / 1000)}s (op=${opId})`);
-        if (idx === 0) {
-          log(`[${ts()}] 🗑️ Όλοι οι players αφαιρέθηκαν`);
-        }
-      }, delay);
-      pushOpTimer(opId, t);
-    }
-  } catch (e) {
-    stats.errors += 1;
-    log(`[${ts()}] ❌ Stop All Visual Jitter failed -> ${e}`);
-  }
-}
-
-/** 🚀 Start με interruptible sequence (μικρό jitter 80–180ms). */
-export function startAllInterruptible() {
-  const opId = newOperation('start');
-  log(`[${ts()}] 🚀 Start -> op=${opId}`);
-  try {
-    const cont = document.getElementById('playersContainer');
-    if (cont) {
-      const boxes = cont.querySelectorAll('.player-box').length;
-      if (!boxes) {
-        for (let i = 0; i < controllers.length; i += 1) {
-          const div = document.createElement('div');
-          div.id = 'player' + (i + 1);
-          div.className = 'player-box';
-          cont.appendChild(div);
-        }
-      }
-    }
-    for (let i = 0; i < controllers.length; i += 1) {
-      const t = setTimeout(() => {
-        if (!isOpActive(opId)) {
-          return;
-        }
-        const c = controllers[i];
-        try {
-          if (c) {
-            if (c.player) {
-              c.player.playVideo();
-              log(`[${ts()}] ▶ Player ${i + 1} -> resume (op=${opId})`);
-            } else {
-              if (c.init) {
-                c.init();
-              }
-              log(`[${ts()}] ▶ Player ${i + 1} -> init (op=${opId})`);
-            }
-          }
-        } catch (_) {}
-      }, rndInt(80, 180));
-      pushOpTimer(opId, t);
-    }
-  } catch (e) {
-    stats.errors += 1;
-    log(`[${ts()}] ❌ Start Interruptible failed -> ${e}`);
   }
 }
 
