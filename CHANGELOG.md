@@ -1,6 +1,10 @@
-# CHANGELOG.md - v172
+# CHANGELOG.md - v173
 
 ---
+
+## 2025-12-18 03:17
+
+- uiControls.js: v3.22.20 → v3.23.20; Set quiet window to 60–180s (rndInt(60000, 180000)) in stopAllVisualJitter(); kept reverse order, fade-out 150ms, countdown logs, opId guards.
 
 ## 2025-12-18 02:27
 

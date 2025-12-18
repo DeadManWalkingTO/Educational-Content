@@ -3,7 +3,7 @@
 // Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 // με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
 // --- Versions ---
-const VERSION = 'v3.22.20';
+const VERSION = 'v3.23.20';
 export function getVersion() {
   return VERSION;
 }
@@ -179,7 +179,7 @@ console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: uiControls
 export function stopAllVisualJitter() {
   const opId = newOperation('stop');
   try {
-    const quietMs = rndInt(60000, 120000);
+    const quietMs = rndInt(60000, 180000);
     try {
       requestQuiet(quietMs);
     } catch (_) {}
