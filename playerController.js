@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v6.21.38';
+const VERSION = 'v6.21.40';
 export function getVersion() {
   return VERSION;
 }
@@ -56,8 +56,6 @@ export function stateToName(state) {
     return 'unknown:?';
   }
 }
-
-/* scheduleStart removed by patch */
 
 /* --- Safe function invocation helpers --- */
 
@@ -495,14 +493,16 @@ export class PlayerController {
     const p = e.target;
     this.startTime = Date.now();
     p.mute();
-    const startDelaySec = (function(self) {
-  try {
-    if (self?.config?.startDelay !== undefined) {
-      if (typeof self.config.startDelay === 'number') { return self.config.startDelay; }
-    }
-  } catch (_) {}
-  return (self?.config?.startDelay ?? rndInt(5, 180));
-})(this);
+    const startDelaySec = (function (self) {
+      try {
+        if (self?.config?.startDelay !== undefined) {
+          if (typeof self.config.startDelay === 'number') {
+            return self.config.startDelay;
+          }
+        }
+      } catch (_) {}
+      return self?.config?.startDelay ?? rndInt(5, 180);
+    })(this);
 
     const startDelay = startDelaySec * 1000;
     log(`[${ts()}] ⏳ Player ${this.index + 1} Scheduled -> start after ${startDelaySec}s`);
@@ -988,10 +988,18 @@ try {
   log(`[${ts()}] Player ${this.index + 1} error ${_}`);
 }
 
-// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: playerController.js ${VERSION} -> Ολοκληρώθηκε`);
-
-// --- End Of File ---
+// --- PATCH: Notify humanMode when a player starts ---
+function __notifyStartFromController(playerIdx) {
+  import('./humanMode.js').then(function (hm) {
+    const nowMs = Date.now();
+    if (typeof hm === 'object') {
+      const canCall = typeof hm.notifyPlayerStarted === 'function';
+      if (canCall) {
+        hm.notifyPlayerStarted(playerIdx, nowMs);
+      }
+    }
+  });
+}
 
 // --- PATCH: Single scheduling authority ---
 const __controllerState = {};
@@ -1030,15 +1038,21 @@ function scheduleStartTimer(playerIdx, atMs) {
   if (delay < 0) {
     delay = 0;
   }
-  setTimeout(function () { startPlayback(playerIdx); }, delay);
+  setTimeout(function () {
+    startPlayback(playerIdx);
+  }, delay);
 }
 
 function startPlayback(playerIdx) {
+  __notifyStartFromController(playerIdx);
   try {
     if (typeof console !== 'undefined') {
       console.log('[playerController] Start playback for', playerIdx);
     }
   } catch (e) {}
 }
+
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: playerController.js ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

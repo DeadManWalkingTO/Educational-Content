@@ -1,5 +1,5 @@
 // --- main.js ---
-// Έκδοση: v3.33.8
+// Έκδοση: v3.33.10
 /*
 Περιγραφή: Εφαρμογή διορθώσεων για lazy-instantiation, single scheduling και init guard.
 Περιγραφή: Προσθήκη ουράς αρχικοποίησης, περιορισμός ταυτόχρονων init,
@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v3.33.8';
+const VERSION = 'v3.33.10';
 export function getVersion() {
   return VERSION;
 }
