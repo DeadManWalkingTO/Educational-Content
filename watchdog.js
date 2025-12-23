@@ -1,16 +1,16 @@
 // --- watchdog.js ---
 // Έκδοση: v2.15.9
 /*
-// Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
+Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
 Συμμόρφωση με κανόνα State Machine με Guard Steps.
-Συμμόρφωση header με πρότυπο (χωρίς διαγραφή πληροφοριών).
+Συμμόρφωση header με πρότυπο.
 */
 
 // --- Versions ---
 const VERSION = 'v2.15.9';
 export function getVersion() {
   return VERSION;
-};
+}
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: watchdog.js ${VERSION} -> Ξεκίνησε`);
 

@@ -2,15 +2,15 @@
 // Έκδοση: v3.33.5
 /*
 Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
-Προηγούμενη έκδοση: v3.33.3
-Συμμόρφωση header με πρότυπο (χωρίς διαγραφή πληροφοριών).
+Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από globals.js.
+Συμμόρφωση header με πρότυπο.
 */
 
 // --- Versions ---
 const VERSION = 'v3.33.5';
 export function getVersion() {
   return VERSION;
-};
+}
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js ${VERSION} -> Ξεκίνησε`);

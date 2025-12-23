@@ -1,16 +1,16 @@
 // --- uiControls.js ---
-// Έκδοση: v3.16.19
+// Έκδοση: v3.16.20
 /*
 Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
-Συμμόρφωση header με πρότυπο (χωρίς διαγραφή πληροφοριών).
+Συμμόρφωση header με πρότυπο.
 */
 
 // --- Versions ---
-const VERSION = 'v3.16.19';
+const VERSION = 'v3.16.20';
 export function getVersion() {
   return VERSION;
-};
+}
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: uiControls.js ${VERSION} -> Ξεκίνησε`);
@@ -55,7 +55,7 @@ export function setControlsEnabled(enabled) {
 }
 
 /** ⏹ Σταματά όλους τους players σε "sequential" mode με τυχαίες καθυστερήσεις. */
-export function stopAll() {
+function stopAll() {
   setIsStopping(true);
   clearStopTimers();
   const shuffled = [...controllers].sort(() => Math.random() - 0.5);
@@ -78,7 +78,7 @@ export function stopAll() {
 }
 
 /** 🔁 Επανεκκίνηση όλων των players φορτώνοντας νέο video. */
-export function restartAll() {
+function restartAll() {
   const mainList = getMainList();
   const altList = getAltList();
   controllers.forEach((c) => {
@@ -108,14 +108,14 @@ export function restartAll() {
 }
 
 /** 🌗 Εναλλαγή Dark/Light theme. */
-export function toggleTheme() {
+function toggleTheme() {
   document.body.classList.toggle('light');
   const mode = document.body.classList.contains('light') ? 'Light' : 'Dark';
   log(`[${ts()}] 🌙 Theme Toggled -> ${mode} Mode`);
 }
 
 /** 🧹 Καθαρισμός activity panel. */
-export function clearLogs() {
+function clearLogs() {
   const panel = document.getElementById('activityPanel');
   if (allTrue([panel, panel.children.length > 0])) {
     panel.innerHTML = '';

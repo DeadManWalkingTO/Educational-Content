@@ -1,39 +1,26 @@
 // --- consoleFilter.js ---
-// Έκδοση: v2.2.4
+// Έκδοση: v2.2.6
 /*
-// Console Filter: αυτόνομο module για state machine, tagging και wrapping των console.* χωρίς χρήση OR και AND.
-Προηγούμενη έκδοση: v2.2.3
-Συμμόρφωση header με πρότυπο (χωρίς διαγραφή πληροφοριών).
+Console Filter: αυτόνομο module για state machine, tagging και wrapping των console.* 
+Χωρίς χρήση OR και AND.
+Συμμόρφωση header με πρότυπο.
 */
 
 // --- Versions ---
-const VERSION = 'v2.2.4';
+const VERSION = 'v2.2.6';
 export function getVersion() {
   return VERSION;
-};
+}
+
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: consoleFilter.js ${VERSION} -> Ξεκίνησε`);
+
+// Imports
+import { anyTrue, allTrue } from './globals.js';
 
 let _installed = false;
 let _orig = { error: null, warn: null, info: null, log: null };
 let _st = { enabled: true, level: 'info', patterns: [], sources: [], tag: '[YouTubeAPI][non-critical]' };
-
-function anyTrue(flags) {
-  for (let i = 0; i < flags.length; i++) {
-    if (flags[i]) {
-      return true;
-    }
-  }
-  return false;
-}
-function allTrue(flags) {
-  for (let i = 0; i < flags.length; i++) {
-    if (!flags[i]) {
-      return false;
-    }
-  }
-  return true;
-}
 
 function safeToString(x) {
   try {

@@ -1,16 +1,16 @@
 // --- humanMode.js ---
-// Έκδοση: v4.11.10
+// Έκδοση: v4.11.11
 /*
 Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
-Προηγούμενη έκδοση: v4.11.8
-Συμμόρφωση header με πρότυπο (χωρίς διαγραφή πληροφοριών).
+Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από globals.js.
+Συμμόρφωση header με πρότυπο.
 */
 
 // --- Versions ---
-const VERSION = 'v4.11.10';
+const VERSION = 'v4.11.11';
 export function getVersion() {
   return VERSION;
-};
+}
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: humanMode.js ${VERSION} -> Ξεκίνησε`);
@@ -19,12 +19,10 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: humanMode
 import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, anyTrue, allTrue, stats } from './globals.js';
 import { scheduler } from './globals.js';
 import { PlayerController } from './playerController.js';
+import { hasArrayWithItems } from './globals.js';
 
 // Guard helpers for State Machine (Rule 12)
 // Named guards for Human Mode
-function hasArrayWithItems(arr) {
-  return allTrue([Array.isArray(arr), arr.length > 0]);
-}
 
 function hasCtrlAndPlayer(ctrl) {
   if (!ctrl) {

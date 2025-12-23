@@ -3,14 +3,14 @@
 /*
 Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
 Αφαίρεση κυκλικής εξάρτησης με main.js. Η έκδοση του main θα προστεθεί από το ίδιο το main.js.
-Συμμόρφωση header με πρότυπο (χωρίς διαγραφή πληροφοριών).
+Συμμόρφωση header με πρότυπο.
 */
 
 // --- Versions ---
 const VERSION = 'v3.9.5';
 export function getVersion() {
   return VERSION;
-};
+}
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: versionReporter.js ${VERSION} -> Ξεκίνησε`);

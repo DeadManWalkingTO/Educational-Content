@@ -1,13 +1,23 @@
-# CHANGELOG.md - v174
+# CHANGELOG.md - v175
 
 ---
 
+2025-12-23
+
+- uiControls.js: v3.16.19 → v3.16.20 — Refactor exports: internalized stopAll/restartAll/toggleTheme/clearLogs; public only bindUiEvents/setControlsEnabled + getVersion alias.
+- globals.js: v4.8.4 → v4.8.5 — Unification: added hasArrayWithItems; central helpers anyTrue/allTrue retained.
+- consoleFilter.js: v2.2.4 → v2.2.6 — Unification: removed local anyTrue/allTrue; importing from globals.
+- humanMode.js: v4.11.10 → v4.11.11 — Unification: removed local hasArrayWithItems; importing from globals.
+- lists.js: v4.9.5 → v4.9.6 — Unification: removed local hasArrayWithItems; importing from globals.
+
 ## 2025-12-23
+
 - **Αρχείο**: versionReporter.js — v3.9.4 → v3.9.5
 - **Summary**: Αντικατάσταση `if (e && e.name === 'HTML')` με φρουρούς (early decisions) χωρίς χρήση `&&`. Προστέθηκαν επεξηγηματικά σχόλια.
 - **Notes/Tests**: Έλεγχος κανόνων ✔ (κατάργηση `&&`), διατήρηση συμπεριφοράς ταξινόμησης, ενημέρωση header & const VERSION.
 
 ## 2025-12-23
+
 - **Αρχείο**: globals.js — v4.8.2 → v4.8.4
 - **Αρχείο**: humanMode.js — v4.11.8 → v4.11.10
 - **Αρχείο**: lists.js — v4.9.3 → v4.9.5
@@ -20,23 +30,27 @@
 - **Notes/Tests**: Έλεγχος header ✔, διατήρηση `// --- End Of File ---`.
 
 ## 2025-12-23
+
 - **Αρχείο**: consoleFilter.js — v2.2.3 → v2.2.4
 - **Summary**: Προσθήκη πλήρους header σύμφωνα με το πρότυπο (γραμμές 1–14), χωρίς διαγραφή πληροφοριών. Μεταφορά αρχικής περιγραφής και αναφορά προηγούμενης έκδοσης.
 - **Notes/Tests**: Έλεγχος header ✔· Ενημερωμένο const VERSION / getVersion(), διατήρηση `// --- End Of File ---`.
 
 ## 2025-12-18
+
 - **Rebase**
 - **Αρχείο**: CHANGELOG.md — v169 → v170
 - **Summary**: Αναδιάρθρωση σύμφωνα με τις προδιαγραφές (πρώτες γραμμές, ενιαία μορφή entries, αποφυγή διπλών μπλοκ, ταξινόμηση φθίνουσα).
 - **Notes/Tests**: Διατήρηση όλων των πληροφοριών, συγχώνευση επαναλήψεων, χωρίς αφαίρεση ιστορικού.
 
 ## 2025-12-17
+
 - **Αρχείο**: index.html — v6.1.0 → v6.1.1
 - **Summary**: Removed Play All button; bumped html-version.
 - **Αρχείο**: uiControls.js
 - **Summary**: patch bumped; Removed playAll() export & binding; updated setControlsEnabled ids.
 
 ## 2025-12-16
+
 - **Αρχείο**: playerController.js
 - **Summary**: v6.21.8 → v6.21.9
 - Αφαιρέθηκε πλήρως η λογική `MAX_CONCURRENT_PLAYING` (gates, retries, counters).
@@ -57,6 +71,7 @@
 - Stats panel ενημερώνεται χωρίς `AvgWatch`.
 
 ## 2025-12-15
+
 - **Αρχείο**: playerController.js — v7.9.7 → v7.9.8
 - **Summary**: Initialize initialSeekSec from HumanMode config; Ready log now prints integer seconds;
 - **Αρχείο**: humanMode.js — v5.10.1 → v5.10.2
@@ -95,6 +110,7 @@
 - **Summary**: Προσθήκη Autonomous Scheduler API (initWatchdog, schedule, cancel, stopAll, getStats, onError) και optionals scheduleInterval/setPolicy· καμία αλλαγή στη startWatchdog ροή.
 
 ## 2025-12-13
+
 - **Αρχείο**: globals.js
 - **Summary**: 2.16.0 → v2.17.0 — Αφαίρεση legacy Console Filter (state machine & wrappers), διατήρηση import & early install από consoleFilter.js.
 - **Αρχείο**: consoleFilter.js
@@ -216,6 +232,7 @@
 - Προσθήκη `guardHasAnyList` και τύλιγμα `loadNextVideo(...)` με guard.
 
 ## 2025-12-12
+
 - **Αρχείο**: watchdog.js
 - **Summary**: v2.6.25 → v2.6.26; αφαίρεση `||`/`&&` (fallbacks, state OR/AND, guards), διατήρηση semicolons/EOL LF.
 - **Αρχείο**: humanMode.js
@@ -351,6 +368,7 @@
 - **Summary**: Αφαίρεση modulepreload και ?v= cache‑busting (σύμφωνα με οδηγία).
 
 ## 2025-12-11
+
 - **Αρχείο**: globals.js v2.8.5
 - **Summary**: Εναρμόνιση Guard Steps (Rule 12); προσθήκη helpers/named guards και guardification σε if(...).
 - **Αρχείο**: uiControls.js v2.4.10
@@ -388,6 +406,7 @@
 - Ενημερώθηκαν τα sections **Baseline/Versions** και **Τρέχουσες Εκδόσεις** να αντικατοπτρίζουν τη νέα έκδοση των Globals.
 
 ## 2025-12-10
+
 - **globals.js v2.8.0**
 - Console Filter v2, safe postMessage handler.
 - **main.js v1.6.10**
@@ -410,6 +429,7 @@
 - **Summary**: Ενεργοποιήθηκε `host: getYouTubeEmbedHost()` στον constructor του YT.Player και διατηρήθηκε `playerVars.origin: getOrigin()` (ενιαία πηγή).
 
 ## 2025-12-09
+
 - **Αρχείο**: playerController.js v0.0.1
 - **Summary**: Προστέθηκε `host: getYouTubeEmbedHost()` και εξασφαλίστηκε `playerVars.origin: getOrigin()`.
 - **Αρχείο**: globals.js
@@ -454,23 +474,31 @@
 - **Summary**: 10–15s after recoveries; otherwise 25–35s.
 
 ## 2025-12-07
+
 ### Προσθήκες / Βελτιώσεις
+
 - **Αρχείο**: humanMode.js v4.6.11
 - **Summary**: Προσθήκη micro-stagger (400–600ms) στη δημιουργία iframes για μείωση race conditions και postMessage warnings.
 - **Αρχείο**: playerController.js v6.4.11
 - **Summary**: Ενοποίηση origin, προσθήκη `enablejsapi:1` και `playsinline:1` στα playerVars, ασφαλής έλεγχος εγκυρότητας origin, βελτιωμένο logging.
 - **Αρχείο**: main.js v1.6.9
 - **Summary**: Επιβεβαίωση gate στο YouTube API Ready πριν την αρχικοποίηση των players.
+
 ### Σημειώσεις
+
 - Τα παραπάνω αρχεία αποτελούν το baseline για τις επόμενες αλλαγές.
 - **Αρχείο**: Επόμενα βήματα
 - **Summary**: Επέκταση στατιστικών (AvgWatch, watchdog counters), εξαγωγή JSON αναφορών.
+
 ### HTML v6.0.11
+
 - **Αρχείο**: UI
 - **Summary**: Το κουμπί **💻 Start** μεταφέρθηκε μπροστά από τα υπόλοιπα κουμπιά.
 - **Αρχείο**: UX
 - **Summary**: Το μήνυμα _«Πατήστε “Start” για εκκίνηση — απαιτείται για την πολιτική Autoplay των browsers.»_ έγινε **tooltip** (title/aria-label) στο ίδιο το κουμπί.
+
 ### Συμμόρφωση μορφολογίας JS (+ bump εκδόσεων)
+
 - globals.js → v2.2.3
 - humanMode.js → v4.6.10
 - lists.js → v3.3.9
@@ -479,41 +507,55 @@
 - uiControls.js → v2.4.8
 - versionReporter.js → v2.2.2
 - watchdog.js → v2.4.5
+
 ### Μικρή βελτίωση Auto Unmute
+
 - **Αρχείο**: playerController.js
 - **Summary**: Προστέθηκε γρήγορος έλεγχος (250 ms) μετά το unmute στο PLAYING, ώστε αν παραμένει σε PAUSED να γίνει άμεσο `playVideo()`.
 
 ## 2025-12-06
+
 ### Lists — Update internal fallback list (2025-12-06)
+
 - **Αρχείο**: lists.js v3.3.7 → v3.3.8
 - **Summary**: Αντικατάσταση `internalList` με νέα 15 YouTube IDs (παρεχόμενα από τον χρήστη). Διατήρηση parser (split('
 - '), CR handling).
 - Notes: Smoke OK. Συμμόρφωση με κανόνα “No real newline σε string literals”.
+
 ### Lists — Fix internal fallback IDs & consistency (2025-12-06)
+
 - **Αρχείο**: lists.js v3.3.6 → v3.3.7
 - **Summary**: Καθαρισμός internal fallback IDs (αφαίρεση stray backslashes από export). Καμία αλλαγή ροής.
+
 ### UI Controls — Fix real newline literals in clipboard strings (2025-12-06)
+
 - **Αρχείο**: uiControls.js v2.4.6 → v2.4.7
 - **Summary**: Αντικατάσταση πιθανών πραγματικών newlines με σταθερά `NL='
-- '` και χρήση escaped `
-- ` σε `copyLogs()`. Συμμόρφωση με κανόνα “No real newline σε string literals”.
+- '`και χρήση escaped`
+- `σε`copyLogs()`. Συμμόρφωση με κανόνα “No real newline σε string literals”.
 - Notes: Χωρίς αλλαγή ροής. Smoke OK.
+
 ### Lists Parsing — Fix real newline literal in parser (2025-12-06)
+
 - **Αρχείο**: lists.js v3.3.5 → v3.3.6
 - **Summary**: Διόρθωση `parseList()` ώστε να χρησιμοποιεί `split('
-- ')` (escaped) και αφαίρεση μόνο τελικού `'
+- ')`(escaped) και αφαίρεση μόνο τελικού`'
 - '` ανά γραμμή. Καθαρισμός backslashes σε internalList IDs.
 - Notes: Συμμόρφωση με κανόνα “No real newline σε string literals”. Smoke OK.
+
 ### Policy Update — Newline Splits rule (2025-12-05)
+
 - **Αρχείο**: CONTEXT.md
 - **Summary**: Ενημέρωση Κανόνα για Newline Splits: Χρησιμοποιούμε **πάντα** split με `'
-- '` και αφαιρούμε **μόνο** τελικό `'
-- '` ανά γραμμή. **Απαγορεύεται** η χρήση regex literal `/?/` και η χρήση `trim()` (global/per-line) σε parsers λιστών.
+- '`και αφαιρούμε **μόνο** τελικό`'
+- '`ανά γραμμή. **Απαγορεύεται** η χρήση regex literal`/?/`και η χρήση`trim()` (global/per-line) σε parsers λιστών.
+
 ### Lists Parsing — Escaped
+
 - split (2025-12-05)
 - **Αρχείο**: lists.js v3.3.4 → v3.3.5
 - **Summary**: Αντικατάσταση regex literal με `split('
-- ')` + αφαίρεση μόνο τελικού `'
+- ')`+ αφαίρεση μόνο τελικού`'
 - '`. Φιλτράρονται μόνο εντελώς κενές γραμμές. Αποφεύγονται ζητήματα μεταφοράς με `/`, `\`, `()`.
 - Notes: Καμία αλλαγή στη ροή. Smoke OK.
 - **Αρχείο**: Notes

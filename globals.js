@@ -1,5 +1,5 @@
 // --- globals.js ---
-// Έκδοση: v4.8.4
+// Έκδοση: v4.8.5
 /*
 Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
@@ -7,10 +7,10 @@
 */
 
 // --- Versions ---
-const VERSION = 'v4.8.4';
+const VERSION = 'v4.8.5';
 export function getVersion() {
   return VERSION;
-};
+}
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: globals.js ${VERSION} -> Ξεκίνησε`);
@@ -268,4 +268,14 @@ export const scheduler = (function () {
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: globals.js ${VERSION} -> Ολοκληρώθηκε`);
 
+// Helper: hasArrayWithItems (unified here)
+export function hasArrayWithItems(arr) {
+  if (!Array.isArray(arr)) {
+    return false;
+  }
+  if (arr.length > 0) {
+    return true;
+  }
+  return false;
+}
 // --- End Of File ---

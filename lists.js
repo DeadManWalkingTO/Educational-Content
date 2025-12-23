@@ -1,27 +1,26 @@
 // --- lists.js ---
-// Έκδοση: v4.9.5
+// Έκδοση: v4.9.6
 /*
 Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
 Ενημερωμένο: Διόρθωση URL + καθαρισμός escaped tokens
-Συμμόρφωση header με πρότυπο (χωρίς διαγραφή πληροφοριών).
+Συμμόρφωση header με πρότυπο.
 */
 
 // --- Versions ---
-const VERSION = 'v4.9.5';
+const VERSION = 'v4.9.6';
 export function getVersion() {
   return VERSION;
-};
+}
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: lists.js ${VERSION} -> Ξεκίνησε`);
 // Imports
 import { log, ts, anyTrue, allTrue, stats } from './globals.js';
+import { hasArrayWithItems } from './globals.js';
 
 // Guard helpers for State Machine (Rule 12)
 // Named guards for Lists
-function hasArrayWithItems(arr) {
-  return allTrue([Array.isArray(arr), arr.length > 0]);
-}
+
 function isValidId(id) {
   if (typeof id !== 'string') return false;
   const s = id.trim();

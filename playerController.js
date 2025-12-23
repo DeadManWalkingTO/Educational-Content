@@ -3,14 +3,14 @@
 /*
 Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
-Συμμόρφωση header με πρότυπο (χωρίς διαγραφή πληροφοριών).
+Συμμόρφωση header με πρότυπο.
 */
 
 // --- Versions ---
 const VERSION = 'v6.21.11';
 export function getVersion() {
   return VERSION;
-};
+}
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: playerController.js ${VERSION} -> Ξεκίνησε`);
