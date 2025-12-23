@@ -1,5 +1,5 @@
 // --- globals.js ---
-// Έκδοση: v4.8.8
+// Έκδοση: v4.8.9
 /*
 Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v4.8.8';
+const VERSION = 'v4.8.9';
 export function getVersion() {
   return VERSION;
 }
@@ -99,6 +99,10 @@ export const WATCHDOG_BUFFER_MAX = 75000; // μέγιστη ανοχή BUFFERING
 export const WATCHDOG_PAUSE_RECHECK_MS = 5000; // επανέλεγχος μετά από retry σε PAUSED
 
 /* Πίνακας controllers */
+
+// --- First player immediate start clamp (runtime safeguard) ---
+let FIRST_PLAYER_START_FORCED = false;
+
 export const controllers = []; // Κενός πίνακας controllers, θα γεμίσει από main.js
 
 /** --- Σταθερές εφαρμογής - End --- */
@@ -267,6 +271,17 @@ export const scheduler = (function () {
   }
 
   function add(index, label, fn, delayMs) {
+    try {
+      if (!FIRST_PLAYER_START_FORCED) {
+        var isFirst = false;
+        if (typeof index === 'number') { if (index === 0) { isFirst = true; } }
+        if (isFirst) {
+          FIRST_PLAYER_START_FORCED = true;
+          if (typeof delayMs === 'number') { delayMs = 0; }
+        }
+      }
+    } catch (_) {}
+
     var group = groups.get(index);
     if (!group) {
       group = new Set();

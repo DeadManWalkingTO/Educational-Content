@@ -1,5 +1,26 @@
-# CHANGELOG.md - v202
+# CHANGELOG.md - v206
 ---
+
+
+2025-12-23
+- globals.js: Προστέθηκε runtime safeguard στο scheduler.add ώστε η πρώτη προγραμματισμένη ενέργεια του Player #1 να έχει delay=0. Έγινε patch bump.
+
+
+
+2025-12-23
+- humanMode.js: Προστέθηκε runtime override του onReady για Player #1 ώστε να επιβληθεί startDelay=0 προτού κληθεί το αρχικό onReady.
+
+
+
+2025-12-23
+- humanMode.js: Πέρασμα startDelay=0 στον Player #1 μέσα από το constructor config (όχι μετά), για να μη εμφανίζεται εκ νέου μεγάλο start delay στο onReady.
+
+
+
+2025-12-23
+- watchdog.js: Προστέθηκαν null-safe guards (safeGetState, early return) και αυξήθηκε η έκδοση (patch).
+- humanMode.js: Επιβολή startDelay=0 στον Player #1 και αύξηση έκδοσης (patch).
+
 
 2025-12-23
 - playerController.js: Clean re-extraction & combined pass applied (helpers, SRP applyPlan, schedule wrappers, && removal).

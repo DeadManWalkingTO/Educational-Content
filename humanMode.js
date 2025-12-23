@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-// Έκδοση: v4.11.15
+// Έκδοση: v4.11.18
 /*
 Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από globals.js.
@@ -7,7 +7,7 @@ Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από glob
 */
 
 // --- Versions ---
-const VERSION = 'v4.11.15';
+const VERSION = 'v4.11.18';
 export function getVersion() {
   return VERSION;
 }
@@ -209,6 +209,25 @@ export async function initPlayersSequentially(mainList, altList) {
     const session = createSessionPlan();
     if (!controller) {
       controller = new PlayerController(i, mainList, altList, config);
+      try {
+        if (i === 0) {
+          const __origOnReady = controllers[i].onReady;
+          controllers[i].onReady = function(e) {
+            try { if (!this.config) this.config = {}; this.config.startDelay = 0; } catch (_) {}
+            try { return __origOnReady.call(this, e); } catch (err) { try { log(`[${ts()}] ❌ Player 1 onReady override error ${err && err.message ? err.message : err}`); } catch (_) {} }
+          };
+        }
+      } catch (_) {}
+
+      try { if (i === 0) { if (!controllers[i].config) controllers[i].config = {}; controllers[i].config.startDelay = 0; } } catch (_) {}
+      try {
+        if (i === 0) {
+          try { if (!controllers[i]) {} } catch (_) {}
+          if (!controllers[i].config) controllers[i].config = {};
+          controllers[i].config.startDelay = 0;
+        }
+      } catch (_) {}
+
       controllers.push(controller);
       try {
         if (config) {
