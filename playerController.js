@@ -1,5 +1,5 @@
 // --- playerController.js ---
-// Έκδοση: v6.21.11
+// Έκδοση: v6.21.14
 /*
 Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v6.21.11';
+const VERSION = 'v6.21.14';
 export function getVersion() {
   return VERSION;
 }
@@ -31,19 +31,9 @@ import {
   ts,
   anyTrue,
   allTrue,
+  hasArrayWithItems
 } from './globals.js';
 import { scheduler } from './globals.js';
-
-// Ατομικός έλεγχος «είναι μη κενός πίνακας»
-function isNonEmptyArray(x) {
-  if (!Array.isArray(x)) {
-    return false;
-  }
-  if (x.length <= 0) {
-    return false;
-  }
-  return true;
-}
 
 // Named guards for playerController
 function hasPlayer(p) {
@@ -53,24 +43,11 @@ function hasPlayer(p) {
   return typeof p.playVideo === 'function';
 }
 function guardHasAnyList(ctrl) {
-  if (!ctrl) {
-    return false;
-  }
-  // Check mainList
-  if (Array.isArray(ctrl.mainList)) {
-    if (ctrl.mainList.length > 0) {
-      return true;
-    }
-  }
-  // Check altList
-  if (Array.isArray(ctrl.altList)) {
-    if (ctrl.altList.length > 0) {
-      return true;
-    }
-  }
+  if (!ctrl) { return false; }
+  if (hasArrayWithItems(ctrl.mainList)) { return true; }
+  if (hasArrayWithItems(ctrl.altList))  { return true; }
   return false;
 }
-
 // --- Phase-2/3: State transition mapping (Rule 12) ---
 const STATE_TRANSITIONS = {
   UNSTARTED: {

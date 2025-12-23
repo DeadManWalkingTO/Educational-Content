@@ -1,7 +1,12 @@
-# CHANGELOG.md - v182
+# CHANGELOG.md - v185
 
 ---
 
+2025-12-23 | playerController.js | Cleanup residual helper block; fix Illegal return.
+2025-12-23 | playerController.js | v6.21.12 → v6.21.13 | Fix leftover lines after removing isNonEmptyArray; remove duplicate old guardHasAnyList block; resolve Illegal return.
+Notes: No logic changes beyond cleanup; no || or && introduced; semicolons preserved.
+2025-12-23 | playerController.js | v6.21.11 → v6.21.12 | Import globals.hasArrayWithItems; remove local isNonEmptyArray; refactor guardHasAnyList; fix trailing comma in import list.
+Notes: No || or && introduced; semicolons preserved; behavior unchanged.
 2025-12-23 | uiControls.js | v3.16.22 → v3.16.23 | Fix: normalized string literals (\n), cleared stray lines; ensured guard & returns.
 Notes: No usage of || or && in code; Semicolons kept; Public API unchanged.
 ## 2025-12-23
