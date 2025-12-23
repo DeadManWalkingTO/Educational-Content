@@ -1,28 +1,27 @@
-# CHANGELOG.md - v176
+# CHANGELOG.md - v181
 
 ---
 
-2025-12-23
+## 2025-12-23
+
+- watchdog.js: version bump to v2.18.1 — Αφαιρέθηκε stats.watchdog++ από το BUFFERING waiting path; κρατήθηκαν τα increments σε retry/reset και stats.errors++ μόνο στα resets.
+- watchdog.js: v2.17.0 → v2.17.1 — Διόρθωση SyntaxError (παλιό block μετά το κλείσιμο της startWatchdog); εξισορρόπηση αγκυλών, χωρίς αλλαγή logs.
+- watchdog.js: v2.16.14 → v2.17.0 — Episode jitter per BUFFERING, policy functions, adaptive loop; χωρίς πρόσθετα logs (κρατάμε τα υπάρχοντα).
+- watchdog.js: v2.16.12 → v2.16.13 — Διόρθωση crash (ReferenceError) λόγω undefined `jitterMs`; χρήση jitterMs από σταθερές WATCHDOG_BUFFER_MIN/MAX και ενοποίηση logging/συνθηκών BUFFERING.
+- main.js: v3.33.6 → v3.33.7 — Παράλληλη εκκίνηση Watchdog με HumanMode (Promise).
+- watchdog.js: v2.15.11 → v2.15.12 — Διόρθωση BUFFERING jitter (χρήση jitterMs).
+- globals.js: v4.8.5 → v4.8.6 — Προσθήκη σταθερών WATCHDOG_BUFFER_MIN=45000, WATCHDOG_BUFFER_MAX=75000, WATCHDOG_PAUSE_RECHECK_MS=5000.
+- watchdog.js: v2.15.9 → v2.15.10 — Ενοποίηση χρονισμών (αφαίρεση δεύτερου setInterval), χρήση παραμετροποιημένων thresholds, προσθήκη health flag (watchdogHealth), debounce σε resets (3s).
 - lists.js: v4.9.6 → v4.9.7 — Προσθήκη parseIds(text) με validation/dedup (isValidId), χρήση σε loadVideoList()/loadAltList(); αφαίρεση canLoadLists; καθαρισμός ανενεργών imports.
 - main.js: v3.33.5 → v3.33.6 — Αποφυγή διπλού fetch λιστών (αφαίρεση Promise.all από sanityCheck).
-
-
-2025-12-23
-
 - uiControls.js: v3.16.19 → v3.16.20 — Refactor exports: internalized stopAll/restartAll/toggleTheme/clearLogs; public only bindUiEvents/setControlsEnabled + getVersion alias.
 - globals.js: v4.8.4 → v4.8.5 — Unification: added hasArrayWithItems; central helpers anyTrue/allTrue retained.
 - consoleFilter.js: v2.2.4 → v2.2.6 — Unification: removed local anyTrue/allTrue; importing from globals.
 - humanMode.js: v4.11.10 → v4.11.11 — Unification: removed local hasArrayWithItems; importing from globals.
 - lists.js: v4.9.5 → v4.9.6 — Unification: removed local hasArrayWithItems; importing from globals.
-
-## 2025-12-23
-
 - **Αρχείο**: versionReporter.js — v3.9.4 → v3.9.5
 - **Summary**: Αντικατάσταση `if (e && e.name === 'HTML')` με φρουρούς (early decisions) χωρίς χρήση `&&`. Προστέθηκαν επεξηγηματικά σχόλια.
 - **Notes/Tests**: Έλεγχος κανόνων ✔ (κατάργηση `&&`), διατήρηση συμπεριφοράς ταξινόμησης, ενημέρωση header & const VERSION.
-
-## 2025-12-23
-
 - **Αρχείο**: globals.js — v4.8.2 → v4.8.4
 - **Αρχείο**: humanMode.js — v4.11.8 → v4.11.10
 - **Αρχείο**: lists.js — v4.9.3 → v4.9.5
@@ -33,9 +32,6 @@
 - **Αρχείο**: watchdog.js — v2.15.8 → v2.15.9
 - **Summary**: Προσθήκη πλήρους header σύμφωνα με το πρότυπο (γραμμές 1–14), χωρίς διαγραφή πληροφοριών. Ενημέρωση const VERSION / getVersion().
 - **Notes/Tests**: Έλεγχος header ✔, διατήρηση `// --- End Of File ---`.
-
-## 2025-12-23
-
 - **Αρχείο**: consoleFilter.js — v2.2.3 → v2.2.4
 - **Summary**: Προσθήκη πλήρους header σύμφωνα με το πρότυπο (γραμμές 1–14), χωρίς διαγραφή πληροφοριών. Μεταφορά αρχικής περιγραφής και αναφορά προηγούμενης έκδοσης.
 - **Notes/Tests**: Έλεγχος header ✔· Ενημερωμένο const VERSION / getVersion(), διατήρηση `// --- End Of File ---`.

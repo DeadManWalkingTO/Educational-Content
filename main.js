@@ -1,5 +1,5 @@
 // --- main.js ---
-// Έκδοση: v3.33.6
+// Έκδοση: v3.33.7
 /*
 Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από globals.js.
@@ -7,7 +7,7 @@ Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από glob
 */
 
 // --- Versions ---
-const VERSION = 'v3.33.6';
+const VERSION = 'v3.33.7';
 export function getVersion() {
   return VERSION;
 }
@@ -50,7 +50,6 @@ async function sanityCheck(versions) {
     log(`[${ts()}] ❌ SanityCheck error -> ${e}`);
   }
 }
-
 
 /** --- Αναφορά εκδόσεων - Start --- */
 const versions = reportAllVersions();
@@ -97,9 +96,17 @@ async function startApp() {
     await youtubeReadyPromise;
     log(`[${ts()}] ✅ YouTubeAPI -> Έτοιμο`);
     // Human Mode (sequential init)
-    await initPlayersSequentially(mainList, altList);
-    log(`[${ts()}] ✅ Human Mode -> sequential initialization completed`);
-    // 🐶 Watchdog: εκκίνηση ΜΕΤΑ το YouTube readiness & ΜΕΤΑ το Human Mode init
+    // Human Mode (sequential init) σε Promise
+    const hm = initPlayersSequentially(mainList, altList)
+      .then(() => {
+        log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
+      })
+      .catch((err) => {
+        stats.errors++;
+        log(`[${ts()}] ❌ HumanMode init error -> ${err}`);
+      });
+
+    // 🐶 Watchdog: εκκίνηση ΠΑΡΑΛΛΗΛΑ με Human Mode
     startWatchdog();
     log(`[${ts()}] ✅ Watchdog started from main.js`);
   } catch (err) {

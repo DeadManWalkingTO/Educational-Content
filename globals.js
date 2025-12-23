@@ -1,5 +1,5 @@
 // --- globals.js ---
-// Έκδοση: v4.8.5
+// Έκδοση: v4.8.6
 /*
 Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v4.8.5';
+const VERSION = 'v4.8.6';
 export function getVersion() {
   return VERSION;
 }
@@ -88,12 +88,19 @@ export const stats = {
 /** --- Στατιστικά για την εφαρμογή - End --- */
 
 /** --- Σταθερές εφαρμογής - Start --- */
-// Αριθμός Players
-export const PLAYER_COUNT = 8;
-// Πιθανότητα επιλογής κύριας λίστας (Main List) έναντι εναλλακτικής (Alt List)
-export const MAIN_PROBABILITY = 0.5;
-// Κενός πίνακας controllers, θα γεμίσει από main.js
-export const controllers = [];
+
+/* Βασικές Ρυθμίσεις*/
+export const PLAYER_COUNT = 8; // Αριθμός Players
+export const MAIN_PROBABILITY = 0.5; // Πιθανότητα επιλογής κύριας λίστας (Main List) έναντι εναλλακτικής (Alt List)
+
+/* Ρυθμίσεις Watchdog (σε ms) */
+export const WATCHDOG_BUFFER_MIN = 45000; // ελάχιστη ανοχή BUFFERING
+export const WATCHDOG_BUFFER_MAX = 75000; // μέγιστη ανοχή BUFFERING (jitter)
+export const WATCHDOG_PAUSE_RECHECK_MS = 5000; // επανέλεγχος μετά από retry σε PAUSED
+
+/* Πίνακας controllers */
+export const controllers = []; // Κενός πίνακας controllers, θα γεμίσει από main.js
+
 /** --- Σταθερές εφαρμογής - End --- */
 
 /** --- Global unmute limiter - Start --- */
