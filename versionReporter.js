@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-// Έκδοση: v3.9.4
+// Έκδοση: v3.9.5
 /*
 Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
 Αφαίρεση κυκλικής εξάρτησης με main.js. Η έκδοση του main θα προστεθεί από το ίδιο το main.js.
@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v3.9.4';
+const VERSION = 'v3.9.5';
 export function getVersion() {
   return VERSION;
 };
@@ -62,7 +62,13 @@ function buildOrderedEntries(versionsObj) {
   const rest = [];
   for (let i = 0; i < entries.length; i += 1) {
     const e = entries[i];
-    if (e && e.name === 'HTML') {
+    // Φρουροί (early decisions):
+    // 1) Αν δεν υπάρχει e (falsy), το καταχωρούμε στο rest και συνεχίζουμε.
+    // 2) Αν υπάρχει e και το όνομα του είναι 'HTML', το βάζουμε πρώτο (htmlFirst).
+    // 3) Διαφορετικά, πάει στο rest.
+    if (!e) {
+      rest.push(e);
+    } else if (e.name === 'HTML') {
       htmlFirst.push(e);
     } else {
       rest.push(e);
