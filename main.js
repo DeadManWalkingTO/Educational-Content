@@ -1,5 +1,5 @@
 // --- main.js ---
-// Έκδοση: v3.33.4
+// Έκδοση: v3.33.5
 /*
 Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 Προηγούμενη έκδοση: v3.33.3
@@ -7,14 +7,10 @@
 */
 
 // --- Versions ---
-const VERSION = 'v3.33.4';
+const VERSION = 'v3.33.5';
 export function getVersion() {
   return VERSION;
 };
-const VERSION = 'v3.33.3';
-export function getVersion() {
-  return VERSION;
-}
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js ${VERSION} -> Ξεκίνησε`);

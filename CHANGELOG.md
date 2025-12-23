@@ -1,15 +1,15 @@
-# CHANGELOG.md - v172
+# CHANGELOG.md - v173
 
 ---
 
 ## 2025-12-23
-- **Αρχείο**: globals.js — v4.8.2 → v4.8.3
-- **Αρχείο**: humanMode.js — v4.11.8 → v4.11.9
-- **Αρχείο**: lists.js — v4.9.3 → v4.9.4
-- **Αρχείο**: main.js — v3.33.3 → v3.33.4
-- **Αρχείο**: playerController.js — v6.21.9 → v6.21.10
-- **Αρχείο**: uiControls.js — v3.16.16 → v3.16.17
-- **Αρχείο**: versionReporter.js — v3.9.2 → v3.9.3
+- **Αρχείο**: globals.js — v4.8.2 → v4.8.4
+- **Αρχείο**: humanMode.js — v4.11.8 → v4.11.10
+- **Αρχείο**: lists.js — v4.9.3 → v4.9.5
+- **Αρχείο**: main.js — v3.33.3 → v3.33.5
+- **Αρχείο**: playerController.js — v6.21.9 → v6.21.11
+- **Αρχείο**: uiControls.js — v3.16.16 → v3.16.19
+- **Αρχείο**: versionReporter.js — v3.9.2 → v3.9.4
 - **Αρχείο**: watchdog.js — v2.15.8 → v2.15.9
 - **Summary**: Προσθήκη πλήρους header σύμφωνα με το πρότυπο (γραμμές 1–14), χωρίς διαγραφή πληροφοριών. Ενημέρωση const VERSION / getVersion().
 - **Notes/Tests**: Έλεγχος header ✔, διατήρηση `// --- End Of File ---`.

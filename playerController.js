@@ -1,5 +1,5 @@
 // --- playerController.js ---
-// Έκδοση: v6.21.10
+// Έκδοση: v6.21.11
 /*
 Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
@@ -7,14 +7,10 @@
 */
 
 // --- Versions ---
-const VERSION = 'v6.21.10';
+const VERSION = 'v6.21.11';
 export function getVersion() {
   return VERSION;
 };
-const VERSION = 'v6.21.9';
-export function getVersion() {
-  return VERSION;
-}
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: playerController.js ${VERSION} -> Ξεκίνησε`);

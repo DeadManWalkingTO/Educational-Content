@@ -1,5 +1,5 @@
 // --- lists.js ---
-// Έκδοση: v4.9.4
+// Έκδοση: v4.9.5
 /*
 Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
 Ενημερωμένο: Διόρθωση URL + καθαρισμός escaped tokens
@@ -7,14 +7,10 @@
 */
 
 // --- Versions ---
-const VERSION = 'v4.9.4';
+const VERSION = 'v4.9.5';
 export function getVersion() {
   return VERSION;
 };
-const VERSION = 'v4.9.3';
-export function getVersion() {
-  return VERSION;
-}
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: lists.js ${VERSION} -> Ξεκίνησε`);

@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-// Έκδοση: v3.16.17
+// Έκδοση: v3.16.19
 /*
 Περιγραφή: Συναρτήσεις χειρισμού UI (Play All, Stop All, Restart All, Theme Toggle, Copy/Clear Logs, Reload List)
 με ESM named exports, binding από main.js. Συμμόρφωση με κανόνα Newline Splits & No real newline σε string literals.
@@ -7,14 +7,10 @@
 */
 
 // --- Versions ---
-const VERSION = 'v3.16.17';
+const VERSION = 'v3.16.19';
 export function getVersion() {
   return VERSION;
 };
-const VERSION = 'v3.16.16';
-export function getVersion() {
-  return VERSION;
-}
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: uiControls.js ${VERSION} -> Ξεκίνησε`);

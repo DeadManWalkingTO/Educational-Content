@@ -1,5 +1,5 @@
 // --- globals.js ---
-// Έκδοση: v4.8.3
+// Έκδοση: v4.8.4
 /*
 Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
@@ -7,14 +7,10 @@
 */
 
 // --- Versions ---
-const VERSION = 'v4.8.3';
+const VERSION = 'v4.8.4';
 export function getVersion() {
   return VERSION;
 };
-const VERSION = 'v4.8.2';
-export function getVersion() {
-  return VERSION;
-}
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: globals.js ${VERSION} -> Ξεκίνησε`);
