@@ -7,7 +7,7 @@ Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από glob
 */
 
 // --- Versions ---
-const VERSION = 'v4.11.13';
+const VERSION = 'v4.11.14';
 export function getVersion() {
   return VERSION;
 }
@@ -223,6 +223,52 @@ export async function initPlayersSequentially(mainList, altList) {
     }
     await new Promise((r) => setTimeout(r, 150 + Math.floor(Math.random() * 151)));
     controller.init(videoId);
+    // --- HumanMode Orchestration: apply play plan ---
+    try {
+      function hmResolveDurationMs(ctrl) {
+        try {
+          const p = ctrl ? ctrl.player : null;
+          if (!p) { return 0; }
+          const d = typeof p.getDuration === 'function' ? p.getDuration() : 0;
+          if (typeof d === 'number') { if (d > 0) { return Math.round(d * 1000); } }
+          return 0;
+        } catch (_) { return 0; }
+      }
+      let durMs = hmResolveDurationMs(controller);
+      let plan = createPlayPlan(videoId, durMs);
+      if (controller) { if (typeof controller.applyPlan === 'function') { controller.applyPlan(plan); } }
+      let tries = 0;
+      const maxTries = 10;
+      const refine = setInterval(() => {
+        tries = tries + 1;
+        durMs = hmResolveDurationMs(controller);
+        if (durMs > 0) {
+          clearInterval(refine);
+        } else {
+          if (tries >= maxTries) {
+            clearInterval(refine);
+          }
+        }
+        if ((durMs > 0) ? true : (tries >= maxTries)) {
+          if (durMs > 0) {
+            const refined = createPlayPlan(videoId, durMs);
+            if (controller) { if (typeof controller.applyPlan === 'function') { controller.applyPlan(refined); } }
+            plan = refined;
+          }
+          try {
+            let delayNext = 0;
+            if (plan) { if (typeof plan.requiredMs === 'number') { delayNext = plan.requiredMs; } }
+            if (delayNext > 0) {
+              scheduler.add(controller.index, 'hm-next', () => {
+                try {
+                  if (typeof controller.loadNextVideo === 'function') { controller.loadNextVideo(null); }
+                } catch (_) {}
+              }, delayNext);
+            }
+          } catch (_) {}
+        }
+      }, 1000);
+    } catch (_) {}
     log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
   }
   log(`[${ts()}] ✅ HumanMode sequential initialization completed`);

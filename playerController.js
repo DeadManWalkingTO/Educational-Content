@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v6.21.29';
+const VERSION = 'v6.21.31';
 export function getVersion() {
   return VERSION;
 }
@@ -442,7 +442,8 @@ export class PlayerController {
     this.altList = Array.isArray(altList) ? altList : [];
     this.player = null;
     this.timers = { midSeek: null, pauseTimers: [], progressCheck: null };
-    this.tryPlay = (p) => {
+    this.planTimers = [];
+this.tryPlay = (p) => {
       const jitter = 50 + Math.floor(Math.random() * 200);
       const attempt = () => {
         if (pcEquals(typeof p.playVideo, 'function')) {
@@ -830,10 +831,72 @@ export class PlayerController {
       }, delay);
       this.timers.pauseTimers.push(timer);
     }
-  
   }
+  _clearPlanTimers() {
+    try {
+      for (let i = 0; i < this.planTimers.length; i++) {
+        try { clearTimeout(this.planTimers[i]); } catch (_) {}
+      }
+      this.planTimers = [];
+    } catch (_) {}
+  }
+  applyPlan(plan) {
+    try {
+      this._clearPlanTimers();
+      if (plan) {
+        if (plan.allowUnmute) {
+          try {
+            if (this.player) {
+              if (typeof this.player.unMute === 'function') { this.player.unMute(); }
+              if (typeof this.player.setVolume === 'function') { this.player.setVolume(20); }
+            }
+          } catch (_) {}
+        }
+        const acts = Array.isArray(plan.actions) ? plan.actions : [];
+        for (let i = 0; i < acts.length; i++) {
+          const a = acts[i];
+          const at = typeof a.atMs === 'number' ? a.atMs : 0;
+          const t = setTimeout(() => {
+            try {
+              const p = this.player;
+              if (a && a.type === 'pause') {
+                if (p) {
+                  if (typeof p.pauseVideo === 'function') { p.pauseVideo(); }
+                }
+                const d = typeof a.durationMs === 'number' ? a.durationMs : 0;
+                const r = setTimeout(() => {
+                  try {
+                    const p2 = this.player;
+                    if (p2) {
+                      if (typeof p2.playVideo === 'function') { p2.playVideo(); }
+                    }
+                  } catch (_) {}
+                }, d);
+                this.planTimers.push(r);
+              } else {
+                if (a && a.type === 'seek') {
+                  const toMs = typeof a.toMs === 'number' ? a.toMs : 0;
+                  const toSec = Math.max(0, Math.floor(toMs / 1000));
+                  if (p) {
+                    if (typeof p.seekTo === 'function') { p.seekTo(toSec, true); }
+                  }
+                }
+              }
+            } catch (_) {}
+          }, at);
+          this.planTimers.push(t);
+        }
+      }
+    } catch (_) {}
+  }
+
+
+
+
+
   clearTimers() {
     try {
+      this._clearPlanTimers();
       scheduler.clear(this.index);
     } catch (_) {
       log(`[${ts()}] Player ${this.index + 1} error ${_}`);

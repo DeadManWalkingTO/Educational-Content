@@ -1,6 +1,9 @@
-# CHANGELOG.md - v200
+# CHANGELOG.md - v201
 ---
 
+2025-12-23
+- playerController.js: Αφαίρεση scheduleMidSeek, διόρθωση αγκυλών, προσθήκη planTimers, _clearPlanTimers(), applyPlan(plan). Έκδοση +1.
+- humanMode.js: Orchestration plan (createPlayPlan → applyPlan), refine διάρκειας, scheduling επόμενου. Έκδοση +1.
 2025-12-23
 - playerController.js: Προστέθηκε κλείσιμο με } πριν το clearTimers(), αποκατάσταση σύνταξης (Unexpected token '{'), έκδοση +1 (v6.21.29).
 2025-12-23
