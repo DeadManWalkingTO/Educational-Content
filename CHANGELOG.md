@@ -1,7 +1,9 @@
-# CHANGELOG.md - v181
+# CHANGELOG.md - v182
 
 ---
 
+2025-12-23 | uiControls.js | v3.16.22 → v3.16.23 | Fix: normalized string literals (\n), cleared stray lines; ensured guard & returns.
+Notes: No usage of || or && in code; Semicolons kept; Public API unchanged.
 ## 2025-12-23
 
 - watchdog.js: version bump to v2.18.1 — Αφαιρέθηκε stats.watchdog++ από το BUFFERING waiting path; κρατήθηκαν τα increments σε retry/reset και stats.errors++ μόνο στα resets.
