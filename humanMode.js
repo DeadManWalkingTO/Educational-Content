@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-// Έκδοση: v4.11.18
+// Έκδοση: v4.11.19
 /*
 Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από globals.js.
@@ -7,7 +7,7 @@ Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από glob
 */
 
 // --- Versions ---
-const VERSION = 'v4.11.18';
+const VERSION = 'v4.11.19';
 export function getVersion() {
   return VERSION;
 }
@@ -177,7 +177,6 @@ export async function initPlayersSequentially(mainList, altList) {
     // Stagger τη ΣΤΙΓΜΗ ΔΗΜΙΟΥΡΓΙΑΣ του iframe (YT.Player)
     const microStagger = rndInt(MICRO_STAGGER_MIN, MICRO_STAGGER_MAX);
     await new Promise((resolve) => setTimeout(resolve, microStagger));
-    await new Promise((resolve) => setTimeout(resolve, playbackDelay));
     if (isStopping) {
       log(`[${ts()}] 👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
       continue;
@@ -205,6 +204,7 @@ export async function initPlayersSequentially(mainList, altList) {
     const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
     const profile = BEHAVIOR_PROFILES[Math.floor(Math.random() * BEHAVIOR_PROFILES.length)];
     const config = createRandomPlayerConfig(profile);
+    try { if (i === 0) { if (typeof config === 'object') { config.startDelay = 0; } } else { if (typeof config === 'object') { config.startDelay = rndInt(30, 180); } } } catch (_) {}
     if (i == 0) config.startDelay = Math.max(config.startDelay ?? 0, 1);
     const session = createSessionPlan();
     if (!controller) {

@@ -1,5 +1,12 @@
-# CHANGELOG.md - v206
+# CHANGELOG.md - v207
 ---
+
+
+2025-12-23
+- humanMode.js: Κατάργηση await playbackDelay πριν το new PlayerController, πέρασμα config.startDelay στον constructor (0s για Player #1, 30–180s για άλλους), αφαίρεση onReady override, αύξηση έκδοσης (patch).
+- playerController.js: Σε onReady(), σεβασμός this.config.startDelay αν υπάρχει (αποφυγή νέου τυχαίου delay), αύξηση έκδοσης (patch).
+- globals/scheduler: Δεν χρησιμοποιείται για startup delays (μόνο για επόμενα βήματα).
+
 
 
 2025-12-23
