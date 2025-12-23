@@ -1,9 +1,10 @@
-# CHANGELOG.md - v221
+# CHANGELOG.md - v222
 
 ---
 
 ##2025-12-23
 
+- humanMode.js 4.11.26 → v4.11.27 Re-extract & comprehensive patch: sequential appearance (first immediate), immediate play, single VERSION/getVersion, single PlayPlan block, CHAIN_APPEAR_DELAY_MS & sleep().
 - Fix duplicate \_\_notifyStartFromController in playerController.js: kept single helper & single call injection in startPlayback.
 - playerController.js → v6.21.40 — Καθαρισμός διπλότυπου helper και injection.
 - Remove duplicate variable & function declarations in humanMode.js (chain-delayed patch).

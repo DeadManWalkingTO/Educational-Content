@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-// Έκδοση: v4.11.26
+// Έκδοση: v4.11.28
 /*
 Περιγραφή: Εφαρμογή διορθώσεων για lazy-instantiation, single scheduling και init guard.
 Περιγραφή: Προσθήκη ουράς αρχικοποίησης, περιορισμός ταυτόχρονων init,
@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v4.11.26';
+const VERSION = 'v4.11.28';
 export function getVersion() {
   return VERSION;
 }
@@ -206,200 +206,6 @@ function createSessionPlan() {
 }
 
 // --- Sequential Initialization των players ---
-export async function initPlayersSequentially(mainList, altList) {
-  try {
-    if (typeof hasUserGesture !== 'undefined' ? !hasUserGesture : false) {
-      console.log('HumanMode: deferring init (no user gesture)');
-      return;
-    }
-  } catch (_) {}
-  if (allTrue([Array.isArray(mainList), Array.isArray(altList)])) {
-    setMainList(mainList);
-    setAltList(altList);
-  }
-  // Ασφαλείς guards για κενές λίστες
-  const mainEmpty = (mainList?.length ?? 0) === 0;
-  const altEmpty = (altList?.length ?? 0) === 0;
-  if (allTrue([mainEmpty, altEmpty])) {
-    stats.errors++;
-    log(`[${ts()}] ❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκκίνηση σταματά.`);
-    return;
-  }
-  // Micro-stagger για δημιουργία iframes, επιπλέον του startDelay που αφορά playback
-  const MICRO_STAGGER_MIN = 400; // ms
-  const MICRO_STAGGER_MAX = 600; // ms
-  for (let i = 0; i < PLAYER_COUNT; i++) {
-    const playbackDelay = i === 0 ? 0 : rndInt(30, 180) * 1000;
-    log(`[${ts()}] ⏳ Player ${i + 1} HumanMode Scheduled -> Start after ${Math.round(playbackDelay / 1000)}s`);
-    // Stagger τη ΣΤΙΓΜΗ ΔΗΜΙΟΥΡΓΙΑΣ του iframe (YT.Player)
-    const microStagger = rndInt(MICRO_STAGGER_MIN, MICRO_STAGGER_MAX);
-    await new Promise((resolve) => setTimeout(resolve, microStagger));
-    if (isStopping) {
-      log(`[${ts()}] 👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
-      continue;
-    }
-    // Εύρεση controller ή null
-    let controller = controllers.find((c) => c.index === i) ?? null;
-    if (allTrue([hasCtrlAndPlayer(controller)])) {
-      log(`[${ts()}] ⚠️ Player ${i + 1} already initialized, skipping re-init`);
-      continue;
-    }
-    const useMain = Math.random() < MAIN_PROBABILITY;
-    const hasMain = hasArrayWithItems(mainList);
-    const hasAlt = hasArrayWithItems(altList);
-    let sourceList;
-    if (allTrue([useMain, hasMain])) sourceList = mainList;
-    else if (allTrue([!useMain, hasAlt])) sourceList = altList;
-    else if (hasMain) sourceList = mainList;
-    else sourceList = altList;
-    // Ασφαλής επιλογή videoId
-    if ((sourceList?.length ?? 0) === 0) {
-      stats.errors++;
-      log(`[${ts()}] ❌ HumanMode skipped Player ${i + 1} -> no videos available`);
-      continue;
-    }
-    const videoId = sourceList[Math.floor(Math.random() * sourceList.length)];
-    const profile = BEHAVIOR_PROFILES[Math.floor(Math.random() * BEHAVIOR_PROFILES.length)];
-    const config = createRandomPlayerConfig(profile);
-    try {
-      if (i === 0) {
-        if (typeof config === 'object') {
-          config.startDelay = 0;
-        }
-      } else {
-        if (typeof config === 'object') {
-          config.startDelay = rndInt(30, 180);
-        }
-      }
-    } catch (_) {}
-    try {
-      if (i === 0) {
-        if (typeof config === 'object') {
-          config.startDelay = 0;
-        }
-      } else {
-        if (typeof config === 'object') {
-          config.startDelay = rndInt(30, 180);
-        }
-      }
-    } catch (_) {}
-    if (i == 0) config.startDelay = Math.max(config.startDelay ?? 0, 1);
-    const session = createSessionPlan();
-    if (!controller) {
-      controller = new PlayerController(i, mainList, altList, config);
-      try {
-        if (i === 0) {
-        }
-      } catch (_) {}
-
-      try {
-        if (i === 0) {
-          if (!controllers[i].config) controllers[i].config = {};
-          controllers[i].config.startDelay = 0;
-        }
-      } catch (_) {}
-      try {
-        if (i === 0) {
-          try {
-            if (!controllers[i]) {
-            }
-          } catch (_) {}
-          if (!controllers[i].config) controllers[i].config = {};
-          controllers[i].config.startDelay = 0;
-        }
-      } catch (_) {}
-
-      controllers.push(controller);
-      try {
-        if (config) {
-          if (typeof config.initialSeekSec === 'number') {
-            controller.initialSeekSec = config.initialSeekSec;
-          }
-        }
-      } catch (_) {}
-    } else {
-      controller.config = config;
-      controller.profileName = config.profileName;
-    }
-    await new Promise((r) => setTimeout(r, 150 + Math.floor(Math.random() * 151)));
-    controller.init(videoId);
-    // --- HumanMode Orchestration: apply play plan ---
-    try {
-      function hmResolveDurationMs(ctrl) {
-        try {
-          const p = ctrl ? ctrl.player : null;
-          if (!p) {
-            return 0;
-          }
-          const d = typeof p.getDuration === 'function' ? p.getDuration() : 0;
-          if (typeof d === 'number') {
-            if (d > 0) {
-              return Math.round(d * 1000);
-            }
-          }
-          return 0;
-        } catch (_) {
-          return 0;
-        }
-      }
-      let durMs = hmResolveDurationMs(controller);
-      let plan = createPlayPlan(videoId, durMs);
-      if (controller) {
-        if (typeof controller.applyPlan === 'function') {
-          controller.applyPlan(plan);
-        }
-      }
-      let tries = 0;
-      const maxTries = 10;
-      const refine = setInterval(() => {
-        tries = tries + 1;
-        durMs = hmResolveDurationMs(controller);
-        if (durMs > 0) {
-          clearInterval(refine);
-        } else {
-          if (tries >= maxTries) {
-            clearInterval(refine);
-          }
-        }
-        if (durMs > 0 ? true : tries >= maxTries) {
-          if (durMs > 0) {
-            const refined = createPlayPlan(videoId, durMs);
-            if (controller) {
-              if (typeof controller.applyPlan === 'function') {
-                controller.applyPlan(refined);
-              }
-            }
-            plan = refined;
-          }
-          try {
-            let delayNext = 0;
-            if (plan) {
-              if (typeof plan.requiredMs === 'number') {
-                delayNext = plan.requiredMs;
-              }
-            }
-            if (delayNext > 0) {
-              scheduler.add(
-                controller.index,
-                'hm-next',
-                () => {
-                  try {
-                    if (typeof controller.loadNextVideo === 'function') {
-                      controller.loadNextVideo(null);
-                    }
-                  } catch (_) {}
-                },
-                delayNext
-              );
-            }
-          } catch (_) {}
-        }
-      }, 1000);
-    } catch (_) {}
-    log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
-  }
-  log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
-}
 
 try {
   if (typeof initPlayersSequentially === 'function') {
@@ -434,9 +240,11 @@ const MAX_CHAIN_DELAY_SEC = 180; // 3 λεπτά
 const MIN_WARMUP_SEC = 5; // 5 s warmup πριν το start
 const MAX_WARMUP_SEC = 10; // 10 s warmup πριν το start
 
+// --- Chain appearance delay (per requirement) ---
+const CHAIN_APPEAR_DELAY_MS = 2000;
+
 let __chainStarted = false;
 let __totalPlayers = 0;
-
 // Εσωτερικό μητρώο: ενημερώνεται από createPlayerContainers()
 function __setTotalPlayers(n) {
   __totalPlayers = n;
@@ -548,6 +356,62 @@ function initializePlayerNow(playerIdx, done) {
       done();
     }
   });
+}
+
+function sleep(ms) {
+  return new Promise(function (resolve) {
+    setTimeout(function () {
+      resolve(0);
+    }, ms);
+  });
+}
+
+async function sequentialAppearAndStart() {
+  try {
+    for (let i = 0; i < PLAYER_COUNT; i++) {
+      if (i > 0) {
+        await sleep(CHAIN_APPEAR_DELAY_MS);
+      }
+      const pc = await import('./playerController.js');
+      if (pc) {
+        if (pc.createPlayerIfNeeded) {
+          pc.createPlayerIfNeeded(i);
+        }
+        const nowSec = Math.floor(Date.now() / 1000);
+        if (pc.scheduleStart) {
+          pc.scheduleStart(i, nowSec);
+        }
+        log(`[${ts()}] ✅ Appeared Player ${i + 1} & scheduled start now`);
+      }
+    }
+    return true;
+  } catch (e) {
+    stats.errors++;
+    log(`[${ts()}] ❌ sequentialAppearAndStart failed -> ${e}`);
+    return false;
+  }
+}
+
+export async function initPlayersSequentially(mainList, altList) {
+  try {
+    if (typeof hasUserGesture !== 'undefined') {
+      if (!hasUserGesture) {
+        console.log('HumanMode: deferring init (no user gesture)');
+        return;
+      }
+    }
+  } catch (_) {}
+  try {
+    if (Array.isArray(mainList)) {
+      setMainList(mainList);
+    }
+  } catch (_) {}
+  try {
+    if (Array.isArray(altList)) {
+      setAltList(altList);
+    }
+  } catch (_) {}
+  await sequentialAppearAndStart();
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
