@@ -1,5 +1,5 @@
 // --- lists.js ---
-// Έκδοση: v4.9.6
+// Έκδοση: v4.9.7
 /*
 Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
 Ενημερωμένο: Διόρθωση URL + καθαρισμός escaped tokens
@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v4.9.6';
+const VERSION = 'v4.9.7';
 export function getVersion() {
   return VERSION;
 }
@@ -15,8 +15,7 @@ export function getVersion() {
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: lists.js ${VERSION} -> Ξεκίνησε`);
 // Imports
-import { log, ts, anyTrue, allTrue, stats } from './globals.js';
-import { hasArrayWithItems } from './globals.js';
+import { log, ts, stats } from './globals.js';
 
 // Guard helpers for State Machine (Rule 12)
 // Named guards for Lists
@@ -29,8 +28,25 @@ function isValidId(id) {
   return /^[A-Za-z0-9_-]+$/.test(s);
 }
 
-function canLoadLists(main, alt) {
-  return anyTrue([hasArrayWithItems(main), hasArrayWithItems(alt)]);
+// Ενιαίο parsing με validation + dedup
+function parseIds(text) {
+  const raw = text.split('\n').map((x) => x.trim());
+  const out = [];
+  const seen = {};
+  for (let i = 0; i < raw.length; i++) {
+    const id = raw[i];
+    if (!id) {
+      continue;
+    }
+    if (!isValidId(id)) {
+      continue;
+    }
+    if (!seen[id]) {
+      out.push(id);
+      seen[id] = true;
+    }
+  }
+  return out;
 }
 
 // Internal fallback list (15 video IDs)

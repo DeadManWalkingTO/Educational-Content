@@ -1,5 +1,5 @@
 // --- main.js ---
-// Έκδοση: v3.33.5
+// Έκδοση: v3.33.6
 /*
 Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από globals.js.
@@ -7,7 +7,7 @@ Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από glob
 */
 
 // --- Versions ---
-const VERSION = 'v3.33.5';
+const VERSION = 'v3.33.6';
 export function getVersion() {
   return VERSION;
 }
@@ -42,13 +42,6 @@ async function sanityCheck(versions) {
     } else {
       log(`[${ts()}] ✅ Sanity: HTML version -> ${versions.HTML}`);
     }
-    const [ml, al] = await Promise.all([loadVideoList(), loadAltList()]);
-    if (anyTrue([!Array.isArray(ml), !Array.isArray(al)])) {
-      stats.errors++;
-      log(`[${ts()}] ❌ Sanity: Lists not arrays`);
-    } else {
-      log(`[${ts()}] ✅ Sanity: Lists ok -> Main:${ml.length} Alt:${al.length}`);
-    }
     const cont = document.getElementById('playersContainer');
     const boxes = cont ? cont.querySelectorAll('.player-box').length : 0;
     if (!boxes) log(`[${ts()}] ⚠️ Sanity: No player boxes yet (created later)`);
@@ -57,6 +50,7 @@ async function sanityCheck(versions) {
     log(`[${ts()}] ❌ SanityCheck error -> ${e}`);
   }
 }
+
 
 /** --- Αναφορά εκδόσεων - Start --- */
 const versions = reportAllVersions();

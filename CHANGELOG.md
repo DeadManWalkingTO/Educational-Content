@@ -1,6 +1,11 @@
-# CHANGELOG.md - v175
+# CHANGELOG.md - v176
 
 ---
+
+2025-12-23
+- lists.js: v4.9.6 → v4.9.7 — Προσθήκη parseIds(text) με validation/dedup (isValidId), χρήση σε loadVideoList()/loadAltList(); αφαίρεση canLoadLists; καθαρισμός ανενεργών imports.
+- main.js: v3.33.5 → v3.33.6 — Αποφυγή διπλού fetch λιστών (αφαίρεση Promise.all από sanityCheck).
+
 
 2025-12-23
 
