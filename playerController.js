@@ -1,5 +1,5 @@
 // --- playerController.js ---
-// Έκδοση: v6.21.18
+// Έκδοση: v6.21.33
 /*
 Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v6.21.31';
+const VERSION = 'v6.21.33';
 export function getVersion() {
   return VERSION;
 }
@@ -32,8 +32,9 @@ import {
   anyTrue,
   allTrue,
   hasArrayWithItems,
+  scheduler,
 } from './globals.js';
-import { scheduler } from './globals.js';
+
 // --- State mapping (YouTube) ---
 const YT_STATES = {
   '-1': 'unstarted',
@@ -57,36 +58,24 @@ export function stateToName(state) {
 }
 
 export function scheduleStart(playerIndex, delayMs) {
-  try {
-    scheduler.add(
-      playerIndex,
+  safe(() => {
+    const ctrl = { index: playerIndex };
+    schedule(
+      ctrl,
       'start',
       () => {
-        try {
+        safe(() => {
           if (typeof setupPlayer === 'function') {
             setupPlayer(playerIndex);
           }
           if (typeof startPlayer === 'function') {
             startPlayer(playerIndex);
           }
-        } catch (e) {}
+        });
       },
       delayMs
     );
-  } catch (e) {
-    try {
-      setTimeout(() => {
-        try {
-          if (typeof setupPlayer === 'function') {
-            setupPlayer(playerIndex);
-          }
-          if (typeof startPlayer === 'function') {
-            startPlayer(playerIndex);
-          }
-        } catch (e2) {}
-      }, delayMs);
-    } catch (_) {}
-  }
+  });
 }
 
 /* --- Safe function invocation helpers --- */
@@ -97,18 +86,41 @@ function pcEquals(a, b) {
 }
 
 // --- Scheduler wrapper ---
-function schedule(ctrl, label, fn, delayMs) {
+
+// --- Helpers (guards & error handling) ---
+function safe(fn) {
   try {
-    scheduler.add(ctrl.index, label, fn, delayMs);
+    fn();
   } catch (_) {
-    setTimeout(() => {
-      try {
-        fn();
-      } catch (_) {
-        log(`[${ts()}] Player ${this.index + 1} error ${_}`);
-      }
-    }, delayMs);
+    /* silent */
   }
+}
+
+function getPlayerSafe(ctrl) {
+  if (!ctrl) {
+    return null;
+  }
+  const p = ctrl.player;
+  if (!p) {
+    return null;
+  }
+  return p;
+}
+
+function ensureHasFunctions(p, names) {
+  for (let i = 0; i < names.length; i++) {
+    const f = p ? p[names[i]] : null;
+    if (typeof f !== 'function') {
+      return false;
+    }
+  }
+  return true;
+}
+
+function schedule(ctrl, label, fn, delayMs) {
+  safe(() => {
+    scheduler.add(ctrl.index, label, fn, delayMs);
+  });
 }
 
 function hasFn(o, name) {
@@ -132,7 +144,15 @@ function callIfFn(o, name, ...args) {
 
 // --- Unmute & Retry helpers ---
 function applyUnmuteAndVolume(ctrl, p) {
-  const range = ctrl && ctrl.config && Array.isArray(ctrl.config.volumeRange) ? ctrl.config.volumeRange : [10, 30];
+  let range = [10, 30];
+
+  if (ctrl) {
+    if (ctrl.config) {
+      if (Array.isArray(ctrl.config.volumeRange)) {
+        range = ctrl.config.volumeRange;
+      }
+    }
+  }
   const vMin = range[0];
   const vMax = range[1];
   const v = typeof rndInt === 'function' ? rndInt(vMin, vMax) : vMin;
@@ -443,15 +463,6 @@ export class PlayerController {
     this.player = null;
     this.timers = { midSeek: null, pauseTimers: [], progressCheck: null };
     this.planTimers = [];
-this.tryPlay = (p) => {
-      const jitter = 50 + Math.floor(Math.random() * 200);
-      const attempt = () => {
-        if (pcEquals(typeof p.playVideo, 'function')) {
-          this.guardPlay(p);
-        }
-      };
-      setTimeout(attempt, jitter);
-    };
     this.config = config;
     this.guardPlay = function (p) {
       try {
@@ -463,16 +474,6 @@ this.tryPlay = (p) => {
       }
     };
 
-    this.requestPlay = function () {
-      try {
-        var p = this.player;
-        if (p) {
-          this.guardPlay(p);
-        }
-      } catch (_) {
-        log(`[${ts()}] Player ${this.index + 1} error ${_}`);
-      }
-    };
     this.profileName = config?.profileName ?? 'Unknown';
     this.startTime = null;
     this.playingStart = null;
@@ -835,100 +836,90 @@ this.tryPlay = (p) => {
   _clearPlanTimers() {
     try {
       for (let i = 0; i < this.planTimers.length; i++) {
-        try { clearTimeout(this.planTimers[i]); } catch (_) {}
+        try {
+          clearTimeout(this.planTimers[i]);
+        } catch (_) {}
       }
       this.planTimers = [];
     } catch (_) {}
   }
-  applyPlan(plan) {
-    try {
-      this._clearPlanTimers();
-      if (plan) {
-        if (plan.allowUnmute) {
-          try {
-            if (this.player) {
-              if (typeof this.player.unMute === 'function') { this.player.unMute(); }
-              if (typeof this.player.setVolume === 'function') { this.player.setVolume(20); }
-            }
-          } catch (_) {}
-        }
-        const acts = Array.isArray(plan.actions) ? plan.actions : [];
-        for (let i = 0; i < acts.length; i++) {
-          const a = acts[i];
-          const at = typeof a.atMs === 'number' ? a.atMs : 0;
-          const t = setTimeout(() => {
-            try {
-              const p = this.player;
-              if (a && a.type === 'pause') {
-                if (p) {
-                  if (typeof p.pauseVideo === 'function') { p.pauseVideo(); }
-                }
-                const d = typeof a.durationMs === 'number' ? a.durationMs : 0;
-                const r = setTimeout(() => {
-                  try {
-                    const p2 = this.player;
-                    if (p2) {
-                      if (typeof p2.playVideo === 'function') { p2.playVideo(); }
-                    }
-                  } catch (_) {}
-                }, d);
-                this.planTimers.push(r);
-              } else {
-                if (a && a.type === 'seek') {
-                  const toMs = typeof a.toMs === 'number' ? a.toMs : 0;
-                  const toSec = Math.max(0, Math.floor(toMs / 1000));
-                  if (p) {
-                    if (typeof p.seekTo === 'function') { p.seekTo(toSec, true); }
-                  }
-                }
-              }
-            } catch (_) {}
-          }, at);
-          this.planTimers.push(t);
-        }
-      }
-    } catch (_) {}
+  // Action helpers (SRP)
+  doPause(p, durationMs) {
+    if (!p) {
+      return;
+    }
+    if (!ensureHasFunctions(p, ['pauseVideo', 'playVideo'])) {
+      return;
+    }
+    safe(() => {
+      p.pauseVideo();
+    });
+    const d = typeof durationMs === 'number' ? durationMs : 0;
+    const r = setTimeout(() => {
+      safe(() => {
+        p.playVideo();
+      });
+    }, d);
+    this.planTimers.push(r);
   }
 
-
-
-
-
-  clearTimers() {
-    try {
-      this._clearPlanTimers();
-      scheduler.clear(this.index);
-    } catch (_) {
-      log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+  doSeek(p, toMs) {
+    const toSec = Math.max(0, Math.floor((typeof toMs === 'number' ? toMs : 0) / 1000));
+    if (!p) {
+      return;
     }
-    this.timers.pauseTimers.forEach((t) => {
-      try {
-        clearTimeout(t);
-      } catch (_) {
-        log(`[${ts()}] Player ${this.index + 1} error ${_}`);
-      }
+    if (!ensureHasFunctions(p, ['seekTo'])) {
+      return;
+    }
+    safe(() => {
+      p.seekTo(toSec, true);
     });
-    this.timers.pauseTimers = [];
-    if (this.timers.midSeek) {
-      try {
-        clearTimeout(this.timers.midSeek);
-      } catch (_) {
-        log(`[${ts()}] Player ${this.index + 1} error ${_}`);
-      }
-      this.timers.midSeek = null;
+  }
+
+  applyPlan(plan) {
+    this._clearPlanTimers();
+    if (!plan) {
+      return;
     }
-    if (this.timers.progressCheck) {
-      try {
-        clearInterval(this.timers.progressCheck);
-      } catch (_) {
-        log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+    if (plan.allowUnmute) {
+      const p = getPlayerSafe(this);
+      if (!p) {
+        return;
       }
-      this.timers.progressCheck = null;
+      if (!ensureHasFunctions(p, ['unMute', 'setVolume'])) {
+        return;
+      }
+      safe(() => {
+        p.unMute();
+      });
+      safe(() => {
+        p.setVolume(20);
+      });
     }
-    this.expectedPauseMs = 0;
+    const acts = Array.isArray(plan.actions) ? plan.actions : [];
+    for (let i = 0; i < acts.length; i++) {
+      const a = acts[i];
+      const at = typeof a.atMs === 'number' ? a.atMs : 0;
+      const t = setTimeout(() => {
+        const p = getPlayerSafe(this);
+        if (!a) {
+          return;
+        }
+        if (!p) {
+          return;
+        }
+        if (a.type === 'pause') {
+          const d = typeof a.durationMs === 'number' ? a.durationMs : 0;
+          this.doPause(p, d);
+        }
+        if (a.type === 'seek') {
+          this.doSeek(p, a.toMs);
+        }
+      }, at);
+      this.planTimers.push(t);
+    }
   }
 }
-
 // Guard wrappers for hotspots
 try {
   if (pcEquals(typeof autoNext, 'function')) {
