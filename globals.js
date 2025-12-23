@@ -1,5 +1,5 @@
 // --- globals.js ---
-// Έκδοση: v4.8.9
+// Έκδοση: v4.8.7
 /*
 Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v4.8.9';
+const VERSION = 'v4.8.7';
 export function getVersion() {
   return VERSION;
 }
@@ -99,10 +99,6 @@ export const WATCHDOG_BUFFER_MAX = 75000; // μέγιστη ανοχή BUFFERING
 export const WATCHDOG_PAUSE_RECHECK_MS = 5000; // επανέλεγχος μετά από retry σε PAUSED
 
 /* Πίνακας controllers */
-
-// --- First player immediate start clamp (runtime safeguard) ---
-let FIRST_PLAYER_START_FORCED = false;
-
 export const controllers = []; // Κενός πίνακας controllers, θα γεμίσει από main.js
 
 /** --- Σταθερές εφαρμογής - End --- */
@@ -151,7 +147,7 @@ export function incAutoNext(playerIndex) {
 
 /** --- AutoNext counters (ενοποιημένοι) - End --- */
 
-/** --- Lists state - Start --- */
+/* --- Lists state - Start --- */
 // Κύρια και Εναλλακτική λίστα video IDs
 let _mainList = [];
 let _altList = [];
@@ -162,7 +158,7 @@ export function getMainList() {
 export function getAltList() {
   return _altList;
 }
-/* Επαναφόρτωση λιστών από την πηγή (lists.js). */
+/** Επαναφόρτωση λιστών από την πηγή (lists.js). */
 export function setMainList(list) {
   _mainList = Array.isArray(list) ? list : [];
   log(`[${ts()}] 📂 Main list applied -> ${_mainList.length} videos`);
@@ -203,7 +199,7 @@ export function setUserGesture() {
 }
 /** --- User gesture flag - End --- */
 
-/** --- Utilities - Start --- */
+/* --- Utilities - Start --- */
 // Επιστρέφει τρέχον timestamp σε μορφή ώρας
 export function ts() {
   return new Date().toLocaleTimeString();
@@ -239,17 +235,21 @@ function updateStats() {
 
 /* Scheduler module - Χρονοπρογραμματιστής Εργασιών */
 export const scheduler = (function () {
-  var timers = []; // legacy compatibility for schedule/cancel
-  var groups = new Map(); // index -> Set(ids)
-  var labels = new Map(); // index -> Map(label -> id)
-
+  var timers = [];
   function schedule(fn, delayMs) {
     var id = setTimeout(function () {
       try {
         fn();
       } catch (e) {
         try {
-          var msg = e && typeof e.message === 'string' ? e.message : e;
+          var msg = e;
+          try {
+            if (e) {
+              if (typeof e.message === 'string') {
+                msg = e.message;
+              }
+            }
+          } catch (_) {}
           console.error('[sched] ' + msg);
         } catch (_) {}
       }
@@ -257,94 +257,17 @@ export const scheduler = (function () {
     timers.push(id);
     return id;
   }
-
   function cancel(id) {
     try {
       clearTimeout(id);
     } catch (_) {}
   }
-
   function jitter(baseMs, spreadMs) {
     var rnd = Math.random();
     var delta = Math.floor(rnd * (spreadMs + 1));
     return baseMs + delta;
   }
-
-  function add(index, label, fn, delayMs) {
-    try {
-      if (!FIRST_PLAYER_START_FORCED) {
-        var isFirst = false;
-        if (typeof index === 'number') { if (index === 0) { isFirst = true; } }
-        if (isFirst) {
-          FIRST_PLAYER_START_FORCED = true;
-          if (typeof delayMs === 'number') { delayMs = 0; }
-        }
-      }
-    } catch (_) {}
-
-    var group = groups.get(index);
-    if (!group) {
-      group = new Set();
-      groups.set(index, group);
-    }
-    var byLabel = labels.get(index);
-    if (!byLabel) {
-      byLabel = new Map();
-      labels.set(index, byLabel);
-    }
-    if (typeof label === 'string') {
-      var prev = byLabel.get(label);
-      if (prev) {
-        try {
-          clearTimeout(prev);
-        } catch (_) {}
-        group.delete(prev);
-        byLabel.delete(label);
-      }
-    }
-    var id = setTimeout(function () {
-      try {
-        fn();
-      } catch (e) {
-        try {
-          var msg = e && typeof e.message === 'string' ? e.message : e;
-          console.error('[sched] ' + msg);
-        } catch (_) {}
-      } finally {
-        try {
-          group.delete(id);
-        } catch (_) {}
-        if (typeof label === 'string') {
-          try {
-            labels.get(index).delete(label);
-          } catch (_) {}
-        }
-      }
-    }, delayMs);
-    group.add(id);
-    if (typeof label === 'string') {
-      byLabel.set(label, id);
-    }
-    return id;
-  }
-
-  function clear(index) {
-    var group = groups.get(index);
-    if (!group) {
-      return;
-    }
-    var ids = Array.from(group.values());
-    for (var i = 0; i < ids.length; i += 1) {
-      try {
-        clearTimeout(ids[i]);
-      } catch (_) {}
-    }
-    group.clear();
-    groups.delete(index);
-    labels.delete(index);
-  }
-
-  return { schedule: schedule, cancel: cancel, jitter: jitter, add: add, clear: clear };
+  return { schedule: schedule, cancel: cancel, jitter: jitter };
 })();
 
 /* Helper: hasArrayWithItems (unified here) */
@@ -358,7 +281,7 @@ export function hasArrayWithItems(arr) {
   return false;
 }
 
-/** --- Utilities - End --- */
+/* --- Utilities - End --- */
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: globals.js ${VERSION} -> Ολοκληρώθηκε`);
