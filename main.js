@@ -1,13 +1,13 @@
 // --- main.js ---
-// Έκδοση: v3.33.7
+// Έκδοση: v3.33.8
 /*
-Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
-Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από globals.js.
-Συμμόρφωση header με πρότυπο.
+Περιγραφή: Εφαρμογή διορθώσεων για lazy-instantiation, single scheduling και init guard.
+Περιγραφή: Προσθήκη ουράς αρχικοποίησης, περιορισμός ταυτόχρονων init,
+Περιγραφή: μοναδικό authority για start και idempotent init.
 */
 
 // --- Versions ---
-const VERSION = 'v3.33.7';
+const VERSION = 'v3.33.8';
 export function getVersion() {
   return VERSION;
 }
@@ -143,5 +143,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: main.js ${VERSION} -> Ολοκληρώθηκε`);
+
+// --- End Of File ---
+
+// --- PATCH: call humanMode.initializeHumanModeOnce() ---
+import * as humanMode from './humanMode.js';
+try {
+  if (humanMode && typeof humanMode.initializeHumanModeOnce === 'function') {
+    humanMode.initializeHumanModeOnce();
+  }
+} catch (e) {}
 
 // --- End Of File ---

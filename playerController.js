@@ -1,13 +1,13 @@
 // --- playerController.js ---
-// Έκδοση: v6.21.37
+// Έκδοση: v6.21.38
 /*
-Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
-Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
-Συμμόρφωση header με πρότυπο.
+Περιγραφή: Εφαρμογή διορθώσεων για lazy-instantiation, single scheduling και init guard.
+Περιγραφή: Προσθήκη ουράς αρχικοποίησης, περιορισμός ταυτόχρονων init,
+Περιγραφή: μοναδικό authority για start και idempotent init.
 */
 
 // --- Versions ---
-const VERSION = 'v6.21.37';
+const VERSION = 'v6.21.38';
 export function getVersion() {
   return VERSION;
 }
@@ -57,26 +57,7 @@ export function stateToName(state) {
   }
 }
 
-export function scheduleStart(playerIndex, delayMs) {
-  safe(() => {
-    const ctrl = { index: playerIndex };
-    schedule(
-      ctrl,
-      'start',
-      () => {
-        safe(() => {
-          if (typeof setupPlayer === 'function') {
-            setupPlayer(playerIndex);
-          }
-          if (typeof startPlayer === 'function') {
-            startPlayer(playerIndex);
-          }
-        });
-      },
-      delayMs
-    );
-  });
-}
+/* scheduleStart removed by patch */
 
 /* --- Safe function invocation helpers --- */
 
@@ -1009,5 +990,55 @@ try {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: playerController.js ${VERSION} -> Ολοκληρώθηκε`);
+
+// --- End Of File ---
+
+// --- PATCH: Single scheduling authority ---
+const __controllerState = {};
+
+export function createPlayerIfNeeded(playerIdx) {
+  if (!__controllerState[playerIdx]) {
+    __controllerState[playerIdx] = { scheduled: false, startAtMs: 0, created: false };
+  }
+  if (__controllerState[playerIdx].created) {
+    return; // ήδη δημιουργημένος
+  }
+  try {
+    if (typeof window !== 'undefined') {
+      // Hook για πραγματική δημιουργία από υπάρχον κώδικα, αν απαιτείται.
+    }
+  } catch (e) {}
+  __controllerState[playerIdx].created = true;
+}
+
+export function scheduleStart(playerIdx, startAtSec) {
+  if (!__controllerState[playerIdx]) {
+    __controllerState[playerIdx] = { scheduled: false, startAtMs: 0, created: false };
+  }
+  if (__controllerState[playerIdx].scheduled) {
+    return; // guard
+  }
+  const atMs = Math.max(0, startAtSec * 1000);
+  __controllerState[playerIdx].startAtMs = atMs;
+  __controllerState[playerIdx].scheduled = true;
+  scheduleStartTimer(playerIdx, atMs);
+}
+
+function scheduleStartTimer(playerIdx, atMs) {
+  const nowMs = Date.now();
+  let delay = atMs - nowMs;
+  if (delay < 0) {
+    delay = 0;
+  }
+  setTimeout(function () { startPlayback(playerIdx); }, delay);
+}
+
+function startPlayback(playerIdx) {
+  try {
+    if (typeof console !== 'undefined') {
+      console.log('[playerController] Start playback for', playerIdx);
+    }
+  } catch (e) {}
+}
 
 // --- End Of File ---

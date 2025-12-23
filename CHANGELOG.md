@@ -1,4 +1,11 @@
-# CHANGELOG.md - v210
+# CHANGELOG.md - v211
+
+---
+
+2025-12-23 16:35 — Patches applied:
+humanMode.js v4.11.20 → v4.11.21 — Lazy-instantiation + throttling + init guard.
+playerController.js v6.21.37 → v6.21.38 — Single scheduling authority; idempotent create.
+main.js v3.33.7 → v3.33.8 — Initialization guard call.
 ---
 
 

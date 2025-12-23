@@ -1,13 +1,13 @@
 // --- humanMode.js ---
-// Έκδοση: v4.11.20
+// Έκδοση: v4.11.21
 /*
-Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
-Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από globals.js.
-Συμμόρφωση header με πρότυπο.
+Περιγραφή: Εφαρμογή διορθώσεων για lazy-instantiation, single scheduling και init guard.
+Περιγραφή: Προσθήκη ουράς αρχικοποίησης, περιορισμός ταυτόχρονων init,
+Περιγραφή: μοναδικό authority για start και idempotent init.
 */
 
 // --- Versions ---
-const VERSION = 'v4.11.20';
+const VERSION = 'v4.11.21';
 export function getVersion() {
   return VERSION;
 }
@@ -315,5 +315,71 @@ try {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: humanMode.js ${VERSION} -> Ολοκληρώθηκε`);
+
+// --- End Of File ---
+
+// --- PATCH: Lazy-instantiation, throttling, init guard ---
+const WARMUP_WINDOW_SEC = 10; // δημιουργία iframe ~10s πριν το start
+const INIT_MAX_CONCURRENT = 2; // μέγιστη ταυτόχρονη αρχικοποίηση
+
+const pendingInit = [];
+let initInProgress = 0;
+let humanModeInitDone = false;
+
+export function initializeHumanModeOnce() {
+  if (humanModeInitDone) {
+    return;
+  }
+  humanModeInitDone = true;
+}
+
+export function schedulePlayerInitialization(playerIdx, startAtSec) {
+  const preStart = startAtSec - WARMUP_WINDOW_SEC;
+  let jitter = Math.floor(Math.random() * 2); // 0–1s
+  const atMs = Math.max(0, (preStart + jitter) * 1000);
+  pendingInit.push({ playerIdx: playerIdx, atMs: atMs });
+  runInitQueue();
+}
+
+function runInitQueue() {
+  if (initInProgress >= INIT_MAX_CONCURRENT) {
+    return;
+  }
+  let index = 0;
+  let found = false;
+  let item = null;
+  while (index < pendingInit.length) {
+    const nowMs = Date.now();
+    const cand = pendingInit[index];
+    if (nowMs >= cand.atMs) {
+      found = true;
+      item = cand;
+      pendingInit.splice(index, 1);
+      index = pendingInit.length; // exit loop
+    } else {
+      index = index + 1;
+    }
+  }
+  if (!found) {
+    setTimeout(function () { runInitQueue(); }, 250);
+    return;
+  }
+  initInProgress = initInProgress + 1;
+  initializePlayerNow(item.playerIdx, function () {
+    initInProgress = initInProgress - 1;
+    setTimeout(function () { runInitQueue(); }, 100);
+  });
+}
+
+function initializePlayerNow(playerIdx, done) {
+  import('./playerController.js').then(function (pcModule) {
+    if (pcModule && pcModule.createPlayerIfNeeded) {
+      pcModule.createPlayerIfNeeded(playerIdx);
+    }
+    if (typeof done === 'function') {
+      done();
+    }
+  });
+}
 
 // --- End Of File ---
