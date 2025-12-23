@@ -1,7 +1,30 @@
-# CHANGELOG.md - v190
+# CHANGELOG.md - v196
 
 ---
 
+2025-12-23 13:18
+- playerController.js: v6.21.23 → v6.21.24 — Fix onStateChange() scope bug (declare `let s;` outside try) και διόρθωση log(seek error) σε template literal με ts().
+
+
+2025-12-23 13:13
+- playerController.js: v6.21.22 → v6.21.23 — Μετατροπή log('playerController', 'error', var) σε μορφή log(`[${ts()}] Player ${this.index + 1} error ${var}`).
+
+
+2025-12-23 13:03
+- playerController.js: v6.21.21 → v6.21.22 — Μετατροπή logs σε μορφή log(`[${ts()}] … Player ${index+1} …`) χωρίς pcLog().
+
+
+2025-12-23 12:53
+- humanMode.js: v4.11.11 → v4.11.12 — Αφαίρεση start timers· μεταφορά εκκίνησης σε playerController.scheduleStart().
+- playerController.js: v6.21.20 → v6.21.21 — Προσθήκη export scheduleStart()· ενσωμάτωση scheduler.add(label='start')· προσθήκη playerVars origin & enablejsapi.
+
+2025-12-23 12:45
+- globals.js: v4.8.7 → v4.8.8 — Επέκταση scheduler: προσθήκη add(index,label,fn,ms) και clear(index). Αποφυγή διπλο-προγραμματισμών/cleanups.
+
+
+2025-12-23 14:22 — playerController.js: v6.21.19 → v6.21.20
+  Summary: Fix syntax error at loadNextVideo guard; correct pcEquals(typeof ...) bracket mismatches; cleanup.
+  Notes/Tests: Manual inspection around lines ~596-602; build OK; to run in browser.
 2025-12-23 | playerController.js | v6.21.17 → v6.21.18 | Simplified YouTube state mapping (YT_STATES, stateToName), EOF marker.
 2025-12-23 | playerController.js | v6.21.16 → v6.21.17 | Fix: schedule() try/catch malformed (Unexpected token 'catch') at top; normalized fallback to setTimeout.
 2025-12-23 | playerController.js | v6.21.15 → v6.21.16 | Phase-2: add schedule(ctrl,label,fn,delay); convert naive setTimeout to scheduler; ensure clearTimers() calls scheduler.clear(index).

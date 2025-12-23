@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-// Έκδοση: v4.11.11
+// Έκδοση: v4.11.12
 /*
 Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από globals.js.
@@ -7,7 +7,7 @@ Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από glob
 */
 
 // --- Versions ---
-const VERSION = 'v4.11.11';
+const VERSION = 'v4.11.12';
 export function getVersion() {
   return VERSION;
 }
@@ -21,6 +21,7 @@ import { scheduler } from './globals.js';
 import { PlayerController } from './playerController.js';
 import { hasArrayWithItems } from './globals.js';
 
+import { scheduleStart } from './playerController.js';
 // Guard helpers for State Machine (Rule 12)
 // Named guards for Human Mode
 

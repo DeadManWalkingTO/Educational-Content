@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v6.21.18';
+const VERSION = 'v6.21.24';
 export function getVersion() {
   return VERSION;
 }
@@ -31,17 +31,17 @@ import {
   ts,
   anyTrue,
   allTrue,
-  hasArrayWithItems
+  hasArrayWithItems,
 } from './globals.js';
 import { scheduler } from './globals.js';
 // --- State mapping (YouTube) ---
 const YT_STATES = {
   '-1': 'unstarted',
-  '0': 'ended',
-  '1': 'playing',
-  '2': 'paused',
-  '3': 'buffering',
-  '5': 'cued'
+  0: 'ended',
+  1: 'playing',
+  2: 'paused',
+  3: 'buffering',
+  5: 'cued',
 };
 
 export function stateToName(state) {
@@ -56,27 +56,75 @@ export function stateToName(state) {
   }
 }
 
+export function scheduleStart(playerIndex, delayMs) {
+  try {
+    scheduler.add(
+      playerIndex,
+      'start',
+      () => {
+        try {
+          if (typeof setupPlayer === 'function') {
+            setupPlayer(playerIndex);
+          }
+          if (typeof startPlayer === 'function') {
+            startPlayer(playerIndex);
+          }
+        } catch (e) {}
+      },
+      delayMs
+    );
+  } catch (e) {
+    try {
+      setTimeout(() => {
+        try {
+          if (typeof setupPlayer === 'function') {
+            setupPlayer(playerIndex);
+          }
+          if (typeof startPlayer === 'function') {
+            startPlayer(playerIndex);
+          }
+        } catch (e2) {}
+      }, delayMs);
+    } catch (_) {}
+  }
+}
 
+/* --- Safe function invocation helpers --- */
 
-// --- Safe function invocation helpers ---
+// Equality helper to avoid direct === in complex conditions
+function pcEquals(a, b) {
+  return Object.is(a, b);
+}
 
 // --- Scheduler wrapper ---
 function schedule(ctrl, label, fn, delayMs) {
   try {
     scheduler.add(ctrl.index, label, fn, delayMs);
   } catch (_) {
-    setTimeout(() => { try { fn(); } catch (_) {} }, delayMs);
+    setTimeout(() => {
+      try {
+        fn();
+      } catch (_) {
+        log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+      }
+    }, delayMs);
   }
 }
 
 function hasFn(o, name) {
-  if (!o) { return false; }
+  if (!o) {
+    return false;
+  }
   const f = o[name];
   return typeof f === 'function';
 }
 function callIfFn(o, name, ...args) {
   if (hasFn(o, name)) {
-    try { o[name](...args); } catch (_) {}
+    try {
+      o[name](...args);
+    } catch (_) {
+      log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+    }
     return true;
   }
   return false;
@@ -89,23 +137,42 @@ function applyUnmuteAndVolume(ctrl, p) {
   const vMax = range[1];
   const v = typeof rndInt === 'function' ? rndInt(vMin, vMax) : vMin;
   callIfFn(p, 'unMute');
-  if (hasFn(p, 'setVolume')) { p.setVolume(v); try { stats.volumeChanges++; } catch (_) {} }
-  try { log(`[${ts()}] 🔊 Player ${ctrl.index + 1} Unmute -> ${v}%`); } catch (_) {}
+  if (hasFn(p, 'setVolume')) {
+    p.setVolume(v);
+    try {
+      stats.volumeChanges++;
+    } catch (_) {
+      log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+    }
+  }
+  try {
+    log(`[${ts()}] 🔊 Player ${ctrl.index + 1} Unmute -> ${v}%`);
+  } catch (_) {
+    log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+  }
 }
 function retryPlayIfPaused(ctrl, p, delaysMs) {
   for (let i = 0; i < delaysMs.length; i++) {
     const d = delaysMs[i];
-    schedule(this, 'pc-timer-L75', () => {
-      if (hasFn(p, 'getPlayerState')) {
-        if (p.getPlayerState() === YT.PlayerState.PAUSED) {
-          try { log(`[${ts()}] ⚠️ Player ${ctrl.index + 1} Retry PlayVideo after ${d}ms`); } catch (_) {}
-          callIfFn(ctrl, 'guardPlay', p);
+    schedule(
+      this,
+      'pc-timer-L75',
+      () => {
+        if (hasFn(p, 'getPlayerState')) {
+          if (p.getPlayerState() === YT.PlayerState.PAUSED) {
+            try {
+              log(`[${ts()}] ⚠️ Player ${ctrl.index + 1} Retry PlayVideo after ${d}ms`);
+            } catch (_) {
+              log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+            }
+            callIfFn(ctrl, 'guardPlay', p);
+          }
         }
-      }
-    }, d);
+      },
+      d
+    );
   }
 }
-
 
 // Named guards for playerController
 function hasPlayer(p) {
@@ -115,48 +182,91 @@ function hasPlayer(p) {
   return typeof p.playVideo === 'function';
 }
 function guardHasAnyList(ctrl) {
-  if (!ctrl) { return false; }
-  if (hasArrayWithItems(ctrl.mainList)) { return true; }
-  if (hasArrayWithItems(ctrl.altList))  { return true; }
+  if (!ctrl) {
+    return false;
+  }
+  if (hasArrayWithItems(ctrl.mainList)) {
+    return true;
+  }
+  if (hasArrayWithItems(ctrl.altList)) {
+    return true;
+  }
   return false;
 }
 
-
 // --- Local guards for STATE_TRANSITIONS ---
 function pc_canPause(ctrl) {
-  if (!ctrl) { return false; }
+  if (!ctrl) {
+    return false;
+  }
   const p = ctrl.player;
-  if (!p) { return false; }
-  if (typeof p.getPlayerState !== 'function') { return false; }
+  if (!p) {
+    return false;
+  }
+  if (typeof p.getPlayerState !== 'function') {
+    return false;
+  }
   return p.getPlayerState() === YT.PlayerState.PLAYING;
 }
 function pc_canResume(ctrl) {
-  if (!ctrl) { return false; }
+  if (!ctrl) {
+    return false;
+  }
   const p = ctrl.player;
-  if (!p) { return false; }
-  if (typeof p.getPlayerState !== 'function') { return false; }
+  if (!p) {
+    return false;
+  }
+  if (typeof p.getPlayerState !== 'function') {
+    return false;
+  }
   return p.getPlayerState() === YT.PlayerState.PAUSED;
 }
 function pc_canSeek(ctrl) {
-  if (!ctrl) { return false; }
+  if (!ctrl) {
+    return false;
+  }
   const p = ctrl.player;
-  if (!p) { return false; }
-  if (typeof p.seekTo !== 'function') { return false; }
+  if (!p) {
+    return false;
+  }
+  if (typeof p.seekTo !== 'function') {
+    return false;
+  }
   return true;
 }
 function pc_commitSeek(ctrl) {
-  if (!ctrl) { return false; }
+  if (!ctrl) {
+    return false;
+  }
   const p = ctrl.player;
-  if (!p) { return false; }
+  if (!p) {
+    return false;
+  }
   const s = typeof ctrl.initialSeekSec === 'number' ? ctrl.initialSeekSec : 0;
-  try { doSeek(p, s); } catch (_) {}
+  try {
+    doSeek(p, s);
+  } catch (_) {
+    log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+  }
   return true;
 }
 function pc_guardCanAutoNext(ctrl) {
-  if (!ctrl) { return false; }
+  if (!ctrl) {
+    return false;
+  }
   const idx = typeof ctrl.index === 'number' ? ctrl.index : -1;
-  if (idx < 0) { return false; }
-  try { if (typeof canAutoNext === 'function') { if (canAutoNext(idx)) { return true; } } } catch (_) {}
+  if (idx < 0) {
+    return false;
+  }
+  try {
+    if (pcEquals(typeof canAutoNext, 'function')) {
+      if (canAutoNext(idx)) {
+        return true;
+      }
+    }
+  } catch (_) {
+    log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+  }
   return false;
 }
 // --- Phase-2/3: State transition mapping (Rule 12) ---
@@ -194,22 +304,29 @@ const STATE_TRANSITIONS = {
 
 // Debounce helper for initial commands (postMessage race mitigation)
 function safeCmd(fn, delay = 80) {
-  schedule(this, 'pc-timer-L174', () => {
-    try {
-      fn();
-    } catch (_) {}
-  }, delay);
+  schedule(
+    this,
+    'pc-timer-L174',
+    () => {
+      try {
+        fn();
+      } catch (_) {
+        log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+      }
+    },
+    delay
+  );
 }
 // Seek command with bounds checking
 function doSeek(player, seconds) {
   try {
     if (player) {
-      if (typeof player.seekTo === 'function') {
+      if (pcEquals(typeof player.seekTo, 'function')) {
         {
           try {
             const d = player.getDuration ? player.getDuration() : 0;
             let s = seconds;
-            if (typeof s === 'number') {
+            if (pcEquals(typeof s, 'number')) {
               if (s < 0) s = 0;
               if (d > 0) {
                 if (s > d - 0.5) s = d - 0.5;
@@ -230,8 +347,10 @@ function doSeek(player, seconds) {
   } catch (e) {
     try {
       stats.errors++;
-      log('[${ts()}] ❌ Player ${this.index + 1} Seek Error ' + e.message);
-    } catch (_) {}
+      log(`[${ts()}] ❌ Player ${this.index + 1} Seek Error ${e.message}`);
+    } catch (_) {
+      log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+    }
   }
 }
 
@@ -307,7 +426,9 @@ function getDynamicOrigin() {
     const __loc = typeof window !== 'undefined' ? (window.location ? window.location : {}) : {};
     const { protocol, hostname, port } = __loc;
     if (allTrue([protocol, hostname])) return `${protocol}//${hostname}${port ? ':' + port : ''}`;
-  } catch (_) {}
+  } catch (_) {
+    log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+  }
   return '';
 }
 function getYouTubeHostFallback() {
@@ -324,7 +445,7 @@ export class PlayerController {
     this.tryPlay = (p) => {
       const jitter = 50 + Math.floor(Math.random() * 200);
       const attempt = () => {
-        if (typeof p.playVideo === 'function') {
+        if (pcEquals(typeof p.playVideo, 'function')) {
           this.guardPlay(p);
         }
       };
@@ -333,10 +454,12 @@ export class PlayerController {
     this.config = config;
     this.guardPlay = function (p) {
       try {
-        if (p ? typeof p.playVideo === 'function' : false) {
+        if (p ? pcEquals(typeof p.playVideo, 'function') : false) {
           p.playVideo();
         }
-      } catch (_) {}
+      } catch (_) {
+        log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+      }
     };
 
     this.requestPlay = function () {
@@ -345,7 +468,9 @@ export class PlayerController {
         if (p) {
           this.guardPlay(p);
         }
-      } catch (_) {}
+      } catch (_) {
+        log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+      }
     };
     this.profileName = config?.profileName ?? 'Unknown';
     this.startTime = null;
@@ -391,93 +516,128 @@ export class PlayerController {
     const startDelay = startDelaySec * 1000;
     log(`[${ts()}] ⏳ Player ${this.index + 1} Scheduled -> start after ${startDelaySec}s`);
     const __jitterMs = 100 + Math.floor(Math.random() * 120);
-    schedule(this, 'pc-timer-L371', () => {
-      try {
-        if (typeof e.target.seekTo === 'function') {
-          if (this.initialSeekSec) {
-            safeCmd(() => e.target.seekTo(this.initialSeekSec, true), 120);
+    schedule(
+      this,
+      'pc-timer-L371',
+      () => {
+        try {
+          if (pcEquals(typeof e.target.seekTo, 'function')) {
+            if (this.initialSeekSec) {
+              safeCmd(() => e.target.seekTo(this.initialSeekSec, true), 120);
+            }
+          }
+          if (pcEquals(typeof e.target.playVideo, 'function')) {
+            safeCmd(
+              function () {
+                try {
+                  this.guardPlay(e.target);
+                } catch (_) {
+                  log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+                }
+              }.bind(this),
+              240
+            );
+          }
+        } catch (__err) {
+          try {
+            stats.errors++;
+            log(`[${ts()}] ❌ onReady jitter failed: ${__err.message}`);
+          } catch (_e) {
+            log(`[${ts()}] Player ${this.index + 1} error ${_e}`);
           }
         }
-        if (typeof e.target.playVideo === 'function') {
-          safeCmd(
-            function () {
-              try {
-                this.guardPlay(e.target);
-              } catch (_) {}
-            }.bind(this),
-            240
-          );
-        }
-      } catch (__err) {
-        try {
-          stats.errors++;
-          log(`[${ts()}] ❌ onReady jitter failed: ${__err.message}`);
-        } catch (_e) {}
-      }
-    }, __jitterMs); // JITTER_APPLIED
-    schedule(this, 'pc-timer-L395', () => {
-      const seekSec = typeof this.initialSeekSec === 'number' ? this.initialSeekSec : '-';
-      log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> Seek= ${seekSec}s after ${startDelaySec}s`);
-      this.schedulePauses();
-      this.scheduleMidSeek();
-    }, startDelay);
+      },
+      __jitterMs
+    ); // JITTER_APPLIED
+    schedule(
+      this,
+      'pc-timer-L395',
+      () => {
+        const seekSec = typeof this.initialSeekSec === 'number' ? this.initialSeekSec : '-';
+        log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> Seek= ${seekSec}s after ${startDelaySec}s`);
+        this.schedulePauses();
+        this.scheduleMidSeek();
+      },
+      startDelay
+    );
     // Auto Unmute + fallback
     const unmuteDelayExtra = this.config?.unmuteDelayExtra ?? rndInt(30, 90);
     const unmuteDelay = (startDelaySec + unmuteDelayExtra) * 1000;
-    schedule(this, 'pc-timer-L404', () => {
-      // Αν δεν υπάρχει user gesture, περιμένουμε
-      if (!hasUserGesture) {
-        this.pendingUnmute = true;
-        log(`[${ts()}] 🔇 Player ${this.index + 1} Awaiting user gesture for unmute`);
-        return;
-      }
-      if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING])) {
-        if (typeof p.unMute === 'function') p.unMute();
-        const [vMin, vMax] = this.config?.volumeRange ?? [10, 30];
-        const v = rndInt(vMin, vMax);
-        if (typeof p.setVolume === 'function') p.setVolume(v);
-        stats.volumeChanges++;
-        log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
-        // Quick check: if immediately paused after unmute, push play (250ms)
-        schedule(this, 'pc-timer-L419', () => {
-          if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
-            log(`[${ts()}] 🔁 Player ${this.index + 1} Quick retry playVideo after immediate unmute`);
-            if (typeof p.playVideo === 'function') this.guardPlay(p);
-          }
-        }, 250);
-        schedule(this, 'pc-timer-L425', () => {
-          if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
-            log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
-            if (typeof p.playVideo === 'function') this.guardPlay(p);
-          }
-        }, 1000);
-      } else {
-        this.pendingUnmute = true;
-        log(`[${ts()}] ⚠️ Player ${this.index + 1} Auto Unmute skipped -> not playing (will retry on PLAYING)`);
-      }
-    }, unmuteDelay);
+    schedule(
+      this,
+      'pc-timer-L404',
+      () => {
+        // Αν δεν υπάρχει user gesture, περιμένουμε
+        if (!hasUserGesture) {
+          this.pendingUnmute = true;
+          log(`[${ts()}] 🔇 Player ${this.index + 1} Awaiting user gesture for unmute`);
+          return;
+        }
+        if (allTrue([pcEquals(typeof p.getPlayerState, 'function'), p.getPlayerState() === YT.PlayerState.PLAYING])) {
+          if (pcEquals(typeof p.unMute, 'function')) p.unMute();
+          const [vMin, vMax] = this.config?.volumeRange ?? [10, 30];
+          const v = rndInt(vMin, vMax);
+          if (pcEquals(typeof p.setVolume, 'function')) p.setVolume(v);
+          stats.volumeChanges++;
+          log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
+          // Quick check: if immediately paused after unmute, push play (250ms)
+          schedule(
+            this,
+            'pc-timer-L419',
+            () => {
+              if (allTrue([pcEquals(typeof p.getPlayerState, 'function'), p.getPlayerState() === YT.PlayerState.PAUSED])) {
+                log(`[${ts()}] 🔁 Player ${this.index + 1} Quick retry playVideo after immediate unmute`);
+                if (pcEquals(typeof p.playVideo, 'function')) this.guardPlay(p);
+              }
+            },
+            250
+          );
+          schedule(
+            this,
+            'pc-timer-L425',
+            () => {
+              if (allTrue([pcEquals(typeof p.getPlayerState, 'function'), p.getPlayerState() === YT.PlayerState.PAUSED])) {
+                log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
+                if (pcEquals(typeof p.playVideo, 'function')) this.guardPlay(p);
+              }
+            },
+            1000
+          );
+        } else {
+          this.pendingUnmute = true;
+          log(`[${ts()}] ⚠️ Player ${this.index + 1} Auto Unmute skipped -> not playing (will retry on PLAYING)`);
+        }
+      },
+      unmuteDelay
+    );
   }
   onStateChange(e) {
+    let s;
     try {
-      let s;
       if (typeof e !== 'undefined' ? typeof e.data !== 'undefined' : false) {
         s = e.data;
       } else {
         s = this.player ? this.player.getPlayerState() : undefined;
       }
-    } catch (_) {}
+    } catch (_) {
+      log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+    }
     try {
-      if (s === YT.PlayerState.PAUSED) {
+      if (pcEquals(s, YT.PlayerState.PAUSED)) {
         const t = STATE_TRANSITIONS.PAUSED.onResume;
         if (t.guard(this)) t.action(this);
       }
-    } catch (_) {}
+    } catch (_) {
+      log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+    }
     try {
-      if (s === YT.PlayerState.ENDED) {
+      if (pcEquals(s, YT.PlayerState.ENDED)) {
         const t = STATE_TRANSITIONS.ENDED.onEnd;
         if (t.guard(this)) t.action(this);
       }
-    } catch (_) {}
+    } catch (_) {
+      log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+    }
 
     const p = this.player;
     switch (e.data) {
@@ -500,7 +660,11 @@ export class PlayerController {
         log(`[${ts()}] ▶ Player ${this.index + 1} State -> PLAYING`);
         if (this.pendingUnmute) {
           const p = this.player;
-          if (p) { applyUnmuteAndVolume(this, p); retryPlayIfPaused(this, p, [1000]); this.pendingUnmute = false; }
+          if (p) {
+            applyUnmuteAndVolume(this, p);
+            retryPlayIfPaused(this, p, [1000]);
+            this.pendingUnmute = false;
+          }
         }
         break;
       case YT.PlayerState.PAUSED:
@@ -519,28 +683,33 @@ export class PlayerController {
         }
     }
     // Retry unmute αν ήταν pending
-    if (allTrue([e.data === YT.PlayerState.PLAYING, this.pendingUnmute])) {
+    if (allTrue([pcEquals(e.data, YT.PlayerState.PLAYING), this.pendingUnmute])) {
       if (!hasUserGesture) {
         // Περιμένουμε gesture, διατηρούμε pendingUnmute
         log(`[${ts()}] 🔇 Player ${this.index + 1} Still awaiting user gesture before unmute`);
       } else {
-        if (typeof p.unMute === 'function') p.unMute();
+        if (pcEquals(typeof p.unMute, 'function')) p.unMute();
         const [vMin, vMax] = this.config?.volumeRange ?? [10, 30];
         const v = rndInt(vMin, vMax);
-        if (typeof p.setVolume === 'function') p.setVolume(v);
+        if (pcEquals(typeof p.setVolume, 'function')) p.setVolume(v);
         this.pendingUnmute = false;
         stats.volumeChanges++;
         log(`[${ts()}] 🔊 Player ${this.index + 1} Unmute after PLAYING -> ${v}%`);
-        schedule(this, 'pc-timer-L511', () => {
-          if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
-            log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
-            if (typeof p.playVideo === 'function') this.guardPlay(p);
-          }
-        }, 1000);
+        schedule(
+          this,
+          'pc-timer-L511',
+          () => {
+            if (allTrue([pcEquals(typeof p.getPlayerState, 'function'), p.getPlayerState() === YT.PlayerState.PAUSED])) {
+              log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
+              if (pcEquals(typeof p.playVideo, 'function')) this.guardPlay(p);
+            }
+          },
+          1000
+        );
       }
     }
     // Καταγραφή χρόνου θέασης
-    if (e.data === YT.PlayerState.PLAYING) {
+    if (pcEquals(e.data, YT.PlayerState.PLAYING)) {
       this.playingStart = Date.now();
       this.currentRate = typeof p.getPlaybackRate === 'function' ? p.getPlaybackRate() : 1.0;
     } else {
@@ -550,37 +719,47 @@ export class PlayerController {
         this.playingStart = null;
       }
     }
-    if (e.data === YT.PlayerState.BUFFERING) this.lastBufferingStart = Date.now();
-    if (e.data === YT.PlayerState.PAUSED) this.lastPausedStart = Date.now();
+    if (pcEquals(e.data, YT.PlayerState.BUFFERING)) this.lastBufferingStart = Date.now();
+    if (pcEquals(e.data, YT.PlayerState.PAUSED)) this.lastPausedStart = Date.now();
     // ENDED -> απόφαση AutoNext
-    if (e.data === YT.PlayerState.ENDED) {
+    if (pcEquals(e.data, YT.PlayerState.ENDED)) {
       this.clearTimers();
       const duration = typeof p.getDuration === 'function' ? p.getDuration() : 0;
       const percentWatched = duration > 0 ? Math.round((this.totalPlayTime / duration) * 100) : 0;
       log(`[${ts()}] ✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(this.totalPlayTime)}s)`);
       const afterEndPauseMs = rndInt(15000, 60000);
-      schedule(this, 'pc-timer-L539', () => {
-        const requiredTime = getRequiredWatchTime(duration);
-        if (this.totalPlayTime < requiredTime) {
-          log(`[${ts()}] ⏳ Player ${this.index + 1} AutoNext blocked -> required:${requiredTime}s, actual:${Math.round(this.totalPlayTime)}s`);
-          schedule(this, 'pc-timer-L543', () => {
-            log(`[${ts()}] ⚠️ Player ${this.index + 1} Force AutoNext -> inactivity fallback`);
-            if (guardHasAnyList(this)) {
-              this.loadNextVideo(p);
-            } else {
-              stats.errors++;
-              log(`[${ts()}] ❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
-            }
-          }, 15000);
-          return;
-        }
-        if (guardHasAnyList(this)) {
-          this.loadNextVideo(p);
-        } else {
-          stats.errors++;
-          log(`[${ts()}] ❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
-        }
-      }, afterEndPauseMs);
+      schedule(
+        this,
+        'pc-timer-L539',
+        () => {
+          const requiredTime = getRequiredWatchTime(duration);
+          if (this.totalPlayTime < requiredTime) {
+            log(`[${ts()}] ⏳ Player ${this.index + 1} AutoNext blocked -> required:${requiredTime}s, actual:${Math.round(this.totalPlayTime)}s`);
+            schedule(
+              this,
+              'pc-timer-L543',
+              () => {
+                log(`[${ts()}] ⚠️ Player ${this.index + 1} Force AutoNext -> inactivity fallback`);
+                if (guardHasAnyList(this)) {
+                  this.loadNextVideo(p);
+                } else {
+                  stats.errors++;
+                  log(`[${ts()}] ❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
+                }
+              },
+              15000
+            );
+            return;
+          }
+          if (guardHasAnyList(this)) {
+            this.loadNextVideo(p);
+          } else {
+            stats.errors++;
+            log(`[${ts()}] ❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
+          }
+        },
+        afterEndPauseMs
+      );
     }
   }
   onError() {
@@ -594,7 +773,7 @@ export class PlayerController {
     log(`[${ts()}] ❌ Player ${this.index + 1} Error -> AutoNext`);
   }
   loadNextVideo(player) {
-    if (!allTrue([player, typeof player.loadVideoById === 'function'])) return;
+    if (!allTrue([player, pcEquals(typeof player.loadVideoById, 'function')])) return;
     if (!canAutoNext(this.index)) {
       log(`[${ts()}] ⚠️ AutoNext limit reached -> ${AUTO_NEXT_LIMIT_PER_PLAYER}/hour for Player ${this.index + 1}`);
       return;
@@ -627,7 +806,7 @@ export class PlayerController {
   schedulePauses() {
     const p = this.player;
     if (anyTrue([!p])) return;
-    if (!allTrue([p, typeof p.getDuration === 'function'])) return;
+    if (!allTrue([p, pcEquals(typeof p.getDuration, 'function')])) return;
     const duration = p.getDuration();
     if (duration <= 0) return;
     const plan = getPausePlan(duration);
@@ -635,15 +814,20 @@ export class PlayerController {
       const delay = rndInt(Math.floor(duration * 0.1), Math.floor(duration * 0.8)) * 1000;
       const pauseLen = rndInt(plan.min, plan.max) * 1000;
       const timer = setTimeout(() => {
-        if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING])) {
+        if (allTrue([pcEquals(typeof p.getPlayerState, 'function'), p.getPlayerState() === YT.PlayerState.PLAYING])) {
           p.pauseVideo();
           stats.pauses++;
           this.expectedPauseMs = pauseLen;
           log(`[${ts()}] ⏸️ Player ${this.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
-          schedule(this, 'pc-timer-L620', () => {
-            this.guardPlay(p);
-            this.expectedPauseMs = 0;
-          }, pauseLen);
+          schedule(
+            this,
+            'pc-timer-L620',
+            () => {
+              this.guardPlay(p);
+              this.expectedPauseMs = 0;
+            },
+            pauseLen
+          );
         }
       }, delay);
       this.timers.pauseTimers.push(timer);
@@ -653,38 +837,53 @@ export class PlayerController {
     const p = this.player;
     if (anyTrue([!p])) return;
     // removed duplicate
-    if (!allTrue([p, typeof p.getDuration === 'function'])) return;
+    if (!allTrue([p, pcEquals(typeof p.getDuration, 'function')])) return;
     const duration = p.getDuration();
     if (duration < 300) return;
     const interval = this.config?.midSeekInterval ?? rndInt(8, 12) * 60000;
-    this.timers.midSeek = schedule(this, 'pc-timer-L637', () => {
-      if (allTrue([duration > 0, typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING])) {
-        const seek = rndInt(Math.floor(duration * 0.2), Math.floor(duration * 0.6));
-        p.seekTo(seek, true);
-        stats.midSeeks++;
-        log(`[${ts()}] 🔁 Player ${this.index + 1} Mid-seek -> ${seek}s`);
-      }
-      this.scheduleMidSeek();
-    }, interval);
+    this.timers.midSeek = schedule(
+      this,
+      'pc-timer-L637',
+      () => {
+        if (allTrue([duration > 0, pcEquals(typeof p.getPlayerState, 'function'), p.getPlayerState() === YT.PlayerState.PLAYING])) {
+          const seek = rndInt(Math.floor(duration * 0.2), Math.floor(duration * 0.6));
+          p.seekTo(seek, true);
+          stats.midSeeks++;
+          log(`[${ts()}] 🔁 Player ${this.index + 1} Mid-seek -> ${seek}s`);
+        }
+        this.scheduleMidSeek();
+      },
+      interval
+    );
   }
   clearTimers() {
-    try { scheduler.clear(this.index); } catch (_) {}
+    try {
+      scheduler.clear(this.index);
+    } catch (_) {
+      log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+    }
     this.timers.pauseTimers.forEach((t) => {
       try {
         clearTimeout(t);
-      } catch (_) {}
+      } catch (_) {
+        log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+      }
     });
     this.timers.pauseTimers = [];
     if (this.timers.midSeek) {
       try {
         clearTimeout(this.timers.midSeek);
-      } catch (_) {}
+      } catch (_) {
+        log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+      }
       this.timers.midSeek = null;
     }
     if (this.timers.progressCheck) {
       try {
         clearInterval(this.timers.progressCheck);
-      } catch (_) {}
+      } catch (_) {
+        log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+      }
       this.timers.progressCheck = null;
     }
     this.expectedPauseMs = 0;
@@ -693,7 +892,7 @@ export class PlayerController {
 
 // Guard wrappers for hotspots
 try {
-  if (typeof autoNext === 'function') {
+  if (pcEquals(typeof autoNext, 'function')) {
     var __an = autoNext;
     autoNext = function () {
       try {
@@ -703,20 +902,26 @@ try {
           var m = e;
           try {
             if (e) {
-              if (typeof e.message === 'string') {
+              if (pcEquals(typeof e.message, 'string')) {
                 m = e.message;
               }
             }
-          } catch (_) {}
+          } catch (_) {
+            log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+          }
           stats.errors++;
           log(`[${ts()}] ❌ Player ${this.index + 1} AutoNext Error -> ${m}`);
-        } catch (_) {}
+        } catch (_) {
+          log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+        }
       }
     };
   }
-} catch (_) {}
+} catch (_) {
+  log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+}
 try {
-  if (typeof initPlayersSequentially === 'function') {
+  if (pcEquals(typeof initPlayersSequentially, 'function')) {
     var __is = initPlayersSequentially;
     initPlayersSequentially = function () {
       try {
@@ -726,18 +931,24 @@ try {
           var m2 = e;
           try {
             if (e) {
-              if (typeof e.message === 'string') {
+              if (pcEquals(typeof e.message, 'string')) {
                 m2 = e.message;
               }
             }
-          } catch (_) {}
+          } catch (_) {
+            log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+          }
           stats.errors++;
           log(`[${ts()}] ❌ Player ${this.index + 1} InitPlayersSequentially Error -> ${m2}`);
-        } catch (_) {}
+        } catch (_) {
+          log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+        }
       }
     };
   }
-} catch (_) {}
+} catch (_) {
+  log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+}
 
 try {
   if (!window.seek) {
@@ -748,11 +959,15 @@ try {
         try {
           stats.errors++;
           log(`[${ts()}] ❌ Player ${this.index + 1} Shim Seek Error ${e.message}`);
-        } catch (_) {}
+        } catch (_) {
+          log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+        }
       }
     };
   }
-} catch (_) {}
+} catch (_) {
+  log(`[${ts()}] Player ${this.index + 1} error ${_}`);
+}
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: playerController.js ${VERSION} -> Ολοκληρώθηκε`);
