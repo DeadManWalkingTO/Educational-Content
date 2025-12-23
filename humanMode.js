@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-// Έκδοση: v4.11.19
+// Έκδοση: v4.11.20
 /*
 Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από globals.js.
@@ -7,7 +7,7 @@ Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από glob
 */
 
 // --- Versions ---
-const VERSION = 'v4.11.19';
+const VERSION = 'v4.11.20';
 export function getVersion() {
   return VERSION;
 }
@@ -205,17 +205,13 @@ export async function initPlayersSequentially(mainList, altList) {
     const profile = BEHAVIOR_PROFILES[Math.floor(Math.random() * BEHAVIOR_PROFILES.length)];
     const config = createRandomPlayerConfig(profile);
     try { if (i === 0) { if (typeof config === 'object') { config.startDelay = 0; } } else { if (typeof config === 'object') { config.startDelay = rndInt(30, 180); } } } catch (_) {}
+    try { if (i === 0) { if (typeof config === 'object') { config.startDelay = 0; } } else { if (typeof config === 'object') { config.startDelay = rndInt(30, 180); } } } catch (_) {}
     if (i == 0) config.startDelay = Math.max(config.startDelay ?? 0, 1);
     const session = createSessionPlan();
     if (!controller) {
       controller = new PlayerController(i, mainList, altList, config);
       try {
         if (i === 0) {
-          const __origOnReady = controllers[i].onReady;
-          controllers[i].onReady = function(e) {
-            try { if (!this.config) this.config = {}; this.config.startDelay = 0; } catch (_) {}
-            try { return __origOnReady.call(this, e); } catch (err) { try { log(`[${ts()}] ❌ Player 1 onReady override error ${err && err.message ? err.message : err}`); } catch (_) {} }
-          };
         }
       } catch (_) {}
 

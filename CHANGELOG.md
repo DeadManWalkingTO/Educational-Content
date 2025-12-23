@@ -1,5 +1,22 @@
-# CHANGELOG.md - v207
+# CHANGELOG.md - v210
 ---
+
+
+2025-12-23
+- playerController.js: Remove leftover fragment; final SyntaxError fix; patch bump.
+
+
+
+2025-12-23
+- playerController.js: Fix SyntaxError in startDelaySec IIFE; clean self-binding, no ||/&&; patch bump.
+
+
+
+2025-12-23
+- humanMode.js: Κατάργηση await playbackDelay πριν το new PlayerController, πέρασμα config.startDelay στον constructor (0s για Player #1, 30–180s για άλλους), αφαίρεση onReady override, αύξηση έκδοσης (patch).
+- playerController.js: Σε onReady(), σεβασμός this.config.startDelay αν υπάρχει (self-bound IIFE, χωρίς ||/&&), αύξηση έκδοσης (patch).
+- globals/scheduler: Δεν χρησιμοποιείται για startup delays (μόνο για επόμενα βήματα).
+
 
 
 2025-12-23
