@@ -1,7 +1,8 @@
-# CHANGELOG.md - v196
-
+# CHANGELOG.md - v197
 ---
 
+2025-12-23
+- humanMode.js: Προσθήκη duration-aware createPlayPlan με ποσοστιακή λογική (preserved από playerController) + mid-seek % 20–60%; έκδοση +1.
 2025-12-23 13:18
 - playerController.js: v6.21.23 → v6.21.24 — Fix onStateChange() scope bug (declare `let s;` outside try) και διόρθωση log(seek error) σε template literal με ts().
 
