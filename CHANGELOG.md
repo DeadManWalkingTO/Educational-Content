@@ -1,7 +1,14 @@
-# CHANGELOG.md - v185
+# CHANGELOG.md - v190
 
 ---
 
+2025-12-23 | playerController.js | v6.21.17 → v6.21.18 | Simplified YouTube state mapping (YT_STATES, stateToName), EOF marker.
+2025-12-23 | playerController.js | v6.21.16 → v6.21.17 | Fix: schedule() try/catch malformed (Unexpected token 'catch') at top; normalized fallback to setTimeout.
+2025-12-23 | playerController.js | v6.21.15 → v6.21.16 | Phase-2: add schedule(ctrl,label,fn,delay); convert naive setTimeout to scheduler; ensure clearTimers() calls scheduler.clear(index).
+Converted timers: 13
+2025-12-23 | playerController.js | v6.21.14 → v6.21.15 | Phase-1: add hasFn/callIfFn, add Unmute+Retry helpers + pendingUnmute handler, add local pc_* guards, use globals.hasArrayWithItems; const seekSec.
+2025-12-23 | playerController.js | 6.21.14 → 6.21.15 | Phase-1: add local guards (pc_*), add hasFn/callIfFn, unify Unmute+Retry, use globals.hasArrayWithItems; minor const seekSec.
+Notes: No '||' or '&&' introduced; semicolons preserved; behavior aimed to be equivalent (refactor only).
 2025-12-23 | playerController.js | Cleanup residual helper block; fix Illegal return.
 2025-12-23 | playerController.js | v6.21.12 → v6.21.13 | Fix leftover lines after removing isNonEmptyArray; remove duplicate old guardHasAnyList block; resolve Illegal return.
 Notes: No logic changes beyond cleanup; no || or && introduced; semicolons preserved.
