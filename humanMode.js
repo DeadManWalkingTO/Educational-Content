@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-// Έκδοση: v4.11.11
+// Έκδοση: v4.11.12
 /*
 Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από globals.js.
@@ -7,7 +7,7 @@ Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από glob
 */
 
 // --- Versions ---
-const VERSION = 'v4.11.11';
+const VERSION = 'v4.11.12';
 export function getVersion() {
   return VERSION;
 }
@@ -16,11 +16,8 @@ export function getVersion() {
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: humanMode.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, anyTrue, allTrue, stats } from './globals.js';
-import { scheduler } from './globals.js';
+import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, anyTrue, allTrue, stats, scheduler, hasArrayWithItems } from './globals.js';
 import { PlayerController } from './playerController.js';
-import { hasArrayWithItems } from './globals.js';
-
 // Guard helpers for State Machine (Rule 12)
 // Named guards for Human Mode
 
@@ -186,30 +183,6 @@ export async function initPlayersSequentially(mainList, altList) {
   }
   log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
 }
-
-try {
-  if (typeof initPlayersSequentially === 'function') {
-    var __hm = initPlayersSequentially;
-    initPlayersSequentially = function () {
-      try {
-        return __hm.apply(null, arguments);
-      } catch (e) {
-        try {
-          var m = e;
-          try {
-            if (e) {
-              if (typeof e.message === 'string') {
-                m = e.message;
-              }
-            }
-          } catch (_) {}
-          stats.errors++;
-          log(`[${ts()}] ❌ HumanMode init error → ${m}`);
-        } catch (_) {}
-      }
-    };
-  }
-} catch (_) {}
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: humanMode.js ${VERSION} -> Ολοκληρώθηκε`);

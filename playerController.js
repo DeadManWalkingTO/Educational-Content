@@ -1,5 +1,5 @@
 // --- playerController.js ---
-// Έκδοση: v6.21.11
+// Έκδοση: v6.21.12
 /*
 Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v6.21.11';
+const VERSION = 'v6.21.12';
 export function getVersion() {
   return VERSION;
 }
@@ -31,8 +31,8 @@ import {
   ts,
   anyTrue,
   allTrue,
+  scheduler,
 } from './globals.js';
-import { scheduler } from './globals.js';
 
 // Ατομικός έλεγχος «είναι μη κενός πίνακας»
 function isNonEmptyArray(x) {
@@ -597,69 +597,6 @@ export class PlayerController {
     this.expectedPauseMs = 0;
   }
 }
-
-// Guard wrappers for hotspots
-try {
-  if (typeof autoNext === 'function') {
-    var __an = autoNext;
-    autoNext = function () {
-      try {
-        return __an.apply(null, arguments);
-      } catch (e) {
-        try {
-          var m = e;
-          try {
-            if (e) {
-              if (typeof e.message === 'string') {
-                m = e.message;
-              }
-            }
-          } catch (_) {}
-          stats.errors++;
-          log(`[${ts()}] ❌ Player ${this.index + 1} AutoNext Error -> ${m}`);
-        } catch (_) {}
-      }
-    };
-  }
-} catch (_) {}
-try {
-  if (typeof initPlayersSequentially === 'function') {
-    var __is = initPlayersSequentially;
-    initPlayersSequentially = function () {
-      try {
-        return __is.apply(null, arguments);
-      } catch (e) {
-        try {
-          var m2 = e;
-          try {
-            if (e) {
-              if (typeof e.message === 'string') {
-                m2 = e.message;
-              }
-            }
-          } catch (_) {}
-          stats.errors++;
-          log(`[${ts()}] ❌ Player ${this.index + 1} InitPlayersSequentially Error -> ${m2}`);
-        } catch (_) {}
-      }
-    };
-  }
-} catch (_) {}
-
-try {
-  if (!window.seek) {
-    window.seek = function () {
-      try {
-        return doSeek.apply(null, arguments);
-      } catch (e) {
-        try {
-          stats.errors++;
-          log(`[${ts()}] ❌ Player ${this.index + 1} Shim Seek Error ${e.message}`);
-        } catch (_) {}
-      }
-    };
-  }
-} catch (_) {}
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: playerController.js ${VERSION} -> Ολοκληρώθηκε`);

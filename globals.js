@@ -1,5 +1,5 @@
 // --- globals.js ---
-// Έκδοση: v4.8.7
+// Έκδοση: v4.8.8
 /*
 Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v4.8.7';
+const VERSION = 'v4.8.8';
 export function getVersion() {
   return VERSION;
 }
@@ -15,10 +15,9 @@ export function getVersion() {
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: globals.js ${VERSION} -> Ξεκίνησε`);
 
-/** --- Console Filter (external) Early Install - Start --- */
 // Imports
-import { installConsoleFilter, setFilterLevel } from './consoleFilter.js';
 
+/** --- Console Filter (external) Early Install - Start --- */
 const consoleFilterConfig = {
   enabled: true,
   tagLevel: 'info',
@@ -33,8 +32,6 @@ const consoleFilterConfig = {
   sources: [/www\-widgetapi\.js/i, /googleads\.g\.doubleclick\.net/i, /pagead\/viewthroughconversion/i],
   tag: '[YouTubeAPI][non-critical]',
 };
-installConsoleFilter(consoleFilterConfig);
-setFilterLevel('info');
 /** --- Console Filter (external) Early Install - End --- */
 
 /** --- Guard helpers for State Machine - Start --- */

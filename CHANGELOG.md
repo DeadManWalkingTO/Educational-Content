@@ -1,11 +1,16 @@
-# CHANGELOG.md - v182
+# CHANGELOG.md - v183
 
 ---
 
-2025-12-23 | uiControls.js | v3.16.22 → v3.16.23 | Fix: normalized string literals (\n), cleared stray lines; ensured guard & returns.
-Notes: No usage of || or && in code; Semicolons kept; Public API unchanged.
 ## 2025-12-23
 
+- main.js v3.33.7 → v3.33.8: Μεταφορά εγκατάστασης consoleFilter στο main (διάσπαση cycle), αφαίρεση διπλού σχολίου
+- globals.js v4.8.7 → v4.8.8: Αφαίρεση import/calls σε consoleFilter (διάσπαση cycle)
+- humanMode.js v4.11.11 → v4.11.12: Συγχώνευση imports από globals, αφαίρεση debug wrapper initPlayersSequentially
+- playerController.js v6.21.11 → v6.21.12: Συγχώνευση imports από globals, αφαίρεση debug wrappers (autoNext/initPlayersSequentially/window.seek)
+- watchdog.js v2.18.1 → v2.18.2: Συγχώνευση imports από globals
+- uiControls.js | v3.16.22 → v3.16.23 | Fix: normalized string literals (\n), cleared stray lines; ensured guard & returns.
+  Notes: No usage of || or && in code; Semicolons kept; Public API unchanged.
 - watchdog.js: version bump to v2.18.1 — Αφαιρέθηκε stats.watchdog++ από το BUFFERING waiting path; κρατήθηκαν τα increments σε retry/reset και stats.errors++ μόνο στα resets.
 - watchdog.js: v2.17.0 → v2.17.1 — Διόρθωση SyntaxError (παλιό block μετά το κλείσιμο της startWatchdog); εξισορρόπηση αγκυλών, χωρίς αλλαγή logs.
 - watchdog.js: v2.16.14 → v2.17.0 — Episode jitter per BUFFERING, policy functions, adaptive loop; χωρίς πρόσθετα logs (κρατάμε τα υπάρχοντα).

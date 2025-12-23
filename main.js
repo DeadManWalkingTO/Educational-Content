@@ -1,5 +1,5 @@
 // --- main.js ---
-// Έκδοση: v3.33.7
+// Έκδοση: v3.33.8
 /*
 Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από globals.js.
@@ -7,7 +7,7 @@ Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από glob
 */
 
 // --- Versions ---
-const VERSION = 'v3.33.7';
+const VERSION = 'v3.33.8';
 export function getVersion() {
   return VERSION;
 }
@@ -15,7 +15,13 @@ export function getVersion() {
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js ${VERSION} -> Ξεκίνησε`);
 
+// Console filter installation (moved from globals.js to break cycle)
+try {
+  installConsoleFilter();
+} catch (_) {}
+
 // Imports
+import { installConsoleFilter, setFilterLevel } from './consoleFilter.js';
 import { log, ts, setUserGesture, anyTrue, allTrue, stats } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
@@ -95,7 +101,6 @@ async function startApp() {
     log(`[${ts()}] ⏳ YouTubeAPI -> Αναμονή`);
     await youtubeReadyPromise;
     log(`[${ts()}] ✅ YouTubeAPI -> Έτοιμο`);
-    // Human Mode (sequential init)
     // Human Mode (sequential init) σε Promise
     const hm = initPlayersSequentially(mainList, altList)
       .then(() => {
