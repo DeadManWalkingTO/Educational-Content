@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v6.21.24';
+const VERSION = 'v6.21.29';
 export function getVersion() {
   return VERSION;
 }
@@ -556,7 +556,6 @@ export class PlayerController {
         const seekSec = typeof this.initialSeekSec === 'number' ? this.initialSeekSec : '-';
         log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> Seek= ${seekSec}s after ${startDelaySec}s`);
         this.schedulePauses();
-        this.scheduleMidSeek();
       },
       startDelay
     );
@@ -801,7 +800,6 @@ export class PlayerController {
     this.playingStart = null;
     log(`[${ts()}] ⏭️ Player ${this.index + 1} AutoNext -> ${newId} (Source:${useMain ? 'main' : 'alt'})`);
     this.schedulePauses();
-    this.scheduleMidSeek();
   }
   schedulePauses() {
     const p = this.player;
@@ -832,29 +830,7 @@ export class PlayerController {
       }, delay);
       this.timers.pauseTimers.push(timer);
     }
-  }
-  scheduleMidSeek() {
-    const p = this.player;
-    if (anyTrue([!p])) return;
-    // removed duplicate
-    if (!allTrue([p, pcEquals(typeof p.getDuration, 'function')])) return;
-    const duration = p.getDuration();
-    if (duration < 300) return;
-    const interval = this.config?.midSeekInterval ?? rndInt(8, 12) * 60000;
-    this.timers.midSeek = schedule(
-      this,
-      'pc-timer-L637',
-      () => {
-        if (allTrue([duration > 0, pcEquals(typeof p.getPlayerState, 'function'), p.getPlayerState() === YT.PlayerState.PLAYING])) {
-          const seek = rndInt(Math.floor(duration * 0.2), Math.floor(duration * 0.6));
-          p.seekTo(seek, true);
-          stats.midSeeks++;
-          log(`[${ts()}] 🔁 Player ${this.index + 1} Mid-seek -> ${seek}s`);
-        }
-        this.scheduleMidSeek();
-      },
-      interval
-    );
+  
   }
   clearTimers() {
     try {

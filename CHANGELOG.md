@@ -1,6 +1,12 @@
-# CHANGELOG.md - v197
+# CHANGELOG.md - v200
 ---
 
+2025-12-23
+- playerController.js: Προστέθηκε κλείσιμο με } πριν το clearTimers(), αποκατάσταση σύνταξης (Unexpected token '{'), έκδοση +1 (v6.21.29).
+2025-12-23
+- playerController.js: Διορθώσεις μετά την αφαίρεση scheduleMidSeek(): καθάρισμα ορφανών κλήσεων και braces, έκδοση +2 (v6.21.27→v6.21.28).
+2025-12-23
+- playerController.js: Αφαίρεση scheduleMidSeek() (mid-seek orchestration θα γίνεται από humanMode). Έκδοση +1.
 2025-12-23
 - humanMode.js: Προσθήκη duration-aware createPlayPlan με ποσοστιακή λογική (preserved από playerController) + mid-seek % 20–60%; έκδοση +1.
 2025-12-23 13:18
