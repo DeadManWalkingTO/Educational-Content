@@ -1,10 +1,16 @@
 // --- globals.js ---
-// Έκδοση: v4.8.2
-// Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
-// Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
-// Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
-// Προσθήκη: Console filter/tagging για non-critical YouTube IFrame API warnings.
+// Έκδοση: v4.8.3
+/*
+Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
+Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
+Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
+*/
+
 // --- Versions ---
+const VERSION = 'v4.8.3';
+export function getVersion() {
+  return VERSION;
+};
 const VERSION = 'v4.8.2';
 export function getVersion() {
   return VERSION;

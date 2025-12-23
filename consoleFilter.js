@@ -1,13 +1,16 @@
-// consoleFilter.js
-// v2.2.3
+// --- consoleFilter.js ---
+// Έκδοση: v2.2.4
+/*
 // Console Filter: αυτόνομο module για state machine, tagging και wrapping των console.* χωρίς χρήση OR και AND.
+Προηγούμενη έκδοση: v2.2.3
+Συμμόρφωση header με πρότυπο (χωρίς διαγραφή πληροφοριών).
+*/
 
 // --- Versions ---
-const VERSION = 'v2.2.3';
+const VERSION = 'v2.2.4';
 export function getVersion() {
   return VERSION;
-}
-
+};
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: consoleFilter.js ${VERSION} -> Ξεκίνησε`);
 

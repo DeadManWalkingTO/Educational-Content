@@ -1,7 +1,16 @@
 // --- humanMode.js ---
-// Έκδοση: v4.11.8
-// Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
+// Έκδοση: v4.11.9
+/*
+Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
+Προηγούμενη έκδοση: v4.11.8
+Συμμόρφωση header με πρότυπο (χωρίς διαγραφή πληροφοριών).
+*/
+
 // --- Versions ---
+const VERSION = 'v4.11.9';
+export function getVersion() {
+  return VERSION;
+};
 const VERSION = 'v4.11.8';
 export function getVersion() {
   return VERSION;

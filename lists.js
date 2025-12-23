@@ -1,8 +1,16 @@
 // --- lists.js ---
-// Έκδοση: v4.9.3
-// Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
-// Ενημερωμένο: Διόρθωση URL + καθαρισμός escaped tokens
+// Έκδοση: v4.9.4
+/*
+Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
+Ενημερωμένο: Διόρθωση URL + καθαρισμός escaped tokens
+Συμμόρφωση header με πρότυπο (χωρίς διαγραφή πληροφοριών).
+*/
+
 // --- Versions ---
+const VERSION = 'v4.9.4';
+export function getVersion() {
+  return VERSION;
+};
 const VERSION = 'v4.9.3';
 export function getVersion() {
   return VERSION;

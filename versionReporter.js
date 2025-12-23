@@ -1,8 +1,16 @@
 // --- versionReporter.js ---
-// Έκδοση: v3.9.2
-// Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
-// Αφαίρεση κυκλικής εξάρτησης με main.js. Η έκδοση του main θα προστεθεί από το ίδιο το main.js.
+// Έκδοση: v3.9.3
+/*
+Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
+Αφαίρεση κυκλικής εξάρτησης με main.js. Η έκδοση του main θα προστεθεί από το ίδιο το main.js.
+Συμμόρφωση header με πρότυπο (χωρίς διαγραφή πληροφοριών).
+*/
+
 // --- Versions ---
+const VERSION = 'v3.9.3';
+export function getVersion() {
+  return VERSION;
+};
 const VERSION = 'v3.9.2';
 export function getVersion() {
   return VERSION;
