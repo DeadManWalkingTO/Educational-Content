@@ -1,5 +1,5 @@
 // --- playerController.js ---
-// Έκδοση: v6.21.12
+// Έκδοση: v6.21.13
 /*
 Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
 Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v6.21.12';
+const VERSION = 'v6.21.13';
 export function getVersion() {
   return VERSION;
 }
@@ -33,7 +33,6 @@ import {
   allTrue,
   scheduler,
 } from './globals.js';
-
 // Ατομικός έλεγχος «είναι μη κενός πίνακας»
 function isNonEmptyArray(x) {
   if (!Array.isArray(x)) {
@@ -109,7 +108,9 @@ function safeCmd(fn, delay = 80) {
   setTimeout(() => {
     try {
       fn();
-    } catch (_) {}
+    } catch (_) {
+      log('[${ts()}] ❌ safeCmd Error ' + e.message);
+    }
   }, delay);
 }
 // Seek command with bounds checking
@@ -142,8 +143,10 @@ function doSeek(player, seconds) {
   } catch (e) {
     try {
       stats.errors++;
-      log('[${ts()}] ❌ Player ${this.index + 1} Seek Error ' + e.message);
-    } catch (_) {}
+      log(`[${ts()}] ❌ Player ${this.index + 1} Seek Error ` + e.message);
+    } catch (_) {
+      log(`[${ts()}] ❌ Player ${this.index + 1} Controller Error ` + e.message);
+    }
   }
 }
 
@@ -219,7 +222,9 @@ function getDynamicOrigin() {
     const __loc = typeof window !== 'undefined' ? (window.location ? window.location : {}) : {};
     const { protocol, hostname, port } = __loc;
     if (allTrue([protocol, hostname])) return `${protocol}//${hostname}${port ? ':' + port : ''}`;
-  } catch (_) {}
+  } catch (_) {
+    log(`[${ts()}] ⚠️ getDynamicOrigin Error ${_}`);
+  }
   return '';
 }
 function getYouTubeHostFallback() {
@@ -248,7 +253,9 @@ export class PlayerController {
         if (p ? typeof p.playVideo === 'function' : false) {
           p.playVideo();
         }
-      } catch (_) {}
+      } catch (_) {
+        log(`[${ts()}] ❌ Player ${this.index + 1} LogPlayer Error ` + e.message);
+      }
     };
 
     this.requestPlay = function () {
@@ -257,7 +264,9 @@ export class PlayerController {
         if (p) {
           this.guardPlay(p);
         }
-      } catch (_) {}
+      } catch (_) {
+        log(`[${ts()}] ❌ Player ${this.index + 1} requestPlay Error ` + e.message);
+      }
     };
     this.profileName = config?.profileName ?? 'Unknown';
     this.startTime = null;
@@ -315,7 +324,9 @@ export class PlayerController {
             function () {
               try {
                 this.guardPlay(e.target);
-              } catch (_) {}
+              } catch (_) {
+                log(`[${ts()}] ❌ Player ${this.index + 1} guardPlay Error ` + e.message);
+              }
             }.bind(this),
             240
           );
@@ -324,7 +335,9 @@ export class PlayerController {
         try {
           stats.errors++;
           log(`[${ts()}] ❌ onReady jitter failed: ${__err.message}`);
-        } catch (_e) {}
+        } catch (_e) {
+          log(`[${ts()}] ❌ Player ${this.index + 1} onReady Error ` + e.message);
+        }
       }
     }, __jitterMs); // JITTER_APPLIED
     setTimeout(() => {
@@ -377,7 +390,9 @@ export class PlayerController {
       } else {
         s = this.player ? this.player.getPlayerState() : undefined;
       }
-    } catch (_) {}
+    } catch (_) {
+      log(`[${ts()}] ❌ Player ${this.index + 1} StateChange Error ` + e.message);
+    }
     try {
       if (s === YT.PlayerState.PAUSED) {
         const t = STATE_TRANSITIONS.PAUSED.onResume;
@@ -577,21 +592,15 @@ export class PlayerController {
   }
   clearTimers() {
     this.timers.pauseTimers.forEach((t) => {
-      try {
-        clearTimeout(t);
-      } catch (_) {}
+      clearTimeout(t);
     });
     this.timers.pauseTimers = [];
     if (this.timers.midSeek) {
-      try {
-        clearTimeout(this.timers.midSeek);
-      } catch (_) {}
+      clearTimeout(this.timers.midSeek);
       this.timers.midSeek = null;
     }
     if (this.timers.progressCheck) {
-      try {
-        clearInterval(this.timers.progressCheck);
-      } catch (_) {}
+      clearInterval(this.timers.progressCheck);
       this.timers.progressCheck = null;
     }
     this.expectedPauseMs = 0;

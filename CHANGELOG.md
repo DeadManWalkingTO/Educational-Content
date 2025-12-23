@@ -1,8 +1,17 @@
-# CHANGELOG.md - v183
+# CHANGELOG.md - v185
 
 ---
 
 ## 2025-12-23
+
+- consoleFilter.js v2.2.7 → v2.2.8: Προσθήκη import `ts` για unified catch logging
+- globals.js v4.8.8 → v4.8.9: Προσθήκη helpers logError/logPlayerError/logOnce, ενοποίηση σιωπηλών catch
+- playerController.js v6.21.12 → v6.21.13: Αντικατάσταση empty catch με unified logging (όπου ταιριάζει)
+- humanMode.js v4.11.12 → v4.11.13: Αντικατάσταση empty catch με unified logging (όπου ταιριάζει)
+- watchdog.js v2.18.2 → v2.18.3: Αντικατάσταση empty catch με unified logging (όπου ταιριάζει)
+- consoleFilter.js v2.2.6 → v2.2.7: Αντικατάσταση empty catch με unified logging (όπου ταιριάζει)
+- main.js v3.33.8 → v3.33.9: Αντικατάσταση empty catch με unified logging (όπου ταιριάζει)
+- uiControls.js v3.16.25 → v3.16.26: Αντικατάσταση empty catch με unified logging (όπου ταιριάζει)
 
 - main.js v3.33.7 → v3.33.8: Μεταφορά εγκατάστασης consoleFilter στο main (διάσπαση cycle), αφαίρεση διπλού σχολίου
 - globals.js v4.8.7 → v4.8.8: Αφαίρεση import/calls σε consoleFilter (διάσπαση cycle)

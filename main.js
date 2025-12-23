@@ -1,5 +1,5 @@
 // --- main.js ---
-// Έκδοση: v3.33.8
+// Έκδοση: v3.33.9
 /*
 Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από globals.js.
@@ -7,7 +7,7 @@ Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από glob
 */
 
 // --- Versions ---
-const VERSION = 'v3.33.8';
+const VERSION = 'v3.33.9';
 export function getVersion() {
   return VERSION;
 }
@@ -18,7 +18,9 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js $
 // Console filter installation (moved from globals.js to break cycle)
 try {
   installConsoleFilter();
-} catch (_) {}
+} catch (_) {
+  console.log(`[${new Date().toLocaleTimeString()}] ⚠️ Console Filter installation error -> ${_}`);
+}
 
 // Imports
 import { installConsoleFilter, setFilterLevel } from './consoleFilter.js';

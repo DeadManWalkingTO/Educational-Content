@@ -1,5 +1,5 @@
 // --- globals.js ---
-// Έκδοση: v4.8.8
+// Έκδοση: v4.8.9
 /*
 Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
 Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v4.8.8';
+const VERSION = 'v4.8.9';
 export function getVersion() {
   return VERSION;
 }
@@ -246,18 +246,20 @@ export const scheduler = (function () {
                 msg = e.message;
               }
             }
-          } catch (_) {}
+          } catch (_) {
+            log(`[${ts()}] ⚠️ Globals Error ${_}`);
+          }
           console.error('[sched] ' + msg);
-        } catch (_) {}
+        } catch (_) {
+          log(`[${ts()}] ⚠️ Globals Error ${_}`);
+        }
       }
     }, delayMs);
     timers.push(id);
     return id;
   }
   function cancel(id) {
-    try {
-      clearTimeout(id);
-    } catch (_) {}
+    clearTimeout(id);
   }
   function jitter(baseMs, spreadMs) {
     var rnd = Math.random();

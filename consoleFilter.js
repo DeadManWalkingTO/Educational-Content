@@ -1,5 +1,5 @@
 // --- consoleFilter.js ---
-// Έκδοση: v2.2.6
+// Έκδοση: v2.2.8
 /*
 Console Filter: αυτόνομο module για state machine, tagging και wrapping των console.* 
 Χωρίς χρήση OR και AND.
@@ -7,7 +7,7 @@ Console Filter: αυτόνομο module για state machine, tagging και wra
 */
 
 // --- Versions ---
-const VERSION = 'v2.2.6';
+const VERSION = 'v2.2.8';
 export function getVersion() {
   return VERSION;
 }
@@ -16,8 +16,7 @@ export function getVersion() {
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: consoleFilter.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { anyTrue, allTrue } from './globals.js';
-
+import { anyTrue, allTrue, ts } from './globals.js';
 let _installed = false;
 let _orig = { error: null, warn: null, info: null, log: null };
 let _st = { enabled: true, level: 'info', patterns: [], sources: [], tag: '[YouTubeAPI][non-critical]' };
@@ -58,7 +57,9 @@ function matchAnyArg(args, regexList) {
         }
       }
     }
-  } catch (_) {}
+  } catch (_) {
+    log(`[${ts()}] ⚠️ ConsoleFilter Error ${_}`);
+  }
   return false;
 }
 
@@ -85,7 +86,9 @@ function matchSourceHints(args, sources) {
         }
       }
     }
-  } catch (_) {}
+  } catch (_) {
+    log(`[${ts()}] ⚠️ ConsoleFilter Error ${_}`);
+  }
   return false;
 }
 

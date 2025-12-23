@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-// Έκδοση: v2.18.2
+// Έκδοση: v2.18.3
 /*
 Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
 Συμμόρφωση με κανόνα State Machine με Guard Steps.
@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v2.18.2';
+const VERSION = 'v2.18.3';
 export function getVersion() {
   return VERSION;
 }
@@ -17,7 +17,6 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: watchdog.
 
 // Imports
 import { log, ts, controllers, stats, anyTrue, allTrue, WATCHDOG_BUFFER_MIN, WATCHDOG_BUFFER_MAX, WATCHDOG_PAUSE_RECHECK_MS } from './globals.js';
-
 // Exports
 export const watchdogHealth = { lastCheck: Date.now(), lastRecovery: 0 };
 
@@ -59,10 +58,14 @@ export function startWatchdog() {
         stats.errors++;
         try {
           watchdogHealth.lastRecovery = now;
-        } catch (_) {}
+        } catch (_) {
+          log(`[${ts()}] ⚠️ Watchdog Error ${_}`);
+        }
         try {
           delete c.bufferJitterMs;
-        } catch (_) {}
+        } catch (_) {
+          log(`[${ts()}] ⚠️ Watchdog Error ${_}`);
+        }
         return true;
       }
     }
@@ -94,7 +97,9 @@ export function startWatchdog() {
           }
         }
       }
-    } catch (_) {}
+    } catch (_) {
+      log(`[${ts()}] ⚠️ Watchdog Error ${_}`);
+    }
     setTimeout(function () {
       var canCheck = allTrue([typeof c.player.getPlayerState === 'function']);
       var stillNotPlaying = false;
@@ -115,7 +120,9 @@ export function startWatchdog() {
             stats.errors++;
             try {
               watchdogHealth.lastRecovery = Date.now();
-            } catch (_) {}
+            } catch (_) {
+              log(`[${ts()}] ⚠️ Watchdog Error ${_}`);
+            }
           }
         }
       }
@@ -127,7 +134,9 @@ export function startWatchdog() {
     /*log(`[${ts()}] 🐶 Watchdog ${VERSION} -> Loop`);*/
     try {
       watchdogHealth.lastCheck = Date.now();
-    } catch (_) {}
+    } catch (_) {
+      log(`[${ts()}] ⚠️ Watchdog Error ${_}`);
+    }
     var didRecovery = false;
     controllers.forEach(function (c) {
       /*log(`[${ts()}] 🐶 Watchdog loop check -> Player ${c.index + 1}`);*/

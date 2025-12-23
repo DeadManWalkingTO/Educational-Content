@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-// Έκδοση: v4.11.12
+// Έκδοση: v4.11.13
 /*
 Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης συμπεριφοράς στους YouTube players,
 Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από globals.js.
@@ -7,7 +7,7 @@ Rule 12: Αποφυγή OR/AND σε guards, χρήση named exports από glob
 */
 
 // --- Versions ---
-const VERSION = 'v4.11.12';
+const VERSION = 'v4.11.13';
 export function getVersion() {
   return VERSION;
 }
@@ -111,7 +111,9 @@ export async function initPlayersSequentially(mainList, altList) {
       console.log('HumanMode: deferring init (no user gesture)');
       return;
     }
-  } catch (_) {}
+  } catch (_) {
+    log(`[${ts()}] ⚠️ hasUserGesture check Error ${_}`);
+  }
   if (allTrue([Array.isArray(mainList), Array.isArray(altList)])) {
     setMainList(mainList);
     setAltList(altList);
@@ -172,7 +174,9 @@ export async function initPlayersSequentially(mainList, altList) {
             controller.initialSeekSec = config.initialSeekSec;
           }
         }
-      } catch (_) {}
+      } catch (_) {
+        log(`[${ts()}] ⚠️ hasUserGesture check Error ${_}`);
+      }
     } else {
       controller.config = config;
       controller.profileName = config.profileName;

@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-// Έκδοση: v3.16.25
+// Έκδοση: v3.16.26
 /*
 Περιγραφή: Χειρισμοί UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List) με καθαρούς guards.
 Ενοποίηση Clipboard helper, ασφαλές re-binding, Fisher–Yates για shuffle controllers.
@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v3.16.25';
+const VERSION = 'v3.16.26';
 export function getVersion() {
   return VERSION;
 }
@@ -32,7 +32,9 @@ function canClipboardNative() {
         }
       }
     }
-  } catch (_) {}
+  } catch (_) {
+    log(`[${ts()}] ⚠️ uiControls Error ${_}`);
+  }
   return false;
 }
 
