@@ -1,6 +1,6 @@
-# Educational-Content — CONTEXT.md - v28
+# Educational-Content — CONTEXT.md - v30
 
-## **Τελευταία ενημέρωση:** 2025-12-16
+## **Τελευταία ενημέρωση:** 2025-12-23
 
 > Αυτό το αρχείο είναι η _μοναδική πηγή αλήθειας_ για αρχιτεκτονική, κανόνες και ροές εργασίας. Στόχος της παρούσας έκδοσης είναι η **αφαίρεση επαναλήψεων**, η **συμπύκνωση** και η **σαφήνεια**.
 
@@ -26,7 +26,7 @@
 
 > • **Single‑BASE workflow**: δουλεύουμε _μέσα στο BASE_ (χωρίς νέα αποσυμπίεση), εφαρμόζουμε αλλαγές επί τόπου (JS/HTML/MD), τρέχουμε **lint/compat** και παράγουμε **MD αναφορές** όπου χρειάζεται. Bundle/πακέτο δημιουργείται **μόνο όταν ζητηθεί**, με όνομα `YY-MM-DD---HH-MM` σε **τοπική ώρα**.
 
-> **Rules (σύνοψη):** bump version σε κάθε αλλαγή αρχείου, τήρηση προτύπου header/versions, **ποτέ** υποβιβασμός έκδοσης, **απαγόρευση** `||`/`&&` και _template literals_, strings μονοσειριακά χωρίς backslash συνένωσης, Prettier config όπως στο `.prettierrc.json`.
+> **Rules (σύνοψη):** bump version σε κάθε αλλαγή αρχείου, τήρηση προτύπου header/versions, **ποτέ** υποβιβασμός έκδοσης, **απαγόρευση** `||`/`&&` και πάνω από δύο διαδοχικά _template literals_, strings μονοσειριακά χωρίς backslash συνένωσης, Prettier config όπως στο `.prettierrc.json`.
 
 ---
 
@@ -48,27 +48,45 @@
 
 **Versioning**
 
-- Αύξηση έκδοσης σε _κάθε_ αλλαγή αρχείου· **ποτέ** υποβιβασμός.
-- Η HTML έκδοση αναγράφεται στο `index.html`.
-- Το `versionReporter.js` ανακτά και εξάγει όλες τις εκδόσεις (εκτός `main.js`).
+- Πάντα αύξηση έκδοσης σε κάθε αλλαγή αρχείου, ποτέ υποβιβασμός.
+- Semantic Versioning standardizes a tripartite version number x.y.z where x is the “major number,” y is the “minor number,” and z is the “patch number.”
+- Η HTML έκδοση αναγράφεται στο index.html. (meta name="html-version" content=) 
+- Το versionReporter.js με κώδικα ανακτά και εξάγει τις αποθηκευμένες εκδόσεις από τα js και το html (εκτός main.js). 
 
-**Πρότυπο header σε κάθε JS αρχείο**
+**Πρότυπο header σε κάθε JS αρχείο** 
 
-- Γραμμή 1: σχόλιο με όνομα αρχείου.
-- Γραμμή 2: σχόλιο με έκδοση.
-- Γραμμή 3: σύντομη περιγραφή.
-- `// --- Versions ---`
-- `const VERSION = 'vX.Y.Z';` και `export function getVersion()`
-- Τελευταία γραμμή: `// --- End Of File ---`
+- Γραμμή 1: σχόλιο με το όνομα του αρχείου σε μορφή "// --- FILENAME.js ---" (όπου FILENAME το όνομα του αρχείου.)
+- Γραμμή 2: σχόλιο με την έκδοση του αρχείου σε μορφή "// Έκδοση: vX.Y.Z" (όπου vX.Y.Z η Έκδοση του αρχείου.)
+- Γραμμές 3 έως 7: σχόλια με την περιγραφή λειτουργιών του αρχείου. 
+- Γραμμή 8: κενή γραμμή. 
+- Γραμμή 9: σχόλιο: "// --- Versions ---" 
+- Γραμμή 10: δήλωση της έκδοσης του αρχείου "const VERSION = 'vX.Y.Z';" (όπου vX.Y.Z η Έκδοση του αρχείου.)
+- Γραμμή 11: "export function getVersion() { " 
+- Γραμμή 12: " return VERSION; " 
+- Γραμμή 13: "}" 
+- Γραμμή 14: κενή γραμμή και μετά ο κώδικας του αρχείου. 
+- Πάντα στην τελευταία γραμμή το σχόλιο: "// --- End Of File ---" 
 
 **Μορφοποίηση & Συμβατότητα**
 
 - Εncoding:UTF-8
-- Prettier: ακολουθούμε _αυστηρά_ το `.prettierrc.json` (printWidth 100, tabWidth 2, useTabs false, semi true, singleQuote true, trailingComma es5, bracketSpacing true, arrowParens always, endOfLine lf).
+- Prettier: ακολουθούμε αυστηρά το .prettierrc.json του project 
+{
+  "printWidth": 200,
+  "tabWidth": 2,
+  "useTabs": false,
+  "semi": true,
+  "singleQuote": true,
+  "trailingComma": "es5",
+  "bracketSpacing": true,
+  "arrowParens": "always",
+  "endOfLine": "lf"
+}
 - EOL: **LF** σε όλα τα αρχεία κειμένου.
 - Semicolons: **πάντα** `;` (αποφυγή ASI).
 - **Απαγορεύονται** `||` και `&&` _σε όλον τον κώδικα_. Χρησιμοποιούμε `anyTrue([...])` / `allTrue([...])` ή διαδοχικά `if` με early return.
-- Template literals: Επιτρέπονται, αλλά απαγορεύονται πάνω από δύο διαδοχικά στην ίδια γραμμή/δήλωση.
+- Τα anyTrue([...]) / allTrue([...]) γίνονται εξαγωγή από global.js
+- Template literals: Επιτρέπονται, αλλά απαγορεύονται πάνω από δύο διαδοχικά.
 - Όλα τα strings είναι **μονοσειριακά**· **χωρίς** backslash για συνένωση γραμμών.
 - UI binding: χωρίς inline `onclick` στο HTML· μόνο `addEventListener`.
 - ESM imports: relative paths, reliance στον browser loader.
@@ -82,17 +100,13 @@
 
 **CHANGELOG policy**
 
-- Οι πρώτες γραμμές να είναι πάντα:
-
-```
-# CHANGELOG.md - 'vX'
-(κενή γραμμή)
----
-(κενή γραμμή)
-```
-
+-Οι πρώτες γραμμές να είναι πάντα:
+- Γραμμή 1:"# CHANGELOG.md - vX" (όπου X η έκδοση)
+- Γραμμή 2:(κενή γραμμή)
+- Γραμμή 3:"---"
+- Γραμμή 4:(κενή γραμμή)
 - Από την πέμπτη γραμμή και κάτω θα πραγματοποιούνται οι προσθήκες.»
-- Καταγράφουμε _όλες_ τις νέες αλλαγές ανά ημερομηνία.
+- Καταγράφουμε όλες τις νέες αλλαγές ανά ημερομηνία.
 - Νεότερες ημερομηνίες στην κορυφή (αντίστροφη χρονολογική).
 - Δεν αφαιρούμε ποτέ προηγούμενες εγγραφές.
 - Κάθε entry: αρχείο, παλιά → νέα έκδοση, σύντομο summary, προαιρετικά Notes/Tests.
