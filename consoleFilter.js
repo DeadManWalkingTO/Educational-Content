@@ -11,10 +11,6 @@ const VERSION = 'v3.0.3';
 export function getVersion() {
   return VERSION;
 }
-/*
-Επιστρέφουμε την έκδοση του αρχείου ώστε άλλα modules (π.χ. versionReporter)
-να μπορούν να την καταναλώσουν συγκεντρωτικά.
- */
 
 /**
 ΣΚΟΠΟΣ:
@@ -42,7 +38,6 @@ export function getVersion() {
 */
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-// Χρησιμοποιούμε template literal για να εμφανίσουμε ώρα/έκδοση στην έναρξη φόρτωσης.
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: consoleFilter.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
@@ -383,7 +378,6 @@ export function restoreConsole() {
 /** --- Exports - End --- */
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-// Με αυτό το μήνυμα επιβεβαιώνουμε ότι το module φόρτωσε πλήρως.
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: consoleFilter.js ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

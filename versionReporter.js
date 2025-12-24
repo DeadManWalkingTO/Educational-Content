@@ -1,13 +1,13 @@
 // --- versionReporter.js ---
-// Έκδοση: v3.9.5
+// Έκδοση: v3.9.6
 /*
 Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
-Αφαίρεση κυκλικής εξάρτησης με main.js. Η έκδοση του main θα προστεθεί από το ίδιο το main.js.
-Συμμόρφωση header με πρότυπο.
+Αποφεύγει κυκλική εξάρτηση με main.js: η έκδοση του main προστίθεται από το ίδιο το main.js.
+Παρέχει helpers για ταξινόμηση/μορφοποίηση και renderers για panel (HTML) ή κείμενο (logs).
 */
 
 // --- Versions ---
-const VERSION = 'v3.9.5';
+const VERSION = 'v3.9.6';
 export function getVersion() {
   return VERSION;
 }
@@ -15,7 +15,11 @@ export function getVersion() {
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: versionReporter.js ${VERSION} -> Ξεκίνησε`);
 
-//imports
+/*
+Στατικές εισαγωγές getVersion() από τα υπόλοιπα modules.
+Κάθε module κρατά τη δική του έκδοση και την εκθέτει με getVersion(), ώστε να μπορεί να γίνει
+συγκεντρωτική αναφορά εκδόσεων για debugging, αναπαραγωγή σφαλμάτων και έλεγχο συμβατότητας.
+*/
 import { getVersion as getGlobalsVersion } from './globals.js';
 import { getVersion as getListsVersion } from './lists.js';
 import { getVersion as getHumanModeVersion } from './humanMode.js';
@@ -25,17 +29,28 @@ import { getVersion as getWatchdogVersion } from './watchdog.js';
 import { getVersion as getConsoleFilterVersion } from './consoleFilter.js';
 
 /**
- * Ανάκτηση της έκδοσης του HTML από το meta tag.
- * Στο return {string} Έκδοση HTML ή 'unknown'.
+ * Ανάκτηση της έκδοσης του HTML από meta tag.
+ *
+ * Αναμενόμενη μορφή στο HTML:
+ *   <meta name="html-version" content="vX.Y.Z">
+ *
+ * Αν το meta tag απουσιάζει ή δεν έχει content, επιστρέφεται 'unknown' ώστε η ροή
+ * να παραμένει ανεκτική σε ελλιπές markup χωρίς να προκαλείται σφάλμα.
+ *
+ * @returns {string} Έκδοση HTML ή 'unknown'.
  */
 function getHtmlVersion() {
   const metaTag = document.querySelector('meta[name="html-version"]');
   return metaTag ? metaTag.getAttribute('content') : 'unknown';
 }
+
 /**
  * Συγκεντρώνει όλες τις εκδόσεις των modules (εκτός του main.js).
- * Η έκδοση του main θα προστεθεί από το main.js για να αποφευχθεί κυκλική εξάρτηση.
- * Στο return {object} Αντικείμενο με εκδόσεις.
+ *
+ * Η παράλειψη του main.js εδώ είναι σκόπιμη για αποφυγή κυκλικής εξάρτησης.
+ * Το main.js μπορεί να καλέσει reportAllVersions() και να προσθέσει τη δική του έκδοση.
+ *
+ * @returns {object} Αντικείμενο με εκδόσεις ανά module.
  */
 export function reportAllVersions() {
   return {
@@ -53,19 +68,34 @@ export function reportAllVersions() {
 }
 
 /** ---------- Common Helpers - Start ---------- */
-// Συλλογή + Ταξινόμηση: HTML πρώτο, μετά αλφαβητικά
+
+/**
+ * Μετατρέπει το object εκδόσεων σε λίστα εγγραφών και την ταξινομεί:
+ * - HTML πρώτο (αν υπάρχει),
+ * - έπειτα αλφαβητικά για τα υπόλοιπα keys.
+ *
+ * Η μορφή array διευκολύνει το sorting και το rendering σε panel/logs.
+ *
+ * @param {object} versionsObj Αντικείμενο μορφής { Name: 'vX.Y.Z', ... }.
+ * @returns {{name: string, ver: string}[]} Ταξινομημένες εγγραφές.
+ */
 function buildOrderedEntries(versionsObj) {
   const entries = Object.keys(versionsObj).map(function (k) {
     return { name: k, ver: versionsObj[k] };
   });
+
   const htmlFirst = [];
   const rest = [];
+
   for (let i = 0; i < entries.length; i += 1) {
     const e = entries[i];
-    // Φρουροί (early decisions):
-    // 1) Αν δεν υπάρχει e (falsy), το καταχωρούμε στο rest και συνεχίζουμε.
-    // 2) Αν υπάρχει e και το όνομα του είναι 'HTML', το βάζουμε πρώτο (htmlFirst).
-    // 3) Διαφορετικά, πάει στο rest.
+
+    /*
+    Φρουροί (early decisions):
+    - Falsy εγγραφές (αν προκύψουν) διατηρούνται στο rest ώστε να μη χαθεί πληροφορία.
+    - Το 'HTML' τοποθετείται πρώτο.
+    - Όλα τα υπόλοιπα μεταφέρονται στο rest.
+    */
     if (!e) {
       rest.push(e);
     } else if (e.name === 'HTML') {
@@ -74,6 +104,7 @@ function buildOrderedEntries(versionsObj) {
       rest.push(e);
     }
   }
+
   rest.sort(function (a, b) {
     if (a.name < b.name) {
       return -1;
@@ -83,10 +114,17 @@ function buildOrderedEntries(versionsObj) {
     }
     return 0;
   });
+
   return htmlFirst.concat(rest);
 }
 
-// Εικονίδια (μία φορά)
+/**
+ * Αντιστοίχιση ονόματος module σε εικονίδιο.
+ * Η σταθερή χρήση εικονιδίων κάνει ευκολότερη την οπτική σάρωση των αναφορών.
+ *
+ * @param {string} name Όνομα module.
+ * @returns {string} Emoji/icon.
+ */
 function iconFor(name) {
   if (name === 'HTML') {
     return '📄';
@@ -110,7 +148,7 @@ function iconFor(name) {
     return '🐶';
   }
   if (name === 'ConsoleFilter') {
-    return '🧰';
+    return '🧐';
   }
   if (name === 'VersionReporter') {
     return '🧪';
@@ -120,12 +158,23 @@ function iconFor(name) {
   }
   return '✅';
 }
+
 /** ---------- Common Helpers - End ---------- */
 
 /** ---------- Renderers - Start ---------- */
-// Panel (HTML)
+
+/**
+ * Δημιουργεί HTML panel για εμφάνιση εκδόσεων.
+ *
+ * Επιστρέφεται string HTML για εύκολη χρήση με innerHTML.
+ * Τα inline styles κρατούν το panel αυτοτελές, χωρίς εξάρτηση από εξωτερικό CSS.
+ *
+ * @param {object} versionsObj Αντικείμενο με εκδόσεις.
+ * @returns {string} HTML string.
+ */
 export function renderVersionsPanel(versionsObj) {
   const ordered = buildOrderedEntries(versionsObj);
+
   const wrapStyle = 'font-family: system-ui,Segoe UI,Roboto,Ubuntu; background:#0f172a; color:#e2e8f0; border-radius:8px; padding:8px 10px; line-height:1.35;';
   const titleStyle = 'font-weight:600; margin:0 0 6px 0; color:#a7f3d0;';
   const gridStyle = 'display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:6px;';
@@ -141,6 +190,7 @@ export function renderVersionsPanel(versionsObj) {
     const e = ordered[i];
     const icon = iconFor(e.name);
     const text = icon + ' ' + e.name + ' — ' + e.ver;
+
     parts.push('<div style="' + itemStyle + '"><div style="' + textStyle + '">' + text + '</div></div>');
   }
 
@@ -149,19 +199,29 @@ export function renderVersionsPanel(versionsObj) {
   return parts.join('');
 }
 
-// Text (για log)
+/**
+ * Δημιουργεί πολυγραμμικό κείμενο για logs.
+ * Χρησιμοποιεί την ίδια ordering λογική με το panel, ώστε οι αναφορές να είναι συνεπείς.
+ *
+ * @param {object} versionsObj Αντικείμενο με εκδόσεις.
+ * @returns {string} Πολυγραμμικό string.
+ */
 export function renderVersionsText(versionsObj) {
   const ordered = buildOrderedEntries(versionsObj);
   const parts = [];
+
   parts.push('✅ Εκδόσεις Modules :');
+
   for (let i = 0; i < ordered.length; i += 1) {
     const e = ordered[i];
     const icon = iconFor(e.name);
     const text = icon + ' ' + e.name + ' — ' + e.ver;
     parts.push(text);
   }
+
   return parts.join('\n');
 }
+
 /** ---------- Renderers - End ---------- */
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου

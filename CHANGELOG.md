@@ -4,6 +4,9 @@
 
 ## 2025-12-25
 
+- versionReporter.js: v3.9.5 → v3.9.6 — Εμπλουτισμός/βελτίωση σχολίων (JSDoc + block comments) για καλύτερη τεκμηρίωση χωρίς αλλαγή λειτουργίας.
+- Notes: Προστέθηκαν περιγραφικά σχόλια για σκοπό/ροή, helpers ταξινόμησης/μορφοποίησης και renderers (panel/text).
+- Tests: Manual smoke test: reportAllVersions(), renderVersionsText(), renderVersionsPanel().
 - watchdog.js: v2.18.3 → v2.18.7 — Εμπλουτισμός σχολίων και προσθήκη JSDoc (/\*\* \*/) όπου απαιτείται. Καμία λειτουργική αλλαγή.
 - Notes: Διατηρήθηκαν ακριβώς τα δύο console.log φόρτωσης (θέση/κείμενο).
 - Tests: Smoke test (BUFFERING/PAUSED recovery) — no functional changes
