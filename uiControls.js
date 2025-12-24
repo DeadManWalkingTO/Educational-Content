@@ -1,13 +1,13 @@
 // --- uiControls.js ---
-// Έκδοση: v3.16.26
+// Έκδοση: v3.16.27
 /*
-Περιγραφή: Χειρισμοί UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List) με καθαρούς guards.
-Ενοποίηση Clipboard helper, ασφαλές re-binding, Fisher–Yates για shuffle controllers.
-Συμμόρφωση header με πρότυπο και κανόνες (no ||/&&, ESM, semicolons).
+Περιγραφή: Κεντρικοί χειρισμοί UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
+Η υλοποίηση βασίζεται σε σαφείς guards, ενιαίο error tracking και ασφαλές UI binding.
+Περιλαμβάνει Clipboard API με fallback, καθώς και Fisher–Yates shuffle για σειριακή διακοπή.
 */
 
 // --- Versions ---
-const VERSION = 'v3.16.26';
+const VERSION = 'v3.16.27';
 export function getVersion() {
   return VERSION;
 }
@@ -16,31 +16,105 @@ export function getVersion() {
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: uiControls.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { log, ts, rndInt, controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, stats, anyTrue, allTrue } from './globals.js';
+import { log, ts, rndInt, controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, stats, allTrue } from './globals.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
 
-/* ---------------------------- Helpers (τοπικά) ---------------------------- */
+/* -------------------------------------------------------------------------- */
+/* Helpers (τοπικά)                                                           */
+/* -------------------------------------------------------------------------- */
 
+/**
+ * Ανακτά DOM element με βάση id.
+ * Παρέχει ενιαίο σημείο χρήσης για να περιορίζεται το duplication στα DOM lookups.
+ */
+function byId(id) {
+  return document.getElementById(id);
+}
+
+/**
+ * Ελέγχει αν ένα DOM container έχει καταχωρημένα child nodes/entries.
+ * Η ύπαρξη children και το μήκος τους χρησιμοποιούνται συστηματικά σε Logs/Copy.
+ */
+function hasEntries(panel) {
+  if (!panel) {
+    return false;
+  }
+  if (!panel.children) {
+    return false;
+  }
+  return panel.children.length > 0;
+}
+
+/**
+ * Ελέγχει αν ο controller είναι έτοιμος για ενέργειες που απαιτούν player.
+ * Το guard παραμένει ίδιο λογικά με το αρχικό pattern, αλλά αποφεύγεται η επανάληψη.
+ */
+function isReadyController(c) {
+  return allTrue([!!c, !!(c ? c.player : false)]);
+}
+
+/**
+ * Ενιαίο μοτίβο καταγραφής σφαλμάτων.
+ * Αυξάνει τον μετρητή λαθών και γράφει log με το δοσμένο μήνυμα.
+ */
+function noteError(message) {
+  stats.errors += 1;
+  log(message);
+}
+
+/**
+ * Ανιχνεύει αν υπάρχει διαθέσιμο native Clipboard API.
+ * Προϋποθέσεις: secure context και ύπαρξη navigator.clipboard.
+ */
 function canClipboardNative() {
   try {
-    if (typeof window !== 'undefined') {
-      if (window.isSecureContext) {
-        if (typeof navigator !== 'undefined') {
-          if (navigator.clipboard) {
-            return true;
-          }
-        }
-      }
+    if (typeof window === 'undefined') {
+      return false;
     }
-  } catch (_) {
-    log(`[${ts()}] ⚠️ uiControls Error ${_}`);
+    if (!window.isSecureContext) {
+      return false;
+    }
+    if (typeof navigator === 'undefined') {
+      return false;
+    }
+    if (!navigator.clipboard) {
+      return false;
+    }
+    return true;
+  } catch (e) {
+    log(`[${ts()}] ⚠️ uiControls Error ${e}`);
   }
   return false;
 }
 
+/**
+ * Fallback αντιγραφή σε clipboard για περιβάλλοντα χωρίς Clipboard API.
+ * Δημιουργεί προσωρινό textarea, επιλέγει κείμενο και εκτελεί document.execCommand('copy').
+ */
+function unsecuredCopyToClipboard(text) {
+  try {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.setAttribute('readonly', '');
+    textArea.style.position = 'absolute';
+    textArea.style.left = '-9999px';
+    document.body.appendChild(textArea);
+    textArea.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    return ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Fisher–Yates shuffle σε copy του input.
+ * Χρησιμοποιείται για να “σπάσει” η σταθερή σειρά όταν γίνεται Stop All.
+ */
 function shuffleControllers(list) {
   const a = Array.isArray(list) ? list.slice() : [];
-  for (let i = a.length - 1; i > 0; i--) {
+  for (let i = a.length - 1; i > 0; i -= 1) {
     const j = rndInt(0, i);
     const t = a[i];
     a[i] = a[j];
@@ -49,6 +123,10 @@ function shuffleControllers(list) {
   return a;
 }
 
+/**
+ * Επιλογή τυχαίου video id από λίστα.
+ * Επιστρέφει null όταν το source δεν είναι array ή είναι κενό.
+ */
 function pickRandomId(source) {
   if (!Array.isArray(source)) {
     return null;
@@ -61,22 +139,55 @@ function pickRandomId(source) {
   return source[idx];
 }
 
-/* ------------------------------- Public API ------------------------------ */
+/**
+ * Παράγει το κείμενο των logs από το activity panel.
+ * Το περιεχόμενο συλλέγεται από textContent για να ταιριάζει με την οπτική προβολή.
+ */
+function buildLogsText(panel) {
+  return Array.from(panel.children)
+    .map((div) => div.textContent)
+    .join('\n');
+}
 
+/**
+ * Συνθέτει το τελικό κείμενο αντιγραφής (logs + stats) σε σταθερό format.
+ */
+function buildFinalText(logsText, statsText) {
+  return `=== LOGS ===
+${logsText}
+=== STATS ===
+${statsText}`;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Public API                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Ενεργοποιεί/απενεργοποιεί κουμπιά UI.
+ * Η λειτουργία επιστρέφει πόσα στοιχεία βρέθηκαν και ενημερώθηκαν.
+ */
 export function setControlsEnabled(enabled) {
   const ids = ['btnStopAll', 'btnRestartAll', 'btnToggleTheme', 'btnCopyLogs', 'btnClearLogs', 'btnReloadList'];
+
   let touched = 0;
-  for (let i = 0; i < ids.length; i++) {
-    const el = document.getElementById(ids[i]);
+  for (let i = 0; i < ids.length; i += 1) {
+    const el = byId(ids[i]);
     if (el) {
       el.disabled = !enabled;
       touched += 1;
     }
   }
+
   log(`[${ts()}] ✅ Controls ${enabled ? 'enabled' : 'disabled'} (${touched} στοιχεία)`);
   return touched;
 }
 
+/*
+Stop All:
+Γίνεται σειριακή διακοπή (stopVideo) με τυχαίες καθυστερήσεις 30–60s ανά controller.
+Οι καθυστερήσεις αθροίζονται ώστε να αποφεύγεται η ταυτόχρονη διακοπή πολλών players.
+*/
 function stopAll() {
   setIsStopping(true);
   clearStopTimers();
@@ -84,45 +195,49 @@ function stopAll() {
   const shuffled = shuffleControllers(controllers);
   let totalDelay = 0;
 
-  for (let i = 0; i < shuffled.length; i++) {
+  for (let i = 0; i < shuffled.length; i += 1) {
     const c = shuffled[i];
     const randomDelay = rndInt(30000, 60000);
     totalDelay += randomDelay;
+
     const timer = setTimeout(() => {
-      const hasCtrlAndPlayer = allTrue([!!c, !!(c ? c.player : false)]);
-      if (hasCtrlAndPlayer) {
+      if (isReadyController(c)) {
         try {
           c.player.stopVideo();
           log(`[${ts()}] ⏹ Player ${c.index + 1} Stopped -> Step ${i + 1}`);
-        } catch (_) {
-          stats.errors++;
-          log(`[${ts()}] ❌ Player ${c.index + 1} Stop Error`);
+        } catch (e) {
+          noteError(`[${ts()}] ❌ Player ${c.index + 1} Stop Error`);
         }
       } else {
-        stats.errors++;
-        log(`[${ts()}] ❌ Player ${c ? c.index + 1 : '?'} Stop Skipped -> Not Initialized`);
+        noteError(`[${ts()}] ❌ Player ${c ? c.index + 1 : '?'} Stop Skipped -> Not Initialized`);
       }
     }, totalDelay);
+
     pushStopTimer(timer);
   }
 
   log(`[${ts()}] ⏹ Stop All -> sequential; συνολική εκτίμηση ~${Math.round(totalDelay / 1000)}s`);
 }
 
+/*
+Restart All:
+- Αν ο controller έχει ήδη player, γίνεται loadNextVideo.
+- Αν όχι, γίνεται init με τυχαίο video id από main/alt λίστα.
+Η επιλογή πηγής ακολουθεί πιθανότητα MAIN_PROBABILITY με fallback σε διαθέσιμη λίστα.
+*/
 function restartAll() {
   const mainList = getMainList();
   const altList = getAltList();
 
-  for (let i = 0; i < controllers.length; i++) {
+  for (let i = 0; i < controllers.length; i += 1) {
     const c = controllers[i];
-    const hasCtrlAndPlayer = allTrue([!!c, !!(c ? c.player : false)]);
-    if (hasCtrlAndPlayer) {
+
+    if (isReadyController(c)) {
       try {
         c.loadNextVideo(c.player);
         log(`[${ts()}] 🔁 Player ${c.index + 1} LoadNext`);
       } catch (e) {
-        stats.errors++;
-        log(`[${ts()}] ❌ Player ${c.index + 1} LoadNext Error -> ${e}`);
+        noteError(`[${ts()}] ❌ Player ${c.index + 1} LoadNext Error -> ${e}`);
       }
       continue;
     }
@@ -144,8 +259,7 @@ function restartAll() {
 
     const newId = pickRandomId(source);
     if (!newId) {
-      stats.errors++;
-      log(`[${ts()}] ❌ Player ${c ? c.index + 1 : '?'} Restart Skipped -> No Videos Available`);
+      noteError(`[${ts()}] ❌ Player ${c ? c.index + 1 : '?'} Restart Skipped -> No Videos Available`);
       continue;
     }
 
@@ -153,31 +267,35 @@ function restartAll() {
       c.init(newId);
       log(`[${ts()}] 🔁 Player ${c.index + 1} Restart (init) -> ${newId} (Source:${useMain ? 'main' : 'alt'})`);
     } catch (e) {
-      stats.errors++;
-      log(`[${ts()}] ❌ Player ${c.index + 1} Restart Error -> ${e}`);
+      noteError(`[${ts()}] ❌ Player ${c.index + 1} Restart Error -> ${e}`);
     }
   }
 
   log(`[${ts()}] 🔁 Restart All -> Completed`);
 }
 
+/**
+ * Εναλλαγή θέματος μέσω CSS class στο body.
+ * Η επιλογή 'light' ενεργοποιεί Light Mode, αλλιώς παραμένει Dark Mode.
+ */
 function toggleTheme() {
   try {
     document.body.classList.toggle('light');
     const mode = document.body.classList.contains('light') ? 'Light' : 'Dark';
     log(`[${ts()}] 🌙 Theme Toggled -> ${mode} Mode`);
   } catch (e) {
-    stats.errors++;
-    log(`[${ts()}] ❌ Theme Toggle Error -> ${e}`);
+    noteError(`[${ts()}] ❌ Theme Toggle Error -> ${e}`);
   }
 }
 
+/**
+ * Καθαρισμός panel δραστηριότητας.
+ * Αφαιρεί όλα τα entries όταν υπάρχουν, αλλιώς καταγράφει ότι δεν υπήρχε περιεχόμενο.
+ */
 function clearLogs() {
-  const panel = document.getElementById('activityPanel');
-  const hasPanel = !!panel;
-  const hasChildren = hasPanel ? (panel.children ? panel.children.length > 0 : false) : false;
+  const panel = byId('activityPanel');
 
-  if (allTrue([hasPanel, hasChildren])) {
+  if (allTrue([!!panel, hasEntries(panel)])) {
     panel.innerHTML = '';
     log(`[${ts()}] 🧹 Logs Cleared -> All Entries Removed`);
     return true;
@@ -187,21 +305,22 @@ function clearLogs() {
   return false;
 }
 
+/**
+ * Αντιγραφή logs και stats στο clipboard.
+ * Το text format διατηρεί σταθερά headers ώστε να είναι ευανάγνωστο σε plain text.
+ */
 export async function copyLogs() {
-  const panel = document.getElementById('activityPanel');
-  const statsPanel = document.getElementById('statsPanel');
-  const hasEntries = panel ? (panel.children ? panel.children.length > 0 : false) : false;
+  const panel = byId('activityPanel');
+  const statsPanel = byId('statsPanel');
 
-  if (!hasEntries) {
+  if (!hasEntries(panel)) {
     log(`[${ts()}] ⚠️ Copy Logs -> No entries`);
     return false;
   }
 
-  const logsText = Array.from(panel.children)
-    .map((div) => div.textContent)
-    .join('\\n');
+  const logsText = buildLogsText(panel);
   const statsText = statsPanel ? statsPanel.textContent : '📊 Stats Not Available';
-  const finalText = '=== LOGS ===\\n' + logsText + '\\n=== STATS ===\\n' + statsText;
+  const finalText = buildFinalText(logsText, statsText);
 
   if (canClipboardNative()) {
     try {
@@ -210,8 +329,7 @@ export async function copyLogs() {
       log(`[${ts()}] ${statsText}`);
       return true;
     } catch (err) {
-      stats.errors++;
-      log(`[${ts()}] ❌ Clipboard API Failed -> Fallback (${err})`);
+      noteError(`[${ts()}] ❌ Clipboard API Failed -> Fallback (${err})`);
     }
   }
 
@@ -221,38 +339,29 @@ export async function copyLogs() {
     return true;
   }
 
-  stats.errors++;
-  log(`[${ts()}] ❌ Copy Logs Failed (Fallback)`);
+  noteError(`[${ts()}] ❌ Copy Logs Failed (Fallback)`);
   return false;
 }
 
-function unsecuredCopyToClipboard(text) {
-  try {
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    textArea.setAttribute('readonly', '');
-    textArea.style.position = 'absolute';
-    textArea.style.left = '-9999px';
-    document.body.appendChild(textArea);
-    textArea.select();
-    const ok = document.execCommand('copy');
-    document.body.removeChild(textArea);
-    return ok;
-  } catch (_) {
-    return false;
-  }
-}
+/* -------------------------------------------------------------------------- */
+/* Event Bindings                                                             */
+/* -------------------------------------------------------------------------- */
 
-/* ----------------------------- Event Bindings ---------------------------- */
-
+/*
+Διασφαλίζεται ότι το binding των handlers γίνεται μία φορά.
+Αποφεύγεται το πολλαπλό addEventListener σε επαναλαμβανόμενα init calls.
+*/
 let __uiBound = false;
 
+/**
+ * Συνδέει click handlers στα κουμπιά UI.
+ * Επιστρέφει πόσα handlers συνδέθηκαν επιτυχώς.
+ */
 export function bindUiEvents() {
   if (__uiBound) {
     return 0;
   }
 
-  const byId = (id) => document.getElementById(id);
   const pairs = [
     ['btnStopAll', stopAll],
     ['btnRestartAll', restartAll],
@@ -263,10 +372,11 @@ export function bindUiEvents() {
   ];
 
   let bound = 0;
-  for (let i = 0; i < pairs.length; i++) {
+  for (let i = 0; i < pairs.length; i += 1) {
     const id = pairs[i][0];
     const handler = pairs[i][1];
     const el = byId(id);
+
     if (el) {
       el.addEventListener('click', handler);
       bound += 1;
@@ -280,8 +390,14 @@ export function bindUiEvents() {
   return bound;
 }
 
-/* ----------------------------- Lists Reloading --------------------------- */
+/* -------------------------------------------------------------------------- */
+/* Lists Reloading                                                            */
+/* -------------------------------------------------------------------------- */
 
+/**
+ * Επαναφόρτωση λιστών από την πηγή (lists.js) και εφαρμογή τους στα globals.
+ * Επιστρέφει boolean για να μπορεί να αξιοποιηθεί και σε UI/τεστ.
+ */
 export async function reloadList() {
   try {
     const { mainList, altList } = await reloadListsFromSource();
@@ -290,8 +406,7 @@ export async function reloadList() {
     log(`[${ts()}] 🗂️ Lists Applied -> Main: ${mainList.length} - Alt: ${altList.length}`);
     return true;
   } catch (err) {
-    stats.errors++;
-    log(`[${ts()}] ❌ Reload Failed -> ${err}`);
+    noteError(`[${ts()}] ❌ Reload Failed -> ${err}`);
     return false;
   }
 }

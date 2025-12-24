@@ -4,12 +4,16 @@
 
 ## 2025-12-25
 
+- uiControls.js: v3.16.26 → v3.16.27
+  Refactor για λιγότερο duplication (helpers: byId, isReadyController, hasEntries, noteError).
+  Βελτίωση τεκμηρίωσης με επεξηγηματικά σχόλια (/*, /**) και σαφέστερη οργάνωση ενοτήτων.
+  Διατήρηση λειτουργικότητας: ίδιοι guards, ίδια ροή clipboard fallback, ίδια λογική stop/restart.
 - versionReporter.js: v3.9.5 → v3.9.6 — Εμπλουτισμός/βελτίωση σχολίων (JSDoc + block comments) για καλύτερη τεκμηρίωση χωρίς αλλαγή λειτουργίας.
-- Notes: Προστέθηκαν περιγραφικά σχόλια για σκοπό/ροή, helpers ταξινόμησης/μορφοποίησης και renderers (panel/text).
-- Tests: Manual smoke test: reportAllVersions(), renderVersionsText(), renderVersionsPanel().
+  Notes: Προστέθηκαν περιγραφικά σχόλια για σκοπό/ροή, helpers ταξινόμησης/μορφοποίησης και renderers (panel/text).
+  Tests: Manual smoke test: reportAllVersions(), renderVersionsText(), renderVersionsPanel().
 - watchdog.js: v2.18.3 → v2.18.7 — Εμπλουτισμός σχολίων και προσθήκη JSDoc (/\*\* \*/) όπου απαιτείται. Καμία λειτουργική αλλαγή.
-- Notes: Διατηρήθηκαν ακριβώς τα δύο console.log φόρτωσης (θέση/κείμενο).
-- Tests: Smoke test (BUFFERING/PAUSED recovery) — no functional changes
+  Notes: Διατηρήθηκαν ακριβώς τα δύο console.log φόρτωσης (θέση/κείμενο).
+  Tests: Smoke test (BUFFERING/PAUSED recovery) — no functional changes
 
 ## 2025-12-24
 
