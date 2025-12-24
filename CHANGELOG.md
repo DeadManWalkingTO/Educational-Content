@@ -1,6 +1,12 @@
-# CHANGELOG.md - v186
+# CHANGELOG.md - v188
 
 ---
+
+## 2025-12-25
+
+- watchdog.js: v2.18.3 → v2.18.7 — Εμπλουτισμός σχολίων και προσθήκη JSDoc (/\*\* \*/) όπου απαιτείται. Καμία λειτουργική αλλαγή.
+- Notes: Διατηρήθηκαν ακριβώς τα δύο console.log φόρτωσης (θέση/κείμενο).
+- Tests: Smoke test (BUFFERING/PAUSED recovery) — no functional changes
 
 ## 2025-12-24
 
