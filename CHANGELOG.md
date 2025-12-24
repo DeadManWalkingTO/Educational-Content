@@ -4,6 +4,9 @@
 
 ## 2025-12-25
 
+- main.js: v3.33.9 → v3.33.10 — Refactor δομής εκκίνησης (DOM gate + YouTube API readiness) με διατήρηση λειτουργίας, εμπλουτισμός/επέκταση σχολίων (/* και /**) σε περιγραφικό στυλ, αφαίρεση sanityCheck() (μη χρησιμοποιούμενη).
+  Notes: Διατηρείται η ίδια ροή εκκίνησης (startApp() μόνο μία φορά με gate), polling readiness ανά 500 ms, watchdog παράλληλα με Human Mode. Καμία χρήση ||/&&.
+  Tests: Manual smoke test (φόρτωση σε browser, εκκίνηση μέσω κουμπιού και fallback χωρίς κουμπί, επιβεβαίωση readiness log και watchdog st
 - uiControls.js: v3.16.26 → v3.16.27
   Refactor για λιγότερο duplication (helpers: byId, isReadyController, hasEntries, noteError).
   Βελτίωση τεκμηρίωσης με επεξηγηματικά σχόλια (/*, /**) και σαφέστερη οργάνωση ενοτήτων.
