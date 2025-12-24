@@ -7,7 +7,7 @@
 */
 
 // --- Versions ---
-const VERSION = 'v6.21.13';
+const VERSION = 'v6.22.1';
 export function getVersion() {
   return VERSION;
 }
@@ -230,6 +230,8 @@ function getDynamicOrigin() {
 function getYouTubeHostFallback() {
   return 'https://www.youtube.com';
 }
+
+/** PlayerController class --- Start */
 export class PlayerController {
   constructor(index, mainList, altList, config = null) {
     this.pendingUnmute = false;
@@ -606,6 +608,8 @@ export class PlayerController {
     this.expectedPauseMs = 0;
   }
 }
+
+/** PlayerController class --- End */
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: playerController.js ${VERSION} -> Ολοκληρώθηκε`);

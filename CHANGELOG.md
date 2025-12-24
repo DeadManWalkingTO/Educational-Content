@@ -1,6 +1,13 @@
-# CHANGELOG.md - v185
+# CHANGELOG.md - v186
 
 ---
+
+## 2025-12-24
+
+- consoleFilter.js: v3.0.0 → v3.0.2 — Προσθήκη εκπαιδευτικών σχολίων σε όλο το αρχείο,
+  διευκρινίσεις για state/wrappers/safeToString/forward/shouldTag. Τήρηση πολιτικών (χωρίς ||/&&).
+- consoleFilter.js: v2.2.8 → v3.0.0 — Refactor: wrapConsole, rest params, βελτίωση safeToString, καθαρός forward.
+  Notes: Τήρηση πολιτικών (χωρίς ||/&&, semicolons, ESM, relative imports). Tests: smoke.
 
 ## 2025-12-23
 
