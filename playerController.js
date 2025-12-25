@@ -1,5 +1,5 @@
 // --- playerController.js ---
-// Έκδοση: v6.22.3
+// Έκδοση: v6.22.4
 /*
 Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
 Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
@@ -12,6 +12,7 @@ export function getVersion() {
   return VERSION;
 }
 
+import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } from './scheduler.js';
 /*
 Σημείωση: Το αρχείο ακολουθεί αυστηρά τους κανόνες μορφοποίησης του project (ESM, semicolons,
           header πρότυπο, απουσία ||/&&, τελευταία γραμμή End Of File).
@@ -139,7 +140,7 @@ const STATE_TRANSITIONS = {
  * Χρήσιμη για μετριασμό συνθηκών ανταγωνισμού (postMessage race) στο IFrame API.
  */
 function safeCmd(fn, delay = 80) {
-  setTimeout(() => {
+  scheduleDelay(() => {
     try {
       fn();
     } catch (err) {
@@ -423,7 +424,7 @@ export class PlayerController {
     log(`[${ts()}] ⏳ Player ${this.index + 1} Scheduled -> start after ${startDelaySec}s`);
 
     const __jitterMs = 100 + Math.floor(Math.random() * 120);
-    setTimeout(() => {
+    scheduleDelay(() => {
       try {
         if (typeof e.target.seekTo === 'function') {
           if (this.initialSeekSec) {
@@ -452,7 +453,7 @@ export class PlayerController {
       }
     }, __jitterMs); // JITTER_APPLIED: μικρή μετατόπιση για σταθερότητα IFrame μηνυμάτων
 
-    setTimeout(() => {
+    scheduleDelay(() => {
       var seekSec = typeof this.initialSeekSec === 'number' ? this.initialSeekSec : '-';
       log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> Seek= ${seekSec}s after ${startDelaySec}s`);
       this.schedulePauses();
@@ -466,7 +467,7 @@ export class PlayerController {
      */
     const unmuteDelayExtra = this.config?.unmuteDelayExtra ?? rndInt(30, 90);
     const unmuteDelay = (startDelaySec + unmuteDelayExtra) * 1000;
-    setTimeout(() => {
+    scheduleDelay(() => {
       if (!hasUserGesture) {
         this.pendingUnmute = true;
         log(`[${ts()}] 🔇 Player ${this.index + 1} Awaiting user gesture for unmute`);
@@ -480,13 +481,13 @@ export class PlayerController {
         stats.volumeChanges++;
         log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
         // γρήγορη επαναδοκιμή play αν προκύψει άμεσο pause μετά το unmute
-        setTimeout(() => {
+        scheduleDelay(() => {
           if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
             log(`[${ts()}] 🔁 Player ${this.index + 1} Quick retry playVideo after immediate unmute`);
             if (typeof p.playVideo === 'function') this.guardPlay(p);
           }
         }, 250);
-        setTimeout(() => {
+        scheduleDelay(() => {
           if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
             log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
             if (typeof p.playVideo === 'function') this.guardPlay(p);
@@ -578,7 +579,7 @@ export class PlayerController {
         this.pendingUnmute = false;
         stats.volumeChanges++;
         log(`[${ts()}] 🔊 Player ${this.index + 1} Unmute after PLAYING -> ${v}%`);
-        setTimeout(() => {
+        scheduleDelay(() => {
           if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
             log(`[${ts()}] ⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
             if (typeof p.playVideo === 'function') this.guardPlay(p);
@@ -609,11 +610,11 @@ export class PlayerController {
       const percentWatched = duration > 0 ? Math.round((this.totalPlayTime / duration) * 100) : 0;
       log(`[${ts()}] ✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(this.totalPlayTime)}s)`);
       const afterEndPauseMs = rndInt(15000, 60000); // σύντομη παύση πριν την επόμενη επιλογή
-      setTimeout(() => {
+      scheduleDelay(() => {
         const requiredTime = getRequiredWatchTime(duration);
         if (this.totalPlayTime < requiredTime) {
           log(`[${ts()}] ⏳ Player ${this.index + 1} AutoNext blocked -> required:${requiredTime}s, actual:${Math.round(this.totalPlayTime)}s`);
-          setTimeout(() => {
+          scheduleDelay(() => {
             log(`[${ts()}] ⚠️ Player ${this.index + 1} Force AutoNext -> inactivity fallback`);
             if (guardHasAnyList(this)) {
               this.loadNextVideo(p);
@@ -712,13 +713,13 @@ export class PlayerController {
     for (let i = 0; i < plan.count; i++) {
       const delay = rndInt(Math.floor(duration * 0.1), Math.floor(duration * 0.8)) * 1000;
       const pauseLen = rndInt(plan.min, plan.max) * 1000;
-      const timer = setTimeout(() => {
+      const timer = scheduleDelay(() => {
         if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING])) {
           p.pauseVideo();
           stats.pauses++;
           this.expectedPauseMs = pauseLen;
           log(`[${ts()}] ⏸️ Player ${this.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
-          setTimeout(() => {
+          scheduleDelay(() => {
             this.guardPlay(p);
             this.expectedPauseMs = 0;
           }, pauseLen);
@@ -742,7 +743,7 @@ export class PlayerController {
     if (duration < 300) return;
 
     const interval = this.config?.midSeekInterval ?? rndInt(8, 12) * 60000;
-    this.timers.midSeek = setTimeout(() => {
+    this.timers.midSeek = scheduleDelay(() => {
       if (allTrue([duration > 0, typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING])) {
         const seek = rndInt(Math.floor(duration * 0.2), Math.floor(duration * 0.6));
         p.seekTo(seek, true);

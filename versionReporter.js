@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-// Έκδοση: v3.9.6
+// Έκδοση: v3.9.7
 /*
 Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
 Αποφεύγει κυκλική εξάρτηση με main.js: η έκδοση του main προστίθεται από το ίδιο το main.js.
@@ -27,6 +27,7 @@ import { getVersion as getPlayerControllerVersion } from './playerController.js'
 import { getVersion as getUiControlsVersion } from './uiControls.js';
 import { getVersion as getWatchdogVersion } from './watchdog.js';
 import { getVersion as getConsoleFilterVersion } from './consoleFilter.js';
+import { getVersion as getSchedulerVersion } from './scheduler.js';
 
 /**
  * Ανάκτηση της έκδοσης του HTML από meta tag.

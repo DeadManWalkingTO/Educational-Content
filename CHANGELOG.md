@@ -1,33 +1,40 @@
-# CHANGELOG.md - v195
+# CHANGELOG.md - v197
 
 ---
 
 ## 2025-12-25
 
+- Fix version mismatch in main.js header & const VERSION; migrate youtubeReadyPromise to scheduler.repeat with tag 'yt-ready'
+- Clean re-extraction & apply scheduler + refactors
+- Added `scheduler.js`: v1.0.0 — delay, repeat, cancel, groupCancel, debounce, throttle, backoff, retry, jitter, pause/resume, flush, getStats.
+- Updated `playerController.js` → v6.22.4: import alias `delay as scheduleDelay`; replaced ad-hoc jitter/timeouts; ensured import order.
+- Updated `watchdog.js` → v2.18.8: replaced setTimeout loop with `repeat(...)`; converted timeouts to `scheduleDelay(...)`; added scheduler import.
+- Apply user's correction for versionReporter
+- Updated `versionReporter.js` → v3.9.7: import only `getVersion` from `scheduler.js`; removed SchedulerStats & duplicates; kept Scheduler in versions list.
 - Αρχείο: **humanMode.js** — v4.11.14 → v4.11.15
   Summary: Προσθήκη επεξηγηματικών σχολίων (block + JSDoc) χωρίς αλλαγή λειτουργίας.
   Notes:
-    Κεντρικό περιγραφικό μπλοκ για στόχους και σχεδιαστικές επιλογές (Rule 12).
-    JSDoc στα wait(ms), hasCtrlAndPlayer(ctrl), και περιγραφές σταθερών micro-stagger.
-    Αναλυτικά σχόλια στις ενότητες: containers, behavior profiles, random config, session plan.
-    Βήμα-βήμα τεκμηρίωση της ακολουθιακής αρχικοποίησης (sequential init).
-    Διατήρηση κανόνων: semicolons, ESM, αποφυγή &&/||, τελευταία γραμμή End Of File.
+  Κεντρικό περιγραφικό μπλοκ για στόχους και σχεδιαστικές επιλογές (Rule 12).
+  JSDoc στα wait(ms), hasCtrlAndPlayer(ctrl), και περιγραφές σταθερών micro-stagger.
+  Αναλυτικά σχόλια στις ενότητες: containers, behavior profiles, random config, session plan.
+  Βήμα-βήμα τεκμηρίωση της ακολουθιακής αρχικοποίησης (sequential init).
+  Διατήρηση κανόνων: semicolons, ESM, αποφυγή &&/||, τελευταία γραμμή End Of File.
   Tests:
-    Βασικές ροές init/guards: OK (σχόλια δεν επηρεάζουν εκτέλεση).
+  Βασικές ροές init/guards: OK (σχόλια δεν επηρεάζουν εκτέλεση).
 - Αρχείο: **humanMode.js** — v4.11.13 → v4.11.14
   Summary: Refactor για καθαρότερη γραφή, χωρίς αλλαγή λειτουργίας.
   Notes:
-    Οργάνωση σταθερών και helper `wait(ms)` για καθαρές αναμονές.
-    Ομογενοποίηση guards (Rule 12) με χρήση anyTrue/allTrue και named guard `hasCtrlAndPlayer`.
-    Πιο σαφή και ομοιόμορφα logs (ίδια σημασιολογία).
-    Μικρές κανονικοποιήσεις σε μεταβλητές/ροή (π.χ. `i === 0`, `listLength`, `randomIndex`).
+  Οργάνωση σταθερών και helper `wait(ms)` για καθαρές αναμονές.
+  Ομογενοποίηση guards (Rule 12) με χρήση anyTrue/allTrue και named guard `hasCtrlAndPlayer`.
+  Πιο σαφή και ομοιόμορφα logs (ίδια σημασιολογία).
+  Μικρές κανονικοποιήσεις σε μεταβλητές/ροή (π.χ. `i === 0`, `listLength`, `randomIndex`).
   Tests:
-    Δημιουργία containers: OK.
-    Init χωρίς gesture: αναβολή (OK).
-    Init με main/alt (κενές/μη): guards λειτουργούν (OK).
-    Επανα-Init guard: αποτρέπει re-init (OK).
+  Δημιουργία containers: OK.
+  Init χωρίς gesture: αναβολή (OK).
+  Init με main/alt (κενές/μη): guards λειτουργούν (OK).
+  Επανα-Init guard: αποτρέπει re-init (OK).
 - File: playerController.js | v6.22.2 → v6.22.3
-  Summary: Descriptive comments. Added /** and /* blocks throughout, clarified intent of helpers, state mapping, timers, unmute policy. No functional changes.
+  Summary: Descriptive comments. Added /\*_ and /_ blocks throughout, clarified intent of helpers, state mapping, timers, unmute policy. No functional changes.
   Notes/Tests: Verified formatting rules (ESM, semicolons, header, End Of File). Smoke-checked AutoNext, pauses, mid-seek unaffected.
 - File: playerController.js | v6.22.1 → v6.22.2
   Summary: Internal refactor (no functional change). Fixed catch logging variables (use `err`), moved inline constructor functions to class methods, standardized logging & guards, minor helper additions.
@@ -35,18 +42,18 @@
 - globals.js: v4.8.9 → v4.8.10 — Εμπλουτισμός/βελτίωση επεξηγηματικών σχολίων (JSDoc και block σχόλια) για εκπαιδευτική αναγνωσιμότητα. (No functional changes)
   Notes: Μόνο σχόλια/τεκμηρίωση, καμία αλλαγή σε exports ή runtime συμπεριφορά.
   Tests: N/A (comment-only)
-- lists.js: v4.9.7 → v4.9.10 — Refactor για DRY φόρτωση λιστών (shared fetch/parsing helpers), αφαίρεση unused helpers, εμπλουτισμός σχολίων (μικτή ορολογία: fallback chain, timeout, observability), χωρίς αλλαγή λειτουργίας (ίδια ροή fallback & ίδια σημεία stats.errors++). 
+- lists.js: v4.9.7 → v4.9.10 — Refactor για DRY φόρτωση λιστών (shared fetch/parsing helpers), αφαίρεση unused helpers, εμπλουτισμός σχολίων (μικτή ορολογία: fallback chain, timeout, observability), χωρίς αλλαγή λειτουργίας (ίδια ροή fallback & ίδια σημεία stats.errors++).
   Notes: Διατηρείται η ακολουθία local -> GitHub raw -> internal fallback για main list και local -> [] για alt list.
   Tests: Smoke test (manual):
-    Με διαθέσιμο list.txt φορτώνει local.
-    Χωρίς list.txt (ή fetch fail) φορτώνει GitHub (εφόσον διαθέσιμο).
-    Με αποτυχία και των δύο, γυρίζει internal fallback και αυξάνει stats.errors.
-- main.js: v3.33.9 → v3.33.10 — Refactor δομής εκκίνησης (DOM gate + YouTube API readiness) με διατήρηση λειτουργίας, εμπλουτισμός/επέκταση σχολίων (/* και /**) σε περιγραφικό στυλ, αφαίρεση sanityCheck() (μη χρησιμοποιούμενη).
+  Με διαθέσιμο list.txt φορτώνει local.
+  Χωρίς list.txt (ή fetch fail) φορτώνει GitHub (εφόσον διαθέσιμο).
+  Με αποτυχία και των δύο, γυρίζει internal fallback και αυξάνει stats.errors.
+- main.js: v3.33.9 → v3.33.10 — Refactor δομής εκκίνησης (DOM gate + YouTube API readiness) με διατήρηση λειτουργίας, εμπλουτισμός/επέκταση σχολίων (/\* και /\*\*) σε περιγραφικό στυλ, αφαίρεση sanityCheck() (μη χρησιμοποιούμενη).
   Notes: Διατηρείται η ίδια ροή εκκίνησης (startApp() μόνο μία φορά με gate), polling readiness ανά 500 ms, watchdog παράλληλα με Human Mode. Καμία χρήση ||/&&.
   Tests: Manual smoke test (φόρτωση σε browser, εκκίνηση μέσω κουμπιού και fallback χωρίς κουμπί, επιβεβαίωση readiness log και watchdog st
 - uiControls.js: v3.16.26 → v3.16.27
   Refactor για λιγότερο duplication (helpers: byId, isReadyController, hasEntries, noteError).
-  Βελτίωση τεκμηρίωσης με επεξηγηματικά σχόλια (/*, /**) και σαφέστερη οργάνωση ενοτήτων.
+  Βελτίωση τεκμηρίωσης με επεξηγηματικά σχόλια (/\*, /\*\*) και σαφέστερη οργάνωση ενοτήτων.
   Διατήρηση λειτουργικότητας: ίδιοι guards, ίδια ροή clipboard fallback, ίδια λογική stop/restart.
 - versionReporter.js: v3.9.5 → v3.9.6 — Εμπλουτισμός/βελτίωση σχολίων (JSDoc + block comments) για καλύτερη τεκμηρίωση χωρίς αλλαγή λειτουργίας.
   Notes: Προστέθηκαν περιγραφικά σχόλια για σκοπό/ροή, helpers ταξινόμησης/μορφοποίησης και renderers (panel/text).
