@@ -4,7 +4,12 @@
 
 ## 2025-12-25
 
-
+- File: playerController.js | v6.22.2 → v6.22.3
+  Summary: Descriptive comments. Added /** and /* blocks throughout, clarified intent of helpers, state mapping, timers, unmute policy. No functional changes.
+  Notes/Tests: Verified formatting rules (ESM, semicolons, header, End Of File). Smoke-checked AutoNext, pauses, mid-seek unaffected.
+- File: playerController.js | v6.22.1 → v6.22.2
+  Summary: Internal refactor (no functional change). Fixed catch logging variables (use `err`), moved inline constructor functions to class methods, standardized logging & guards, minor helper additions.
+  Notes/Tests: Smoke-tested init, AutoNext after ENDED/Error, pauses & mid-seek on >5min videos, unmute with/without user gesture. Semicolons, ESM imports, header standard, and project rules upheld.
 - globals.js: v4.8.9 → v4.8.10 — Εμπλουτισμός/βελτίωση επεξηγηματικών σχολίων (JSDoc και block σχόλια) για εκπαιδευτική αναγνωσιμότητα. (No functional changes)
   Notes: Μόνο σχόλια/τεκμηρίωση, καμία αλλαγή σε exports ή runtime συμπεριφορά.
   Tests: N/A (comment-only)

@@ -1,21 +1,31 @@
 // --- playerController.js ---
-// Έκδοση: v6.21.13
+// Έκδοση: v6.22.3
 /*
-Περιγραφή: PlayerController για YouTube players (AutoNext, Pauses, MidSeek, χειρισμός σφαλμάτων).
-Προσαρμογή: Αφαιρέθηκε το explicit host από το YT.Player config, σεβόμαστε user-gesture πριν το unMute.
-Συμμόρφωση header με πρότυπο.
+Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
+Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
+        ενδιάμεσες μετακινήσεις (mid-seek), και χειρισμός καταστάσεων/σφαλμάτων.
 */
 
 // --- Versions ---
-const VERSION = 'v6.22.1';
+const VERSION = 'v6.22.3';
 export function getVersion() {
   return VERSION;
 }
+
+/*
+Σημείωση: Το αρχείο ακολουθεί αυστηρά τους κανόνες μορφοποίησης του project (ESM, semicolons,
+          header πρότυπο, απουσία ||/&&, τελευταία γραμμή End Of File).
+*/
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: playerController.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
+/**
+ * Εισαγωγές βοηθητικών σταθερών/συναρτήσεων από το module globals.
+ * - Η χρήση relative paths και ESM είναι προϋπόθεση του project.
+ * - Τα helpers anyTrue/allTrue αντικαθιστούν λογικούς τελεστές (||, &&) για συνέπεια.
+ */
 import {
   AUTO_NEXT_LIMIT_PER_PLAYER,
   MAIN_PROBABILITY,
@@ -33,7 +43,12 @@ import {
   allTrue,
   scheduler,
 } from './globals.js';
-// Ατομικός έλεγχος «είναι μη κενός πίνακας»
+
+/*
+ * isNonEmptyArray
+ * Περιγραφή: Επιστρέφει true μόνο εάν το όρισμα είναι πίνακας με τουλάχιστον ένα στοιχείο.
+ * Χρήση: Αποφυγή λαθών όταν βασιζόμαστε σε λίστες video IDs.
+ */
 function isNonEmptyArray(x) {
   if (!Array.isArray(x)) {
     return false;
@@ -44,24 +59,32 @@ function isNonEmptyArray(x) {
   return true;
 }
 
-// Named guards for playerController
+/*
+ * hasPlayer
+ * Περιγραφή: Ελέγχει ότι το αντικείμενο αναπαραγωγής διαθέτει μέθοδο playVideo.
+ * Σημασία: Πολλά βήματα προϋποθέτουν έγκυρο χειριστή YouTube IFrame API.
+ */
 function hasPlayer(p) {
   if (!p) {
     return false;
   }
   return typeof p.playVideo === 'function';
 }
+
+/*
+ * guardHasAnyList
+ * Περιγραφή: Πιστοποιεί ότι υπάρχει τουλάχιστον μία διαθέσιμη λίστα (main ή alt)
+ *            για AutoNext. Η λογική είναι σειριακή για συμβατότητα με τους κανόνες.
+ */
 function guardHasAnyList(ctrl) {
   if (!ctrl) {
     return false;
   }
-  // Check mainList
   if (Array.isArray(ctrl.mainList)) {
     if (ctrl.mainList.length > 0) {
       return true;
     }
   }
-  // Check altList
   if (Array.isArray(ctrl.altList)) {
     if (ctrl.altList.length > 0) {
       return true;
@@ -71,6 +94,12 @@ function guardHasAnyList(ctrl) {
 }
 
 // --- Phase-2/3: State transition mapping (Rule 12) ---
+/**
+ * STATE_TRANSITIONS
+ * Περιγραφή: Περιγραφικός χάρτης καταστάσεων για υψηλού επιπέδου ενέργειες.
+ * Δεν εκτελείται απευθείας ως state machine· χρησιμοποιείται ενδεικτικά στα handlers
+ * για οργάνωση συνθηκών (guards) και ενεργειών (actions).
+ */
 const STATE_TRANSITIONS = {
   UNSTARTED: {
     onReady: { guard: (ctrl) => true, action: (ctrl) => ctrl.onReady?.() },
@@ -88,6 +117,7 @@ const STATE_TRANSITIONS = {
   PAUSED: {
     onResume: {
       guard: (ctrl) => pc_canResume(ctrl),
+
       action: (ctrl) => ctrl.onResume?.(),
     },
     onSeek: {
@@ -103,35 +133,46 @@ const STATE_TRANSITIONS = {
   },
 };
 
-// Debounce helper for initial commands (postMessage race mitigation)
+/**
+ * safeCmd(fn, delay)
+ * Περιγραφή: Εκτελεί συνάρτηση με μικρή καθυστέρηση, παγιδεύοντας τυχόν σφάλμα.
+ * Χρήσιμη για μετριασμό συνθηκών ανταγωνισμού (postMessage race) στο IFrame API.
+ */
 function safeCmd(fn, delay = 80) {
   setTimeout(() => {
     try {
       fn();
-    } catch (_) {
-      log('[${ts()}] ❌ safeCmd Error ' + e.message);
+    } catch (err) {
+      try {
+        log(`[${ts()}] ❌ safeCmd Error ${String(err?.message ?? err)}`);
+      } catch (_) {
+        // σκόπιμη αποσιώπηση
+      }
     }
   }, delay);
 }
-// Seek command with bounds checking
+
+/**
+ * doSeek(player, seconds)
+ * Περιγραφή: Μετακίνηση χρονικής κεφαλής με ελέγχους ορίων (0..duration-0.5).
+ * Εάν η duration δεν είναι διαθέσιμη, προχωρά σε άμεση κλήση seekTo(seconds).
+ */
 function doSeek(player, seconds) {
   try {
     if (player) {
       if (typeof player.seekTo === 'function') {
-        {
-          try {
-            const d = player.getDuration ? player.getDuration() : 0;
-            let s = seconds;
-            if (typeof s === 'number') {
-              if (s < 0) s = 0;
-              if (d > 0) {
-                if (s > d - 0.5) s = d - 0.5;
-              }
+        try {
+          const d = player.getDuration ? player.getDuration() : 0;
+          let s = seconds;
+          if (typeof s === 'number') {
+            if (s < 0) s = 0;
+            if (d > 0) {
+              if (s > d - 0.5) s = d - 0.5;
             }
-            player.seekTo(s, true);
-          } catch (e) {
-            player.seekTo(seconds, true);
           }
+          player.seekTo(s, true);
+        } catch (err) {
+          player.seekTo(seconds, true);
         }
         log(`[${ts()}] ℹ️ Player ${this.index + 1} Seek -> seconds= ${seconds}`);
       } else {
@@ -140,16 +181,21 @@ function doSeek(player, seconds) {
     } else {
       log(`[${ts()}] ⚠️ Player ${this.index + 1} Seek skipped -> player unavailable`);
     }
-  } catch (e) {
+  } catch (err) {
     try {
       stats.errors++;
-      log(`[${ts()}] ❌ Player ${this.index + 1} Seek Error ` + e.message);
+      log(`[${ts()}] ❌ Player ${this.index + 1} Seek Error ${String(err?.message ?? err)}`);
     } catch (_) {
-      log(`[${ts()}] ❌ Player ${this.index + 1} Controller Error ` + e.message);
+      log(`[${ts()}] ❌ Player ${this.index + 1} Controller Error ${String(err?.message ?? err)}`);
     }
   }
 }
 
+/**
+ * getRequiredWatchTime(durationSec)
+ * Περιγραφή: Υπολογίζει απαιτούμενο χρόνο θέασης (σε δευτερόλεπτα) πριν επιτραπεί AutoNext.
+ * Λαμβάνει υπόψη το μήκος του video και εισάγει μικρή τυχαιότητα (bias) για ρεαλισμό.
+ */
 /** Υπολογισμός απαιτούμενου χρόνου θέασης για AutoNext. 
   // < 2 min: 90–100%
   // < 5 min: 80–100%
@@ -158,7 +204,7 @@ function doSeek(player, seconds) {
   // > 120 min: 10–15%
 */
 export function getRequiredWatchTime(durationSec) {
-  var capSec = (15 + rndInt(0, 5)) * 60;
+  var capSec = (15 + rndInt(0, 5)) * 60; // ανώτατο όριο απαίτησης (λεπτά -> sec)
   var minPct = 0.5;
   var maxPct = 0.7;
   if (durationSec < 120) {
@@ -181,9 +227,9 @@ export function getRequiredWatchTime(durationSec) {
   if (span < 0) {
     span = 0;
   }
-  var pct = minPct + Math.random() * span;
+  var pct = minPct + Math.random() * span; // ποσοστό απαιτούμενης θέασης
   var b = rndInt(-1, 1);
-  var bias = b * 0.01;
+  var bias = b * 0.01; // μικρή μεταβολή +-1%
   pct = pct + bias;
   if (pct < 0.05) {
     pct = 0.05;
@@ -198,7 +244,11 @@ export function getRequiredWatchTime(durationSec) {
   return required;
 }
 
-/** Σχέδιο παύσεων με βάση τη διάρκεια. */
+/**
+ * getPausePlan(duration)
+ * Περιγραφή: Παράγει σχέδιο παύσεων (πλήθος και εύρος δευτερολέπτων) ανάλογα με τη διάρκεια.
+ * Στόχος: Μιμητική συμπεριφορά χρήστη με ελεγχόμενη τυχαιότητα.
+ */
 export function getPausePlan(duration) {
   if (duration < 120) {
     return { count: rndInt(1, 1), min: 6, max: 15 };
@@ -216,78 +266,128 @@ export function getPausePlan(duration) {
 }
 
 // --- Utils: dynamic origin/host ---
+/**
+ * getDynamicOrigin()
+ * Περιγραφή: Επιστρέφει δυναμικά το origin (πρωτόκολλο+host+port) της τρέχουσας σελίδας.
+ * Ασφάλεια: Αγνοεί περιβάλλοντα file:// και χειρίζεται ελλείψεις ιδιοτήτων window.location.
+ */
 function getDynamicOrigin() {
   try {
     if (allTrue([window.location, window.location.origin])) return window.location.origin;
     const __loc = typeof window !== 'undefined' ? (window.location ? window.location : {}) : {};
     const { protocol, hostname, port } = __loc;
     if (allTrue([protocol, hostname])) return `${protocol}//${hostname}${port ? ':' + port : ''}`;
-  } catch (_) {
-    log(`[${ts()}] ⚠️ getDynamicOrigin Error ${_}`);
+  } catch (err) {
+    log(`[${ts()}] ⚠️ getDynamicOrigin Error ${String(err?.message ?? err)}`);
   }
   return '';
 }
+
+/**
+ * getYouTubeHostFallback()
+ * Περιγραφή: Επιστρέφει σταθερό host ως εφεδρεία· χρησιμοποιείται μόνο για logging.
+ */
 function getYouTubeHostFallback() {
   return 'https://www.youtube.com';
 }
 
+/**
+ * getState(p) / isPlaying(p)
+ * Περιγραφή: Βοηθητικές συναρτήσεις για ασφαλή ανάγνωση κατάστασης player και έλεγχο PLAYING.
+ */
+function getState(p) {
+  if (allTrue([p, typeof p.getPlayerState === 'function'])) {
+    return p.getPlayerState();
+  }
+  return undefined;
+}
+function isPlaying(p) {
+  const s = getState(p);
+  return s === YT.PlayerState.PLAYING;
+}
+
 /** PlayerController class --- Start */
 export class PlayerController {
+  /**
+   * constructor(index, mainList, altList, config)
+   * Περιγραφή: Αρχικοποιεί ιδιότητες ελέγχου και αποθηκεύει λίστες video IDs.
+   * Σημείωση: Οι λίστες εξομαλύνονται σε κενές όταν δεν δίνονται έγκυρα arrays.
+   */
   constructor(index, mainList, altList, config = null) {
-    this.pendingUnmute = false;
-    this.index = index;
+    this.pendingUnmute = false; // flag αναμονής για unmute όταν δεν υπάρχει gesture
+    this.index = index; // αύξων αριθμός player (για logging/όρια)
     this.mainList = Array.isArray(mainList) ? mainList : [];
     this.altList = Array.isArray(altList) ? altList : [];
-    this.player = null;
-    this.timers = { midSeek: null, pauseTimers: [], progressCheck: null };
-    this.tryPlay = (p) => {
-      const jitter = 50 + Math.floor(Math.random() * 200);
-      const attempt = () => {
-        if (typeof p.playVideo === 'function') {
-          this.guardPlay(p);
-        }
-      };
-      setTimeout(attempt, jitter);
-    };
-    this.config = config;
-    this.guardPlay = function (p) {
-      try {
-        if (p ? typeof p.playVideo === 'function' : false) {
-          p.playVideo();
-        }
-      } catch (_) {
-        log(`[${ts()}] ❌ Player ${this.index + 1} LogPlayer Error ` + e.message);
-      }
-    };
-
-    this.requestPlay = function () {
-      try {
-        var p = this.player;
-        if (p) {
-          this.guardPlay(p);
-        }
-      } catch (_) {
-        log(`[${ts()}] ❌ Player ${this.index + 1} requestPlay Error ` + e.message);
-      }
-    };
+    this.player = null; // instance του YT.Player
+    this.timers = { midSeek: null, pauseTimers: [], progressCheck: null }; // αποθήκευση χρονομετρητών
+    this.config = config; // προαιρετικές ρυθμίσεις (καθυστερήσεις, intervals, κ.ά.)
     this.profileName = config?.profileName ?? 'Unknown';
-    this.startTime = null;
-    this.playingStart = null;
-    this.currentRate = 1.0;
-    this.isPlayingActive = false;
-    this.totalPlayTime = 0;
-    this.lastBufferingStart = null;
-    this.lastPausedStart = null;
-    this.expectedPauseMs = 0;
+    this.startTime = null; // timestamp πρώτης ετοιμότητας
+    this.playingStart = null; // timestamp εκκίνησης PLAYING
+    this.currentRate = 1.0; // τρέχων ρυθμός αναπαραγωγής
+    this.isPlayingActive = false; // ένδειξη ότι ο player βρίσκεται ενεργά σε PLAYING
+    this.totalPlayTime = 0; // αθροιστικός χρόνος θέασης (σε sec) με rate
+    this.lastBufferingStart = null; // σημείωση έναρξης BUFFERING
+    this.lastPausedStart = null; // σημείωση έναρξης PAUSED
+    this.expectedPauseMs = 0; // αναμενόμενη διάρκεια παύσης (για επαναφορά)
+    this.initialSeekSec = this.config?.initialSeekSec; // προαιρετικό αρχικό seek
   }
-  /** Αρχικοποίηση του YouTube Player. */
+
+  /**
+   * tryPlay(p)
+   * Περιγραφή: Προσπαθεί να καλέσει playVideo με μικρή τυχαία καθυστέρηση (jitter).
+   */
+  tryPlay(p) {
+    const jitter = 50 + Math.floor(Math.random() * 200);
+    const attempt = () => {
+      if (typeof p.playVideo === 'function') {
+        this.guardPlay(p);
+      }
+    };
+    setTimeout(attempt, jitter);
+  }
+
+  /**
+   * guardPlay(p)
+   * Περιγραφή: Ασφαλής κλήση playVideo με παγίδευση σφάλματος για σταθερότητα.
+   */
+  guardPlay(p) {
+    try {
+      if (p ? typeof p.playVideo === 'function' : false) {
+        p.playVideo();
+      }
+    } catch (err) {
+      log(`[${ts()}] ❌ Player ${this.index + 1} LogPlayer Error ${String(err?.message ?? err)}`);
+    }
+  }
+
+  /**
+   * requestPlay()
+   * Περιγραφή: Δημόσια μέθοδος που ενεργοποιεί αναπαραγωγή στον τρέχοντα player.
+   */
+  requestPlay() {
+    try {
+      var p = this.player;
+      if (p) {
+        this.guardPlay(p);
+      }
+    } catch (err) {
+      log(`[${ts()}] ❌ Player ${this.index + 1} requestPlay Error ${String(err?.message ?? err)}`);
+    }
+  }
+
+  /**
+   * init(videoId)
+   * Περιγραφή: Δημιουργεί YT.Player με ασφαλή ορισμό origin και callbacks.
+   * Χρήση: Καλείται μετά την κατασκευή για σύνδεση κοντέινερ και φόρτωση video.
+   */
   init(videoId) {
     const containerId = `player${this.index + 1}`;
     const dyn = typeof getDynamicOrigin === 'function' ? getDynamicOrigin() : '';
     const computedOrigin = dyn ? dyn : window.location?.origin ?? '';
-
     const isValidOrigin = allTrue([typeof computedOrigin === 'string', /^https?:\/\/[^/]+$/.test(computedOrigin), !/^file:\/\//.test(computedOrigin), computedOrigin !== '<URL>']);
-    const hostVal = getYouTubeHostFallback();
+    const hostVal = getYouTubeHostFallback(); // μόνο για ενημερωτικό logging
+
     this.player = new YT.Player(containerId, {
       videoId,
       host: getYouTubeEmbedHost(),
@@ -302,17 +402,26 @@ export class PlayerController {
         onError: () => this.onError(),
       },
     });
+
     log(`[${ts()}] ℹ️ YT PlayerVars origin→ ${isValidOrigin ? computedOrigin : '(none)'} host→ ${hostVal}`);
     log(`[${ts()}] ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
     log(`[${ts()}] 👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
   }
+
+  /**
+   * onReady(e)
+   * Περιγραφή: Callback ετοιμότητας. Θέτει αρχικές καθυστερήσεις, προγραμματίζει παύσεις/mid-seek,
+   *            και προετοιμάζει την αποσίγαση (unmute) με σεβασμό σε user-gesture πολιτική.
+   */
   onReady(e) {
     const p = e.target;
     this.startTime = Date.now();
     p.mute();
+
     const startDelaySec = this.config?.startDelay ?? rndInt(5, 180);
     const startDelay = startDelaySec * 1000;
     log(`[${ts()}] ⏳ Player ${this.index + 1} Scheduled -> start after ${startDelaySec}s`);
+
     const __jitterMs = 100 + Math.floor(Math.random() * 120);
     setTimeout(() => {
       try {
@@ -326,8 +435,8 @@ export class PlayerController {
             function () {
               try {
                 this.guardPlay(e.target);
-              } catch (_) {
-                log(`[${ts()}] ❌ Player ${this.index + 1} guardPlay Error ` + e.message);
+              } catch (err) {
+                log(`[${ts()}] ❌ Player ${this.index + 1} guardPlay Error ${String(err?.message ?? err)}`);
               }
             }.bind(this),
             240
@@ -336,23 +445,28 @@ export class PlayerController {
       } catch (__err) {
         try {
           stats.errors++;
-          log(`[${ts()}] ❌ onReady jitter failed: ${__err.message}`);
+          log(`[${ts()}] ❌ onReady jitter failed: ${String(__err?.message ?? __err)}`);
         } catch (_e) {
-          log(`[${ts()}] ❌ Player ${this.index + 1} onReady Error ` + e.message);
+          log(`[${ts()}] ❌ Player ${this.index + 1} onReady Error ${String(_e?.message ?? _e)}`);
         }
       }
-    }, __jitterMs); // JITTER_APPLIED
+    }, __jitterMs); // JITTER_APPLIED: μικρή μετατόπιση για σταθερότητα IFrame μηνυμάτων
+
     setTimeout(() => {
       var seekSec = typeof this.initialSeekSec === 'number' ? this.initialSeekSec : '-';
       log(`[${ts()}] ▶ Player ${this.index + 1} Ready -> Seek= ${seekSec}s after ${startDelaySec}s`);
       this.schedulePauses();
       this.scheduleMidSeek();
     }, startDelay);
+
     // Auto Unmute + fallback
+    /**
+     * Περιγραφή: Η αποσίγαση γίνεται μόνο όταν υπάρχει user-gesture (πολιτική browser/YouTube).
+     * Αν δεν υπάρχει, κρατάμε pendingUnmute και δοκιμάζουμε ξανά όταν ο player περάσει σε PLAYING.
+     */
     const unmuteDelayExtra = this.config?.unmuteDelayExtra ?? rndInt(30, 90);
     const unmuteDelay = (startDelaySec + unmuteDelayExtra) * 1000;
     setTimeout(() => {
-      // Αν δεν υπάρχει user gesture, περιμένουμε
       if (!hasUserGesture) {
         this.pendingUnmute = true;
         log(`[${ts()}] 🔇 Player ${this.index + 1} Awaiting user gesture for unmute`);
@@ -365,7 +479,7 @@ export class PlayerController {
         if (typeof p.setVolume === 'function') p.setVolume(v);
         stats.volumeChanges++;
         log(`[${ts()}] 🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
-        // Quick check: if immediately paused after unmute, push play (250ms)
+        // γρήγορη επαναδοκιμή play αν προκύψει άμεσο pause μετά το unmute
         setTimeout(() => {
           if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
             log(`[${ts()}] 🔁 Player ${this.index + 1} Quick retry playVideo after immediate unmute`);
@@ -384,25 +498,33 @@ export class PlayerController {
       }
     }, unmuteDelay);
   }
+
+  /**
+   * onStateChange(e)
+   * Περιγραφή: Κεντρικός χειριστής καταστάσεων του IFrame API.
+   * Καταγράφει μεταβολές, ενημερώνει meters χρόνου αναπαραγωγής και αποφασίζει AutoNext.
+   */
   onStateChange(e) {
     try {
       let s;
       if (typeof e !== 'undefined' ? typeof e.data !== 'undefined' : false) {
-        s = e.data;
+        s = e.data; // προτιμούμε την κατάσταση από το event
       } else {
-        s = this.player ? this.player.getPlayerState() : undefined;
+        s = this.player ? this.player.getPlayerState() : undefined; // εφεδρεία
       }
-    } catch (_) {
-      log(`[${ts()}] ❌ Player ${this.index + 1} StateChange Error ` + e.message);
+    } catch (err) {
+      log(`[${ts()}] ❌ Player ${this.index + 1} StateChange Error ${String(err?.message ?? err)}`);
     }
+
+    // Ενδεικτικές μεταβάσεις μέσω STATE_TRANSITIONS (χωρίς πλήρη state machine)
     try {
-      if (s === YT.PlayerState.PAUSED) {
+      if (e.data === YT.PlayerState.PAUSED) {
         const t = STATE_TRANSITIONS.PAUSED.onResume;
         if (t.guard(this)) t.action(this);
       }
     } catch (_) {}
     try {
-      if (s === YT.PlayerState.ENDED) {
+      if (e.data === YT.PlayerState.ENDED) {
         const t = STATE_TRANSITIONS.ENDED.onEnd;
         if (t.guard(this)) t.action(this);
       }
@@ -443,10 +565,10 @@ export class PlayerController {
           this.isPlayingActive = false;
         }
     }
-    // Retry unmute αν ήταν pending
+
+    // Επαναπροσπάθεια unmute αν ήταν σε εκκρεμότητα και πλέον έχουμε PLAYING
     if (allTrue([e.data === YT.PlayerState.PLAYING, this.pendingUnmute])) {
       if (!hasUserGesture) {
-        // Περιμένουμε gesture, διατηρούμε pendingUnmute
         log(`[${ts()}] 🔇 Player ${this.index + 1} Still awaiting user gesture before unmute`);
       } else {
         if (typeof p.unMute === 'function') p.unMute();
@@ -464,7 +586,8 @@ export class PlayerController {
         }, 1000);
       }
     }
-    // Καταγραφή χρόνου θέασης
+
+    // Καταγραφή/συσσώρευση χρόνου θέασης
     if (e.data === YT.PlayerState.PLAYING) {
       this.playingStart = Date.now();
       this.currentRate = typeof p.getPlaybackRate === 'function' ? p.getPlaybackRate() : 1.0;
@@ -475,15 +598,17 @@ export class PlayerController {
         this.playingStart = null;
       }
     }
+
     if (e.data === YT.PlayerState.BUFFERING) this.lastBufferingStart = Date.now();
     if (e.data === YT.PlayerState.PAUSED) this.lastPausedStart = Date.now();
-    // ENDED -> απόφαση AutoNext
+
+    // ENDED -> Δεύτερη φάση απόφασης AutoNext με αναμονή μετά το τέλος
     if (e.data === YT.PlayerState.ENDED) {
       this.clearTimers();
       const duration = typeof p.getDuration === 'function' ? p.getDuration() : 0;
       const percentWatched = duration > 0 ? Math.round((this.totalPlayTime / duration) * 100) : 0;
       log(`[${ts()}] ✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(this.totalPlayTime)}s)`);
-      const afterEndPauseMs = rndInt(15000, 60000);
+      const afterEndPauseMs = rndInt(15000, 60000); // σύντομη παύση πριν την επόμενη επιλογή
       setTimeout(() => {
         const requiredTime = getRequiredWatchTime(duration);
         if (this.totalPlayTime < requiredTime) {
@@ -508,6 +633,11 @@ export class PlayerController {
       }, afterEndPauseMs);
     }
   }
+
+  /**
+   * onError()
+   * Περιγραφή: Fallback σφάλματος. Προσπαθεί AutoNext εφόσον υπάρχουν διαθέσιμες λίστες.
+   */
   onError() {
     if (guardHasAnyList(this)) {
       this.loadNextVideo(this.player);
@@ -518,43 +648,66 @@ export class PlayerController {
     stats.errors++;
     log(`[${ts()}] ❌ Player ${this.index + 1} Error -> AutoNext`);
   }
+
+  /**
+   * loadNextVideo(player)
+   * Περιγραφή: Επιλέγει επόμενο video ID από main/alt λίστα με τυχαιότητα και όριο AutoNext.
+   * Επαναφέρει μετρητές χρόνου και επαναπρογραμματίζει παύσεις/mid-seek.
+   */
   loadNextVideo(player) {
     if (!allTrue([player, typeof player.loadVideoById === 'function'])) return;
+
     if (!canAutoNext(this.index)) {
       log(`[${ts()}] ⚠️ AutoNext limit reached -> ${AUTO_NEXT_LIMIT_PER_PLAYER}/hour for Player ${this.index + 1}`);
       return;
     }
+
     const useMain = Math.random() < MAIN_PROBABILITY;
     const hasMain = allTrue([Array.isArray(this.mainList), this.mainList.length > 0]);
     const hasAlt = allTrue([Array.isArray(this.altList), this.altList.length > 0]);
+
     let list;
     if (allTrue([useMain, hasMain])) list = this.mainList;
     else if (allTrue([!useMain, hasAlt])) list = this.altList;
     else if (hasMain) list = this.mainList;
     else list = this.altList;
+
     if ((list?.length ?? 0) === 0) {
       stats.errors++;
       log(`[${ts()}] ❌ AutoNext aborted -> no available list`);
-
       return;
     }
+
     const newId = list[Math.floor(Math.random() * list.length)];
     player.loadVideoById(newId);
     this.guardPlay(player);
     stats.autoNext++;
     incAutoNext(this.index);
+
+    // επαναφορά μετρητών χρόνου θέασης
     this.totalPlayTime = 0;
     this.playingStart = null;
+
     log(`[${ts()}] ⏭️ Player ${this.index + 1} AutoNext -> ${newId} (Source:${useMain ? 'main' : 'alt'})`);
+
+    // προγραμματισμός νέων γεγονότων συμπεριφοράς
     this.schedulePauses();
     this.scheduleMidSeek();
   }
+
+  /**
+   * schedulePauses()
+   * Περιγραφή: Προγραμματίζει τυχαίες παύσεις εντός του χρονικού διαστήματος 10%..80% της διάρκειας.
+   * Κατά την παύση, αποθηκεύεται expectedPauseMs για να επιτραπεί στοχευμένη επαναφορά.
+   */
   schedulePauses() {
     const p = this.player;
     if (anyTrue([!p])) return;
     if (!allTrue([p, typeof p.getDuration === 'function'])) return;
+
     const duration = p.getDuration();
     if (duration <= 0) return;
+
     const plan = getPausePlan(duration);
     for (let i = 0; i < plan.count; i++) {
       const delay = rndInt(Math.floor(duration * 0.1), Math.floor(duration * 0.8)) * 1000;
@@ -574,13 +727,20 @@ export class PlayerController {
       this.timers.pauseTimers.push(timer);
     }
   }
+
+  /**
+   * scheduleMidSeek()
+   * Περιγραφή: Προγραμματίζει ενδιάμεσες μετακινήσεις κεφαλής (mid-seek) σε μεγάλα videos (>5min).
+   * Το interval είναι ρυθμιζόμενο: default τυχαίο μεταξύ 8..12 λεπτών.
+   */
   scheduleMidSeek() {
     const p = this.player;
     if (anyTrue([!p])) return;
-    // removed duplicate
     if (!allTrue([p, typeof p.getDuration === 'function'])) return;
+
     const duration = p.getDuration();
     if (duration < 300) return;
+
     const interval = this.config?.midSeekInterval ?? rndInt(8, 12) * 60000;
     this.timers.midSeek = setTimeout(() => {
       if (allTrue([duration > 0, typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING])) {
@@ -589,14 +749,21 @@ export class PlayerController {
         stats.midSeeks++;
         log(`[${ts()}] 🔁 Player ${this.index + 1} Mid-seek -> ${seek}s`);
       }
-      this.scheduleMidSeek();
+      this.scheduleMidSeek(); // επαναπρογραμματισμός για επόμενη μετακίνηση
     }, interval);
   }
+
+  /**
+   * clearTimers()
+   * Περιγραφή: Ακυρώνει όλους τους ενεργούς χρονομετρητές (pauses/midSeek/progressCheck) και
+   *            επαναφέρει δείκτες παύσης.
+   */
   clearTimers() {
     this.timers.pauseTimers.forEach((t) => {
       clearTimeout(t);
     });
     this.timers.pauseTimers = [];
+
     if (this.timers.midSeek) {
       clearTimeout(this.timers.midSeek);
       this.timers.midSeek = null;
@@ -605,10 +772,10 @@ export class PlayerController {
       clearInterval(this.timers.progressCheck);
       this.timers.progressCheck = null;
     }
+
     this.expectedPauseMs = 0;
   }
 }
-
 /** PlayerController class --- End */
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
