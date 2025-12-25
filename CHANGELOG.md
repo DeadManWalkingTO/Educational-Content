@@ -4,6 +4,12 @@
 
 ## 2025-12-25
 
+- lists.js: v4.9.7 → v4.9.10 — Refactor για DRY φόρτωση λιστών (shared fetch/parsing helpers), αφαίρεση unused helpers, εμπλουτισμός σχολίων (μικτή ορολογία: fallback chain, timeout, observability), χωρίς αλλαγή λειτουργίας (ίδια ροή fallback & ίδια σημεία stats.errors++). 
+  Notes: Διατηρείται η ακολουθία local -> GitHub raw -> internal fallback για main list και local -> [] για alt list.
+  Tests: Smoke test (manual):
+    Με διαθέσιμο list.txt φορτώνει local.
+    Χωρίς list.txt (ή fetch fail) φορτώνει GitHub (εφόσον διαθέσιμο).
+    Με αποτυχία και των δύο, γυρίζει internal fallback και αυξάνει stats.errors.
 - main.js: v3.33.9 → v3.33.10 — Refactor δομής εκκίνησης (DOM gate + YouTube API readiness) με διατήρηση λειτουργίας, εμπλουτισμός/επέκταση σχολίων (/* και /**) σε περιγραφικό στυλ, αφαίρεση sanityCheck() (μη χρησιμοποιούμενη).
   Notes: Διατηρείται η ίδια ροή εκκίνησης (startApp() μόνο μία φορά με gate), polling readiness ανά 500 ms, watchdog παράλληλα με Human Mode. Καμία χρήση ||/&&.
   Tests: Manual smoke test (φόρτωση σε browser, εκκίνηση μέσω κουμπιού και fallback χωρίς κουμπί, επιβεβαίωση readiness log και watchdog st

@@ -1,55 +1,115 @@
 // --- lists.js ---
-// Έκδοση: v4.9.7
+// Έκδοση: v4.9.10
 /*
-Περιγραφή: Φόρτωση λιστών βίντεο από local αρχεία, GitHub fallback και internal fallback.
-Ενημερωμένο: Διόρθωση URL + καθαρισμός escaped tokens
-Συμμόρφωση header με πρότυπο.
+Περιγραφή: Φόρτωση λιστών video IDs από local αρχεία.
+Fallback chain: local -> GitHub raw -> internal fallback.
+Alt list: local 'random.txt' με fallback σε κενό array.
 */
 
 // --- Versions ---
-const VERSION = 'v4.9.7';
+const VERSION = 'v4.9.10';
 export function getVersion() {
   return VERSION;
 }
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: lists.js ${VERSION} -> Ξεκίνησε`);
+
 // Imports
 import { log, ts, stats } from './globals.js';
 
-// Guard helpers for State Machine (Rule 12)
-// Named guards for Lists
-
-function isValidId(id) {
-  if (typeof id !== 'string') return false;
-  const s = id.trim();
-  if (s.length < 6) return false;
-  if (s.length > 64) return false;
-  return /^[A-Za-z0-9_-]+$/.test(s);
+/**
+ * Μετατροπή κειμένου πολλαπλών γραμμών σε λίστα “μη-κενών” στοιχείων (non-empty lines).
+ *
+ * Pipeline:
+ * - split('
+') για διάσπαση γραμμών
+ * - trim() για αφαίρεση whitespace
+ * - filter(non-empty) για απόρριψη κενών
+ *
+ * Design note:
+ * Δεν γίνεται validation/dedup ώστε να διατηρείται η υπάρχουσα συμπεριφορά:
+ * trimmed + non-empty γραμμές, με την ίδια σειρά όπως στο αρχικό αρχείο.
+ *
+ * @param {string} text - Raw κείμενο από file/HTTP response.
+ * @returns {string[]} Πίνακας από trimmed, non-empty γραμμές.
+ */
+function parseNonEmptyLines(text) {
+  return text
+    .split('\n')
+    .map((x) => x.trim())
+    .filter((x) => x);
 }
 
-// Ενιαίο parsing με validation + dedup
-function parseIds(text) {
-  const raw = text.split('\n').map((x) => x.trim());
-  const out = [];
-  const seen = {};
-  for (let i = 0; i < raw.length; i++) {
-    const id = raw[i];
-    if (!id) {
-      continue;
+/**
+ * Fetch helper που επιστρέφει το response ως κείμενο (text), με προαιρετικό timeout.
+ *
+ * Συμπεριφορά:
+ * - res.ok === false -> επιστρέφεται null (μη-χρήσιμο αποτέλεσμα)
+ * - network/abort exceptions -> περνούν προς τα πάνω (throw) για χειρισμό στο caller
+ *
+ * Timeout implementation:
+ * - Χρήση AbortController όταν δοθεί timeoutMs
+ * - Καθαρισμός timer στο finally (avoid orphan timeouts)
+ *
+ * @param {string} url - URL ή local path (π.χ. 'list.txt' ή raw GitHub URL).
+ * @param {number|undefined} timeoutMs - Timeout σε ms (undefined => χωρίς timeout).
+ * @returns {Promise<string|null>} Το body ως κείμενο ή null όταν το status δεν είναι OK.
+ */
+async function fetchText(url, timeoutMs) {
+  let ctrl = null;
+  let timeoutId = null;
+
+  try {
+    if (typeof timeoutMs === 'number') {
+      ctrl = new AbortController();
+      timeoutId = setTimeout(() => {
+        ctrl.abort();
+      }, timeoutMs);
     }
-    if (!isValidId(id)) {
-      continue;
-    }
-    if (!seen[id]) {
-      out.push(id);
-      seen[id] = true;
+
+    const options = ctrl ? { signal: ctrl.signal } : undefined;
+    const res = await fetch(url, options);
+
+    if (!res.ok) return null;
+
+    const text = await res.text();
+    return text;
+  } finally {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
     }
   }
-  return out;
 }
 
-// Internal fallback list (15 video IDs)
+/**
+ * Load attempt από μία source και μετατροπή σε list.
+ *
+ * Contract:
+ * - null όταν: (α) fetch non-OK, ή (β) empty list μετά το parsing
+ * - list όταν υπάρχει τουλάχιστον 1 item
+ *
+ * Role in fallback chain:
+ * Το null λειτουργεί ως “σήμα” ώστε ο caller να δοκιμάσει την επόμενη πηγή.
+ *
+ * @param {string} url - URL/path της πηγής.
+ * @param {number|undefined} timeoutMs - Timeout σε ms (χρήσιμο για remote sources).
+ * @returns {Promise<string[]|null>} List ή null όταν δεν υπάρχει χρήσιμο αποτέλεσμα.
+ */
+async function tryLoadListFromUrl(url, timeoutMs) {
+  const text = await fetchText(url, timeoutMs);
+  if (!text) return null;
+
+  const list = parseNonEmptyLines(text);
+  if (list.length < 1) return null;
+
+  return list;
+}
+
+/*
+  Internal fallback list (hardcoded).
+  Last-resort safety net: ενεργοποιείται όταν αποτύχουν local + GitHub.
+*/
 const internalList = [
   'ibfVWogZZhU',
   'mYn9JUxxi0M',
@@ -69,81 +129,87 @@ const internalList = [
 ];
 
 /**
- * Φόρτωση κύριας λίστας από local αρχείο ή GitHub ή internal fallback.
+ * Φόρτωση κύριας λίστας (main list) video IDs.
+ *
+ * Fallback chain:
+ * 1) Local source: 'list.txt'
+ * 2) Remote source: GitHub raw (timeout 4s για αποφυγή stalls)
+ * 3) Internal fallback: internalList
+ *
+ * Observability:
+ * - success -> log με πλήθος items
+ * - failure -> warning log και συνέχιση
+ *
+ * Metrics:
+ * stats.errors++ αυξάνεται μόνο όταν ενεργοποιηθεί internal fallback.
+ *
+ * @returns {Promise<string[]>} Πάντα επιστρέφεται κάποια λίστα.
  */
 export async function loadVideoList() {
+  /* 1) Local source */
   try {
-    const localResponse = await fetch('list.txt');
-    if (localResponse.ok) {
-      const text = await localResponse.text();
-      const list = text
-        .split('\n')
-        .map((x) => x.trim())
-        .filter((x) => x);
-      if (list.length > 0) {
-        log(`[${ts()}] ✅ Main list loaded from local file -> ${list.length} items`);
-        return list;
-      }
+    const list = await tryLoadListFromUrl('list.txt');
+    if (list) {
+      log(`[${ts()}] ✅ Main list loaded from local file -> ${list.length} items`);
+      return list;
     }
   } catch (err) {
     log(`[${ts()}] ⚠️ Local list load failed -> ${err}`);
   }
 
-  // GitHub fallback (διορθωμένο URL)
+  /* 2) Remote source (GitHub raw) */
   try {
     const githubUrl = 'https://raw.githubusercontent.com/DeadManWalkingTO/Educational-Content/main/list.txt';
-    const ctrl = new AbortController();
-    const _tid = setTimeout(() => ctrl.abort(), 4000);
-    const githubResponse = await fetch(githubUrl, { signal: ctrl.signal });
-    clearTimeout(_tid);
-    if (githubResponse.ok) {
-      const text = await githubResponse.text();
-      const list = text
-        .split('\n')
-        .map((x) => x.trim())
-        .filter((x) => x);
-      if (list.length > 0) {
-        log(`[${ts()}] ✅ Main list loaded from GitHub -> ${list.length} items`);
-        return list;
-      }
+    const list = await tryLoadListFromUrl(githubUrl, 4000);
+    if (list) {
+      log(`[${ts()}] ✅ Main list loaded from GitHub -> ${list.length} items`);
+      return list;
     }
   } catch (err) {
     log(`[${ts()}] ⚠️ GitHub list load failed -> ${err}`);
   }
 
-  // Internal fallback
+  /* 3) Last-resort internal fallback */
   stats.errors++;
   log(`[${ts()}] ❌ Using internal fallback list -> ${internalList.length} items`);
   return internalList;
 }
 
 /**
- * Φόρτωση εναλλακτικής λίστας από local αρχείο ή επιστροφή κενής.
+ * Φόρτωση εναλλακτικής λίστας (alt list) video IDs.
+ *
+ * Ροή:
+ * - Local source: 'random.txt'
+ * - Failure/empty -> επιστροφή []
+ *
+ * Metrics note:
+ * Παρότι η alt list είναι προαιρετική, το empty/failure μετριέται (stats.errors++).
+ *
+ * @returns {Promise<string[]>} List ή [].
  */
 export async function loadAltList() {
   try {
-    const localResponse = await fetch('random.txt');
-    if (localResponse.ok) {
-      const text = await localResponse.text();
-      const list = text
-        .split('\n')
-        .map((x) => x.trim())
-        .filter((x) => x);
-      if (list.length > 0) {
-        log(`[${ts()}] ✅ Alt List Loaded from Local File -> ${list.length} items`);
-        return list;
-      }
+    const list = await tryLoadListFromUrl('random.txt');
+    if (list) {
+      log(`[${ts()}] ✅ Alt List Loaded from Local File -> ${list.length} items`);
+      return list;
     }
   } catch (err) {
     log(`[${ts()}] ⚠️ Alt List Load Failed -> ${err}`);
   }
+
   stats.errors++;
   log(`[${ts()}] ❌ Alt List Empty -> Using []`);
   return [];
 }
 
 /**
- * Επαναφόρτωση λιστών (main και alt).
+ * Reload των λιστών (main + alt) με παράλληλη εκτέλεση.
+ *
+ * Concurrency note:
+ * Promise.all μειώνει το συνολικό latency φορτώνοντας ταυτόχρονα τις πηγές.
+ *
+ * @returns {Promise<{mainList: string[], altList: string[]}>} Αντικείμενο με τις δύο λίστες.
  */
 export async function reloadList() {
   const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
