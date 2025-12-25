@@ -1,32 +1,21 @@
 // --- playerController.js ---
-// Έκδοση: v6.22.4
+const VERSION = 'v6.22.4';
 /*
 Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
 Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
         ενδιάμεσες μετακινήσεις (mid-seek), και χειρισμός καταστάσεων/σφαλμάτων.
 */
 
-// --- Versions ---
-const VERSION = 'v6.22.3';
+// --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
-
-import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } from './scheduler.js';
-/*
-Σημείωση: Το αρχείο ακολουθεί αυστηρά τους κανόνες μορφοποίησης του project (ESM, semicolons,
-          header πρότυπο, απουσία ||/&&, τελευταία γραμμή End Of File).
-*/
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: playerController.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-/**
- * Εισαγωγές βοηθητικών σταθερών/συναρτήσεων από το module globals.
- * - Η χρήση relative paths και ESM είναι προϋπόθεση του project.
- * - Τα helpers anyTrue/allTrue αντικαθιστούν λογικούς τελεστές (||, &&) για συνέπεια.
- */
+import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } from './scheduler.js';
 import {
   AUTO_NEXT_LIMIT_PER_PLAYER,
   MAIN_PROBABILITY,

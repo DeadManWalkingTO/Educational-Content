@@ -1,9 +1,19 @@
-# CHANGELOG.md - v197
+# CHANGELOG.md - v198
 
 ---
 
-## 2025-12-25
+**2025-12-25**
 
+- consoleFilter.js: v3.0.3 → v3.0.4 — Header auto-fix (VERSION → Γρ.2; getVersion(); EOF; patch +1).
+- globals.js: v4.8.10 → v4.8.11 — Header auto-fix (VERSION → Γρ.2; getVersion(); EOF; patch +1).
+- humanMode.js: v4.11.15 → v4.11.16 — Header auto-fix (VERSION → Γρ.2; getVersion(); EOF; patch +1).
+- lists.js: v4.9.10 → v4.9.11 — Header auto-fix (VERSION → Γρ.2; getVersion(); EOF; patch +1).
+- main.js: v3.33.12 → v3.33.13 — Header auto-fix (VERSION → Γρ.2; getVersion(); EOF; patch +1).
+- playerController.js: v6.22.3 → v6.22.4 — Header auto-fix (VERSION → Γρ.2; getVersion(); EOF; patch +1).
+- scheduler.js: v1.0.0 → v1.0.1 — Header auto-fix (VERSION → Γρ.2; getVersion(); EOF; patch +1).
+- uiControls.js: v3.16.27 → v3.16.28 — Header auto-fix (VERSION → Γρ.2; getVersion(); EOF; patch +1).
+- versionReporter.js: v3.9.6 → v3.9.7 — Header auto-fix (VERSION → Γρ.2; getVersion(); EOF; patch +1).
+- watchdog.js: v2.18.7 → v2.18.8 — Header auto-fix (VERSION → Γρ.2; getVersion(); EOF; patch +1).
 - Fix version mismatch in main.js header & const VERSION; migrate youtubeReadyPromise to scheduler.repeat with tag 'yt-ready'
 - Clean re-extraction & apply scheduler + refactors
 - Added `scheduler.js`: v1.0.0 — delay, repeat, cancel, groupCancel, debounce, throttle, backoff, retry, jitter, pause/resume, flush, getStats.

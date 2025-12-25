@@ -1,13 +1,12 @@
 // --- uiControls.js ---
-// Έκδοση: v3.16.27
+const VERSION = 'v3.16.28';
 /*
 Περιγραφή: Κεντρικοί χειρισμοί UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
 Η υλοποίηση βασίζεται σε σαφείς guards, ενιαίο error tracking και ασφαλές UI binding.
 Περιλαμβάνει Clipboard API με fallback, καθώς και Fisher–Yates shuffle για σειριακή διακοπή.
 */
 
-// --- Versions ---
-const VERSION = 'v3.16.27';
+// --- Export Version ---
 export function getVersion() {
   return VERSION;
 }

@@ -1,13 +1,12 @@
 // --- lists.js ---
-// Έκδοση: v4.9.10
+const VERSION = 'v4.9.11';
 /*
 Περιγραφή: Φόρτωση λιστών video IDs από local αρχεία.
 Fallback chain: local -> GitHub raw -> internal fallback.
 Alt list: local 'random.txt' με fallback σε κενό array.
 */
 
-// --- Versions ---
-const VERSION = 'v4.9.10';
+// --- Export Version ---
 export function getVersion() {
   return VERSION;
 }

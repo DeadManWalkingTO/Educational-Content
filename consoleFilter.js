@@ -1,16 +1,21 @@
 // --- consoleFilter.js ---
-// Έκδοση: v3.0.3
+const VERSION = 'v3.0.4';
 /*
 Console Filter: αυτόνομο module για state machine, tagging και wrapping των console.
 Δεν χρησιμοποιούμε τους τελεστές OR και AND (τηρούμε πολιτική project).
 Semicolons πάντα, ESM imports, relative paths, UTF-8, LF.
 */
 
-// --- Versions ---
-const VERSION = 'v3.0.3';
+// --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
+
+// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: consoleFilter.js ${VERSION} -> Ξεκίνησε`);
+
+// Imports
+import { anyTrue, allTrue, ts } from './globals.js';
 
 /**
 ΣΚΟΠΟΣ:
@@ -36,14 +41,6 @@ export function getVersion() {
 - Semicolons πάντα, ESM imports, relative paths, UTF-8, LF.
 - Η συμπεριφορά παραμένει ακριβώς ίδια με τις προηγούμενες εκδόσεις.
 */
-
-// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: consoleFilter.js ${VERSION} -> Ξεκίνησε`);
-
-// Imports
-// anyTrue/allTrue: βοηθητικές συναρτήσεις ελέγχου αληθείας χωρίς χρήση OR/AND.
-// ts: helper για timestamp (π.χ. "HH:MM:SS"), χρησιμοποιείται σε μηνύματα σφάλματος.
-import { anyTrue, allTrue, ts } from './globals.js';
 
 // Εσωτερική κατάσταση & αρχικά hooks
 // ΣΗΜΕΙΩΣΗ: Δεν αλλάζουμε απευθείας την global console, κρατάμε references στα αρχικά της μέλη

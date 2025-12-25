@@ -1,13 +1,12 @@
 // --- main.js ---
-// Έκδοση: v3.33.12
+const VERSION = 'v3.33.13';
 /*
 Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 Ορίζει start gate ώστε η εκκίνηση να γίνεται είτε με user gesture (κουμπί) είτε με fallback.
 Εκκινεί human-mode initialization και watchdog παράλληλα, με κεντρική αναφορά εκδόσεων.
 */
 
-// --- Versions ---
-const VERSION = 'v3.33.12';
+// --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
@@ -15,13 +14,7 @@ export function getVersion() {
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js ${VERSION} -> Έναρξη`);
 
-/* -------------------------
-   Imports
-   -------------------------
-   Η σειρά των imports επιδιώκει:
-   - να αποφεύγονται κυκλικές εξαρτήσεις (ιδίως γύρω από console filtering),
-   - να παραμένει το entry point λεπτό και να αναθέτει υπο-αρμοδιότητες σε modules.
-*/
+// Imports
 import { installConsoleFilter } from './consoleFilter.js';
 import { log, ts, setUserGesture, allTrue, stats } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';

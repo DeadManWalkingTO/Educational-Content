@@ -1,13 +1,12 @@
 // --- versionReporter.js ---
-// Έκδοση: v3.9.7
+const VERSION = 'v3.9.7';
 /*
 Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
 Αποφεύγει κυκλική εξάρτηση με main.js: η έκδοση του main προστίθεται από το ίδιο το main.js.
 Παρέχει helpers για ταξινόμηση/μορφοποίηση και renderers για panel (HTML) ή κείμενο (logs).
 */
 
-// --- Versions ---
-const VERSION = 'v3.9.6';
+// --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
@@ -15,11 +14,7 @@ export function getVersion() {
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: versionReporter.js ${VERSION} -> Ξεκίνησε`);
 
-/*
-Στατικές εισαγωγές getVersion() από τα υπόλοιπα modules.
-Κάθε module κρατά τη δική του έκδοση και την εκθέτει με getVersion(), ώστε να μπορεί να γίνει
-συγκεντρωτική αναφορά εκδόσεων για debugging, αναπαραγωγή σφαλμάτων και έλεγχο συμβατότητας.
-*/
+// Imports
 import { getVersion as getGlobalsVersion } from './globals.js';
 import { getVersion as getListsVersion } from './lists.js';
 import { getVersion as getHumanModeVersion } from './humanMode.js';
