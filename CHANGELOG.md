@@ -4,6 +4,10 @@
 
 ## 2025-12-25
 
+
+- globals.js: v4.8.9 → v4.8.10 — Εμπλουτισμός/βελτίωση επεξηγηματικών σχολίων (JSDoc και block σχόλια) για εκπαιδευτική αναγνωσιμότητα. (No functional changes)
+  Notes: Μόνο σχόλια/τεκμηρίωση, καμία αλλαγή σε exports ή runtime συμπεριφορά.
+  Tests: N/A (comment-only)
 - lists.js: v4.9.7 → v4.9.10 — Refactor για DRY φόρτωση λιστών (shared fetch/parsing helpers), αφαίρεση unused helpers, εμπλουτισμός σχολίων (μικτή ορολογία: fallback chain, timeout, observability), χωρίς αλλαγή λειτουργίας (ίδια ροή fallback & ίδια σημεία stats.errors++). 
   Notes: Διατηρείται η ακολουθία local -> GitHub raw -> internal fallback για main list και local -> [] για alt list.
   Tests: Smoke test (manual):

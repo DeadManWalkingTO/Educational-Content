@@ -1,13 +1,13 @@
 // --- globals.js ---
-// Έκδοση: v4.8.9
+// Έκδοση: v4.8.10
 /*
-Κατάσταση/Utilities, counters, lists, stop-all state, UI logging
+Κατάσταση/Utilities, counters, lists, stop-all state, UI logging.
 Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
-Προστέθηκαν ενοποιημένοι AutoNext counters (global & per-player) με ωριαίο reset και user-gesture flag.
+Εκπαιδευτικός σχολιασμός: εμπλουτισμένα περιγραφικά σχόλια, χωρίς αλλαγή λειτουργίας.
 */
 
 // --- Versions ---
-const VERSION = 'v4.8.9';
+const VERSION = 'v4.8.10';
 export function getVersion() {
   return VERSION;
 }
@@ -16,8 +16,18 @@ export function getVersion() {
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: globals.js ${VERSION} -> Ξεκίνησε`);
 
 // Imports
+// (Κανένα προς το παρόν)
 
-/** --- Console Filter (external) Early Install - Start --- */
+/**
+ * --- Console Filter (external) Early Install - Start ---
+ *
+ * Configuration αντικειμένου για εξωτερικό console-filter.
+ * Σκοπός είναι η μείωση θορυβώδων, μη-κρίσιμων μηνυμάτων (κυρίως από YouTube API/ads).
+ *
+ * Σημείωση:
+ * - Το παρόν αρχείο απλώς ορίζει το configuration ως πηγή ρυθμίσεων.
+ * - Η εφαρμογή/ενεργοποίηση του filtering γίνεται από άλλο module.
+ */
 const consoleFilterConfig = {
   enabled: true,
   tagLevel: 'info',
@@ -35,6 +45,13 @@ const consoleFilterConfig = {
 /** --- Console Filter (external) Early Install - End --- */
 
 /** --- Guard helpers for State Machine - Start --- */
+/**
+ * Επιστρέφει true όταν τουλάχιστον ένα flag είναι true.
+ * Χρησιμοποιείται ως “guard” helper σε state machine ροές.
+ *
+ * @param {boolean[]} flags Πίνακας flags.
+ * @returns {boolean} Αν υπάρχει τουλάχιστον ένα true.
+ */
 function anyTrue(flags) {
   for (let i = 0; i < flags.length; i++) {
     if (flags[i]) {
@@ -43,6 +60,14 @@ function anyTrue(flags) {
   }
   return false;
 }
+
+/**
+ * Επιστρέφει true όταν όλα τα flags είναι true.
+ * Χρησιμοποιείται ως “guard” helper σε state machine ροές.
+ *
+ * @param {boolean[]} flags Πίνακας flags.
+ * @returns {boolean} Αν όλα είναι true.
+ */
 function allTrue(flags) {
   for (let i = 0; i < flags.length; i++) {
     if (!flags[i]) return false;
@@ -52,11 +77,15 @@ function allTrue(flags) {
 
 // Named exports for guard helpers (single declaration)
 export { anyTrue, allTrue };
-
 /** --- Guard helpers for State Machine - End --- */
 
-/** ---  YouTube API Helpers - Start --- */
-// Επιστρέφει ενιαίο origin (πηγή αλήθειας)
+/** --- YouTube API Helpers - Start --- */
+/**
+ * Επιστρέφει ενιαίο origin (πηγή αλήθειας) για χρήση σε origin checks.
+ * Σε περιβάλλον χωρίς window/location επιστρέφει fallback.
+ *
+ * @returns {string} Το origin της σελίδας ή fallback.
+ */
 export function getOrigin() {
   try {
     return window.location.origin;
@@ -65,14 +94,22 @@ export function getOrigin() {
   }
 }
 
-// Επιστρέφει τον host για YouTube Iframe API (μόνο youtube.com)
+/**
+ * Επιστρέφει τον host για YouTube Iframe API (μόνο youtube.com).
+ * Συγκεντρώνει το literal ώστε να μην είναι διάσπαρτο στον κώδικα.
+ *
+ * @returns {string} Host του YouTube embed.
+ */
 export function getYouTubeEmbedHost() {
   return 'https://www.youtube.com';
 }
-
-/** ---  YouTube API Helpers - End --- */
+/** --- YouTube API Helpers - End --- */
 
 /** --- Στατιστικά για την εφαρμογή - Start --- */
+/**
+ * Global μετρητές συμβάντων εφαρμογής.
+ * Αυξάνονται από controllers/modules και αποτυπώνονται στο UI μέσω updateStats().
+ */
 export const stats = {
   autoNext: 0,
   replay: 0,
@@ -85,29 +122,45 @@ export const stats = {
 /** --- Στατιστικά για την εφαρμογή - End --- */
 
 /** --- Σταθερές εφαρμογής - Start --- */
-
-/* Βασικές Ρυθμίσεις*/
-export const PLAYER_COUNT = 8; // Αριθμός Players
-export const MAIN_PROBABILITY = 0.5; // Πιθανότητα επιλογής κύριας λίστας (Main List) έναντι εναλλακτικής (Alt List)
+/* Βασικές Ρυθμίσεις */
+export const PLAYER_COUNT = 8; // Αριθμός Players.
+export const MAIN_PROBABILITY = 0.5; // Πιθανότητα επιλογής κύριας λίστας έναντι εναλλακτικής.
 
 /* Ρυθμίσεις Watchdog (σε ms) */
-export const WATCHDOG_BUFFER_MIN = 45000; // ελάχιστη ανοχή BUFFERING
-export const WATCHDOG_BUFFER_MAX = 75000; // μέγιστη ανοχή BUFFERING (jitter)
-export const WATCHDOG_PAUSE_RECHECK_MS = 5000; // επανέλεγχος μετά από retry σε PAUSED
+export const WATCHDOG_BUFFER_MIN = 45000; // Ελάχιστη ανοχή BUFFERING.
+export const WATCHDOG_BUFFER_MAX = 75000; // Μέγιστη ανοχή BUFFERING (jitter).
+export const WATCHDOG_PAUSE_RECHECK_MS = 5000; // Επανέλεγχος μετά από retry σε PAUSED.
 
-/* Πίνακας controllers */
-export const controllers = []; // Κενός πίνακας controllers, θα γεμίσει από main.js
-
+/* Πίνακας controllers: γεμίζει από main.js */
+export const controllers = [];
 /** --- Σταθερές εφαρμογής - End --- */
 
 /** --- Global unmute limiter - Start --- */
+/**
+ * Limiter για ταυτόχρονα unmute σε global επίπεδο.
+ * Διατηρεί pending count ώστε να εφαρμόζεται απλό concurrency cap.
+ */
 export const unmuteLimiter = { limit: 2, pending: 0 };
+
+/**
+ * Έλεγχος αν μπορεί να ξεκινήσει νέο unmute.
+ * @returns {boolean} true όταν pending < limit.
+ */
 export function canUnmuteNow() {
   return unmuteLimiter.pending < unmuteLimiter.limit;
 }
+
+/**
+ * Δήλωση εκκίνησης διαδικασίας unmute (pending += 1).
+ */
 export function incUnmutePending() {
   unmuteLimiter.pending += 1;
 }
+
+/**
+ * Δήλωση ολοκλήρωσης διαδικασίας unmute (pending -= 1).
+ * Προστατεύεται από αρνητικές τιμές.
+ */
 export function decUnmutePending() {
   if (unmuteLimiter.pending > 0) {
     unmuteLimiter.pending -= 1;
@@ -116,11 +169,22 @@ export function decUnmutePending() {
 /** --- Global unmute limiter - End --- */
 
 /** --- AutoNext counters (ενοποιημένοι) - Start --- */
-export let autoNextCounter = 0; // Global συνολικός μετρητής AutoNext (για reporting)
-export let lastResetTime = Date.now(); // Χρόνος τελευταίου reset (ωριαίο)
-export const AUTO_NEXT_LIMIT_PER_PLAYER = 50; // Όριο ανά player/ώρα (ίδιο με παλιό design)
-export const autoNextPerPlayer = Array(PLAYER_COUNT).fill(0); // Πίνακας μετρητών ανά player
-/// Έλεγχος ωριαίου reset counters (global & per-player).
+/** Global συνολικός μετρητής AutoNext (χρήσιμος για reporting). */
+export let autoNextCounter = 0;
+
+/** Timestamp τελευταίου reset των counters (rolling ανά 1 ώρα). */
+export let lastResetTime = Date.now();
+
+/** Όριο AutoNext ανά player ανά ώρα. */
+export const AUTO_NEXT_LIMIT_PER_PLAYER = 50;
+
+/** Μετρητές AutoNext ανά player (index: playerIndex). */
+export const autoNextPerPlayer = Array(PLAYER_COUNT).fill(0);
+
+/**
+ * Έλεγχος ωριαίου reset counters (global και per-player).
+ * Όταν περάσει 1 ώρα από lastResetTime, μηδενίζονται όλοι οι μετρητές.
+ */
 export function resetAutoNextCountersIfNeeded() {
   const now = Date.now();
   if (now - lastResetTime >= 3600000) {
@@ -131,51 +195,98 @@ export function resetAutoNextCountersIfNeeded() {
     log(`[${ts()}] 🔄 AutoNext counters reset (hourly)`);
   }
 }
-/** Επιτρέπει AutoNext για τον συγκεκριμένο player σύμφωνα με το όριο/ώρα. */
+
+/**
+ * Επιτρέπει AutoNext για τον συγκεκριμένο player σύμφωνα με το όριο/ώρα.
+ * @param {number} playerIndex Index του player.
+ * @returns {boolean} true όταν ο per-player counter είναι κάτω από το όριο.
+ */
 export function canAutoNext(playerIndex) {
   resetAutoNextCountersIfNeeded();
   return autoNextPerPlayer[playerIndex] < AUTO_NEXT_LIMIT_PER_PLAYER;
 }
-/** Αύξηση counters μετά από επιτυχές AutoNext. */
+
+/**
+ * Αύξηση counters μετά από επιτυχές AutoNext.
+ * @param {number} playerIndex Index του player.
+ */
 export function incAutoNext(playerIndex) {
   autoNextCounter++;
   autoNextPerPlayer[playerIndex]++;
 }
-
 /** --- AutoNext counters (ενοποιημένοι) - End --- */
 
 /* --- Lists state - Start --- */
-// Κύρια και Εναλλακτική λίστα video IDs
+/**
+ * Ιδιωτική αποθήκευση κύριας και εναλλακτικής λίστας video IDs.
+ * Η πρόσβαση γίνεται μέσω getters/setters ώστε να ελέγχεται η εγκυρότητα και να γίνεται logging.
+ */
 let _mainList = [];
 let _altList = [];
-// Named exports για λίστες
+
+/** @returns {Array} Η κύρια λίστα video IDs. */
 export function getMainList() {
   return _mainList;
 }
+
+/** @returns {Array} Η εναλλακτική λίστα video IDs. */
 export function getAltList() {
   return _altList;
 }
-/** Επαναφόρτωση λιστών από την πηγή (lists.js). */
+
+/**
+ * Εφαρμογή κύριας λίστας.
+ * Αν η είσοδος δεν είναι array, εφαρμόζεται κενή λίστα.
+ * @param {any} list Υποψήφια λίστα.
+ */
 export function setMainList(list) {
   _mainList = Array.isArray(list) ? list : [];
   log(`[${ts()}] 📂 Main list applied -> ${_mainList.length} videos`);
 }
+
+/**
+ * Εφαρμογή εναλλακτικής λίστας.
+ * Αν η είσοδος δεν είναι array, εφαρμόζεται κενή λίστα.
+ * @param {any} list Υποψήφια λίστα.
+ */
 export function setAltList(list) {
   _altList = Array.isArray(list) ? list : [];
   log(`[${ts()}] 📂 Alt list applied -> ${_altList.length} videos`);
 }
-/** --- Lists state - End --- */
+
+/* --- Lists state - End --- */
 
 /* --- Stop All state & helpers - Start --- */
+/**
+ * Flag stop-all.
+ * Χρησιμοποιείται από modules ώστε να σταματούν/παγώνουν νέες ενέργειες όταν εκτελείται global stop.
+ */
 export let isStopping = false;
+
+/** Registry timeouts που σχετίζονται με διαδικασίες stop-all. */
 const stopTimers = [];
+
+/**
+ * Θέτει το isStopping.
+ * @param {any} flag Μετατρέπεται σε boolean.
+ */
 export function setIsStopping(flag) {
   isStopping = !!flag;
   log(`[${ts()}] ⏹ isStopping = ${isStopping}`);
 }
+
+/**
+ * Καταγράφει timer στο registry ώστε να μπορεί να ακυρωθεί μαζικά.
+ * @param {any} timer Timeout id.
+ */
 export function pushStopTimer(timer) {
   if (timer) stopTimers.push(timer);
 }
+
+/**
+ * Εκκαθάριση όλων των timers stop-all.
+ * Η υλοποίηση αδειάζει το registry και επιχειρεί clearTimeout σε κάθε στοιχείο.
+ */
 export function clearStopTimers() {
   while (stopTimers.length) {
     const t = stopTimers.pop();
@@ -185,27 +296,54 @@ export function clearStopTimers() {
   }
   log(`[${ts()}] 🧹 Stop timers cleared`);
 }
+
 /* --- Stop All state & helpers - End --- */
 
 /** --- User gesture flag - Start --- */
-// Καταγράφει αν έχει γίνει αλληλεπίδραση από τον χρήστη (κλικ, πληκτρολόγηση)
+/**
+ * Flag που δηλώνει ότι έχει υπάρξει αλληλεπίδραση χρήστη (click/keyboard).
+ * Αξιοποιείται για media policies browsers.
+ */
 export let hasUserGesture = false;
+
+/**
+ * Θέτει hasUserGesture = true και καταγράφει στο console.
+ */
 export function setUserGesture() {
   hasUserGesture = true;
   console.log(`[${new Date().toLocaleTimeString()}] 💻 Αλληλεπίδραση Χρήστη`);
 }
+
 /** --- User gesture flag - End --- */
 
 /* --- Utilities - Start --- */
-// Επιστρέφει τρέχον timestamp σε μορφή ώρας
+/**
+ * Timestamp helper σε locale μορφή ώρας.
+ * @returns {string} Τρέχουσα ώρα (locale).
+ */
 export function ts() {
   return new Date().toLocaleTimeString();
 }
-// Ρυθμίζει τυχαίο ακέραιο μεταξύ min και max (συμπεριλαμβανομένων)
+
+/**
+ * Τυχαίος ακέραιος στο κλειστό διάστημα [min, max].
+ * @param {number} min Ελάχιστο.
+ * @param {number} max Μέγιστο.
+ * @returns {number} Τυχαίος ακέραιος.
+ */
 export function rndInt(min, max) {
   return Math.floor(min + Math.random() * (max - min + 1));
 }
 
+/**
+ * Κεντρική ρουτίνα logging.
+ * - Γράφει στο console.
+ * - Προσθέτει γραμμή στο activityPanel όταν υπάρχει DOM.
+ * - Περιορίζει το πλήθος γραμμών (rolling window) για να διατηρείται το DOM ελαφρύ.
+ * - Καλεί updateStats() για ανανέωση του statsPanel.
+ *
+ * @param {string} msg Μήνυμα προς καταγραφή.
+ */
 export function log(msg) {
   console.log(msg);
   if (typeof document !== 'undefined') {
@@ -222,6 +360,10 @@ export function log(msg) {
   updateStats();
 }
 
+/**
+ * Εσωτερική ενημέρωση στατιστικών στο UI.
+ * Αν δεν υπάρχει DOM (π.χ. non-browser context), δεν εκτελείται.
+ */
 function updateStats() {
   if (typeof document === 'undefined') return;
   const el = document.getElementById('statsPanel');
@@ -231,8 +373,20 @@ function updateStats() {
 }
 
 /* Scheduler module - Χρονοπρογραμματιστής Εργασιών */
+/**
+ * Wrapper γύρω από setTimeout.
+ * Παρέχει:
+ * - schedule(fn, delayMs): ασφαλή εκτέλεση συνάρτησης μετά από καθυστέρηση.
+ * - cancel(id): ακύρωση timer.
+ * - jitter(baseMs, spreadMs): παραγωγή καθυστέρησης με τυχαία διασπορά.
+ *
+ * Η διαχείριση σφαλμάτων:
+ * - Προσπαθεί να εμφανίσει e.message όταν υπάρχει διαθέσιμο.
+ * - Σε αποτυχία, καταγράφει fallback πληροφορία μέσω log().
+ */
 export const scheduler = (function () {
   var timers = [];
+
   function schedule(fn, delayMs) {
     var id = setTimeout(function () {
       try {
@@ -258,18 +412,28 @@ export const scheduler = (function () {
     timers.push(id);
     return id;
   }
+
   function cancel(id) {
     clearTimeout(id);
   }
+
   function jitter(baseMs, spreadMs) {
     var rnd = Math.random();
     var delta = Math.floor(rnd * (spreadMs + 1));
     return baseMs + delta;
   }
+
   return { schedule: schedule, cancel: cancel, jitter: jitter };
 })();
 
 /* Helper: hasArrayWithItems (unified here) */
+/**
+ * Έλεγχος αν μια τιμή είναι array και περιέχει τουλάχιστον ένα στοιχείο.
+ * Υλοποιείται με “αναλυτικό” τρόπο για σαφήνεια.
+ *
+ * @param {any} arr Τιμή προς έλεγχο.
+ * @returns {boolean} true όταν είναι array και έχει στοιχεία.
+ */
 export function hasArrayWithItems(arr) {
   if (!Array.isArray(arr)) {
     return false;
