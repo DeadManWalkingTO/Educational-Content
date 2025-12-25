@@ -1,9 +1,31 @@
-# CHANGELOG.md - v188
+# CHANGELOG.md - v195
 
 ---
 
 ## 2025-12-25
 
+- Αρχείο: **humanMode.js** — v4.11.14 → v4.11.15
+  Summary: Προσθήκη επεξηγηματικών σχολίων (block + JSDoc) χωρίς αλλαγή λειτουργίας.
+  Notes:
+    Κεντρικό περιγραφικό μπλοκ για στόχους και σχεδιαστικές επιλογές (Rule 12).
+    JSDoc στα wait(ms), hasCtrlAndPlayer(ctrl), και περιγραφές σταθερών micro-stagger.
+    Αναλυτικά σχόλια στις ενότητες: containers, behavior profiles, random config, session plan.
+    Βήμα-βήμα τεκμηρίωση της ακολουθιακής αρχικοποίησης (sequential init).
+    Διατήρηση κανόνων: semicolons, ESM, αποφυγή &&/||, τελευταία γραμμή End Of File.
+  Tests:
+    Βασικές ροές init/guards: OK (σχόλια δεν επηρεάζουν εκτέλεση).
+- Αρχείο: **humanMode.js** — v4.11.13 → v4.11.14
+  Summary: Refactor για καθαρότερη γραφή, χωρίς αλλαγή λειτουργίας.
+  Notes:
+    Οργάνωση σταθερών και helper `wait(ms)` για καθαρές αναμονές.
+    Ομογενοποίηση guards (Rule 12) με χρήση anyTrue/allTrue και named guard `hasCtrlAndPlayer`.
+    Πιο σαφή και ομοιόμορφα logs (ίδια σημασιολογία).
+    Μικρές κανονικοποιήσεις σε μεταβλητές/ροή (π.χ. `i === 0`, `listLength`, `randomIndex`).
+  Tests:
+    Δημιουργία containers: OK.
+    Init χωρίς gesture: αναβολή (OK).
+    Init με main/alt (κενές/μη): guards λειτουργούν (OK).
+    Επανα-Init guard: αποτρέπει re-init (OK).
 - File: playerController.js | v6.22.2 → v6.22.3
   Summary: Descriptive comments. Added /** and /* blocks throughout, clarified intent of helpers, state mapping, timers, unmute policy. No functional changes.
   Notes/Tests: Verified formatting rules (ESM, semicolons, header, End Of File). Smoke-checked AutoNext, pauses, mid-seek unaffected.
