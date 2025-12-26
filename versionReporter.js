@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v3.9.7';
+const VERSION = 'v3.14.14';
 /*
 Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
 Αποφεύγει κυκλική εξάρτηση με main.js: η έκδοση του main προστίθεται από το ίδιο το main.js.
@@ -11,8 +11,11 @@ export function getVersion() {
   return VERSION;
 }
 
+//Όνομα αρχείου για logging.
+const FILENAME = import.meta.url.split('/').pop();
+
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: versionReporter.js ${VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
 import { getVersion as getGlobalsVersion } from './globals.js';
@@ -23,6 +26,7 @@ import { getVersion as getUiControlsVersion } from './uiControls.js';
 import { getVersion as getWatchdogVersion } from './watchdog.js';
 import { getVersion as getConsoleFilterVersion } from './consoleFilter.js';
 import { getVersion as getSchedulerVersion } from './scheduler.js';
+import { getVersion as getyoutubeReadyVersion } from './youtubeReady.js';
 
 /**
  * Ανάκτηση της έκδοσης του HTML από meta tag.
@@ -58,6 +62,8 @@ export function reportAllVersions() {
     UiControls: getUiControlsVersion(),
     Watchdog: getWatchdogVersion(),
     ConsoleFilter: getConsoleFilterVersion(),
+    Scheduler: getSchedulerVersion(),
+    ΥoutubeReady: getyoutubeReadyVersion(),
     VersionReporter: VERSION,
     // Σημείωση: Η έκδοση του Main θα προστεθεί από το main.js.
   };
@@ -146,6 +152,12 @@ function iconFor(name) {
   if (name === 'ConsoleFilter') {
     return '🧐';
   }
+  if (name === 'Scheduler') {
+    return '🕒';
+  }
+  if (name === 'ΥoutubeReady') {
+    return '🎥';
+  }
   if (name === 'VersionReporter') {
     return '🧪';
   }
@@ -221,6 +233,6 @@ export function renderVersionsText(versionsObj) {
 /** ---------- Renderers - End ---------- */
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: versionReporter.js ${VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

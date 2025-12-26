@@ -1,5 +1,5 @@
 // --- main.js ---
-const VERSION = 'v3.33.13';
+const VERSION = 'v3.44.8';
 /*
 Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 Ορίζει start gate ώστε η εκκίνηση να γίνεται είτε με user gesture (κουμπί) είτε με fallback.
@@ -11,8 +11,11 @@ export function getVersion() {
   return VERSION;
 }
 
+//Όνομα αρχείου για logging.
+const FILENAME = import.meta.url.split('/').pop();
+
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: main.js ${VERSION} -> Έναρξη`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
 import { installConsoleFilter } from './consoleFilter.js';
@@ -23,6 +26,7 @@ import { reportAllVersions, renderVersionsPanel, renderVersionsText } from './ve
 import { bindUiEvents, setControlsEnabled } from './uiControls.js';
 import { startWatchdog } from './watchdog.js';
 import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } from './scheduler.js';
+import { youtubeReady } from './youtubeReady.js';
 
 /* -------------------------
    Console filter (defensive install)
@@ -38,56 +42,6 @@ import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } fr
     console.log(`[${new Date().toLocaleTimeString()}] ⚠️ Console Filter -> Αποτυχία εγκατάστασης: ${e}`);
   }
 })();
-
-/* -------------------------
-   Error accounting helper
-   -------------------------
-   Κεντρικοποιεί την ενημέρωση stats.errors και την αντίστοιχη καταγραφή.
-   Διατηρεί ομοιομορφία στα logs και αποφεύγει επανάληψη κώδικα.
-*/
-/**
- * Αυξάνει τον μετρητή σφαλμάτων και καταγράφει μήνυμα με timestamp.
- * @param {string} prefix Σύντομος χαρακτηρισμός/κατηγορία σφάλματος.
- * @param {unknown} err Το σφάλμα προς καταγραφή.
- * @returns {void}
- */
-function bumpErrorAndLog(prefix, err) {
-  stats.errors += 1;
-  log(`[${ts()}] ${prefix} -> ${err}`);
-}
-
-/* -------------------------
-   YouTube API readiness
-   -------------------------
-   Η εφαρμογή απαιτεί το window.YT και ειδικά τον constructor YT.Player.
-   Χρησιμοποιείται polling (setInterval) και Promise που resolve-άρει μία φορά.
-*/
-/**
- * Ελέγχει αν είναι διαθέσιμα τα βασικά στοιχεία του YouTube IFrame API.
- * Η υλοποίηση αποφεύγει τους τελεστές || και && σύμφωνα με τους κανόνες του project.
- * @returns {boolean} true όταν υπάρχει window.YT και το window.YT.Player είναι function.
- */
-function isApiReady() {
-  const hasWindow = typeof window !== 'undefined';
-  const hasYT = hasWindow ? !!window.YT : false;
-  const hasPlayer = hasWindow ? allTrue([!!window.YT, typeof window.YT.Player === 'function']) : false;
-  return allTrue([hasYT, hasPlayer]);
-}
-
-/*
-YouTube readiness promise:
-- Κάνει resolve μόλις το API γίνει διαθέσιμο.
-- Δεν εφαρμόζει timeout, ώστε η συμπεριφορά να παραμένει “αναμονή μέχρι να φορτώσει”.
-*/
-const youtubeReadyPromise = new Promise((resolve) => {
-  const checkInterval = setInterval(() => {
-    if (isApiReady()) {
-      clearInterval(checkInterval);
-      log(`[${ts()}] ✅ YouTube API -> Ready`);
-      resolve();
-    }
-  }, 500);
-});
 
 /* -------------------------
    Versions report (UI + fallback)
@@ -164,7 +118,7 @@ async function startApp() {
     Αναμονή για YouTube IFrame API readiness.
     */
     log(`[${ts()}] ⏳ YouTubeAPI -> Αναμονή`);
-    await youtubeReadyPromise;
+    await youtubeReady(20000); // π.χ. 20s timeout
     log(`[${ts()}] ✅ YouTubeAPI -> Έτοιμο`);
 
     /*
@@ -254,6 +208,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: main.js ${VERSION} -> Τέλος`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

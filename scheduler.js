@@ -1,5 +1,5 @@
 // --- scheduler.js ---
-const VERSION = 'v1.0.1';
+const VERSION = 'v1.2.6';
 /*
 Περιγραφή (1/3): Γενικός Scheduler χωρίς imports και χωρίς side-effects.
 Περιγραφή (2/3): Παρέχει delay/repeat/cancel/groupCancel/debounce/throttle/backoff/retry/jitter/pause/resume/flush/getStats.
@@ -10,6 +10,12 @@ const VERSION = 'v1.0.1';
 export function getVersion() {
   return VERSION;
 }
+
+//Όνομα αρχείου για logging.
+const FILENAME = import.meta.url.split('/').pop();
+
+// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 let __timers = [];
 let __pausedTags = [];
@@ -213,5 +219,8 @@ export function flush(tag) {
 export function getStats() {
   return { scheduled: __stats.scheduled, executed: __stats.executed, canceled: __stats.canceled, failed: __stats.failed };
 }
+
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---
