@@ -1,5 +1,5 @@
 // --- utils.js ---
-const VERSION = 'v1.4.4';
+const VERSION = 'v1.4.5';
 /*
 - Κοινόχρηστα, αγνά helpers (DRY API) για όλο το project.
 - Περιλαμβάνει booleans (anyTrue/allTrue), χρόνους (ts, fmtMs), logging (log), τύπους/συλλογές (isDefined, isNonEmptyArray, pick/omit), ελεγκτές (ensure) και ελαφρά wrappers πάνω από scheduler (retryWithJitter, sequential).
@@ -112,6 +112,117 @@ export function once(fn) {
     return result;
   };
 }
+
+// --- DRY Extensions  ---
+// Core async helpers
+export function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function safeJsonParse(str, def) {
+  try {
+    return JSON.parse(str);
+  } catch (_e) {
+    return def;
+  }
+}
+
+export async function retry(action, opts) {
+  const attempts = (opts && typeof opts.attempts === 'number') ? opts.attempts : 1;
+  const factor = (opts && typeof opts.factor === 'number') ? opts.factor : 0;
+  const delayMs = (opts && typeof opts.delayMs === 'number') ? opts.delayMs : 0;
+  let i = 0;
+  let d = delayMs;
+  while (i < attempts) {
+    try {
+      const r = await action();
+      return r;
+    } catch (_e) {
+      i = i + 1;
+      if (i < attempts) {
+        if (d > 0) {
+          await sleep(d);
+        }
+        if (factor > 0) {
+          d = d * factor;
+        }
+      }
+    }
+  }
+  throw new Error('retry: exhausted');
+}
+
+// debounce/throttle (χωρίς χρήση || και &&)
+export function debounce(fn, waitMs) {
+  let t = null;
+  return (...args) => {
+    if (t !== null) {
+      clearTimeout(t);
+      t = null;
+    }
+    t = setTimeout(() => fn(...args), waitMs);
+  };
+}
+
+export function throttle(fn, waitMs) {
+  let last = 0;
+  return (...args) => {
+    const now = Date.now();
+    if (now - last >= waitMs) {
+      last = now;
+      fn(...args);
+    }
+  };
+}
+
+// DOM helpers (namespace)
+export const Dom = {
+  isReady() {
+    const s = document.readyState;
+    if (s === 'complete') { return true; }
+    if (s === 'interactive') { return true; }
+    return false;
+  },
+  qs(sel) { return document.querySelector(sel); },
+  qsa(sel) { return Array.from(document.querySelectorAll(sel)); },
+  on(el, type, handler, options) { if (el) { el.addEventListener(type, handler, options); } },
+  off(el, type, handler, options) { if (el) { el.removeEventListener(type, handler, options); } },
+};
+
+// YouTube helpers (namespace)
+export const YT = {
+  buildEmbedSrc(videoId) {
+    const origin = window.location.origin;
+    const params = new URLSearchParams();
+    params.set('enablejsapi', '1');
+    params.set('playsinline', '1');
+    params.set('origin', origin);
+    return 'https://www.youtube.com/embed/' + String(videoId) + '?' + params.toString();
+  },
+  normalizeState(code) {
+    if (code === -1) { return 'UNSTARTED'; }
+    if (code === 0) { return 'ENDED'; }
+    if (code === 1) { return 'PLAYING'; }
+    if (code === 2) { return 'PAUSED'; }
+    if (code === 3) { return 'BUFFERING'; }
+    if (code === 5) { return 'CUED'; }
+    return 'UNKNOWN';
+  },
+  isValidVideoId(id) {
+    if (typeof id !== 'string') { return false; }
+    const len = id.length;
+    if (len < 6) { return false; }
+    return true;
+  },
+};
+
+// Console suppression patterns
+export const LogPatterns = {
+  suppress: [
+    /Failed to execute 'postMessage'.*target origin.*does not match/i,
+    /Permissions policy violation: compute-pressure/i,
+  ],
+};
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);

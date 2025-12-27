@@ -1,5 +1,5 @@
 // --- scheduler.js ---
-const VERSION = 'v1.2.9';
+const VERSION = 'v1.2.10';
 /*
 Περιγραφή (1/3): Γενικός Scheduler χωρίς imports και χωρίς side-effects.
 Περιγραφή (2/3): Παρέχει delay/repeat/cancel/groupCancel/debounce/throttle/backoff/retry/jitter/pause/resume/flush/getStats.
@@ -222,5 +222,64 @@ export function getStats() {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+
+
+
+/*
+ * DRY additions (2025-12-27): Stand-alone primitives & DI-ready API
+ * - Χωρίς imports, μόνο exports.
+ * - Προαιρετική DI για helpers (sleep, retry) μέσω παραμέτρων.
+ */
+
+function clamp(v, min, max) {
+  if (v < min) { return min; }
+  if (v > max) { return max; }
+  return v;
+}
+
+export async function runScheduled(action, delayMs, helpers) {
+  const d = clamp(delayMs, 0, 60000);
+  if (helpers && typeof helpers.sleep === 'function') {
+    await helpers.sleep(d);
+  } else {
+    await new Promise((r) => setTimeout(r, d));
+  }
+  if (helpers && typeof helpers.retry === 'function') {
+    return helpers.retry(async () => {
+      const ok = await action();
+      if (ok !== true) {
+        throw new Error('not ready yet');
+      }
+      return true;
+    }, { attempts: 3, delayMs: 250, factor: 2 });
+  }
+  const ok = await action();
+  if (ok !== true) {
+    throw new Error('scheduled action failed');
+  }
+  return true;
+}
+
+export function makeThrottle(fn, waitMs) {
+  let last = 0;
+  return (...args) => {
+    const now = Date.now();
+    if (now - last >= waitMs) {
+      last = now;
+      fn(...args);
+    }
+  };
+}
+
+export function makeDebounce(fn, waitMs) {
+  let t = null;
+  return (...args) => {
+    if (t !== null) {
+      clearTimeout(t);
+      t = null;
+    }
+    t = setTimeout(() => fn(...args), waitMs);
+  };
+}
 
 // --- End Of File ---

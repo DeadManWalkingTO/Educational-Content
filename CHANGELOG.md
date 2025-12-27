@@ -1,6 +1,25 @@
-# CHANGELOG.md - v199
+# CHANGELOG.md - v205
 
 ---
+
+2025-12-27 Fix: Avoid collision between utils.YT and YouTube IFrame API global YT in playerController.js
+- playerController.js: v6.24.7 → v6.24.8; import YT as YTHelpers; replace YT.* helpers usage; use new window.YT.Player(); add isYoutubeApiReady() guard
+
+2025-12-27 DRY Step A: Adopt namespaces from utils.js
+- uiControls.js: v3.18.34 → v3.18.35; Adopt Dom.qs/qsa/on/off from utils.js
+- playerController.js: v6.24.6 → v6.24.7; Import YT; add DRY helper block
+- consoleFilter.js: v3.4.12 → v3.4.13; Import LogPatterns; add shouldSuppress()
+- youtubeReady.js: v1.2.3 → v1.2.4; Add canStartPlayback(helpers) for DI readiness
+
+2025-12-27 Fix: Remove duplicate 'retry' symbol import from scheduler in main.js; keep utils.retry only; bump main.js patch.
+
+2025-12-27 Fix: Consolidate utils imports in main.js to avoid duplicate identifier ('retry') and ensure single runScheduled import.
+
+2025-12-27 DRY: DI integration of runScheduled in callers (playerController.js / main.js) with helpers from utils.js
+- main.js: bump → v3.44.11; import runScheduled & DI (sleep/retry/log); add post-init check block
+- playerController.js: bump → v6.24.6; import runScheduled & DI (sleep/retry/log); add post-init check block
+
+2025-12-27 DRY: scheduler.js v1.2.9 → v1.2.10 — Προσθήκη stand-alone primitives (clamp/debounce/throttle) και DI-ready API runScheduled(action, delayMs, helpers)
 
 2025-12-27 DRY refactor: Replace imports from globals.js → utils.js (where feasible)
 - uiControls.js: import globals.js → utils.js; bump patch version

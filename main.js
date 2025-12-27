@@ -1,5 +1,5 @@
 // --- main.js ---
-const VERSION = 'v3.44.10';
+const VERSION = 'v3.44.13';
 /*
 Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 Ορίζει start gate ώστε η εκκίνηση να γίνεται είτε με user gesture (κουμπί) είτε με fallback.
@@ -19,15 +19,15 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 // Imports
 import { installConsoleFilter } from './consoleFilter.js';
-import { log } from './utils.js';
+import { log, retry, sleep } from './utils.js';
 import { setUserGesture, stats } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions, renderVersionsPanel, renderVersionsText } from './versionReporter.js';
 import { bindUiEvents, setControlsEnabled } from './uiControls.js';
 import { startWatchdog } from './watchdog.js';
-import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } from './scheduler.js';
 import { youtubeReady } from './youtubeReady.js';
+import { runScheduled } from './scheduler.js';
 
 /* -------------------------
    Console filter (defensive install)
@@ -210,5 +210,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+
+// --- DRY Scheduler DI Integration (2025-12-27) ---
+try {
+  await runScheduled(
+    async () => {
+      // Ασφαλής post-init check / no-op για επιβεβαίωση ροής scheduler
+      if (typeof log === 'function') {
+        log('DRY Scheduler DI: post-init check');
+      } else {
+        console.log('[DRY] Scheduler DI: post-init check');
+      }
+      return true;
+    },
+    500,
+    { sleep, retry }
+  );
+} catch (e) {
+  // no-op: δεν επηρεάζει τη ροή της εφαρμογής
+}
 
 // --- End Of File ---
