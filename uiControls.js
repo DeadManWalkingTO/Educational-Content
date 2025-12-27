@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-const VERSION = 'v3.18.35';
+const VERSION = 'v3.18.34';
 /*
 Περιγραφή: Κεντρικοί χειρισμοί UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
 Η υλοποίηση βασίζεται σε σαφείς guards, ενιαίο error tracking και ασφαλές UI binding.
@@ -21,7 +21,6 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 import { controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, stats } from './globals.js';
 import { ts, rndInt, log, allTrue } from './utils.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
-import { Dom } from './utils.js';
 
 /* -------------------------------------------------------------------------- */
 /* Helpers (τοπικά)                                                           */
@@ -382,7 +381,7 @@ export function bindUiEvents() {
     const el = byId(id);
 
     if (el) {
-      Dom.on(el, 'click', handler);
+      el.addEventListener('click', handler);
       bound += 1;
     } else {
       log(`⚠️ UI Bind Skipped -> Missing Element #${id}`);

@@ -1,5 +1,5 @@
 // --- youtubeReady.js ---
-const VERSION = 'v1.2.4';
+const VERSION = 'v1.2.3';
 /*
 - Καθαρό API readiness για YouTube IFrame Player API. - Δεν χρησιμοποιεί imports, εκθέτει μόνο exports (ESM). 
 - Δηλώνει global callback window.onYouTubeIframeAPIReady (απαίτηση API).
@@ -133,23 +133,5 @@ export function youtubeReady(timeoutMs) {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
-
-
-
-// --- DRY Readiness with optional DI helpers ---
-export function canStartPlayback(helpers) {
-  let domReady = false;
-  if (helpers && typeof helpers.isReady === 'function') {
-    domReady = helpers.isReady();
-  } else {
-    const s = document.readyState;
-    if (s === 'complete') { domReady = true; }
-    if (s === 'interactive') { domReady = true; }
-  }
-  if (domReady !== true) {
-    return false;
-  }
-  return true;
-}
 
 // --- End Of File ---

@@ -1,5 +1,5 @@
 // --- consoleFilter.js ---
-const VERSION = 'v3.4.13';
+const VERSION = 'v3.4.12';
 /*
 Console Filter: αυτόνομο module για state machine, tagging και wrapping των console.
 Δεν χρησιμοποιούμε τους τελεστές OR και AND (τηρούμε πολιτική project).
@@ -19,7 +19,6 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 // Imports
 import { anyTrue, allTrue, log } from './utils.js';
-import { LogPatterns } from './utils.js';
 
 /**
 ΣΚΟΠΟΣ:
@@ -380,17 +379,5 @@ export function restoreConsole() {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
-
-
-
-// --- DRY LogPatterns from utils.js ---
-function shouldSuppress(msg) {
-  for (const re of LogPatterns.suppress) {
-    if (re.test(String(msg)) === true) {
-      return true;
-    }
-  }
-  return false;
-}
 
 // --- End Of File ---

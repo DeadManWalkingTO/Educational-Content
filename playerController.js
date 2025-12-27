@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v6.24.8';
+const VERSION = 'v6.24.5';
 /*
 Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
 Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
@@ -18,9 +18,9 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { log, rndInt, anyTrue, allTrue, sleep, retry } from './utils.js';
+import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } from './scheduler.js';
+import { log, rndInt, anyTrue, allTrue } from './utils.js';
 import { AUTO_NEXT_LIMIT_PER_PLAYER, MAIN_PROBABILITY, canAutoNext, controllers, getOrigin, getYouTubeEmbedHost, hasUserGesture, incAutoNext, stats } from './globals.js';
-import { YT as YTHelpers } from './utils.js';
 
 /*
  * isNonEmptyArray
@@ -366,7 +366,7 @@ export class PlayerController {
     const isValidOrigin = allTrue([typeof computedOrigin === 'string', /^https?:\/\/[^/]+$/.test(computedOrigin), !/^file:\/\//.test(computedOrigin), computedOrigin !== '<URL>']);
     const hostVal = getYouTubeHostFallback(); // μόνο για ενημερωτικό logging
 
-    this.player = new window.YT.Player(containerId, {
+    this.player = new YT.Player(containerId, {
       videoId,
       host: getYouTubeEmbedHost(),
       playerVars: {
@@ -758,53 +758,5 @@ export class PlayerController {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
-
-// --- DRY Scheduler DI Integration (2025-12-27) ---
-try {
-  await runScheduled(
-    async () => {
-      // Ασφαλής post-init check / no-op για επιβεβαίωση ροής scheduler
-      if (typeof log === 'function') {
-        log('DRY Scheduler DI: post-init check');
-      } else {
-        console.log('[DRY] Scheduler DI: post-init check');
-      }
-      return true;
-    },
-    500,
-    { sleep, retry }
-  );
-} catch (e) {
-  // no-op: δεν επηρεάζει τη ροή της εφαρμογής
-}
-
-
-
-// --- DRY YT Integration (utils.YT) ---
-function __buildEmbedSrcFor(videoId) {
-  if (YTHelpers.isValidVideoId(videoId) !== true) {
-    return null;
-  }
-  return YTHelpers.buildEmbedSrc(videoId);
-}
-
-function __normalizePlayerState(code) {
-  return YTHelpers.normalizeState(code);
-}
-
-
-
-// --- YouTube API readiness guard ---
-function isYoutubeApiReady() {
-  if (typeof window !== 'undefined') {
-    const api = window.YT;
-    if (api !== undefined) {
-      if (typeof api.Player === 'function') {
-        return true;
-      }
-    }
-  }
-  return false;
-}
 
 // --- End Of File ---
