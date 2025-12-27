@@ -1,5 +1,5 @@
 // --- youtubeReady.api.js ---
-const VERSION = 'v1.0.0';
+const VERSION = 'v1.2.0';
 /*
  * YouTube Ready API (adapter-less gate)
  * - youtubeReady({ loadScript, onReadyEvent }): Promise<void>
@@ -11,7 +11,16 @@ export function getVersion() {
   return VERSION;
 }
 
-// from line 14: API signatures
+//Όνομα αρχείου για logging.
+const FILENAME = import.meta.url.split('/').pop();
+
+// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
+
+//Exports
 export async function youtubeReady({ loadScript, onReadyEvent }) {}
+
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---
