@@ -1,6 +1,17 @@
-# CHANGELOG.md - v204
+# CHANGELOG.md - v205
 
 ---
+
+2025-12-27
+- Extraction: baseline dump exported into BASE/ (18 files).
+- INTEGRITY_REPORT.md: Generated and auto-scan appended (external to repo).
+- ARCHITECTURE.md & TRANSITION_GUIDE.md: Added 'Current Baseline' references (external docs).
+- M1: Created utils.api.js, scheduler.api.js, youtubeReady.api.js (pure APIs, no imports/side-effects).
+- M2: Created sequencing.api.js, logger.api.js, guards.api.js, player.policy.api.js, eventBus.api.js (DRY kits).
+- M3: Created humanMode.api.js, playerController.api.js, uiControls.api.js, lists.api.js, watchdog.api.js (facades).
+- Barrel: deps.index.js added (optional mono export).
+- main.js: Composition Root wiring moved to top as proper ESM imports; removed appended scaffold.
+- Bundles: Delivered 25-12-27---21-34.zip and 25-12-27---21-34---BASE.zip.
 
 **2025-12-27**
 
