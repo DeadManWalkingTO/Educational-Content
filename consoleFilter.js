@@ -1,5 +1,5 @@
 // --- consoleFilter.js ---
-const VERSION = 'v3.4.9';
+const VERSION = 'v3.4.12';
 /*
 Console Filter: αυτόνομο module για state machine, tagging και wrapping των console.
 Δεν χρησιμοποιούμε τους τελεστές OR και AND (τηρούμε πολιτική project).
@@ -18,8 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { anyTrue, allTrue, ts} from './globals.js';
-import { log } from './utils.js';
+import { anyTrue, allTrue, log } from './utils.js';
 
 /**
 ΣΚΟΠΟΣ:

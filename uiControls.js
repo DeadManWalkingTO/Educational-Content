@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-const VERSION = 'v3.18.33';
+const VERSION = 'v3.18.34';
 /*
 Περιγραφή: Κεντρικοί χειρισμοί UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
 Η υλοποίηση βασίζεται σε σαφείς guards, ενιαίο error tracking και ασφαλές UI binding.
@@ -18,8 +18,8 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { ts, rndInt, controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, stats, allTrue} from './globals.js';
-import { log } from './utils.js';
+import { controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, stats } from './globals.js';
+import { ts, rndInt, log, allTrue } from './utils.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
 
 /* -------------------------------------------------------------------------- */

@@ -19,9 +19,8 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 // Imports
 import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } from './scheduler.js';
-import { log } from './utils.js';
-import {
-  AUTO_NEXT_LIMIT_PER_PLAYER, MAIN_PROBABILITY, canAutoNext, controllers, getOrigin, getYouTubeEmbedHost, hasUserGesture, incAutoNext, rndInt, stats, ts, anyTrue, allTrue, scheduler, } from './globals.js';
+import { log, rndInt, anyTrue, allTrue } from './utils.js';
+import { AUTO_NEXT_LIMIT_PER_PLAYER, MAIN_PROBABILITY, canAutoNext, controllers, getOrigin, getYouTubeEmbedHost, hasUserGesture, incAutoNext, stats } from './globals.js';
 
 /*
  * isNonEmptyArray

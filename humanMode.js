@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-const VERSION = 'v4.14.21';
+const VERSION = 'v4.14.22';
 /*
 Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης, μη-συγχρονισμένης
 συμπεριφοράς σε πολλαπλούς players. 
@@ -18,8 +18,8 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, anyTrue, allTrue, stats, scheduler, hasArrayWithItems } from './globals.js';
-import { log } from './utils.js';
+import { controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, stats, scheduler, hasArrayWithItems } from './globals.js';
+import { rndInt, anyTrue, allTrue, log } from './utils.js';
 import { PlayerController } from './playerController.js';
 
 /**

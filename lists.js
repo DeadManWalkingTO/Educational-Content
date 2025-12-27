@@ -1,5 +1,5 @@
 // --- lists.js ---
-const VERSION = 'v4.12.13';
+const VERSION = 'v4.12.14';
 /*
 Περιγραφή: Φόρτωση λιστών video IDs από local αρχεία.
 Fallback chain: local -> GitHub raw -> internal fallback.

@@ -18,8 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { log } from './utils.js';
-// (Κανένα προς το παρόν)
+import { log, ts, anyTrue, allTrue, rndInt } from './utils.js';
 
 /**
  * --- Console Filter (external) Early Install - Start ---
@@ -49,38 +48,7 @@ const consoleFilterConfig = {
 
 /** --- Guard helpers for State Machine - Start --- */
 /**
- * Επιστρέφει true όταν τουλάχιστον ένα flag είναι true.
- * Χρησιμοποιείται ως “guard” helper σε state machine ροές.
- *
- * @param {boolean[]} flags Πίνακας flags.
- * @returns {boolean} Αν υπάρχει τουλάχιστον ένα true.
- */
-function anyTrue(flags) {
-  for (let i = 0; i < flags.length; i++) {
-    if (flags[i]) {
-      return true;
-    }
-  }
-  return false;
-}
 
-/**
- * Επιστρέφει true όταν όλα τα flags είναι true.
- * Χρησιμοποιείται ως “guard” helper σε state machine ροές.
- *
- * @param {boolean[]} flags Πίνακας flags.
- * @returns {boolean} Αν όλα είναι true.
- */
-function allTrue(flags) {
-  for (let i = 0; i < flags.length; i++) {
-    if (!flags[i]) return false;
-  }
-  return true;
-}
-
-// Named exports for guard helpers (single declaration)
-export { anyTrue, allTrue };
-/** --- Guard helpers for State Machine - End --- */
 
 /** --- YouTube API Helpers - Start --- */
 /**
@@ -320,30 +288,11 @@ export function setUserGesture() {
 /** --- User gesture flag - End --- */
 
 /* --- Utilities - Start --- */
-/**
- * Timestamp helper σε locale μορφή ώρας.
- * @returns {string} Τρέχουσα ώρα (locale).
- */
-export function ts() {
-  return new Date().toLocaleTimeString();
-}
 
 /**
- * Τυχαίος ακέραιος στο κλειστό διάστημα [min, max].
- * @param {number} min Ελάχιστο.
- * @param {number} max Μέγιστο.
- * @returns {number} Τυχαίος ακέραιος.
- */
-export function rndInt(min, max) {
-  return Math.floor(min + Math.random() * (max - min + 1));
-}
-
-/**
- * Κεντρική ρουτίνα logging.
- * - Γράφει στο console.
- * - Προσθέτει γραμμή στο activityPanel όταν υπάρχει DOM.
- * - Περιορίζει το πλήθος γραμμών (rolling window) για να διατηρείται το DOM ελαφρύ.
  * - Καλεί updateStats() για ανανέωση του statsPanel.
+ * - Δημιουργεί το statsPanel αν δεν υπάρχει.
+ * - Αγνοεί σφάλματα σε περιβάλλον χωρίς DOM.
  */
 // Τοπικό updateStats (έχει πρόσβαση στο stats εδώ)
 function updateStats() {

@@ -1,6 +1,15 @@
-# CHANGELOG.md - v198
+# CHANGELOG.md - v199
 
 ---
+
+2025-12-27 DRY refactor: Replace imports from globals.js → utils.js (where feasible)
+- uiControls.js: import globals.js → utils.js; bump patch version
+- versionReporter.js: import globals.js → utils.js; bump patch version
+- watchdog.js: import globals.js → utils.js; bump patch version
+- humanMode.js: import globals.js → utils.js; bump patch version
+- consoleFilter.js: import globals.js → utils.js; bump patch version
+- main.js: import globals.js → utils.js; bump patch version
+- lists.js: import globals.js → utils.js; bump patch version
 
 **2025-12-25**
 
