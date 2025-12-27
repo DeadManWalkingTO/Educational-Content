@@ -1,5 +1,5 @@
 // --- lists.js ---
-const VERSION = 'v4.12.12';
+const VERSION = 'v4.12.13';
 /*
 Περιγραφή: Φόρτωση λιστών video IDs από local αρχεία.
 Fallback chain: local -> GitHub raw -> internal fallback.
@@ -18,7 +18,8 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { log, ts, stats } from './globals.js';
+import { ts, stats} from './globals.js';
+import { log } from './utils.js';
 
 /**
  * Μετατροπή κειμένου πολλαπλών γραμμών σε λίστα “μη-κενών” στοιχείων (non-empty lines).
@@ -152,11 +153,11 @@ export async function loadVideoList() {
   try {
     const list = await tryLoadListFromUrl('list.txt');
     if (list) {
-      log(`[${ts()}] ✅ Main list loaded from local file -> ${list.length} items`);
+      log(`✅ Main list loaded from local file -> ${list.length} items`);
       return list;
     }
   } catch (err) {
-    log(`[${ts()}] ⚠️ Local list load failed -> ${err}`);
+    log(`⚠️ Local list load failed -> ${err}`);
   }
 
   /* 2) Remote source (GitHub raw) */
@@ -164,16 +165,16 @@ export async function loadVideoList() {
     const githubUrl = 'https://raw.githubusercontent.com/DeadManWalkingTO/Educational-Content/main/list.txt';
     const list = await tryLoadListFromUrl(githubUrl, 4000);
     if (list) {
-      log(`[${ts()}] ✅ Main list loaded from GitHub -> ${list.length} items`);
+      log(`✅ Main list loaded from GitHub -> ${list.length} items`);
       return list;
     }
   } catch (err) {
-    log(`[${ts()}] ⚠️ GitHub list load failed -> ${err}`);
+    log(`⚠️ GitHub list load failed -> ${err}`);
   }
 
   /* 3) Last-resort internal fallback */
   stats.errors++;
-  log(`[${ts()}] ❌ Using internal fallback list -> ${internalList.length} items`);
+  log(`❌ Using internal fallback list -> ${internalList.length} items`);
   return internalList;
 }
 
@@ -193,15 +194,15 @@ export async function loadAltList() {
   try {
     const list = await tryLoadListFromUrl('random.txt');
     if (list) {
-      log(`[${ts()}] ✅ Alt List Loaded from Local File -> ${list.length} items`);
+      log(`✅ Alt List Loaded from Local File -> ${list.length} items`);
       return list;
     }
   } catch (err) {
-    log(`[${ts()}] ⚠️ Alt List Load Failed -> ${err}`);
+    log(`⚠️ Alt List Load Failed -> ${err}`);
   }
 
   stats.errors++;
-  log(`[${ts()}] ❌ Alt List Empty -> Using []`);
+  log(`❌ Alt List Empty -> Using []`);
   return [];
 }
 
@@ -215,7 +216,7 @@ export async function loadAltList() {
  */
 export async function reloadList() {
   const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
-  log(`[${ts()}] 🔄 Lists Reloaded -> Main:${mainList.length} Alt:${altList.length}`);
+  log(`🔄 Lists Reloaded -> Main:${mainList.length} Alt:${altList.length}`);
   return { mainList, altList };
 }
 

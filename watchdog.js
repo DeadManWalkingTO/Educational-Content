@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v2.22.10';
+const VERSION = 'v2.22.11';
 /*
 Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
 Συμμόρφωση με κανόνα State Machine με Guard Steps.
@@ -18,7 +18,8 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { log, ts, controllers, stats, allTrue, WATCHDOG_BUFFER_MIN, WATCHDOG_BUFFER_MAX, WATCHDOG_PAUSE_RECHECK_MS } from './globals.js';
+import { ts, controllers, stats, allTrue, WATCHDOG_BUFFER_MIN, WATCHDOG_BUFFER_MAX, WATCHDOG_PAUSE_RECHECK_MS} from './globals.js';
+import { log } from './utils.js';
 import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } from './scheduler.js';
 
 // Exports
@@ -42,7 +43,7 @@ export const watchdogHealth = { lastCheck: Date.now(), lastRecovery: 0 };
  */
 export function startWatchdog() {
   // Αρχική ενημέρωση εκκίνησης
-  log(`[${ts()}] 🐶 Watchdog ${VERSION} -> Start`);
+  log(`🐶 Watchdog ${VERSION} -> Start`);
 
   /* Cooldown για αποφυγή “καταιγιστικών” resets στο ίδιο controller. */
   const RESET_COOLDOWN_MS = 3000;
@@ -53,7 +54,7 @@ export function startWatchdog() {
    * @returns {void}
    */
   function logWatchdogError(err) {
-    log(`[${ts()}] ⚠️ Watchdog Error ${err}`);
+    log(`⚠️ Watchdog Error ${err}`);
   }
 
   /**
@@ -155,7 +156,7 @@ export function startWatchdog() {
 
     var over = now - c.lastBufferingStart > c.bufferJitterMs;
     if (!over) {
-      log(`[${ts()}] 🛠 Watchdog Info -> Player ${c.index + 1} BUFFERING -> Waiting for ${Math.round(c.bufferJitterMs / 1000)}s`);
+      log(`🛠 Watchdog Info -> Player ${c.index + 1} BUFFERING -> Waiting for ${Math.round(c.bufferJitterMs / 1000)}s`);
       return false;
     }
 
@@ -228,7 +229,7 @@ export function startWatchdog() {
       return false;
     }
 
-    log(`[${ts()}] 🛠 Watchdog Info -> Player ${c.index + 1} PAUSED -> Watchdog retry playVideo before AutoNext`);
+    log(`🛠 Watchdog Info -> Player ${c.index + 1} PAUSED -> Watchdog retry playVideo before AutoNext`);
 
     stats.watchdog++;
     tryRequestPlay(c);
@@ -242,7 +243,7 @@ export function startWatchdog() {
       }
 
       if (stillNotPlaying) {
-        log(`[${ts()}] ♻️ Watchdog Info -> Player ${c.index + 1} stuck in PAUSED -> Watchdog reset`);
+        log(`♻️ Watchdog Info -> Player ${c.index + 1} stuck in PAUSED -> Watchdog reset`);
         maybeResetPlayer(c, Date.now());
       }
     }, WATCHDOG_PAUSE_RECHECK_MS);

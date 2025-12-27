@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-const VERSION = 'v3.18.32';
+const VERSION = 'v3.18.33';
 /*
 Περιγραφή: Κεντρικοί χειρισμοί UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
 Η υλοποίηση βασίζεται σε σαφείς guards, ενιαίο error tracking και ασφαλές UI binding.
@@ -18,7 +18,8 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { log, ts, rndInt, controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, stats, allTrue } from './globals.js';
+import { ts, rndInt, controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, stats, allTrue} from './globals.js';
+import { log } from './utils.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
 
 /* -------------------------------------------------------------------------- */
@@ -84,7 +85,7 @@ function canClipboardNative() {
     }
     return true;
   } catch (e) {
-    log(`[${ts()}] ⚠️ uiControls Error ${e}`);
+    log(`⚠️ uiControls Error ${e}`);
   }
   return false;
 }
@@ -181,7 +182,7 @@ export function setControlsEnabled(enabled) {
     }
   }
 
-  log(`[${ts()}] ✅ Controls ${enabled ? 'enabled' : 'disabled'} (${touched} στοιχεία)`);
+  log(`✅ Controls ${enabled ? 'enabled' : 'disabled'} (${touched} στοιχεία)`);
   return touched;
 }
 
@@ -206,7 +207,7 @@ function stopAll() {
       if (isReadyController(c)) {
         try {
           c.player.stopVideo();
-          log(`[${ts()}] ⏹ Player ${c.index + 1} Stopped -> Step ${i + 1}`);
+          log(`⏹ Player ${c.index + 1} Stopped -> Step ${i + 1}`);
         } catch (e) {
           noteError(`[${ts()}] ❌ Player ${c.index + 1} Stop Error`);
         }
@@ -218,7 +219,7 @@ function stopAll() {
     pushStopTimer(timer);
   }
 
-  log(`[${ts()}] ⏹ Stop All -> sequential; συνολική εκτίμηση ~${Math.round(totalDelay / 1000)}s`);
+  log(`⏹ Stop All -> sequential; συνολική εκτίμηση ~${Math.round(totalDelay / 1000)}s`);
 }
 
 /*
@@ -237,7 +238,7 @@ function restartAll() {
     if (isReadyController(c)) {
       try {
         c.loadNextVideo(c.player);
-        log(`[${ts()}] 🔁 Player ${c.index + 1} LoadNext`);
+        log(`🔁 Player ${c.index + 1} LoadNext`);
       } catch (e) {
         noteError(`[${ts()}] ❌ Player ${c.index + 1} LoadNext Error -> ${e}`);
       }
@@ -267,13 +268,13 @@ function restartAll() {
 
     try {
       c.init(newId);
-      log(`[${ts()}] 🔁 Player ${c.index + 1} Restart (init) -> ${newId} (Source:${useMain ? 'main' : 'alt'})`);
+      log(`🔁 Player ${c.index + 1} Restart (init) -> ${newId} (Source:${useMain ? 'main' : 'alt'})`);
     } catch (e) {
       noteError(`[${ts()}] ❌ Player ${c.index + 1} Restart Error -> ${e}`);
     }
   }
 
-  log(`[${ts()}] 🔁 Restart All -> Completed`);
+  log(`🔁 Restart All -> Completed`);
 }
 
 /**
@@ -284,7 +285,7 @@ function toggleTheme() {
   try {
     document.body.classList.toggle('light');
     const mode = document.body.classList.contains('light') ? 'Light' : 'Dark';
-    log(`[${ts()}] 🌙 Theme Toggled -> ${mode} Mode`);
+    log(`🌙 Theme Toggled -> ${mode} Mode`);
   } catch (e) {
     noteError(`[${ts()}] ❌ Theme Toggle Error -> ${e}`);
   }
@@ -299,11 +300,11 @@ function clearLogs() {
 
   if (allTrue([!!panel, hasEntries(panel)])) {
     panel.innerHTML = '';
-    log(`[${ts()}] 🧹 Logs Cleared -> All Entries Removed`);
+    log(`🧹 Logs Cleared -> All Entries Removed`);
     return true;
   }
 
-  log(`[${ts()}] ⚠️ Clear Logs -> Nothing to remove`);
+  log(`⚠️ Clear Logs -> Nothing to remove`);
   return false;
 }
 
@@ -316,7 +317,7 @@ export async function copyLogs() {
   const statsPanel = byId('statsPanel');
 
   if (!hasEntries(panel)) {
-    log(`[${ts()}] ⚠️ Copy Logs -> No entries`);
+    log(`⚠️ Copy Logs -> No entries`);
     return false;
   }
 
@@ -327,8 +328,8 @@ export async function copyLogs() {
   if (canClipboardNative()) {
     try {
       await navigator.clipboard.writeText(finalText);
-      log(`[${ts()}] ✅ Logs copied via Clipboard API -> ${panel.children.length} entries + stats`);
-      log(`[${ts()}] ${statsText}`);
+      log(`✅ Logs copied via Clipboard API -> ${panel.children.length} entries + stats`);
+      log(`${statsText}`);
       return true;
     } catch (err) {
       noteError(`[${ts()}] ❌ Clipboard API Failed -> Fallback (${err})`);
@@ -337,7 +338,7 @@ export async function copyLogs() {
 
   const ok = unsecuredCopyToClipboard(finalText);
   if (ok) {
-    log(`[${ts()}] 📋 (Fallback) Logs Copied -> ${panel.children.length} entries + stats`);
+    log(`📋 (Fallback) Logs Copied -> ${panel.children.length} entries + stats`);
     return true;
   }
 
@@ -383,12 +384,12 @@ export function bindUiEvents() {
       el.addEventListener('click', handler);
       bound += 1;
     } else {
-      log(`[${ts()}] ⚠️ UI Bind Skipped -> Missing Element #${id}`);
+      log(`⚠️ UI Bind Skipped -> Missing Element #${id}`);
     }
   }
 
   __uiBound = true;
-  log(`[${ts()}] ✅ UI Events Bound (uiControls.js ${VERSION}) -> ${bound} handlers`);
+  log(`✅ UI Events Bound (uiControls.js ${VERSION}) -> ${bound} handlers`);
   return bound;
 }
 
@@ -405,7 +406,7 @@ export async function reloadList() {
     const { mainList, altList } = await reloadListsFromSource();
     setMainList(mainList);
     setAltList(altList);
-    log(`[${ts()}] 🗂️ Lists Applied -> Main: ${mainList.length} - Alt: ${altList.length}`);
+    log(`🗂️ Lists Applied -> Main: ${mainList.length} - Alt: ${altList.length}`);
     return true;
   } catch (err) {
     noteError(`[${ts()}] ❌ Reload Failed -> ${err}`);

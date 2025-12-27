@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-const VERSION = 'v4.14.20';
+const VERSION = 'v4.14.21';
 /*
 Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης, μη-συγχρονισμένης
 συμπεριφοράς σε πολλαπλούς players. 
@@ -18,7 +18,8 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { log, ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, anyTrue, allTrue, stats, scheduler, hasArrayWithItems } from './globals.js';
+import { ts, rndInt, controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, anyTrue, allTrue, stats, scheduler, hasArrayWithItems} from './globals.js';
+import { log } from './utils.js';
 import { PlayerController } from './playerController.js';
 
 /**
@@ -84,7 +85,7 @@ export function createPlayerContainers() {
   const container = document.getElementById('playersContainer');
   if (!container) {
     stats.errors++;
-    log(`[${ts()}] ❌ Δεν βρέθηκε το στοιχείο playersContainer στο HTML`);
+    log(`❌ Δεν βρέθηκε το στοιχείο playersContainer στο HTML`);
     return;
   }
   container.innerHTML = '';
@@ -94,7 +95,7 @@ export function createPlayerContainers() {
     div.className = 'player-box';
     container.appendChild(div);
   }
-  log(`[${ts()}] ✅ Δημιουργήθηκαν ${PLAYER_COUNT} Player Containers`);
+  log(`✅ Δημιουργήθηκαν ${PLAYER_COUNT} Player Containers`);
 }
 
 /**
@@ -202,7 +203,7 @@ export async function initPlayersSequentially(mainList, altList) {
   } catch (_) {
     // Σε σπάνιες περιπτώσεις ο έλεγχος μπορεί να ρίξει εξαίρεση (π.χ. scope).
     // Η εξαίρεση καταγράφεται ως προειδοποίηση χωρίς να μπλοκάρει τη ροή.
-    log(`[${ts()}] ⚠️ hasUserGesture check Error ${_}`);
+    log(`⚠️ hasUserGesture check Error ${_}`);
   }
 
   // 2) Θέσπιση λιστών με ασφάλεια τύπων: μόνο αν αμφότερες είναι πίνακες.
@@ -216,7 +217,7 @@ export async function initPlayersSequentially(mainList, altList) {
   const altEmpty = (altList?.length ?? 0) === 0;
   if (allTrue([mainEmpty, altEmpty])) {
     stats.errors++;
-    log(`[${ts()}] ❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκκίνηση σταματά.`);
+    log(`❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκκίνηση σταματά.`);
     return;
   }
 
@@ -225,7 +226,7 @@ export async function initPlayersSequentially(mainList, altList) {
     // Προγραμματισμός καθυστέρησης αναπαραγωγής: ο πρώτος player ξεκινά άμεσα,
     // οι υπόλοιποι με τυχαία καθυστέρηση ώστε να αποφευχθεί ταυτόχρονη εκκίνηση.
     const playbackDelay = i === 0 ? 0 : rndInt(30, 180) * 1000; // σε ms
-    log(`[${ts()}] ⏳ Player ${i + 1} HumanMode Scheduled -> Start after ${Math.round(playbackDelay / 1000)}s`);
+    log(`⏳ Player ${i + 1} HumanMode Scheduled -> Start after ${Math.round(playbackDelay / 1000)}s`);
 
     // Micro-stagger: πριν από την κατασκευή του iframe, μικρή αναμονή για εξομάλυνση φόρτου.
     const microStagger = rndInt(MICRO_STAGGER_MIN, MICRO_STAGGER_MAX);
@@ -234,14 +235,14 @@ export async function initPlayersSequentially(mainList, altList) {
 
     // Αν έχει ενεργοποιηθεί καθολικό stop, παραλείπουμε την αρχικοποίηση του συγκεκριμένου player.
     if (isStopping) {
-      log(`[${ts()}] 👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
+      log(`👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
       continue;
     }
 
     // Εντοπισμός υπάρχοντος controller: εφόσον έχει ήδη player, δεν γίνεται re-init.
     let controller = controllers.find((c) => c.index === i) ?? null;
     if (allTrue([hasCtrlAndPlayer(controller)])) {
-      log(`[${ts()}] ⚠️ Player ${i + 1} already initialized, skipping re-init`);
+      log(`⚠️ Player ${i + 1} already initialized, skipping re-init`);
       continue;
     }
 
@@ -266,7 +267,7 @@ export async function initPlayersSequentially(mainList, altList) {
     const listLength = sourceList?.length ?? 0;
     if (listLength === 0) {
       stats.errors++;
-      log(`[${ts()}] ❌ HumanMode skipped Player ${i + 1} -> no videos available`);
+      log(`❌ HumanMode skipped Player ${i + 1} -> no videos available`);
       continue;
     }
 
@@ -296,7 +297,7 @@ export async function initPlayersSequentially(mainList, altList) {
         }
       } catch (_) {
         // Σε περίπτωση σφάλματος αντιστοίχισης, καταγράφουμε προειδοποίηση.
-        log(`[${ts()}] ⚠️ hasUserGesture check Error ${_}`);
+        log(`⚠️ hasUserGesture check Error ${_}`);
       }
     } else {
       controller.config = config;
@@ -309,11 +310,11 @@ export async function initPlayersSequentially(mainList, altList) {
 
     // Τελική αρχικοποίηση του player με το επιλεγμένο videoId.
     controller.init(videoId);
-    log(`[${ts()}] 👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
+    log(`👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
   }
 
   // Αναφορά ολοκλήρωσης της ακολουθιακής διαδικασίας.
-  log(`[${ts()}] ✅ HumanMode sequential initialization completed`);
+  log(`✅ HumanMode sequential initialization completed`);
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου

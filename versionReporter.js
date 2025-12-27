@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v3.14.14';
+const VERSION = 'v3.16.15';
 /*
 Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
 Αποφεύγει κυκλική εξάρτηση με main.js: η έκδοση του main προστίθεται από το ίδιο το main.js.
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { getVersion as getGlobalsVersion } from './globals.js';
+import { getVersion as getGlobalsVersion} from './globals.js';
 import { getVersion as getListsVersion } from './lists.js';
 import { getVersion as getHumanModeVersion } from './humanMode.js';
 import { getVersion as getPlayerControllerVersion } from './playerController.js';
@@ -27,6 +27,7 @@ import { getVersion as getWatchdogVersion } from './watchdog.js';
 import { getVersion as getConsoleFilterVersion } from './consoleFilter.js';
 import { getVersion as getSchedulerVersion } from './scheduler.js';
 import { getVersion as getyoutubeReadyVersion } from './youtubeReady.js';
+import { getVersion as getUtilitiesVersion, log } from './utils.js';
 
 /**
  * Ανάκτηση της έκδοσης του HTML από meta tag.
@@ -64,6 +65,7 @@ export function reportAllVersions() {
     ConsoleFilter: getConsoleFilterVersion(),
     Scheduler: getSchedulerVersion(),
     ΥoutubeReady: getyoutubeReadyVersion(),
+    Utilities: getUtilitiesVersion(),
     VersionReporter: VERSION,
     // Σημείωση: Η έκδοση του Main θα προστεθεί από το main.js.
   };
@@ -157,6 +159,9 @@ function iconFor(name) {
   }
   if (name === 'ΥoutubeReady') {
     return '🎥';
+  }
+  if (name === 'Utilities') {
+    return '🧰';
   }
   if (name === 'VersionReporter') {
     return '🧪';

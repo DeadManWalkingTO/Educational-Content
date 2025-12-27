@@ -1,5 +1,5 @@
 // --- main.js ---
-const VERSION = 'v3.44.8';
+const VERSION = 'v3.44.9';
 /*
 Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 Ορίζει start gate ώστε η εκκίνηση να γίνεται είτε με user gesture (κουμπί) είτε με fallback.
@@ -19,7 +19,8 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 // Imports
 import { installConsoleFilter } from './consoleFilter.js';
-import { log, ts, setUserGesture, allTrue, stats } from './globals.js';
+import { log } from './utils.js';
+import { ts, setUserGesture, allTrue, stats} from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions, renderVersionsPanel, renderVersionsText } from './versionReporter.js';
@@ -57,7 +58,7 @@ const panel = document.getElementById('activityPanel');
 if (panel) {
   panel.innerHTML = renderVersionsPanel(versions);
 } else {
-  log(`[${ts()}] ✅ Εκδόσεις: ${JSON.stringify(versions)}`);
+  log(`✅ Εκδόσεις: ${JSON.stringify(versions)}`);
 }
 
 /* -------------------------
@@ -86,7 +87,7 @@ let appStarted = false;
  */
 async function startApp() {
   try {
-    log(`[${ts()}] 🚀 Εκκίνηση εφαρμογής -> main.js ${VERSION}`);
+    log(`🚀 Εκκίνηση εφαρμογής -> main.js ${VERSION}`);
 
     /*
     Το panel, όταν υπάρχει, προετοιμάζεται για multiline περιεχόμενο.
@@ -100,7 +101,7 @@ async function startApp() {
     Αναλυτική αναφορά εκδόσεων σε text μορφή.
     Εξυπηρετεί debugging και γρήγορο έλεγχο ασυμβατοτήτων μεταξύ modules.
     */
-    log(`[${ts()}] ${renderVersionsText(versions)}`);
+    log(`${renderVersionsText(versions)}`);
 
     /*
     Φόρτωση λιστών σε παράλληλη εκτέλεση για μείωση συνολικού χρόνου εκκίνησης.
@@ -112,14 +113,14 @@ async function startApp() {
     */
     createPlayerContainers();
 
-    log(`[${ts()}] 📂 Lists Loaded -> Main:${mainList.length} Alt:${altList.length}`);
+    log(`📂 Lists Loaded -> Main:${mainList.length} Alt:${altList.length}`);
 
     /*
     Αναμονή για YouTube IFrame API readiness.
     */
-    log(`[${ts()}] ⏳ YouTubeAPI -> Αναμονή`);
+    log(`⏳ YouTubeAPI -> Αναμονή`);
     await youtubeReady(20000); // π.χ. 20s timeout
-    log(`[${ts()}] ✅ YouTubeAPI -> Έτοιμο`);
+    log(`✅ YouTubeAPI -> Έτοιμο`);
 
     /*
     Human Mode initialization:
@@ -128,10 +129,10 @@ async function startApp() {
     */
     initPlayersSequentially(mainList, altList)
       .then(() => {
-        log(`[${ts()}] ✅ HumanMode -> Ολοκλήρωση sequential init`);
+        log(`✅ HumanMode -> Ολοκλήρωση sequential init`);
       })
       .catch((err) => {
-        log(`[${ts()}] ❌ HumanMode init error -> ${err}`);
+        log(`❌ HumanMode init error -> ${err}`);
       });
 
     /*
@@ -140,9 +141,9 @@ async function startApp() {
     - Στόχος είναι η επιτήρηση/ανίχνευση ανωμαλιών κατά τη διάρκεια λειτουργίας.
     */
     startWatchdog();
-    log(`[${ts()}] ✅ Watchdog -> Started από main.js`);
+    log(`✅ Watchdog -> Started από main.js`);
   } catch (err) {
-    log(`[${ts()}] ❌ Σφάλμα κατά την εκκίνηση -> ${err}`);
+    log(`❌ Σφάλμα κατά την εκκίνηση -> ${err}`);
   }
 }
 

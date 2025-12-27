@@ -1,5 +1,5 @@
 // --- youtubeReady.js ---
-const VERSION = 'v1.2.0';
+const VERSION = 'v1.2.1';
 /*
 - Καθαρό API readiness για YouTube IFrame Player API. - Δεν χρησιμοποιεί imports, εκθέτει μόνο exports (ESM). 
 - Δηλώνει global callback window.onYouTubeIframeAPIReady (απαίτηση API).
