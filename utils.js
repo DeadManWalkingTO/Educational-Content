@@ -1,5 +1,5 @@
 // --- utils.js ---
-const VERSION = 'v1.2.2';
+const VERSION = 'v1.4.4';
 /*
 - Κοινόχρηστα, αγνά helpers (DRY API) για όλο το project.
 - Περιλαμβάνει booleans (anyTrue/allTrue), χρόνους (ts, fmtMs), logging (log), τύπους/συλλογές (isDefined, isNonEmptyArray, pick/omit), ελεγκτές (ensure) και ελαφρά wrappers πάνω από scheduler (retryWithJitter, sequential).
@@ -43,10 +43,26 @@ export function ts() {
   return `${hh}:${mm}:${ss}`;
 }
 
-// Log (απλό)
+
+// Απλό log: κονσόλα + app event (χωρίς imports)
 export function log(msg) {
-  console.log(`[${ts()}] ${msg}`);
+  const time = (typeof ts === 'function') ? ts() : new Date().toLocaleTimeString();
+  const full = `[${time}] ${String(msg)}`;
+
+  // Κονσόλα
+  console.log(full);
+
+  // Ενημέρωση UI/Stats μέσω event (αν υπάρχει DOM)
+  try {
+    if (typeof document !== 'undefined') {
+      const ev = new CustomEvent('app:log', { detail: { msg: String(msg), ts: time, full } });
+      document.dispatchEvent(ev);
+    }
+  } catch (e) {
+    // no-op
+  }
 }
+
 
 // Extra helpers
 export function isDefined(x) {

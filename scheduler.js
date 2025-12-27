@@ -1,5 +1,5 @@
 // --- scheduler.js ---
-const VERSION = 'v1.2.7';
+const VERSION = 'v1.2.9';
 /*
 Περιγραφή (1/3): Γενικός Scheduler χωρίς imports και χωρίς side-effects.
 Περιγραφή (2/3): Παρέχει delay/repeat/cancel/groupCancel/debounce/throttle/backoff/retry/jitter/pause/resume/flush/getStats.

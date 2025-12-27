@@ -20,7 +20,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 // Imports
 import { installConsoleFilter } from './consoleFilter.js';
 import { log } from './utils.js';
-import { ts, setUserGesture, allTrue, stats} from './globals.js';
+import { setUserGesture, allTrue, stats} from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions, renderVersionsPanel, renderVersionsText } from './versionReporter.js';

@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v4.12.18';
+const VERSION = 'v4.12.21';
 /*
 Κατάσταση/Utilities, counters, lists, stop-all state, UI logging.
 Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
@@ -18,6 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
+import { log } from './utils.js';
 // (Κανένα προς το παρόν)
 
 /**
@@ -194,7 +195,7 @@ export function resetAutoNextCountersIfNeeded() {
     autoNextCounter = 0;
     lastResetTime = now;
     for (let i = 0; i < autoNextPerPlayer.length; i++) autoNextPerPlayer[i] = 0;
-    log(`[${ts()}] 🔄 AutoNext counters reset (hourly)`);
+    log(`🔄 AutoNext counters reset (hourly)`);
   }
 }
 
@@ -243,7 +244,7 @@ export function getAltList() {
  */
 export function setMainList(list) {
   _mainList = Array.isArray(list) ? list : [];
-  log(`[${ts()}] 📂 Main list applied -> ${_mainList.length} videos`);
+  log(`📂 Main list applied -> ${_mainList.length} videos`);
 }
 
 /**
@@ -253,7 +254,7 @@ export function setMainList(list) {
  */
 export function setAltList(list) {
   _altList = Array.isArray(list) ? list : [];
-  log(`[${ts()}] 📂 Alt list applied -> ${_altList.length} videos`);
+  log(`📂 Alt list applied -> ${_altList.length} videos`);
 }
 
 /* --- Lists state - End --- */
@@ -274,7 +275,7 @@ const stopTimers = [];
  */
 export function setIsStopping(flag) {
   isStopping = !!flag;
-  log(`[${ts()}] ⏹ isStopping = ${isStopping}`);
+  log(`⏹ isStopping = ${isStopping}`);
 }
 
 /**
@@ -296,7 +297,7 @@ export function clearStopTimers() {
       clearTimeout(t);
     } catch {}
   }
-  log(`[${ts()}] 🧹 Stop timers cleared`);
+  log(`🧹 Stop timers cleared`);
 }
 
 /* --- Stop All state & helpers - End --- */
@@ -343,35 +344,47 @@ export function rndInt(min, max) {
  * - Προσθέτει γραμμή στο activityPanel όταν υπάρχει DOM.
  * - Περιορίζει το πλήθος γραμμών (rolling window) για να διατηρείται το DOM ελαφρύ.
  * - Καλεί updateStats() για ανανέωση του statsPanel.
- *
- * @param {string} msg Μήνυμα προς καταγραφή.
  */
-export function log(msg) {
-  console.log(msg);
-  if (typeof document !== 'undefined') {
-    const panel = document.getElementById('activityPanel');
-    if (panel) {
-      const div = document.createElement('div');
-      div.textContent = msg;
-      panel.appendChild(div);
-      const LOG_PANEL_MAX = 250;
-      while (panel.children.length > LOG_PANEL_MAX) panel.removeChild(panel.firstChild);
-      panel.scrollTop = panel.scrollHeight;
-    }
+// Τοπικό updateStats (έχει πρόσβαση στο stats εδώ)
+function updateStats() {
+  if (typeof document === 'undefined') {
+    return;
   }
-  updateStats();
+  let el = document.getElementById('statsPanel');
+  if (el === null) {
+    // Προαιρετικά: δημιουργία panel αν λείπει
+    el = document.createElement('div');
+    el.id = 'statsPanel';
+    el.className = 'stats';
+    document.body.appendChild(el);
+  }
+  el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Replay:${stats.replay} - Pauses:${stats.pauses} - MidSeeks:${stats.midSeeks} - Watchdog:${stats.watchdog} - Errors:${stats.errors} - VolumeChanges:${stats.volumeChanges}`;
 }
 
-/**
- * Εσωτερική ενημέρωση στατιστικών στο UI.
- * Αν δεν υπάρχει DOM (π.χ. non-browser context), δεν εκτελείται.
- */
-function updateStats() {
-  if (typeof document === 'undefined') return;
-  const el = document.getElementById('statsPanel');
-  if (el) {
-    el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Replay:${stats.replay} - Pauses:${stats.pauses} - MidSeeks:${stats.midSeeks} - Watchdog:${stats.watchdog} - Errors:${stats.errors} - VolumeChanges:${stats.volumeChanges}`;
-  }
+// Listener για app:log (γράφει Activity Panel + updateStats)
+if (typeof document !== 'undefined') {
+  document.addEventListener('app:log', (ev) => {
+    const { full } = ev.detail;
+    const panel = document.getElementById('activityPanel');
+    if (panel !== null) {
+      const div = document.createElement('div');
+      div.textContent = full;
+      panel.appendChild(div);
+
+      const LOG_PANEL_MAX = 250;
+      while (panel.children.length > LOG_PANEL_MAX) {
+        panel.removeChild(panel.firstChild);
+      }
+      panel.scrollTop = panel.scrollHeight;
+    }
+
+    // Ενημέρωση stats
+    try {
+      updateStats();
+    } catch (e) {
+      // no-op
+    }
+  });
 }
 
 /* Scheduler module - Χρονοπρογραμματιστής Εργασιών */
@@ -403,11 +416,11 @@ export const scheduler = (function () {
               }
             }
           } catch (_) {
-            log(`[${ts()}] ⚠️ Globals Error ${_}`);
+            log(`⚠️ Globals Error ${_}`);
           }
           console.error('[sched] ' + msg);
         } catch (_) {
-          log(`[${ts()}] ⚠️ Globals Error ${_}`);
+          log(`⚠️ Globals Error ${_}`);
         }
       }
     }, delayMs);
