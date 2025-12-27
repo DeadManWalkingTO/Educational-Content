@@ -1,30 +1,3 @@
-import { getVersion as getUtilsVersion } from './utils.api.js';
-import { getVersion as getSchedulerVersion } from './scheduler.api.js';
-import { youtubeReady } from './youtubeReady.api.js';
-import { createSequentialInit } from './sequencing.api.js';
-import { createLogger } from './logger.api.js';
-import { createGuards } from './guards.api.js';
-import { createPlayerPolicy } from './player.policy.api.js';
-import { createEventBus } from './eventBus.api.js';
-import { createController } from './playerController.api.js';
-import { wireUi } from './uiControls.api.js';
-import { createListsApi } from './lists.api.js';
-import { createWatchdog } from './watchdog.api.js';
-
-// --- Composition Root (moved to top) ---
-const AppConfig = { retries: { playerInit: 3, network: 3 }, jitterMs: 50 };
-const seqInit = createSequentialInit({ Scheduler: null, Utils: null, Config: AppConfig });
-const Log = createLogger({ Utils: null, tag: 'App' });
-const Guards = createGuards({ Utils: null });
-const Policy = createPlayerPolicy({ Utils: null, Config: AppConfig });
-const Bus = createEventBus();
-
-await youtubeReady({ loadScript: null, onReadyEvent: null });
-// await seqInit.initItemsSequentially(...);
-// wireUi({ documentRef: document, Globals: null, Lists: null, Utils: null, Logger: Log });
-// createWatchdog({ Scheduler: null, EventBus: Bus, Policy, Logger: Log }).start();
-// --- End Composition Root (top) ---
-
 // --- main.js ---
 const VERSION = 'v3.44.10';
 /*
@@ -45,6 +18,18 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
+import { getVersion as getUtilsVersion } from './utils.api.js';
+import { getVersion as getSchedulerVersion } from './scheduler.api.js';
+import { youtubeReady } from './youtubeReady.api.js';
+import { createSequentialInit } from './sequencing.api.js';
+import { createLogger } from './logger.api.js';
+import { createGuards } from './guards.api.js';
+import { createPlayerPolicy } from './player.policy.api.js';
+import { createEventBus } from './eventBus.api.js';
+import { createController } from './playerController.api.js';
+import { wireUi } from './uiControls.api.js';
+import { createListsApi } from './lists.api.js';
+import { createWatchdog } from './watchdog.api.js';
 import { installConsoleFilter } from './consoleFilter.js';
 import { log } from './utils.js';
 import { setUserGesture, stats } from './globals.js';
@@ -55,6 +40,20 @@ import { bindUiEvents, setControlsEnabled } from './uiControls.js';
 import { startWatchdog } from './watchdog.js';
 import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } from './scheduler.js';
 import { youtubeReady } from './youtubeReady.js';
+
+/** --- Composition Root --- */
+const AppConfig = { retries: { playerInit: 3, network: 3 }, jitterMs: 50 };
+const seqInit = createSequentialInit({ Scheduler: null, Utils: null, Config: AppConfig });
+const Log = createLogger({ Utils: null, tag: 'App' });
+const Guards = createGuards({ Utils: null });
+const Policy = createPlayerPolicy({ Utils: null, Config: AppConfig });
+const Bus = createEventBus();
+
+await youtubeReady({ loadScript: null, onReadyEvent: null });
+// await seqInit.initItemsSequentially(...);
+// wireUi({ documentRef: document, Globals: null, Lists: null, Utils: null, Logger: Log });
+// createWatchdog({ Scheduler: null, EventBus: Bus, Policy, Logger: Log }).start();
+/** --- End Composition Root --- */
 
 /* -------------------------
    Console filter (defensive install)
