@@ -1,5 +1,5 @@
 // --- consoleFilter.js ---
-const VERSION = 'v3.4.12';
+const VERSION = 'v3.4.13';
 /*
 Console Filter: αυτόνομο module για state machine, tagging και wrapping των console.
 Δεν χρησιμοποιούμε τους τελεστές OR και AND (τηρούμε πολιτική project).
@@ -49,7 +49,7 @@ import { anyTrue, allTrue, log } from './utils.js';
 // ΣΗΜΕΙΩΣΗ: Δεν αλλάζουμε απευθείας την global console, κρατάμε references στα αρχικά της μέλη
 // ώστε να μπορούμε να τα αποκαταστήσουμε με ασφάλεια στο restoreConsole().
 let _installed = false; // Flag: το φίλτρο έχει εγκατασταθεί;
-let _orig = { error: null, warn: null, info: null, log: null }; // Αρχικά bindings της console
+let _orig = { error: null, warn: null, info: null, log: null }; // Αρχικά bindings της console;
 
 /**
  * _st: State ρύθμισης φίλτρου
@@ -128,7 +128,7 @@ function matchAnyArg(args, regexList) {
     // Αν κάτι πάει στραβά, δεν σταματάμε την εφαρμογή: καταγράφουμε προειδοποίηση.
     log(`⚠️ ConsoleFilter Error ${err}`);
   }
-  return false; // Αν δεν βρεθεί match, επιστρέφουμε false.
+  return false; // Αν δεν βρεθεί match, επιστρέφουμε false.;
 }
 
 /**
@@ -197,7 +197,7 @@ function buildState(cfg) {
  * - Αλλιώς → console.log, ώστε να μην χαθεί το μήνυμα.
  */
 function forward(level, args) {
-  const payload = [_st.tag]; // Βάζουμε πρώτο το tag ώστε να ξεχωρίζει οπτικά
+  const payload = [_st.tag]; // Βάζουμε πρώτο το tag ώστε να ξεχωρίζει οπτικά;
   for (let i = 0; i < args.length; i += 1) {
     payload.push(args[i]);
   }
@@ -205,7 +205,7 @@ function forward(level, args) {
   if (level === 'warn') {
     if (_orig.warn) {
       _orig.warn.apply(console, payload);
-      return; // Early return: μην συνεχίσεις σε επόμενα επίπεδα
+      return; // Early return: μην συνεχίσεις σε επόμενα επίπεδα;
     }
   }
 

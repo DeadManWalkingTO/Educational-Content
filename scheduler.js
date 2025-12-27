@@ -1,5 +1,5 @@
 // --- scheduler.js ---
-const VERSION = 'v1.2.9';
+const VERSION = 'v1.2.10';
 /*
 Περιγραφή (1/3): Γενικός Scheduler χωρίς imports και χωρίς side-effects.
 Περιγραφή (2/3): Παρέχει delay/repeat/cancel/groupCancel/debounce/throttle/backoff/retry/jitter/pause/resume/flush/getStats.
@@ -22,18 +22,27 @@ let __pausedTags = [];
 let __stats = { scheduled: 0, executed: 0, canceled: 0, failed: 0 };
 
 function __inArray(arr, item) {
-  if (!arr) {
+  // 1) Ρητός έλεγχος undefined/null χωρίς χρήση ||
+  if (arr === undefined) {
     return false;
   }
+  if (arr === null) {
+    return false;
+  }
+
+  // 2) Πρέπει να είναι πραγματικός πίνακας
   if (!Array.isArray(arr)) {
     return false;
   }
+
+  // 3) Strict ισότητα όπως στο αρχικό
   for (let i = 0; i < arr.length; i++) {
     const v = arr[i];
     if (v === item) {
       return true;
     }
   }
+
   return false;
 }
 
@@ -169,50 +178,115 @@ export function backoff(attempt, baseMs, factor, maxMs) {
 }
 
 export function retry(taskFn, opts) {
-  const cfg = opts || {};
-  const maxAttempts = typeof cfg.maxAttempts === 'number' ? cfg.maxAttempts : 3;
-  const baseDelayMs = typeof cfg.baseDelayMs === 'number' ? cfg.baseDelayMs : 2000;
-  const jitterMs = typeof cfg.jitterMs === 'number' ? cfg.jitterMs : 1000;
-  const factor = typeof cfg.factor === 'number' ? cfg.factor : 1.5;
-  const tag = typeof cfg.tag === 'string' ? cfg.tag : 'retry';
+  // 1) Ρητή ανάθεση config χωρίς "||"
+  let cfg = {};
+  if (typeof opts !== 'undefined') {
+    if (opts !== null) {
+      cfg = opts;
+    }
+  }
+
+  // 2) Προεπιλογές με ρητούς ελέγχους
+  let maxAttempts = 3;
+  if (typeof cfg.maxAttempts === 'number') {
+    maxAttempts = cfg.maxAttempts;
+  }
+
+  let baseDelayMs = 2000;
+  if (typeof cfg.baseDelayMs === 'number') {
+    baseDelayMs = cfg.baseDelayMs;
+  }
+
+  let jitterMs = 1000;
+  if (typeof cfg.jitterMs === 'number') {
+    jitterMs = cfg.jitterMs;
+  }
+
+  let factor = 1.5;
+  if (typeof cfg.factor === 'number') {
+    factor = cfg.factor;
+  }
+
+  let tag = 'retry';
+  if (typeof cfg.tag === 'string') {
+    tag = cfg.tag;
+  }
+
+  // 3) Αμυντικός έλεγχος
+  if (typeof taskFn !== 'function') {
+    return;
+  }
+
   let attempt = 1;
+
   function run() {
     let ok = false;
     try {
-      ok = !!taskFn(attempt);
+      const result = taskFn(attempt);
+      // Αν θες «truthy» semantics τότε:
+      // ok = !!result;
+      if (result === true) {
+        ok = true;
+      } else {
+        ok = false;
+      }
     } catch (e) {
       ok = false;
     }
+
     if (ok) {
       return;
     }
+
     attempt = attempt + 1;
     if (attempt > maxAttempts) {
       return;
     }
-    const d = backoff(attempt, baseDelayMs, factor, baseDelayMs * 20) + jitter(jitterMs, jitterMs);
+
+    const maxDelayMs = baseDelayMs * 20;
+    const dBackoff = backoff(attempt, baseDelayMs, factor, maxDelayMs);
+    const dJitter = jitter(jitterMs, jitterMs);
+    const d = dBackoff + dJitter;
+
     delay(run, d, tag);
   }
-  delay(run, jitter(baseDelayMs, jitterMs), tag);
+
+  // αρχική έναρξη με jitter γύρω από το baseDelay
+  const initialDelay = jitter(baseDelayMs, jitterMs);
+  delay(run, initialDelay, tag);
 }
 
 export function flush(tag) {
   const keep = [];
+
   for (let i = 0; i < __timers.length; i++) {
     const t = __timers[i];
-    if (t.tag === tag && t.kind === 'timeout') {
-      try {
-        t.fn();
-        __stats.executed = __stats.executed + 1;
-      } catch (e) {
-        __stats.failed = __stats.failed + 1;
+
+    // ① ταιριάζει το ζητούμενο tag;
+    if (t.tag === tag) {
+      // ② είναι καταχωρημένος ως timeout;
+      if (t.kind === 'timeout') {
+        try {
+          // εκτέλεση προγραμματισμένης συνάρτησης
+          t.fn();
+          __stats.executed = __stats.executed + 1;
+        } catch (e) {
+          __stats.failed = __stats.failed + 1;
+        }
+
+        // ακύρωση timeout + λογιστικά
+        clearTimeout(t.id);
+        __stats.canceled = __stats.canceled + 1;
+      } else {
+        // tag ταιριάζει, αλλά ΔΕΝ είναι timeout → το κρατάμε
+        keep.push(t);
       }
-      clearTimeout(t.id);
-      __stats.canceled = __stats.canceled + 1;
     } else {
+      // tag δεν ταιριάζει → το κρατάμε
       keep.push(t);
     }
   }
+
   __timers = keep;
 }
 

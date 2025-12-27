@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v2.22.12';
+const VERSION = 'v2.22.13';
 /*
 Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
 Συμμόρφωση με κανόνα State Machine με Guard Steps.
@@ -67,7 +67,7 @@ export function startWatchdog() {
     var max = WATCHDOG_BUFFER_MAX;
     var span = max - min + 1;
     var rnd = Math.floor(Math.random() * span);
-    return min + rnd; // ms
+    return min + rnd; // ms;
   }
 
   /**

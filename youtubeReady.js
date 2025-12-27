@@ -1,5 +1,5 @@
 // --- youtubeReady.js ---
-const VERSION = 'v1.2.3';
+const VERSION = 'v1.2.4';
 /*
 - Καθαρό API readiness για YouTube IFrame Player API. - Δεν χρησιμοποιεί imports, εκθέτει μόνο exports (ESM). 
 - Δηλώνει global callback window.onYouTubeIframeAPIReady (απαίτηση API).
@@ -34,14 +34,17 @@ function isApiReady() {
 }
 
 /** Προαιρετικό: εισαγωγή του script της IFrame API αν δεν υπάρχει ήδη. */
+
 function ensureIframeApiScriptInjected() {
   try {
     const hasDoc = typeof document !== 'undefined';
     if (!hasDoc) {
       return;
     }
+
     const scripts = document.getElementsByTagName('script');
     let found = false;
+
     for (let i = 0; i < scripts.length; i += 1) {
       const s = scripts[i];
       if (typeof s.src === 'string') {
@@ -50,16 +53,37 @@ function ensureIframeApiScriptInjected() {
         }
       }
     }
+
     if (!found) {
       const tag = document.createElement('script');
       tag.src = 'https://www.youtube.com/iframe_api';
+
+      // ① υπάρχει πρώτος script;
       const firstScriptTag = scripts[0];
-      if (firstScriptTag && firstScriptTag.parentNode) {
-        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-        return;
+      if (firstScriptTag !== undefined) {
+        if (firstScriptTag !== null) {
+          // ② έχει parentNode;
+          const p = firstScriptTag.parentNode;
+          if (p !== undefined) {
+            if (p !== null) {
+              p.insertBefore(tag, firstScriptTag);
+              return;
+            }
+          }
+        }
       }
+
+      // fallback: προσθήκη στο <head> αν υπάρχει, αλλιώς στο document.body (προαιρετικό)
       if (document.head) {
         document.head.appendChild(tag);
+        return;
+      }
+
+      // Προαιρετικό extra fallback (αν δεν υπάρχει head):
+      if (typeof document.body !== 'undefined') {
+        if (document.body !== null) {
+          document.body.appendChild(tag);
+        }
       }
     }
   } catch (_) {

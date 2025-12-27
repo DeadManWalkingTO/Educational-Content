@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v6.24.5';
+const VERSION = 'v6.24.6';
 /*
 Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
 Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
@@ -182,7 +182,7 @@ function doSeek(player, seconds) {
   // > 120 min: 10–15%
 */
 export function getRequiredWatchTime(durationSec) {
-  var capSec = (15 + rndInt(0, 5)) * 60; // ανώτατο όριο απαίτησης (λεπτά -> sec)
+  var capSec = (15 + rndInt(0, 5)) * 60; // ανώτατο όριο απαίτησης (λεπτά -> sec);
   var minPct = 0.5;
   var maxPct = 0.7;
   if (durationSec < 120) {
@@ -205,9 +205,9 @@ export function getRequiredWatchTime(durationSec) {
   if (span < 0) {
     span = 0;
   }
-  var pct = minPct + Math.random() * span; // ποσοστό απαιτούμενης θέασης
+  var pct = minPct + Math.random() * span; // ποσοστό απαιτούμενης θέασης;
   var b = rndInt(-1, 1);
-  var bias = b * 0.01; // μικρή μεταβολή +-1%
+  var bias = b * 0.01; // μικρή μεταβολή +-1%;
   pct = pct + bias;
   if (pct < 0.05) {
     pct = 0.05;
@@ -364,7 +364,7 @@ export class PlayerController {
     const dyn = typeof getDynamicOrigin === 'function' ? getDynamicOrigin() : '';
     const computedOrigin = dyn ? dyn : window.location?.origin ?? '';
     const isValidOrigin = allTrue([typeof computedOrigin === 'string', /^https?:\/\/[^/]+$/.test(computedOrigin), !/^file:\/\//.test(computedOrigin), computedOrigin !== '<URL>']);
-    const hostVal = getYouTubeHostFallback(); // μόνο για ενημερωτικό logging
+    const hostVal = getYouTubeHostFallback(); // μόνο για ενημερωτικό logging;
 
     this.player = new YT.Player(containerId, {
       videoId,
@@ -586,7 +586,7 @@ export class PlayerController {
       const duration = typeof p.getDuration === 'function' ? p.getDuration() : 0;
       const percentWatched = duration > 0 ? Math.round((this.totalPlayTime / duration) * 100) : 0;
       log(`✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(this.totalPlayTime)}s)`);
-      const afterEndPauseMs = rndInt(15000, 60000); // σύντομη παύση πριν την επόμενη επιλογή
+      const afterEndPauseMs = rndInt(15000, 60000); // σύντομη παύση πριν την επόμενη επιλογή;
       scheduleDelay(() => {
         const requiredTime = getRequiredWatchTime(duration);
         if (this.totalPlayTime < requiredTime) {

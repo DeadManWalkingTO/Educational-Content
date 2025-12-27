@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-const VERSION = 'v3.18.34';
+const VERSION = 'v3.18.35';
 /*
 Περιγραφή: Κεντρικοί χειρισμοί UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
 Η υλοποίηση βασίζεται σε σαφείς guards, ενιαίο error tracking και ασφαλές UI binding.
@@ -156,7 +156,7 @@ function buildLogsText(panel) {
  * Συνθέτει το τελικό κείμενο αντιγραφής (logs + stats) σε σταθερό format.
  */
 function buildFinalText(logsText, statsText) {
-  return `=== LOGS ===
+  return `=== LOGS ===;
 ${logsText}
 === STATS ===
 ${statsText}`;

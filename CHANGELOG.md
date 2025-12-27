@@ -1,6 +1,24 @@
-# CHANGELOG.md - v199
+# CHANGELOG.md - v201
 
 ---
+
+**2025-12-27**
+
+- lists.js: patch +1 — Fix syntax error at chain (return `.split()` chaining), ensure SemVer bump.
+
+
+**2025-12-27**
+
+- consoleFilter.js: v3.4.12 → v3.4.13 — Add missing semicolons.
+- globals.js: v4.12.21 → v4.12.22 — Add missing semicolons.
+- humanMode.js: v4.14.22 → v4.14.23 — Add missing semicolons.
+- lists.js: v4.12.14 → v4.12.15 — Add missing semicolons.
+- playerController.js: v6.24.5 → v6.24.6 — Add missing semicolons.
+- scheduler.js: v1.2.9 → v1.2.10 — Replace disallowed logical operators (no ||/&&).
+- uiControls.js: v3.18.34 → v3.18.35 — Add missing semicolons.
+- utils.js: v1.4.4 → v1.4.5 — Replace disallowed logical operators (no ||/&&).
+- watchdog.js: v2.22.12 → v2.22.13 — Add missing semicolons.
+- youtubeReady.js: v1.2.3 → v1.2.4 — Replace disallowed logical operators (no ||/&&).
 
 **2025-12-27**
 

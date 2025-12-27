@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v4.12.21';
+const VERSION = 'v4.12.22';
 /*
 Κατάσταση/Utilities, counters, lists, stop-all state, UI logging.
 Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
@@ -94,13 +94,13 @@ export const stats = {
 
 /** --- Σταθερές εφαρμογής - Start --- */
 /* Βασικές Ρυθμίσεις */
-export const PLAYER_COUNT = 8; // Αριθμός Players.
-export const MAIN_PROBABILITY = 0.5; // Πιθανότητα επιλογής κύριας λίστας έναντι εναλλακτικής.
+export const PLAYER_COUNT = 8; // Αριθμός Players.;
+export const MAIN_PROBABILITY = 0.5; // Πιθανότητα επιλογής κύριας λίστας έναντι εναλλακτικής.;
 
 /* Ρυθμίσεις Watchdog (σε ms) */
-export const WATCHDOG_BUFFER_MIN = 45000; // Ελάχιστη ανοχή BUFFERING.
-export const WATCHDOG_BUFFER_MAX = 75000; // Μέγιστη ανοχή BUFFERING (jitter).
-export const WATCHDOG_PAUSE_RECHECK_MS = 5000; // Επανέλεγχος μετά από retry σε PAUSED.
+export const WATCHDOG_BUFFER_MIN = 45000; // Ελάχιστη ανοχή BUFFERING.;
+export const WATCHDOG_BUFFER_MAX = 75000; // Μέγιστη ανοχή BUFFERING (jitter).;
+export const WATCHDOG_PAUSE_RECHECK_MS = 5000; // Επανέλεγχος μετά από retry σε PAUSED.;
 
 /* Πίνακας controllers: γεμίζει από main.js */
 export const controllers = [];
