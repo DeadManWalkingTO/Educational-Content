@@ -1,5 +1,5 @@
 // --- scheduler.js ---
-const VERSION = 'v1.2.10';
+const VERSION = 'v1.2.11';
 /*
 Περιγραφή (1/3): Γενικός Scheduler χωρίς imports και χωρίς side-effects.
 Περιγραφή (2/3): Παρέχει delay/repeat/cancel/groupCancel/debounce/throttle/backoff/retry/jitter/pause/resume/flush/getStats.
@@ -56,6 +56,9 @@ export function jitter(baseMs, spreadMs) {
 
 export function delay(fn, ms, tag) {
   const t = typeof ms === 'number' ? ms : 0;
+  if (typeof tag === 'string') {
+    try { console.log(`[${new Date().toLocaleTimeString()}] ⏳ scheduler.delay tag=${tag} ms=${t}`); } catch (_) {}
+  }
   const id = setTimeout(function () {
     if (__inArray(__pausedTags, tag)) {
       return;
@@ -72,6 +75,7 @@ export function delay(fn, ms, tag) {
   return id;
 }
 
+
 export function cancel(id) {
   clearTimeout(id);
   clearInterval(id);
@@ -87,6 +91,9 @@ export function cancel(id) {
 }
 
 export function repeat(fn, ms, tag) {
+  if (typeof tag === 'string') {
+    try { console.log(`[${new Date().toLocaleTimeString()}] 🔁 scheduler.repeat tag=${tag} every=${ms}ms`); } catch (_) {}
+  }
   function loop() {
     if (__inArray(__pausedTags, tag)) {
       delay(loop, ms, tag);
@@ -106,6 +113,7 @@ export function repeat(fn, ms, tag) {
   __stats.scheduled = __stats.scheduled + 1;
   return id;
 }
+
 
 export function groupCancel(tag) {
   const keep = [];

@@ -1,6 +1,20 @@
-# CHANGELOG.md - v201
+# CHANGELOG.md - v204
 
 ---
+
+**2025-12-27**
+
+- humanMode.js: v4.14.25 → v4.14.26 — Ensure Player 1 starts immediately (config.startDelay = 0 for i===0).
+
+**2025-12-27**
+
+- humanMode.js: v4.14.24 → v4.14.25 — Fix ReferenceError (log micro-stagger AFTER initialization).
+
+**2025-12-27**
+
+- playerController.js: v6.24.6 → v6.24.7 — Always set `playerVars.origin`, add ENDED logging with guard delay (150ms) and job key (`ended-guard:pN`); fix start scheduling to use `startDelay + jitter` with job key (`start:pN`).
+- humanMode.js: v4.14.23 → v4.14.24 — Extra diagnostic log for micro-stagger (effective ms).
+- scheduler.js: v1.2.10 → v1.2.11 — Diagnostic labels: log `tag` and `ms` for `delay()` / `repeat()`.
 
 **2025-12-27**
 

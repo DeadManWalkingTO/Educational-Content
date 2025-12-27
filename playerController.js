@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v6.24.6';
+const VERSION = 'v6.24.7';
 /*
 Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
 Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } from './scheduler.js';
+import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry, debounce } from './scheduler.js';
 import { log, rndInt, anyTrue, allTrue } from './utils.js';
 import { AUTO_NEXT_LIMIT_PER_PLAYER, MAIN_PROBABILITY, canAutoNext, controllers, getOrigin, getYouTubeEmbedHost, hasUserGesture, incAutoNext, stats } from './globals.js';
 
@@ -372,7 +372,7 @@ export class PlayerController {
       playerVars: {
         enablejsapi: 1,
         playsinline: 1,
-        ...(isValidOrigin ? { origin: getOrigin() } : {}),
+        origin: getOrigin(),
       },
       events: {
         onReady: (e) => this.onReady(e),
@@ -381,7 +381,7 @@ export class PlayerController {
       },
     });
 
-    log(`ℹ️ YT PlayerVars origin→ ${isValidOrigin ? computedOrigin : '(none)'} host→ ${hostVal}`);
+    log(`ℹ️ YT PlayerVars origin→ ${getOrigin()} host→ ${hostVal}`);
     log(`ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
     log(`👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
   }
@@ -401,6 +401,8 @@ export class PlayerController {
     log(`⏳ Player ${this.index + 1} Scheduled -> start after ${startDelaySec}s`);
 
     const __jitterMs = 100 + Math.floor(Math.random() * 120);
+    const __effDelay = startDelay + __jitterMs;
+    groupCancel(`start:p${this.index + 1}`);
     scheduleDelay(() => {
       try {
         if (typeof e.target.seekTo === 'function') {
@@ -428,7 +430,7 @@ export class PlayerController {
           log(`❌ Player ${this.index + 1} onReady Error ${String(_e?.message ?? _e)}`);
         }
       }
-    }, __jitterMs); // JITTER_APPLIED: μικρή μετατόπιση για σταθερότητα IFrame μηνυμάτων
+    }, __effDelay, `start:p${this.index + 1}`); // effective delay = startDelay + jitter
 
     scheduleDelay(() => {
       var seekSec = typeof this.initialSeekSec === 'number' ? this.initialSeekSec : '-';
@@ -514,13 +516,17 @@ export class PlayerController {
         log(`🟢 Player ${this.index + 1} State -> UNSTARTED`);
         break;
       case YT.PlayerState.ENDED:
+        log(`🛑 Player ${this.index + 1} State -> ENDED`);
         this.clearTimers();
-        if (guardHasAnyList(this)) {
-          this.loadNextVideo(p);
-        } else {
-          stats.errors++;
-          log(`❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
-        }
+        groupCancel(`ended-guard:p${this.index + 1}`);
+        scheduleDelay(() => {
+          if (guardHasAnyList(this)) {
+            this.loadNextVideo(p);
+          } else {
+            stats.errors++;
+            log(`❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
+          }
+        }, 150, `ended-guard:p${this.index + 1}`);
         return;
       case YT.PlayerState.PLAYING:
         if (!this.isPlayingActive) {

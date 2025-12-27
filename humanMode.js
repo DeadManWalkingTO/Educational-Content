@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-const VERSION = 'v4.14.23';
+const VERSION = 'v4.14.26';
 /*
 Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης, μη-συγχρονισμένης
 συμπεριφοράς σε πολλαπλούς players. 
@@ -230,6 +230,7 @@ export async function initPlayersSequentially(mainList, altList) {
 
     // Micro-stagger: πριν από την κατασκευή του iframe, μικρή αναμονή για εξομάλυνση φόρτου.
     const microStagger = rndInt(MICRO_STAGGER_MIN, MICRO_STAGGER_MAX);
+    log(`⏳ Player ${i + 1} HumanMode Micro-stagger -> ${microStagger}ms`);
     await wait(microStagger);
     await wait(playbackDelay);
 
@@ -309,6 +310,8 @@ export async function initPlayersSequentially(mainList, altList) {
     await wait(extraDelay);
 
     // Τελική αρχικοποίηση του player με το επιλεγμένο videoId.
+    // Force zero start delay for the first player (i === 0)
+    try { if (i === 0) { if (!config) { config = {}; } config.startDelay = 0; } } catch (_) {}
     controller.init(videoId);
     log(`👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
   }
