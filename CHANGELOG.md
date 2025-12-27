@@ -1,6 +1,17 @@
-# CHANGELOG.md - v199
+# CHANGELOG.md - v201
 
 ---
+
+**2025-12-28**
+
+utils.js: v1.6.1 — added log() (console + CustomEvent 'app:log'), no imports
+Unification to utils.js API (no imports)
+utils.js: v1.4.4 → v1.6.0 — Unified helpers + Scheduler API, removed &&/||, no imports
+scheduler.js: v1.2.9 → v1.2.10 — Deprecated stub, use utils.js
+versionReporter.js: +patch — imports switched to './utils.js'
+playerController.js: +patch — imports switched to './utils.js'
+watchdog.js: +patch — imports switched to './utils.js'
+main.js: +patch — imports switched to './utils.js'
 
 **2025-12-27**
 

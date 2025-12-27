@@ -1,6 +1,6 @@
-# Educational-Content — CONTEXT.md - v31
+# Educational-Content — CONTEXT.md - v32
 
-## **Τελευταία ενημέρωση:** 2025-12-23
+## **Τελευταία ενημέρωση:** 2025-12-28
 
 > Αυτό το αρχείο είναι η _μοναδική πηγή αλήθειας_ για αρχιτεκτονική, κανόνες και ροές εργασίας. Στόχος της παρούσας έκδοσης είναι η **αφαίρεση επαναλήψεων**, η **συμπύκνωση** και η **σαφήνεια**.
 
@@ -50,30 +50,30 @@
 
 - Πάντα αύξηση έκδοσης σε κάθε αλλαγή αρχείου, ποτέ υποβιβασμός.
 - Semantic Versioning standardizes a tripartite version number x.y.z where x is the “major number,” y is the “minor number,” and z is the “patch number.”
-- Η HTML έκδοση αναγράφεται στο index.html. (meta name="html-version" content=) 
-- Το versionReporter.js με κώδικα ανακτά και εξάγει τις αποθηκευμένες εκδόσεις από τα js και το html (εκτός main.js). 
+- Η HTML έκδοση αναγράφεται στο index.html. (meta name="html-version" content=)
+- Το versionReporter.js με κώδικα ανακτά και εξάγει τις αποθηκευμένες εκδόσεις από τα js και το html (εκτός main.js).
 
-**Πρότυπο header σε κάθε JS αρχείο** 
+**Πρότυπο header σε κάθε JS αρχείο**
 
 - Γραμμή 1: σχόλιο με το όνομα του αρχείου σε μορφή "// --- FILENAME.js ---" (όπου FILENAME το όνομα του αρχείου.)
-- Γραμμή 2: σχόλιο με την έκδοση του αρχείου σε μορφή "// Έκδοση: vX.Y.Z" (όπου vX.Y.Z η Έκδοση του αρχείου.)
-- Γραμμή 3: έναρξη Multiline Comment "/*"
-- Γραμμές 4 έως 6: Multiline Comment με την περιγραφή του αρχείου. 
-- Γραμμή 7: λήξη Multiline Comment "*/"
-- Γραμμή 8: κενή γραμμή. 
-- Γραμμή 9: σχόλιο: "// --- Versions ---" 
-- Γραμμή 10: δήλωση της έκδοσης του αρχείου "const VERSION = 'vX.Y.Z';" (όπου vX.Y.Z η Έκδοση του αρχείου.)
-- Γραμμή 11: "export function getVersion() { " 
-- Γραμμή 12: " return VERSION; " 
-- Γραμμή 13: "}" 
-- Γραμμή 14: κενή γραμμή και μετά ο κώδικας του αρχείου. 
-- Πάντα στην τελευταία γραμμή το σχόλιο: "// --- End Of File ---" 
+- Γραμμή 2: δήλωση της έκδοσης του αρχείου "const VERSION = 'vX.Y.Z';" (όπου vX.Y.Z η Έκδοση του αρχείου.)
+- Γραμμή 3: έναρξη Multiline Comment "/\*"
+- Γραμμές 4 έως 6: Multiline Comment με την περιγραφή του αρχείου.
+- Γραμμή 7: λήξη Multiline Comment "\*/"
+- Γραμμή 8: κενή γραμμή.
+- Γραμμή 9: σχόλιο: "// --- Export Version ---"
+- Γραμμή 10: "export function getVersion() { "
+- Γραμμή 11: " return VERSION; "
+- Γραμμή 12: "}"
+- Γραμμή 13: κενή γραμμή.
+- Γραμμή 14: Από εδώ και κάτω ξεκινάει υπόλοιπος κώδικας του αρχείου.
+- Πάντα στην τελευταία γραμμή το σχόλιο: "// --- End Of File ---"
 
 **Μορφοποίηση & Συμβατότητα**
 
 - Εncoding:UTF-8
-- Prettier: ακολουθούμε αυστηρά το .prettierrc.json του project 
-{
+- Prettier: ακολουθούμε αυστηρά το .prettierrc.json του project
+  {
   "printWidth": 200,
   "tabWidth": 2,
   "useTabs": false,
@@ -83,7 +83,7 @@
   "bracketSpacing": true,
   "arrowParens": "always",
   "endOfLine": "lf"
-}
+  }
 - EOL: **LF** σε όλα τα αρχεία κειμένου.
 - Semicolons: **πάντα** `;` (αποφυγή ASI).
 - **Απαγορεύονται** `||` και `&&` _σε όλον τον κώδικα_. Χρησιμοποιούμε `anyTrue([...])` / `allTrue([...])` ή διαδοχικά `if` με early return.
@@ -103,6 +103,7 @@
 **CHANGELOG policy**
 
 -Οι πρώτες γραμμές να είναι πάντα:
+
 - Γραμμή 1:"# CHANGELOG.md - vX" (όπου X η έκδοση)
 - Γραμμή 2:(κενή γραμμή)
 - Γραμμή 3:"---"
@@ -336,6 +337,8 @@ const S_CHECK_ENV = 0,
   - Πίνακα χαρακτηριστικών (features table)
 - Όλες οι αλλαγές στο README.md καταγράφονται στο CHANGELOG.md με αύξηση έκδοσης.
 - Πολιτική Single-BASE workflow ισχύει: όλες οι ενημερώσεις γίνονται απευθείας στα αρχεία του BASE.
+
+**Policy Update (2025-12-28):** API (Χωρίς Imports): μόνο `utils.js`. Όλες οι κοινές λειτουργίες και ο Scheduler API διατίθενται από `utils.js`.
 
 ---
 

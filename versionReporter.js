@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v3.16.16';
+const VERSION = 'v3.17.2';
 /*
 Περιγραφή: Συγκεντρώνει όλες τις εκδόσεις των modules και του HTML.
 Αποφεύγει κυκλική εξάρτηση με main.js: η έκδοση του main προστίθεται από το ίδιο το main.js.
@@ -25,7 +25,6 @@ import { getVersion as getPlayerControllerVersion } from './playerController.js'
 import { getVersion as getUiControlsVersion } from './uiControls.js';
 import { getVersion as getWatchdogVersion } from './watchdog.js';
 import { getVersion as getConsoleFilterVersion } from './consoleFilter.js';
-import { getVersion as getSchedulerVersion } from './scheduler.js';
 import { getVersion as getyoutubeReadyVersion } from './youtubeReady.js';
 import { getVersion as getUtilitiesVersion, log } from './utils.js';
 
@@ -63,7 +62,6 @@ export function reportAllVersions() {
     UiControls: getUiControlsVersion(),
     Watchdog: getWatchdogVersion(),
     ConsoleFilter: getConsoleFilterVersion(),
-    Scheduler: getSchedulerVersion(),
     ΥoutubeReady: getyoutubeReadyVersion(),
     Utilities: getUtilitiesVersion(),
     VersionReporter: VERSION,
@@ -153,9 +151,6 @@ function iconFor(name) {
   }
   if (name === 'ConsoleFilter') {
     return '🧐';
-  }
-  if (name === 'Scheduler') {
-    return '🕒';
   }
   if (name === 'ΥoutubeReady') {
     return '🎥';

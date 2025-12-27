@@ -1,5 +1,5 @@
 // --- main.js ---
-const VERSION = 'v3.44.10';
+const VERSION = 'v3.44.11';
 /*
 Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 Ορίζει start gate ώστε η εκκίνηση να γίνεται είτε με user gesture (κουμπί) είτε με fallback.
@@ -26,7 +26,7 @@ import { createPlayerContainers, initPlayersSequentially } from './humanMode.js'
 import { reportAllVersions, renderVersionsPanel, renderVersionsText } from './versionReporter.js';
 import { bindUiEvents, setControlsEnabled } from './uiControls.js';
 import { startWatchdog } from './watchdog.js';
-import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } from './scheduler.js';
+import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } from './utils.js';
 import { youtubeReady } from './youtubeReady.js';
 
 /* -------------------------

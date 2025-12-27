@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v6.24.5';
+const VERSION = 'v6.24.6';
 /*
 Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
 Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } from './scheduler.js';
+import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } from './utils.js';
 import { log, rndInt, anyTrue, allTrue } from './utils.js';
 import { AUTO_NEXT_LIMIT_PER_PLAYER, MAIN_PROBABILITY, canAutoNext, controllers, getOrigin, getYouTubeEmbedHost, hasUserGesture, incAutoNext, stats } from './globals.js';
 

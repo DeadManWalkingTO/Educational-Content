@@ -1,8 +1,9 @@
 // --- utils.js ---
-const VERSION = 'v1.4.4';
+const VERSION = 'v2.2.2';
 /*
-- Κοινόχρηστα, αγνά helpers (DRY API) για όλο το project.
-- Περιλαμβάνει booleans (anyTrue/allTrue), χρόνους (ts, fmtMs), logging (log), τύπους/συλλογές (isDefined, isNonEmptyArray, pick/omit), ελεγκτές (ensure) και ελαφρά wrappers πάνω από scheduler (retryWithJitter, sequential).
+- Ενοποιημένο API (χωρίς imports) για όλο το project: αγνές συναρτήσεις + Scheduler API.
+- Κανόνες: Header spec, SemVer, ESM exports, χωρίς imports
+- Prettier style (semicolons, single quotes, LF).
 */
 
 // --- Export Version ---
@@ -10,29 +11,87 @@ export function getVersion() {
   return VERSION;
 }
 
-//Όνομα αρχείου για logging.
-const FILENAME = import.meta.url.split('/').pop();
+/**
+- Ενότητες:
+  (A) Logic/Guards/Types (anyTrue/allTrue/isDefined/...)
+  (B) Time/Random/Format (ts/nowMs/sleep/formatMs/randomInt/...)
+  (C) JSON/Clone (safeJsonParse/safeJsonStringify/deepClone)
+  (D) DOM/Events (domReady/safeAddEvent/removeEvent/once)
+  (D2) Logging (log)
+  (E) Scheduler API (delay/repeat/cancel/groupCancel/debounce/throttle/backoff/jitter/retry/pause/resume/flush/getStats)
+*/
 
-// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
+// ======================= (A) Logic / Guards / Types =======================
 
-// Booleans
-export function anyTrue(...flags) {
-  for (const f of flags) {
-    if (f === true) {
+export function anyTrue(items) {
+  if (!Array.isArray(items)) {
+    return false;
+  }
+  let i = 0;
+  while (i < items.length) {
+    if (items[i] === true) {
       return true;
     }
+    i = i + 1;
   }
   return false;
 }
-export function allTrue(...flags) {
-  for (const f of flags) {
-    if (f !== true) {
+
+export function allTrue(items) {
+  if (!Array.isArray(items)) {
+    return false;
+  }
+  let i = 0;
+  while (i < items.length) {
+    if (items[i] !== true) {
       return false;
     }
+    i = i + 1;
   }
   return true;
 }
+
+export function isDefined(v) {
+  if (typeof v === 'undefined') {
+    return false;
+  }
+  if (v === null) {
+    return false;
+  }
+  return true;
+}
+
+export function isNumber(v) {
+  return typeof v === 'number';
+}
+
+export function isString(v) {
+  return typeof v === 'string';
+}
+
+export function isFunction(v) {
+  return typeof v === 'function';
+}
+
+export function isNonEmptyArray(arr) {
+  if (!Array.isArray(arr)) {
+    return false;
+  }
+  if (arr.length < 1) {
+    return false;
+  }
+  return true;
+}
+
+export function ensure(condition, message) {
+  if (condition === true) {
+    return;
+  }
+  const msg = isDefined(message) ? message : 'Invariant violated';
+  throw new Error(msg);
+}
+
+// ======================= (B) Time / Random / Format =======================
 
 // Timestamp
 export function ts() {
@@ -43,10 +102,205 @@ export function ts() {
   return `${hh}:${mm}:${ss}`;
 }
 
+export function nowMs() {
+  return Date.now();
+}
+
+export function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+export function formatMs(ms) {
+  const n = Number(ms);
+  if (Number.isNaN(n)) {
+    return 'NaN ms';
+  }
+  if (n >= 1000) {
+    const s = (n / 1000).toFixed(3);
+    return s + ' s';
+  }
+  return n.toString() + ' ms';
+}
+
+export function fmtMs(ms) {
+  return formatMs(ms);
+}
+
+export function randomInt(min, max) {
+  let a = Math.floor(Number(min));
+  let b = Math.floor(Number(max));
+  if (Number.isNaN(a)) {
+    a = 0;
+  }
+  if (Number.isNaN(b)) {
+    b = 1;
+  }
+  if (a > b) {
+    const t = a;
+    a = b;
+    b = t;
+  }
+  const r = Math.random();
+  const v = Math.floor(a + r * (b - a + 1));
+  return v;
+}
+
+export function rndInt(min, max) {
+  return randomInt(min, max);
+}
+
+export function randomFloat(min, max) {
+  let a = Number(min);
+  let b = Number(max);
+  if (Number.isNaN(a)) {
+    a = 0;
+  }
+  if (Number.isNaN(b)) {
+    b = 1;
+  }
+  if (a > b) {
+    const t = a;
+    a = b;
+    b = t;
+  }
+  const r = Math.random();
+  return a + r * (b - a);
+}
+
+export function clamp(v, min, max) {
+  let x = Number(v);
+  let a = Number(min);
+  let b = Number(max);
+  if (Number.isNaN(x)) {
+    x = 0;
+  }
+  if (Number.isNaN(a)) {
+    a = x;
+  }
+  if (Number.isNaN(b)) {
+    b = x;
+  }
+  if (x < a) {
+    return a;
+  }
+  if (x > b) {
+    return b;
+  }
+  return x;
+}
+
+// ======================= (C) JSON / Clone =======================
+
+export function safeJsonParse(text) {
+  try {
+    const v = JSON.parse(text);
+    return { ok: true, value: v, error: null };
+  } catch (err) {
+    const e = err instanceof Error ? err : new Error('JSON parse error');
+    return { ok: false, value: null, error: e };
+  }
+}
+
+export function safeJsonStringify(obj, space) {
+  try {
+    const v = JSON.stringify(obj, isDefined(space) ? space : undefined);
+    return { ok: true, value: v, error: null };
+  } catch (err) {
+    const e = err instanceof Error ? err : new Error('JSON stringify error');
+    return { ok: false, value: null, error: e };
+  }
+}
+
+export function deepClone(obj) {
+  const sc = typeof structuredClone !== 'undefined' ? structuredClone : null;
+  if (isDefined(sc)) {
+    return sc(obj);
+  }
+  const s = safeJsonStringify(obj);
+  if (!s.ok) {
+    return obj;
+  }
+  const p = safeJsonParse(s.value);
+  if (!p.ok) {
+    return obj;
+  }
+  return p.value;
+}
+
+// ======================= (D) DOM / Events =======================
+
+export function domReady() {
+  const rs = document.readyState;
+  if (rs === 'interactive') {
+    return Promise.resolve();
+  }
+  if (rs === 'complete') {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    const onChange = () => {
+      const st = document.readyState;
+      if (st === 'interactive') {
+        document.removeEventListener('readystatechange', onChange);
+        resolve();
+      } else {
+        if (st === 'complete') {
+          document.removeEventListener('readystatechange', onChange);
+          resolve();
+        }
+      }
+    };
+    document.addEventListener('readystatechange', onChange);
+  });
+}
+
+export function safeAddEvent(target, type, handler, options) {
+  if (!isDefined(target)) {
+    return () => {};
+  }
+  if (!isDefined(type)) {
+    return () => {};
+  }
+  if (!isDefined(handler)) {
+    return () => {};
+  }
+  target.addEventListener(type, handler, options);
+  return () => {
+    target.removeEventListener(type, handler, options);
+  };
+}
+
+export function removeEvent(target, type, handler, options) {
+  if (!isDefined(target)) {
+    return;
+  }
+  if (!isDefined(type)) {
+    return;
+  }
+  if (!isDefined(handler)) {
+    return;
+  }
+  target.removeEventListener(type, handler, options);
+}
+
+export function once(fn) {
+  let called = false;
+  return function onceWrapper(...args) {
+    if (called === true) {
+      return;
+    }
+    called = true;
+    return fn.apply(this, args);
+  };
+}
+
+// ======================= (D2) Logging =======================
 
 // Απλό log: κονσόλα + app event (χωρίς imports)
 export function log(msg) {
-  const time = (typeof ts === 'function') ? ts() : new Date().toLocaleTimeString();
+  const time = typeof ts === 'function' ? ts() : new Date().toLocaleTimeString();
   const full = `[${time}] ${String(msg)}`;
 
   // Κονσόλα
@@ -63,57 +317,260 @@ export function log(msg) {
   }
 }
 
+// ======================= (E) Scheduler API (χωρίς imports) =======================
 
-// Extra helpers
-export function isDefined(x) {
-  return x !== undefined && x !== null;
+const _jobs = new Map();
+let _nextId = 1;
+const _stats = { created: 0, canceled: 0, paused: 0, resumed: 0, ran: 0 };
+
+function _newId() {
+  const id = _nextId;
+  _nextId = _nextId + 1;
+  return id;
 }
-export function isString(x) {
-  return typeof x === 'string';
+
+export function delay(fn, ms, group) {
+  const id = _newId();
+  const info = {
+    type: 'timeout',
+    fn,
+    ms: Number(ms),
+    timerId: null,
+    group: isDefined(group) ? group : null,
+    paused: false,
+    createdAt: nowMs(),
+  };
+  const handler = () => {
+    _stats.ran = _stats.ran + 1;
+    try {
+      info.fn();
+    } finally {
+      _jobs.delete(id);
+    }
+  };
+  info.timerId = setTimeout(handler, info.ms);
+  _jobs.set(id, info);
+  _stats.created = _stats.created + 1;
+  return id;
 }
-export function isNumber(x) {
-  return typeof x === 'number' && Number.isFinite(x);
+
+export function repeat(fn, ms, group) {
+  const id = _newId();
+  const info = {
+    type: 'interval',
+    fn,
+    ms: Number(ms),
+    timerId: null,
+    group: isDefined(group) ? group : null,
+    paused: false,
+    createdAt: nowMs(),
+  };
+  const handler = () => {
+    _stats.ran = _stats.ran + 1;
+    info.fn();
+  };
+  info.timerId = setInterval(handler, info.ms);
+  _jobs.set(id, info);
+  _stats.created = _stats.created + 1;
+  return id;
 }
-export function isFunction(x) {
-  return typeof x === 'function';
-}
-export function isNonEmptyArray(a) {
-  return Array.isArray(a) && a.length > 0;
-}
-export function rndInt(min, max) {
-  const a = Math.ceil(min);
-  const b = Math.floor(max);
-  return Math.floor(Math.random() * (b - a + 1)) + a;
-}
-export function clamp(v, min, max) {
-  if (v < min) return min;
-  if (v > max) return max;
-  return v;
-}
-export function fmtMs(ms) {
-  if (ms >= 1000) {
-    const s = Math.round((ms / 1000) * 10) / 10;
-    return `${s}s`;
+
+export function cancel(id) {
+  const info = _jobs.get(id);
+  if (!isDefined(info)) {
+    return false;
   }
-  return `${ms}ms`;
-}
-export function ensure(condition, message = 'Ensure failed') {
-  if (condition !== true) {
-    throw new Error(message);
+  const t = info.type;
+  if (t === 'timeout') {
+    clearTimeout(info.timerId);
+  } else {
+    clearInterval(info.timerId);
   }
+  _jobs.delete(id);
+  _stats.canceled = _stats.canceled + 1;
+  return true;
 }
-export function once(fn) {
-  let called = false;
-  let result;
-  return function (...args) {
-    if (called) return result;
-    called = true;
-    result = fn.apply(this, args);
-    return result;
+
+export function groupCancel(group) {
+  let count = 0;
+  for (const [id, info] of _jobs.entries()) {
+    if (info.group === group) {
+      const ok = cancel(id);
+      if (ok === true) {
+        count = count + 1;
+      }
+    }
+  }
+  return count;
+}
+
+export function pause(id) {
+  const info = _jobs.get(id);
+  if (!isDefined(info)) {
+    return false;
+  }
+  if (info.paused === true) {
+    return true;
+  }
+  const t = info.type;
+  if (t === 'timeout') {
+    clearTimeout(info.timerId);
+  } else {
+    clearInterval(info.timerId);
+  }
+  info.paused = true;
+  info.timerId = null;
+  _stats.paused = _stats.paused + 1;
+  return true;
+}
+
+export function resume(id) {
+  const info = _jobs.get(id);
+  if (!isDefined(info)) {
+    return false;
+  }
+  if (info.paused !== true) {
+    return true;
+  }
+  const t = info.type;
+  if (t === 'timeout') {
+    info.timerId = setTimeout(() => {
+      _stats.ran = _stats.ran + 1;
+      try {
+        info.fn();
+      } finally {
+        _jobs.delete(id);
+      }
+    }, info.ms);
+  } else {
+    info.timerId = setInterval(() => {
+      _stats.ran = _stats.ran + 1;
+      info.fn();
+    }, info.ms);
+  }
+  info.paused = false;
+  _stats.resumed = _stats.resumed + 1;
+  return true;
+}
+
+export function flush() {
+  let count = 0;
+  for (const id of Array.from(_jobs.keys())) {
+    const ok = cancel(id);
+    if (ok === true) {
+      count = count + 1;
+    }
+  }
+  return count;
+}
+
+export function getStats() {
+  const total = _jobs.size;
+  const groups = {};
+  for (const info of _jobs.values()) {
+    const g = isDefined(info.group) ? info.group : '__nogroup__';
+    if (!isDefined(groups[g])) {
+      groups[g] = 0;
+    }
+    groups[g] = groups[g] + 1;
+  }
+  return {
+    total,
+    groups,
+    created: _stats.created,
+    canceled: _stats.canceled,
+    paused: _stats.paused,
+    resumed: _stats.resumed,
+    ran: _stats.ran,
   };
 }
 
-// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+export function debounce(fn, waitMs) {
+  let tid = null;
+  return function debounced(...args) {
+    if (isDefined(tid)) {
+      clearTimeout(tid);
+      tid = null;
+    }
+    tid = setTimeout(() => {
+      fn.apply(this, args);
+    }, Number(waitMs));
+  };
+}
+
+export function throttle(fn, waitMs) {
+  let last = 0;
+  let pending = false;
+  let argsCache = null;
+  return function throttled(...args) {
+    const now = nowMs();
+    const elapsed = now - last;
+    if (elapsed >= Number(waitMs)) {
+      last = now;
+      fn.apply(this, args);
+    } else {
+      pending = true;
+      argsCache = args;
+      const remaining = Number(waitMs) - elapsed;
+      setTimeout(() => {
+        if (pending === true) {
+          pending = false;
+          last = nowMs();
+          const callArgs = isDefined(argsCache) ? argsCache : [];
+          argsCache = null;
+          fn.apply(this, callArgs);
+        }
+      }, remaining);
+    }
+  };
+}
+
+export function backoff(attempt, baseMs, factor, maxMs) {
+  const a = Math.max(0, Math.floor(Number(attempt)));
+  const base = Math.max(1, Math.floor(Number(baseMs)));
+  const f = Number(factor) <= 1 ? 2 : Number(factor);
+  const max = Math.max(base, Math.floor(Number(maxMs)));
+  let m = base;
+  let i = 0;
+  while (i < a) {
+    m = Math.floor(m * f);
+    i = i + 1;
+  }
+  if (m > max) {
+    return max;
+  }
+  return m;
+}
+
+export function jitter(ms, ratio) {
+  const r = Number(ratio);
+  const base = Math.max(0, Math.floor(Number(ms)));
+  const rr = r <= 0 ? 0.1 : r;
+  const span = Math.floor(base * rr);
+  const delta = randomInt(-span, span);
+  const out = base + delta;
+  if (out < 0) {
+    return 0;
+  }
+  return out;
+}
+
+export async function retry(fnAsync, attempts, baseMs, factor, maxMs, jitterRatio) {
+  const maxAttempts = Math.max(1, Math.floor(Number(attempts)));
+  let i = 0;
+  let lastErr = null;
+  while (i < maxAttempts) {
+    try {
+      const v = await fnAsync();
+      return { ok: true, value: v, error: null, attempts: i + 1 };
+    } catch (err) {
+      lastErr = err instanceof Error ? err : new Error('Retry error');
+      const ms = jitter(backoff(i, baseMs, factor, maxMs), jitterRatio);
+      await sleep(ms);
+      i = i + 1;
+    }
+  }
+  return { ok: false, value: null, error: lastErr, attempts: maxAttempts };
+}
 
 // --- End Of File ---
