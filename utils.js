@@ -1,9 +1,8 @@
 // --- utils.js ---
-const VERSION = 'v1.4.5';
+const VERSION = 'v1.4.4';
 /*
 - Κοινόχρηστα, αγνά helpers (DRY API) για όλο το project.
-- Περιλαμβάνει booleans (anyTrue/allTrue), χρόνους (ts, fmtMs), logging (log), 
-τύπους/συλλογές (isDefined, isNonEmptyArray) και ελεγκτές (ensure)
+- Περιλαμβάνει booleans (anyTrue/allTrue), χρόνους (ts, fmtMs), logging (log), τύπους/συλλογές (isDefined, isNonEmptyArray, pick/omit), ελεγκτές (ensure) και ελαφρά wrappers πάνω από scheduler (retryWithJitter, sequential).
 */
 
 // --- Export Version ---
@@ -44,9 +43,10 @@ export function ts() {
   return `${hh}:${mm}:${ss}`;
 }
 
+
 // Απλό log: κονσόλα + app event (χωρίς imports)
 export function log(msg) {
-  const time = typeof ts === 'function' ? ts() : new Date().toLocaleTimeString();
+  const time = (typeof ts === 'function') ? ts() : new Date().toLocaleTimeString();
   const full = `[${time}] ${String(msg)}`;
 
   // Κονσόλα
@@ -63,33 +63,22 @@ export function log(msg) {
   }
 }
 
+
 // Extra helpers
 export function isDefined(x) {
-  if (x === undefined) {
-  return false;
-}
-if (x === null) {
-  return false;
-}
-return true;
+  return x !== undefined && x !== null;
 }
 export function isString(x) {
   return typeof x === 'string';
 }
 export function isNumber(x) {
-  if (typeof x !== 'number') {
-  return false;
-}
-return Number.isFinite(x);
+  return typeof x === 'number' && Number.isFinite(x);
 }
 export function isFunction(x) {
   return typeof x === 'function';
 }
 export function isNonEmptyArray(a) {
-  if (!Array.isArray(a)) {
-  return false;
-}
-return a.length > 0;
+  return Array.isArray(a) && a.length > 0;
 }
 export function rndInt(min, max) {
   const a = Math.ceil(min);

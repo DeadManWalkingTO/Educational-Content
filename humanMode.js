@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-const VERSION = 'v4.14.26';
+const VERSION = 'v4.14.22';
 /*
 Περιγραφή: Υλοποίηση Human Mode για προσομοίωση ανεξάρτητης, μη-συγχρονισμένης
 συμπεριφοράς σε πολλαπλούς players. 
@@ -46,8 +46,8 @@ import { PlayerController } from './playerController.js';
  * του YT.Player iframe. Ο στόχος είναι να αποφευχθεί η ταυτόχρονη κατασκευή
  * πολλών iframes, που μπορεί να δείχνει μη-ρεαλιστικό ή να επιβαρύνει την CPU.
  */
-const MICRO_STAGGER_MIN = 400; // ms;
-const MICRO_STAGGER_MAX = 600; // ms;
+const MICRO_STAGGER_MIN = 400; // ms
+const MICRO_STAGGER_MAX = 600; // ms
 
 /**
  * Συνάρτηση αναμονής (promise-based) για καθαρό χειρισμό καθυστερήσεων.
@@ -138,7 +138,7 @@ const BEHAVIOR_PROFILES = [
  */
 function createRandomPlayerConfig(profile) {
   const isFocus = anyTrue([profile?.name === 'Focused']);
-  const low = isFocus ? 5 : 10; // μικρότερο αρχικό seek για "Focused";
+  const low = isFocus ? 5 : 10; // μικρότερο αρχικό seek για "Focused"
   const high = isFocus ? 45 : 60;
 
   const initSeekSec = rndInt(low, high);
@@ -225,12 +225,11 @@ export async function initPlayersSequentially(mainList, altList) {
   for (let i = 0; i < PLAYER_COUNT; i++) {
     // Προγραμματισμός καθυστέρησης αναπαραγωγής: ο πρώτος player ξεκινά άμεσα,
     // οι υπόλοιποι με τυχαία καθυστέρηση ώστε να αποφευχθεί ταυτόχρονη εκκίνηση.
-    const playbackDelay = i === 0 ? 0 : rndInt(30, 180) * 1000; // σε ms;
+    const playbackDelay = i === 0 ? 0 : rndInt(30, 180) * 1000; // σε ms
     log(`⏳ Player ${i + 1} HumanMode Scheduled -> Start after ${Math.round(playbackDelay / 1000)}s`);
 
     // Micro-stagger: πριν από την κατασκευή του iframe, μικρή αναμονή για εξομάλυνση φόρτου.
     const microStagger = rndInt(MICRO_STAGGER_MIN, MICRO_STAGGER_MAX);
-    log(`⏳ Player ${i + 1} HumanMode Micro-stagger -> ${microStagger}ms`);
     await wait(microStagger);
     await wait(playbackDelay);
 
@@ -310,8 +309,6 @@ export async function initPlayersSequentially(mainList, altList) {
     await wait(extraDelay);
 
     // Τελική αρχικοποίηση του player με το επιλεγμένο videoId.
-    // Force zero start delay for the first player (i === 0)
-    try { if (i === 0) { if (!config) { config = {}; } config.startDelay = 0; } } catch (_) {}
     controller.init(videoId);
     log(`👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
   }

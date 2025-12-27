@@ -1,5 +1,5 @@
 // --- scheduler.js ---
-const VERSION = 'v1.2.11';
+const VERSION = 'v1.2.9';
 /*
 Περιγραφή (1/3): Γενικός Scheduler χωρίς imports και χωρίς side-effects.
 Περιγραφή (2/3): Παρέχει delay/repeat/cancel/groupCancel/debounce/throttle/backoff/retry/jitter/pause/resume/flush/getStats.
@@ -22,27 +22,18 @@ let __pausedTags = [];
 let __stats = { scheduled: 0, executed: 0, canceled: 0, failed: 0 };
 
 function __inArray(arr, item) {
-  // 1) Ρητός έλεγχος undefined/null χωρίς χρήση ||
-  if (arr === undefined) {
+  if (!arr) {
     return false;
   }
-  if (arr === null) {
-    return false;
-  }
-
-  // 2) Πρέπει να είναι πραγματικός πίνακας
   if (!Array.isArray(arr)) {
     return false;
   }
-
-  // 3) Strict ισότητα όπως στο αρχικό
   for (let i = 0; i < arr.length; i++) {
     const v = arr[i];
     if (v === item) {
       return true;
     }
   }
-
   return false;
 }
 
@@ -56,9 +47,6 @@ export function jitter(baseMs, spreadMs) {
 
 export function delay(fn, ms, tag) {
   const t = typeof ms === 'number' ? ms : 0;
-  if (typeof tag === 'string') {
-    try { console.log(`[${new Date().toLocaleTimeString()}] ⏳ scheduler.delay tag=${tag} ms=${t}`); } catch (_) {}
-  }
   const id = setTimeout(function () {
     if (__inArray(__pausedTags, tag)) {
       return;
@@ -75,7 +63,6 @@ export function delay(fn, ms, tag) {
   return id;
 }
 
-
 export function cancel(id) {
   clearTimeout(id);
   clearInterval(id);
@@ -91,9 +78,6 @@ export function cancel(id) {
 }
 
 export function repeat(fn, ms, tag) {
-  if (typeof tag === 'string') {
-    try { console.log(`[${new Date().toLocaleTimeString()}] 🔁 scheduler.repeat tag=${tag} every=${ms}ms`); } catch (_) {}
-  }
   function loop() {
     if (__inArray(__pausedTags, tag)) {
       delay(loop, ms, tag);
@@ -113,7 +97,6 @@ export function repeat(fn, ms, tag) {
   __stats.scheduled = __stats.scheduled + 1;
   return id;
 }
-
 
 export function groupCancel(tag) {
   const keep = [];
@@ -186,115 +169,50 @@ export function backoff(attempt, baseMs, factor, maxMs) {
 }
 
 export function retry(taskFn, opts) {
-  // 1) Ρητή ανάθεση config χωρίς "||"
-  let cfg = {};
-  if (typeof opts !== 'undefined') {
-    if (opts !== null) {
-      cfg = opts;
-    }
-  }
-
-  // 2) Προεπιλογές με ρητούς ελέγχους
-  let maxAttempts = 3;
-  if (typeof cfg.maxAttempts === 'number') {
-    maxAttempts = cfg.maxAttempts;
-  }
-
-  let baseDelayMs = 2000;
-  if (typeof cfg.baseDelayMs === 'number') {
-    baseDelayMs = cfg.baseDelayMs;
-  }
-
-  let jitterMs = 1000;
-  if (typeof cfg.jitterMs === 'number') {
-    jitterMs = cfg.jitterMs;
-  }
-
-  let factor = 1.5;
-  if (typeof cfg.factor === 'number') {
-    factor = cfg.factor;
-  }
-
-  let tag = 'retry';
-  if (typeof cfg.tag === 'string') {
-    tag = cfg.tag;
-  }
-
-  // 3) Αμυντικός έλεγχος
-  if (typeof taskFn !== 'function') {
-    return;
-  }
-
+  const cfg = opts || {};
+  const maxAttempts = typeof cfg.maxAttempts === 'number' ? cfg.maxAttempts : 3;
+  const baseDelayMs = typeof cfg.baseDelayMs === 'number' ? cfg.baseDelayMs : 2000;
+  const jitterMs = typeof cfg.jitterMs === 'number' ? cfg.jitterMs : 1000;
+  const factor = typeof cfg.factor === 'number' ? cfg.factor : 1.5;
+  const tag = typeof cfg.tag === 'string' ? cfg.tag : 'retry';
   let attempt = 1;
-
   function run() {
     let ok = false;
     try {
-      const result = taskFn(attempt);
-      // Αν θες «truthy» semantics τότε:
-      // ok = !!result;
-      if (result === true) {
-        ok = true;
-      } else {
-        ok = false;
-      }
+      ok = !!taskFn(attempt);
     } catch (e) {
       ok = false;
     }
-
     if (ok) {
       return;
     }
-
     attempt = attempt + 1;
     if (attempt > maxAttempts) {
       return;
     }
-
-    const maxDelayMs = baseDelayMs * 20;
-    const dBackoff = backoff(attempt, baseDelayMs, factor, maxDelayMs);
-    const dJitter = jitter(jitterMs, jitterMs);
-    const d = dBackoff + dJitter;
-
+    const d = backoff(attempt, baseDelayMs, factor, baseDelayMs * 20) + jitter(jitterMs, jitterMs);
     delay(run, d, tag);
   }
-
-  // αρχική έναρξη με jitter γύρω από το baseDelay
-  const initialDelay = jitter(baseDelayMs, jitterMs);
-  delay(run, initialDelay, tag);
+  delay(run, jitter(baseDelayMs, jitterMs), tag);
 }
 
 export function flush(tag) {
   const keep = [];
-
   for (let i = 0; i < __timers.length; i++) {
     const t = __timers[i];
-
-    // ① ταιριάζει το ζητούμενο tag;
-    if (t.tag === tag) {
-      // ② είναι καταχωρημένος ως timeout;
-      if (t.kind === 'timeout') {
-        try {
-          // εκτέλεση προγραμματισμένης συνάρτησης
-          t.fn();
-          __stats.executed = __stats.executed + 1;
-        } catch (e) {
-          __stats.failed = __stats.failed + 1;
-        }
-
-        // ακύρωση timeout + λογιστικά
-        clearTimeout(t.id);
-        __stats.canceled = __stats.canceled + 1;
-      } else {
-        // tag ταιριάζει, αλλά ΔΕΝ είναι timeout → το κρατάμε
-        keep.push(t);
+    if (t.tag === tag && t.kind === 'timeout') {
+      try {
+        t.fn();
+        __stats.executed = __stats.executed + 1;
+      } catch (e) {
+        __stats.failed = __stats.failed + 1;
       }
+      clearTimeout(t.id);
+      __stats.canceled = __stats.canceled + 1;
     } else {
-      // tag δεν ταιριάζει → το κρατάμε
       keep.push(t);
     }
   }
-
   __timers = keep;
 }
 

@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v6.24.7';
+const VERSION = 'v6.24.5';
 /*
 Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
 Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry, debounce } from './scheduler.js';
+import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } from './scheduler.js';
 import { log, rndInt, anyTrue, allTrue } from './utils.js';
 import { AUTO_NEXT_LIMIT_PER_PLAYER, MAIN_PROBABILITY, canAutoNext, controllers, getOrigin, getYouTubeEmbedHost, hasUserGesture, incAutoNext, stats } from './globals.js';
 
@@ -182,7 +182,7 @@ function doSeek(player, seconds) {
   // > 120 min: 10–15%
 */
 export function getRequiredWatchTime(durationSec) {
-  var capSec = (15 + rndInt(0, 5)) * 60; // ανώτατο όριο απαίτησης (λεπτά -> sec);
+  var capSec = (15 + rndInt(0, 5)) * 60; // ανώτατο όριο απαίτησης (λεπτά -> sec)
   var minPct = 0.5;
   var maxPct = 0.7;
   if (durationSec < 120) {
@@ -205,9 +205,9 @@ export function getRequiredWatchTime(durationSec) {
   if (span < 0) {
     span = 0;
   }
-  var pct = minPct + Math.random() * span; // ποσοστό απαιτούμενης θέασης;
+  var pct = minPct + Math.random() * span; // ποσοστό απαιτούμενης θέασης
   var b = rndInt(-1, 1);
-  var bias = b * 0.01; // μικρή μεταβολή +-1%;
+  var bias = b * 0.01; // μικρή μεταβολή +-1%
   pct = pct + bias;
   if (pct < 0.05) {
     pct = 0.05;
@@ -364,7 +364,7 @@ export class PlayerController {
     const dyn = typeof getDynamicOrigin === 'function' ? getDynamicOrigin() : '';
     const computedOrigin = dyn ? dyn : window.location?.origin ?? '';
     const isValidOrigin = allTrue([typeof computedOrigin === 'string', /^https?:\/\/[^/]+$/.test(computedOrigin), !/^file:\/\//.test(computedOrigin), computedOrigin !== '<URL>']);
-    const hostVal = getYouTubeHostFallback(); // μόνο για ενημερωτικό logging;
+    const hostVal = getYouTubeHostFallback(); // μόνο για ενημερωτικό logging
 
     this.player = new YT.Player(containerId, {
       videoId,
@@ -372,7 +372,7 @@ export class PlayerController {
       playerVars: {
         enablejsapi: 1,
         playsinline: 1,
-        origin: getOrigin(),
+        ...(isValidOrigin ? { origin: getOrigin() } : {}),
       },
       events: {
         onReady: (e) => this.onReady(e),
@@ -381,7 +381,7 @@ export class PlayerController {
       },
     });
 
-    log(`ℹ️ YT PlayerVars origin→ ${getOrigin()} host→ ${hostVal}`);
+    log(`ℹ️ YT PlayerVars origin→ ${isValidOrigin ? computedOrigin : '(none)'} host→ ${hostVal}`);
     log(`ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
     log(`👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
   }
@@ -401,8 +401,6 @@ export class PlayerController {
     log(`⏳ Player ${this.index + 1} Scheduled -> start after ${startDelaySec}s`);
 
     const __jitterMs = 100 + Math.floor(Math.random() * 120);
-    const __effDelay = startDelay + __jitterMs;
-    groupCancel(`start:p${this.index + 1}`);
     scheduleDelay(() => {
       try {
         if (typeof e.target.seekTo === 'function') {
@@ -430,7 +428,7 @@ export class PlayerController {
           log(`❌ Player ${this.index + 1} onReady Error ${String(_e?.message ?? _e)}`);
         }
       }
-    }, __effDelay, `start:p${this.index + 1}`); // effective delay = startDelay + jitter
+    }, __jitterMs); // JITTER_APPLIED: μικρή μετατόπιση για σταθερότητα IFrame μηνυμάτων
 
     scheduleDelay(() => {
       var seekSec = typeof this.initialSeekSec === 'number' ? this.initialSeekSec : '-';
@@ -516,17 +514,13 @@ export class PlayerController {
         log(`🟢 Player ${this.index + 1} State -> UNSTARTED`);
         break;
       case YT.PlayerState.ENDED:
-        log(`🛑 Player ${this.index + 1} State -> ENDED`);
         this.clearTimers();
-        groupCancel(`ended-guard:p${this.index + 1}`);
-        scheduleDelay(() => {
-          if (guardHasAnyList(this)) {
-            this.loadNextVideo(p);
-          } else {
-            stats.errors++;
-            log(`❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
-          }
-        }, 150, `ended-guard:p${this.index + 1}`);
+        if (guardHasAnyList(this)) {
+          this.loadNextVideo(p);
+        } else {
+          stats.errors++;
+          log(`❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
+        }
         return;
       case YT.PlayerState.PLAYING:
         if (!this.isPlayingActive) {
@@ -592,7 +586,7 @@ export class PlayerController {
       const duration = typeof p.getDuration === 'function' ? p.getDuration() : 0;
       const percentWatched = duration > 0 ? Math.round((this.totalPlayTime / duration) * 100) : 0;
       log(`✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(this.totalPlayTime)}s)`);
-      const afterEndPauseMs = rndInt(15000, 60000); // σύντομη παύση πριν την επόμενη επιλογή;
+      const afterEndPauseMs = rndInt(15000, 60000); // σύντομη παύση πριν την επόμενη επιλογή
       scheduleDelay(() => {
         const requiredTime = getRequiredWatchTime(duration);
         if (this.totalPlayTime < requiredTime) {

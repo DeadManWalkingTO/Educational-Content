@@ -1,38 +1,11 @@
-# CHANGELOG.md - v206
+# CHANGELOG.md - v199
 
 ---
 
-## 2025-12-27
+**2025-12-27**
 
-- eventBus.api.js: v1.2.0 → v1.2.1 | Προσθήκη size() αν έλειπε, διατήρηση υλοποίησης, header & SemVer.
-- main.js old → new: v3.44.13 → v3.44.14
-  summary: Restored legacy main.js template (versions panel, DOM gate, YouTube gate with timeout, legacy-only imports). Composition Root removed. No API usage yet.
-- Extraction: baseline dump exported into BASE/ (18 files).
-- INTEGRITY_REPORT.md: Generated and auto-scan appended (external to repo).
-- ARCHITECTURE.md & TRANSITION_GUIDE.md: Added 'Current Baseline' references (external docs).
-- M1: Created utils.api.js, scheduler.api.js, youtubeReady.api.js (pure APIs, no imports/side-effects).
-- M2: Created sequencing.api.js, logger.api.js, guards.api.js, player.policy.api.js, eventBus.api.js (DRY kits).
-- M3: Created humanMode.api.js, playerController.api.js, uiControls.api.js, lists.api.js, watchdog.api.js (facades).
-- Barrel: deps.index.js added (optional mono export).
-- main.js: Composition Root wiring moved to top as proper ESM imports; removed appended scaffold.
-- Bundles: Delivered 25-12-27---21-34.zip and 25-12-27---21-34---BASE.zip.
-- humanMode.js: v4.14.25 → v4.14.26 — Ensure Player 1 starts immediately (config.startDelay = 0 for i===0).
-- humanMode.js: v4.14.24 → v4.14.25 — Fix ReferenceError (log micro-stagger AFTER initialization).
-- playerController.js: v6.24.6 → v6.24.7 — Always set `playerVars.origin`, add ENDED logging with guard delay (150ms) and job key (`ended-guard:pN`); fix start scheduling to use `startDelay + jitter` with job key (`start:pN`).
-- humanMode.js: v4.14.23 → v4.14.24 — Extra diagnostic log for micro-stagger (effective ms).
-- scheduler.js: v1.2.10 → v1.2.11 — Diagnostic labels: log `tag` and `ms` for `delay()` / `repeat()`.
-- lists.js: patch +1 — Fix syntax error at chain (return `.split()` chaining), ensure SemVer bump.
-- consoleFilter.js: v3.4.12 → v3.4.13 — Add missing semicolons.
-- globals.js: v4.12.21 → v4.12.22 — Add missing semicolons.
-- humanMode.js: v4.14.22 → v4.14.23 — Add missing semicolons.
-- lists.js: v4.12.14 → v4.12.15 — Add missing semicolons.
-- playerController.js: v6.24.5 → v6.24.6 — Add missing semicolons.
-- scheduler.js: v1.2.9 → v1.2.10 — Replace disallowed logical operators (no ||/&&).
-- uiControls.js: v3.18.34 → v3.18.35 — Add missing semicolons.
-- utils.js: v1.4.4 → v1.4.5 — Replace disallowed logical operators (no ||/&&).
-- watchdog.js: v2.22.12 → v2.22.13 — Add missing semicolons.
-- youtubeReady.js: v1.2.3 → v1.2.4 — Replace disallowed logical operators (no ||/&&).
-  DRY refactor: Replace imports from globals.js → utils.js (where feasible)
+DRY refactor: Replace imports from globals.js → utils.js (where feasible)
+
 - uiControls.js: import globals.js → utils.js; bump patch version
 - versionReporter.js: import globals.js → utils.js; bump patch version
 - watchdog.js: import globals.js → utils.js; bump patch version
@@ -41,7 +14,7 @@
 - main.js: import globals.js → utils.js; bump patch version
 - lists.js: import globals.js → utils.js; bump patch version
 
-## 2025-12-25
+**2025-12-25**
 
 - consoleFilter.js: v3.0.3 → v3.0.4 — Header auto-fix (VERSION → Γρ.2; getVersion(); EOF; patch +1).
 - globals.js: v4.8.10 → v4.8.11 — Header auto-fix (VERSION → Γρ.2; getVersion(); EOF; patch +1).

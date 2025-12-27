@@ -1,5 +1,5 @@
 // --- main.js ---
-const VERSION = 'v3.44.14';
+const VERSION = 'v3.44.10';
 /*
 Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 Ορίζει start gate ώστε η εκκίνηση να γίνεται είτε με user gesture (κουμπί) είτε με fallback.
