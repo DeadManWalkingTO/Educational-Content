@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v6.30.5';
+const VERSION = 'v6.30.6';
 /*
 Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
 Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
@@ -258,7 +258,6 @@ export class PlayerController {
     if (anyTrue([!p])) return;
     const duration = typeof p.getDuration === 'function' ? p.getDuration() : 0;
     if (duration < 300) return;
-
     const interval = this.config?.midSeekInterval ?? rndInt(8, 12) * 60000;
     this.timers.midSeek = scheduleDelay(() => {
       const canPlayNow = allTrue([duration > 0, typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING]);
@@ -298,7 +297,6 @@ export class PlayerController {
       }
     }
   }
-
   clearTimers() {
     this.timers.pauseTimers.forEach((id) => {
       cancel(id);
@@ -364,16 +362,13 @@ export class PlayerController {
    */
   init(videoId) {
     const containerId = `player${this.index + 1}`;
-    const originVal = getOrigin();
-    const isValidOrigin = allTrue([typeof originVal === 'string', /^https?:\/\/[^/]+$/.test(originVal), !/^file:\/\//.test(originVal), originVal !== '<URL>']);
-
     this.player = new YT.Player(containerId, {
       videoId,
       host: getYouTubeEmbedHost(),
       playerVars: {
         enablejsapi: 1,
         playsinline: 1,
-        ...(isValidOrigin ? { origin: originVal } : {}),
+        origin: getOrigin(), // <-- χρήση απευθείας του getOrigin()
       },
       events: {
         onReady: (e) => this.onReady(e),
@@ -381,7 +376,7 @@ export class PlayerController {
         onError: () => this.onError(),
       },
     });
-    log(`ℹ️ YT PlayerVars origin→ ${isValidOrigin ? originVal : '(none)'} host→ ${getYouTubeEmbedHost()}`);
+    log(`ℹ️ YT PlayerVars origin→ ${getOrigin()} host→ ${getYouTubeEmbedHost()}`);
     log(`ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
     log(`👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
   }
@@ -393,11 +388,9 @@ export class PlayerController {
     const p = e.target;
     this.startTime = Date.now();
     p.mute();
-
     const startDelaySec = this.config?.startDelay ?? rndInt(5, 180);
     const startDelay = startDelaySec * 1000;
     log(`⏳ Player ${this.index + 1} Scheduled -> start after ${startDelaySec}s`);
-
     const __jitterMs = 100 + Math.floor(Math.random() * 120);
     scheduleDelay(() => {
       try {
@@ -427,14 +420,12 @@ export class PlayerController {
         }
       }
     }, __jitterMs);
-
     scheduleDelay(() => {
       const seekSec = typeof this.initialSeekSec === 'number' ? this.initialSeekSec : '-';
       log(`▶ Player ${this.index + 1} Ready -> Seek= ${seekSec}s after ${startDelaySec}s`);
       this.schedulePauses();
       this.scheduleMidSeek();
     }, startDelay);
-
     // Auto Unmute + fallback
     const unmuteDelayExtra = this.config?.unmuteDelayExtra ?? rndInt(30, 90);
     const unmuteDelay = (startDelaySec + unmuteDelayExtra) * 1000;
@@ -518,7 +509,6 @@ export class PlayerController {
           tSec = pLocal.getCurrentTime();
         }
       } catch (_) {}
-
       // είναι προγραμματισμένο κάτι;
       let scheduled = false;
       try {
@@ -554,7 +544,6 @@ export class PlayerController {
           }
         }
       } catch (_) {}
-
       // state name helper
       const stateName = (v) => {
         let name = 'UNKNOWN';
@@ -784,7 +773,6 @@ export class PlayerController {
     else if (allTrue([!useMain, hasAlt])) list = this.altList;
     else if (hasMain) list = this.mainList;
     else list = this.altList;
-
     const listLen = list ? list.length : 0;
     if (listLen === 0) {
       stats.errors++;
@@ -815,15 +803,12 @@ export class PlayerController {
     if (!allTrue([p ? true : false, typeof p.getDuration === 'function'])) return;
     const duration = p.getDuration();
     if (duration <= 0) return;
-
     const plan = getPausePlan(duration);
     const pauseChance = typeof this.config?.pauseChance === 'number' ? this.config.pauseChance : 0.3;
-
     let count = plan.count;
     if (pauseChance < 0.5) {
       count = Math.max(0, Math.floor(count * pauseChance));
     }
-
     for (let i = 0; i < count; i++) {
       const delayMs = rndInt(Math.floor(duration * 0.1), Math.floor(duration * 0.8)) * 1000;
       const pauseLen = rndInt(plan.min, plan.max) * 1000;
@@ -844,11 +829,6 @@ export class PlayerController {
   }
 
   /**
-   * clearTimers()
-   */
-  // (Παραμένει για συμβατότητα — χρησιμοποιεί utils.cancel)
-
-  /**
    * _stateManagerDispatch(state, event)
    */
   _stateManagerDispatch(state, event) {
@@ -866,25 +846,25 @@ export class PlayerController {
     }
   }
   _onUnstarted() {
-    log(`🎬 Player ${this.index + 1} State→ UNSTARTED`);
+    log(`🎬 Player ${this.index + 1} State = UNSTARTED`);
   }
   _onEnded() {
-    log(`🏁 Player ${this.index + 1} State→ ENDED`);
+    log(`🏁 Player ${this.index + 1} State = ENDED`);
     try {
       window.dispatchEvent(new CustomEvent('videoEnded', { detail: { index: this.index } }));
     } catch (_) {}
   }
   _onPlaying() {
-    log(`▶️ Player ${this.index + 1} State→ PLAYING`);
+    log(`▶️ Player ${this.index + 1} State = PLAYING`);
   }
   _onPaused() {
-    log(`⏸️ Player ${this.index + 1} State→ PAUSED`);
+    log(`⏸️ Player ${this.index + 1} State = PAUSED`);
   }
   _onBuffering() {
-    log(`⏳ Player ${this.index + 1} State→ BUFFERING`);
+    log(`⏳ Player ${this.index + 1} State = BUFFERING`);
   }
   _onCued() {
-    log(`🎯 Player ${this.index + 1} State→ CUED`);
+    log(`🎯 Player ${this.index + 1} State = CUED`);
   }
 }
 /** PlayerController class --- End */

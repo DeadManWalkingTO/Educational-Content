@@ -4,6 +4,9 @@
 
 ## 2025-12-28
 
+- playerController.js v6.30.5 → v6.30.6
+  - Removed `isValidOrigin` and `originVal`; always pass `origin: getOrigin()` to YouTube `playerVars`.
+  - Simplified related logging. No functional changes beyond origin handling.
 - playerController.js: v6.30.4 → v6.30.5
   - Unified origin/host via globals.getOrigin/getYouTubeEmbedHost; removed local dynamic-origin helpers.
   - Mid-seek refactor: \_doMidSeekOnce() + scheduleMidSeek(); constructor init of seekDefaults/seekMeta.
