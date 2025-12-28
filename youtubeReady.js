@@ -1,10 +1,10 @@
 // --- youtubeReady.js ---
-const VERSION = 'v1.2.3';
+const VERSION = 'v1.3.0';
 /*
-- Καθαρό API readiness για YouTube IFrame Player API. - Δεν χρησιμοποιεί imports, εκθέτει μόνο exports (ESM). 
-- Δηλώνει global callback window.onYouTubeIframeAPIReady (απαίτηση API).
-- Παρέχει Promise με timeout (resolve όταν υπάρχουν YT και YT.Player ως function).
-*/
+ * Σκοπός: Promise readiness για το YouTube IFrame Player API με timeout και ασφαλή injection του script.
+ * Αξιοποίηση utils.js: isDefined, isFunction, log, delay, cancel, scheduleSafe, fmtMs.
+ * Αλλαγές: Αποφυγή AND - OR, global callback, timeout μέσω utils.delay.
+ */
 
 // --- Export Version ---
 export function getVersion() {
@@ -17,70 +17,108 @@ const FILENAME = import.meta.url.split('/').pop();
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
-/** Επιστρέφει true όταν window.YT υπάρχει και YT.Player είναι function. */
+import { isDefined, isFunction, log, delay, cancel, scheduleSafe, fmtMs } from './utils.js';
+
+/** Επιστρέφει true όταν υπάρχει window.YT και YT.Player είναι function. */
 function isApiReady() {
-  const hasWindow = typeof window !== 'undefined';
-  if (!hasWindow) {
+  let hasWindow = false;
+  try {
+    hasWindow = typeof window !== 'undefined';
+  } catch (_) {
+    hasWindow = false;
+  }
+
+  if (hasWindow !== true) {
     return false;
   }
-  if (!window.YT) {
+
+  if (isDefined(window.YT) !== true) {
     return false;
   }
-  const hasPlayerFn = typeof window.YT.Player === 'function';
-  if (!hasPlayerFn) {
+
+  const playerIsFn = isFunction(window.YT.Player);
+  if (playerIsFn !== true) {
     return false;
   }
+
   return true;
 }
 
-/** Προαιρετικό: εισαγωγή του script της IFrame API αν δεν υπάρχει ήδη. */
+/** Προσπαθεί να εγχύσει το script της IFrame API αν δεν υπάρχει ήδη. */
 function ensureIframeApiScriptInjected() {
   try {
     const hasDoc = typeof document !== 'undefined';
-    if (!hasDoc) {
+    if (hasDoc !== true) {
       return;
     }
+
     const scripts = document.getElementsByTagName('script');
     let found = false;
-    for (let i = 0; i < scripts.length; i += 1) {
+
+    let i = 0;
+    while (i < scripts.length) {
       const s = scripts[i];
-      if (typeof s.src === 'string') {
-        if (s.src.indexOf('youtube.com/iframe_api') >= 0) {
-          found = true;
+      if (isDefined(s) === true) {
+        const hasSrc = isDefined(s.src);
+        if (hasSrc === true) {
+          const idx = s.src.indexOf('youtube.com/iframe_api');
+          if (idx >= 0) {
+            found = true;
+          }
         }
       }
+      i = i + 1;
     }
-    if (!found) {
+
+    if (found !== true) {
       const tag = document.createElement('script');
       tag.src = 'https://www.youtube.com/iframe_api';
+
       const firstScriptTag = scripts[0];
-      if (firstScriptTag && firstScriptTag.parentNode) {
-        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-        return;
+      if (isDefined(firstScriptTag) === true) {
+        const hasParent = isDefined(firstScriptTag.parentNode);
+        if (hasParent === true) {
+          firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+          log('📎 YouTube IFrame API script injected before first <script>.');
+          return;
+        }
       }
-      if (document.head) {
+
+      const hasHead = isDefined(document.head);
+      if (hasHead === true) {
         document.head.appendChild(tag);
+        log('📎 YouTube IFrame API script injected into <head>.');
       }
     }
   } catch (_) {
-    // Αν κάτι πάει στραβά εδώ, θα το «πιάσει» το timeout του youtubeReady().
+    // Σε σφάλμα DOM (π.χ. non-browser), θα αναλάβει το timeout του youtubeReady().
   }
 }
 
 /**
- * Καθαρό readiness Promise για YouTube IFrame API.
- * - Δεν απαιτεί imports.
- * - Ορίζει global callback (σύμφωνα με την επίσημη προδιαγραφή).
- * - Περιλαμβάνει timeout για να μην «κρεμάει» άπειρα.
+ * YouTube IFrame API readiness (Promise).
+ * - Δεν απαιτεί άλλα imports πέραν του utils.js (ESM).
+ * - Ορίζει global callback window.onYouTubeIframeAPIReady (καλούμαστε από την API).
+ * - Υλοποιεί timeout χωρίς &&/||.
  *
- * @param {number} timeoutMs  Μέγιστος χρόνος αναμονής (προεπιλογή 20000 ms).
- * @returns {Promise<void>}   Resolve όταν είναι έτοιμη η API.
+ * @param {number} timeoutMs Μέγιστος χρόνος αναμονής (προεπιλογή 20000 ms).
+ * @returns {Promise<void>} Resolve όταν η API είναι έτοιμη, αλλιώς reject.
  */
 export function youtubeReady(timeoutMs) {
-  const T = typeof timeoutMs === 'number' ? timeoutMs : 20000;
+  let T = 20000;
+  try {
+    // Επικύρωση χρόνου με isFiniteNumber μέσω utils; εδώ κρατάμε απλή αριθμητική.
+    const n = Number(timeoutMs);
+    const isValid = Number.isFinite(n);
+    if (isValid === true) {
+      T = Math.floor(n);
+    }
+  } catch (_) {
+    // no-op: χρήση προεπιλογής
+  }
 
-  // Αν είναι ήδη έτοιμο, επιστρέφει resolve άμεσα.
-  if (isApiReady()) {
+  // Αν είναι ήδη έτοιμο, επιστρέφουμε άμεσα.
+  if (isApiReady() === true) {
     return Promise.resolve();
   }
 
@@ -88,50 +126,81 @@ export function youtubeReady(timeoutMs) {
     let done = false;
 
     function complete(ok) {
-      if (done) {
+      if (done === true) {
         return;
       }
       done = true;
+
+      // Ακύρωση τυχόν προγραμματισμένου timeout μέσω scheduler.
       try {
-        clearTimeout(timer);
+        if (isDefined(timerJobId) === true) {
+          const canceled = cancel(timerJobId);
+          // Προαιρετικό log για debugging
+          if (canceled === true) {
+            log('⏹️ Timeout job canceled.');
+          }
+        }
       } catch (_) {}
-      if (ok) {
+
+      if (ok === true) {
         resolve();
         return;
       }
+
       reject(new Error('YouTube IFrame API readiness timed out'));
     }
 
-    // Timeout
-    const timer = setTimeout(function () {
-      complete(false);
-    }, T);
+    // Timeout μέσω utils.delay ώστε να αποφύγουμε raw setTimeout.
+    const timerLabel = 'YT-API-Timeout';
+    const timerJobId = delay(
+      function () {
+        log('⏰ Timeout: ' + fmtMs(T));
+        complete(false);
+      },
+      T,
+      'youtubeReady'
+    );
 
-    // Δήλωση επίσημου global callback (απαιτούμενο από την API).
+    // Ορισμός global callback (καλείται από το script της API όταν φορτώσει).
     try {
-      // Αν υπάρχει ήδη, τυλίγουμε/αντικαθιστούμε με ασφαλή συμπεριφορά.
-      // Η σύμβαση της API είναι ότι θα κληθεί αυτή η συνάρτηση όταν φορτωθεί ο κώδικας.
       window.onYouTubeIframeAPIReady = function () {
-        if (isApiReady()) {
+        if (isApiReady() === true) {
+          log('✅ onYouTubeIframeAPIReady: API ready.');
           complete(true);
           return;
         }
-        // Microtask defer για edge-cases.
-        setTimeout(function () {
-          const ok = isApiReady();
-          complete(ok);
-        }, 0);
+
+        // Microtask defer για edge-cases, μέσω scheduleSafe (>=0 ms).
+        scheduleSafe(
+          function () {
+            const ok = isApiReady();
+            if (ok === true) {
+              log('✅ Deferred check: API ready.');
+              complete(true);
+              return;
+            }
+            log('⚠️ Deferred check: API still not ready.');
+            complete(false);
+          },
+          0,
+          'youtubeReady',
+          'YT-Deferred-Check'
+        );
       };
     } catch (_) {
-      // Αν δεν υπάρχει window (π.χ. non-browser), θα λήξει με timeout.
+      // Αν βρισκόμαστε σε περιβάλλον χωρίς window (π.χ. non-browser),
+      // θα λήξει στο timeout παραπάνω.
     }
 
-    // Προαιρετικό: φροντίζουμε να υπάρχει το script της API.
+    // Διασφάλιση ότι έχει εγχυθεί το script της API.
     ensureIframeApiScriptInjected();
+
+    // Προαιρετικό log εκκίνησης.
+    log('🚀 Φόρτωση: ' + FILENAME + ' ' + VERSION + ' -> Αναμονή YouTube IFrame API...');
   });
 }
 
-// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

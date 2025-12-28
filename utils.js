@@ -11,6 +11,12 @@ export function getVersion() {
   return VERSION;
 }
 
+//Όνομα αρχείου για logging.
+const FILENAME = import.meta.url.split('/').pop();
+
+// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
+
 /**
 - Ενότητες:
   (A) Logic/Guards/Types (anyTrue/allTrue/isDefined/...)
@@ -619,5 +625,8 @@ export function scheduleSafe(fn, ms, group, label) {
     grp
   );
 }
+
+/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---
