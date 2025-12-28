@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v1.0.5';
+const VERSION = 'v1.2.5';
 /*
  * Περιγραφή: Εξωτερική υλοποίηση για YT onStateChange + state dispatcher.
  * Ρόλος: Αναλαμβάνει logging, fake-end guard hooks, unmute/retry hooks, AutoNext hooks,
@@ -59,7 +59,7 @@ export function onStateChangeExternal(ctrl, e) {
     if (hasData) {
       s = e.data;
     } else {
-      const canReadPlayerState = allTrue([!!ctrl.player, isFunction(ctrl.player?.getPlayerState)]);
+      const canReadPlayerState = allTrue([!!ctrl.player, isFunction(ctrl.player?.getPlayerState)]); // pure checks
       if (canReadPlayerState) {
         s = ctrl.player.getPlayerState();
       } else {
@@ -70,11 +70,19 @@ export function onStateChangeExternal(ctrl, e) {
     log(`❌ Player ${ctrl.index + 1} StateChange Error ${String(err?.message ?? err)}`);
   }
 
-  /* Εμπλουτισμένο logging με debounced βοηθό */
+  /* Εμπλουτισμένο logging */
   try {
     let prevState = ctrl.lastKnownState;
     if (typeof prevState === 'undefined') {
-      prevState = YT.PlayerState.UNSTARTED;
+      if (typeof YT !== 'undefined') {
+        if (typeof YT.PlayerState !== 'undefined') {
+          prevState = YT.PlayerState.UNSTARTED;
+        } else {
+          prevState = -1;
+        }
+      } else {
+        prevState = -1;
+      }
     }
     let tSec = 0;
     try {
@@ -84,9 +92,11 @@ export function onStateChangeExternal(ctrl, e) {
         tSec = pLocal.getCurrentTime();
       }
     } catch (_) {}
+
+    // Υπολογισμός "scheduled" χωρίς &&/||
     let scheduled = false;
     try {
-      const hasTimersObj = !!ctrl.timers && typeof ctrl.timers === 'object';
+      const hasTimersObj = allTrue([typeof ctrl.timers !== 'undefined', ctrl.timers !== null, typeof ctrl.timers === 'object']);
       if (hasTimersObj) {
         let hasPauseTimers = false;
         const hasPauseArr = Array.isArray(ctrl.timers?.pauseTimers);
@@ -150,11 +160,11 @@ export function onStateChangeExternal(ctrl, e) {
       }
       return name;
     };
-
     const tag = scheduled === true ? 'scheduled' : 'random';
     const msg = `State: ${stateName(s)} (prev: ${stateName(prevState)}) — ${tag} — t=${String(Math.round(tSec))}s`;
     stateLogDebounced(ctrl.index, msg);
     ctrl.lastKnownState = s;
+
     try {
       dispatchPlayerState(ctrl, s, e);
     } catch (_) {}
@@ -168,7 +178,7 @@ export function onStateChangeExternal(ctrl, e) {
         log(`🟢 Player ${ctrl.index + 1} State -> UNSTARTED`);
       } else {
         if (s === YT.PlayerState.ENDED) {
-          /* FAKE-END GUARD: αν παίχτηκε < 3s, κάνε μικρό rewind + play και μην μετράς Watched% */
+          /* FAKE-END GUARD */
           const minRealPlaySec = 3;
           const pp = ctrl.player;
           let durForGuard = 0;
@@ -190,7 +200,6 @@ export function onStateChangeExternal(ctrl, e) {
             log(`↩️ Player ${ctrl.index + 1} Fake-end guard -> rewind ${back}s & retry play`);
             return;
           }
-
           ctrl.clearTimers();
           log(`🔚 Player ${ctrl.index + 1} State -> ENDED`);
         } else {
@@ -200,9 +209,9 @@ export function onStateChangeExternal(ctrl, e) {
             }
             log(`▶ Player ${ctrl.index + 1} State -> PLAYING`);
 
-            /* Εκκρεμές unmute μετά το PLAYING */
+            /* Εκκρεμές unmute μετά το PLAYING — uses utils + globals.hasUserGesture (boolean) */
             if (allTrue([ctrl.pendingUnmute === true])) {
-              const userGesture = !!hasUserGesture;
+              const userGesture = hasUserGesture === true; // από globals
               if (!userGesture) {
                 log(`🔇 Player ${ctrl.index + 1} Still awaiting user gesture before unmute`);
               } else {
@@ -220,25 +229,27 @@ export function onStateChangeExternal(ctrl, e) {
                 stats.volumeChanges++;
                 log(`🔊 Player ${ctrl.index + 1} Unmute after PLAYING -> ${v}%`);
 
-                /* Retry κύκλος μετά από λίγο αν πάλι PAUSED */
+                /* Retry κύκλος: ασφαλής έλεγχος PAUSED χωρίς &&/allTrue με κλήσεις */
                 scheduleSafe(
                   async () => {
                     await retry(
                       async () => {
-                        const paused = allTrue([isFunction(p?.getPlayerState), p.getPlayerState() === YT.PlayerState.PAUSED]);
-                        if (paused === true) {
-                          if (isFunction(p?.playVideo)) {
-                            ctrl.guardPlay(p);
-                            return true;
+                        if (isFunction(p?.getPlayerState)) {
+                          const st = p.getPlayerState();
+                          if (st === YT.PlayerState.PAUSED) {
+                            if (isFunction(p?.playVideo)) {
+                              ctrl.guardPlay(p);
+                              return true;
+                            }
                           }
                         }
                         throw new Error('not-ready');
                       },
-                      3,
-                      200,
-                      2,
-                      1200,
-                      0.3
+                      3, // attempts
+                      200, // baseMs
+                      2, // factor
+                      1200, // maxMs
+                      0.3 // jitterRatio
                     );
                   },
                   1000,
@@ -258,9 +269,7 @@ export function onStateChangeExternal(ctrl, e) {
                   log(`🎯 Player ${ctrl.index + 1} State -> CUED`);
                 } else {
                   log(`🔴 Player ${ctrl.index + 1} State -> UNKNOWN (${String(s)})`);
-                  if (allTrue([ctrl.isPlayingActive === true, s !== YT.PlayerState.PLAYING])) {
-                    ctrl.isPlayingActive = false;
-                  }
+                  // Προαιρετικά: ΜΗ μηδενίζεις isPlayingActive εδώ (σε UNKNOWN)
                 }
               }
             }
@@ -291,13 +300,12 @@ export function onStateChangeExternal(ctrl, e) {
     }
   }
 
-  /* PauseGuard (με scheduleSafe) */
+  /* PauseGuard (με scheduleSafe, χωρίς throttle/&&) */
   try {
     if (ctrl.pauseGuardTimer) {
       cancel(ctrl.pauseGuardTimer);
     }
   } catch (_) {}
-
   ((self) => {
     let basePause = 2000;
     if (typeof self.expectedPauseMs === 'number') {
@@ -306,8 +314,8 @@ export function onStateChangeExternal(ctrl, e) {
       }
     }
     const slack = 250;
-    /* Throttle μικρό για να αποφευχθούν bursts play-commands */
-    const doGuard = throttle(() => {
+
+    const doGuard = () => {
       try {
         const p2 = self.player;
         let canCheck = false;
@@ -328,6 +336,9 @@ export function onStateChangeExternal(ctrl, e) {
                 p2.playVideo();
               }
             } catch (_) {}
+            // επαναπρογραμματισμός για συνεχές guard
+            self.pauseGuardTimer = scheduleSafe(doGuard, basePause + slack, self._group('pause-guard'), 'pause-guard');
+            return;
           } else {
             try {
               self.pauseRechecks = 0;
@@ -335,12 +346,12 @@ export function onStateChangeExternal(ctrl, e) {
           }
         }
       } catch (_) {}
-    }, 180);
+    };
 
     self.pauseGuardTimer = scheduleSafe(doGuard, basePause + slack, self._group('pause-guard'), 'pause-guard');
   })(ctrl);
 
-  /* AutoNext μετά από ENDED */
+  /* AutoNext μετά από ENDED — ενσωμάτωση πολιτικής */
   try {
     const p = ctrl.player;
     const isEnded = typeof s !== 'undefined' ? s === YT.PlayerState.ENDED : false;
@@ -348,23 +359,34 @@ export function onStateChangeExternal(ctrl, e) {
       const duration = isFunction(p?.getDuration) ? p.getDuration() : 0;
       const percentWatched = duration > 0 ? Math.round((ctrl.totalPlayTime / duration) * 100) : 0;
       log(`✅ Player ${ctrl.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(ctrl.totalPlayTime)}s)`);
-      const afterEndPauseMs = rndInt(15000, 60000);
-      scheduleSafe(
-        () => {
-          /* Ασφαλές AutoNext μετά από παύση */
-          if (ctrl._guardHasAnyList()) {
-            ctrl.loadNextVideo(ctrl.player);
-          } else {
-            stats.errors++;
-            log(`❌ Player ${ctrl.index + 1} AutoNext aborted -> no available list`);
-          }
-        },
-        afterEndPauseMs,
-        ctrl._group('ended'),
-        'ended-autonext'
-      );
+      const allowPolicy = isFunction(canAutoNext) ? canAutoNext(ctrl.index) : true;
+      const passProb = typeof MAIN_PROBABILITY === 'number' ? Math.random() < MAIN_PROBABILITY : true;
+      if (allowPolicy && passProb) {
+        const afterEndPauseMs = rndInt(15000, 60000);
+        scheduleSafe(
+          () => {
+            if (ctrl._guardHasAnyList()) {
+              if (isFunction(incAutoNext)) {
+                incAutoNext(ctrl.index);
+              }
+              ctrl.loadNextVideo(ctrl.player);
+            } else {
+              stats.errors++;
+              log(`❌ Player ${ctrl.index + 1} AutoNext aborted -> no available list`);
+            }
+          },
+          afterEndPauseMs,
+          ctrl._group('ended'),
+          'ended-autonext'
+        );
+      } else {
+        log(`⛔ Player ${ctrl.index + 1} AutoNext blocked by policy`);
+      }
     }
   } catch (_) {}
 }
+
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---
