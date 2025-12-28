@@ -1,6 +1,7 @@
-# CHANGELOG.md - v201
+# CHANGELOG.md - v202
 
 ---
+2025-12-28 — watchdog.js: v2.22.13 → v2.22.14 — fix null guard before getPlayerState; added prefilter & per-player try/catch; tests: null player, BUFFERING jitter reset, PAUSED retry/recheck.
 
 **2025-12-28**
 

@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v2.22.13';
+const VERSION = 'v2.22.14';
 /*
 Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
 Συμμόρφωση με κανόνα State Machine με Guard Steps.
@@ -260,41 +260,47 @@ export function startWatchdog() {
    *   - χωρίς recovery: 24–30s
    * @returns {void}
    */
-  const loop = () => {
+  
+/** Ασφαλής έλεγχος ύπαρξης player + μεθόδου */
+function hasPlayerFn(c, fnName) {
+  if (typeof c === 'undefined') { return false; }
+  if (c === null) { return false; }
+  const p = c.player;
+  if (typeof p === 'undefined') { return false; }
+  if (p === null) { return false; }
+  const fn = p[fnName];
+  if (typeof fn === 'function') { return true; }
+  return false;
+}
+
+
+const loop = () => {
+  try { watchdogHealth.lastCheck = Date.now(); } catch (err) { logWatchdogError(err); }
+
+  var didRecovery = false;
+
+  const active = controllers.filter((c) => {
+    if (typeof c === 'undefined') { return false; }
+    if (c === null) { return false; }
+    if (typeof c.player === 'undefined') { return false; }
+    if (c.player === null) { return false; }
+    return true;
+  });
+
+  active.forEach(function (c) {
+    if (hasPlayerFn(c, 'getPlayerState') !== true) { return; }
     try {
-      watchdogHealth.lastCheck = Date.now();
-    } catch (err) {
-      logWatchdogError(err);
-    }
-
-    var didRecovery = false;
-
-    controllers.forEach(function (c) {
-      /* Guard: απαιτείται player και getPlayerState(). */
-      if (!allTrue([c.player, typeof c.player.getPlayerState === 'function'])) {
-        return;
-      }
-
       var state = c.player.getPlayerState();
       var now = Date.now();
+      if (maybeHandleBuffering(c, state, now)) { didRecovery = true; return; }
+      if (maybeHandlePaused(c, state, now)) { didRecovery = true; return; }
+    } catch (err) { logWatchdogError(err); }
+  });
 
-      if (maybeHandleBuffering(c, state, now)) {
-        didRecovery = true;
-        return;
-      }
-
-      if (maybeHandlePaused(c, state, now)) {
-        didRecovery = true;
-        return;
-      }
-    });
-
-    var baseMs = didRecovery ? (12 + Math.floor(Math.random() * 5)) * 1000 : (24 + Math.floor(Math.random() * 7)) * 1000;
-
-    repeat(loop, baseMs, 'watchdog');
-  };
-
-  loop();
+  var baseMs = didRecovery ? (12 + Math.floor(Math.random() * 5)) * 1000 : (24 + Math.floor(Math.random() * 7)) * 1000;
+  repeat(loop, baseMs, 'watchdog');
+};
+loop();
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
