@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v6.30.1';
+const VERSION = 'v6.30.2';
 /*
 Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
 Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
@@ -243,6 +243,148 @@ export class PlayerController {
     this.lastPausedStart = null; // σημείωση έναρξης PAUSED
     this.expectedPauseMs = 0; // αναμενόμενη διάρκεια παύσης (για επαναφορά)
     this.initialSeekSec = this.config?.initialSeekSec; // προαιρετικό αρχικό seek
+  }
+
+  // ===== Helpers & Guards =====
+  _canSeek() {
+    const pMissing = !this.player;
+    const noDuration = this.player ? typeof this.player.getDuration !== 'function' : true;
+    const noSeekTo = this.player ? typeof this.player.seekTo !== 'function' : true;
+    return !anyTrue([pMissing, noDuration, noSeekTo]);
+  }
+
+  _hasStableDuration() {
+    let d = this.player ? this.player.getDuration() : 0;
+    if (typeof d !== 'number') {
+      d = 0;
+    }
+    return d > 1;
+  }
+
+  _clampTarget(durationSec, targetSec) {
+    const END_PADDING_SEC = 1.0;
+    let t = typeof targetSec === 'number' ? targetSec : 0;
+    if (t < 0) {
+      t = 0;
+    }
+    const maxT = durationSec - END_PADDING_SEC;
+    if (t > maxT) {
+      t = maxT;
+    }
+    return t;
+  }
+
+  _safeSeek(seconds) {
+    try {
+      if (!this._canSeek()) {
+        return;
+      }
+      if (!this._hasStableDuration()) {
+        return;
+      }
+      const d = this.player.getDuration();
+      const s = this._clampTarget(d, seconds);
+      try {
+        this.player.seekTo(s, true);
+      } catch (e) {
+        try {
+          this.player.seekTo(typeof seconds === 'number' ? seconds : 0, true);
+        } catch (_) {}
+      }
+      if (typeof this.stats.seeksDone !== 'number') {
+        this.stats.seeksDone = 0;
+      }
+      this.stats.seeksDone += 1;
+    } catch (err) {
+      if (typeof this.stats.errors !== 'number') {
+        this.stats.errors = 0;
+      }
+      this.stats.errors += 1;
+    }
+  }
+
+  doSeek(seconds) {
+    if (!this.player) {
+      return;
+    }
+    if (typeof this.player.seekTo !== 'function') {
+      return;
+    }
+    this._safeSeek(seconds);
+  }
+
+  scheduleMidSeek() {
+    try {
+      if (!this.player) {
+        return;
+      }
+      const state = this.player.getPlayerState ? this.player.getPlayerState() : -1;
+      const dur = this.player.getDuration ? this.player.getDuration() : 0;
+      const cur = this.player.getCurrentTime ? this.player.getCurrentTime() : 0;
+      if (dur <= 0) {
+        return;
+      }
+      if (typeof PLAYER_STATE !== 'undefined') {
+        if (state !== PLAYER_STATE.PLAYING) {
+          return;
+        }
+      }
+      if (cur > dur * (1 - this.seekDefaults.nearEndPct)) {
+        return;
+      }
+      const now = Date.now();
+      if (this.seekMeta.lastMs > 0 && now - this.seekMeta.lastMs < this.seekDefaults.minGapSec * 1000) {
+        return;
+      }
+      if (this.seekMeta.count >= this.seekDefaults.maxSeeks) {
+        return;
+      }
+      const span = this.seekDefaults.toPct - this.seekDefaults.fromPct;
+      const targetPct = this.seekDefaults.fromPct + Math.random() * span;
+      const target = Math.floor(dur * targetPct);
+      const clamped = this._clampTarget(dur, target);
+      try {
+        this.player.seekTo(clamped, true);
+      } catch (_) {}
+      this.seekMeta.lastMs = now;
+      this.seekMeta.count += 1;
+    } catch (_) {}
+  }
+
+  armTimer(name, fn, ms) {
+    if (!this.timers) {
+      this.timers = {};
+    }
+    if (typeof this.timers[name] === 'number') {
+      clearTimeout(this.timers[name]);
+    }
+    this.timers[name] = setTimeout(() => {
+      try {
+        fn();
+      } catch (_) {}
+    }, ms);
+  }
+
+  clearTimer(name) {
+    if (!this.timers) {
+      return;
+    }
+    if (typeof this.timers[name] === 'number') {
+      clearTimeout(this.timers[name]);
+    }
+    this.timers[name] = undefined;
+  }
+
+  stopAllTimers() {
+    if (!this.timers) {
+      return;
+    }
+    for (const k of Object.keys(this.timers)) {
+      if (typeof this.timers[k] === 'number') {
+        clearTimeout(this.timers[k]);
+      }
+      this.timers[k] = undefined;
+    }
   }
 
   /**

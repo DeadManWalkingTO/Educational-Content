@@ -1,28 +1,30 @@
-# CHANGELOG.md - v209
+# CHANGELOG.md - v211
 
 ---
 
-2025-12-28 - playerController.js: v6.30.0 → v6.30.1
-Summary: Quick-fix pack — ready gates, safeSeek clamps, mid-seek guards (minGap/maxSeeks/near-end).
-Notes: Internal refactor only; no public API changes.
-
 ## 2025-12-28
 
-policies.js: 1.0.0 - Policies file
-playerController.js: v6.24.9 → v6.24.10 — Refactor: ενοποίηση imports από utils (αφαίρεση `retry`), διόρθωση `requestPlay` (χρήση `pLocal` αντί `p`), διόρθωση `pauseGuardTimer` (αναφορά σε `p`), σταθεροποίηση χωρίς αλλαγή συμπεριφοράς.
-playerController.js: v6.24.9 — Fix: αποφυγή redeclare (var/const) για το identifier `p` στο Unified Logging, μετονομασία σε `pLocal`.
-playerController.js: v6.24.8 — Fix: stateName ως function expression (block-safe), αποφυγή SyntaxError σε catch.
-playerController.js: v6.24.7 — Event-driven PauseGuard + Unified state logging (scheduled/random), t(sec), prev/next. Χωρίς &&/||.
-playerController.js: None — Διόρθωση emoji logging (🎬) σε UTF‑8, ενοποιημένο logging.
-watchdog.js: v2.22.13 → v2.22.14 — fix null guard before getPlayerState; added prefilter & per-player try/catch; tests: null player, BUFFERING jitter reset, PAUSED retry/recheck.2025-12-28 — watchdog.js: + slack(250ms) in allowedPause; iterative rechecks (max 3) using WATCHDOG_PAUSE_RECHECK_MS; reset after retries; version bump. Tests: planned pause with expectedPauseMs; unplanned pause with retries→reset; PLAYING clears pauseRechecks.
-utils.js: v1.6.1 — added log() (console + CustomEvent 'app:log'), no imports
-Unification to utils.js API (no imports)
-utils.js: v1.4.4 → v1.6.0 — Unified helpers + Scheduler API, removed &&/||, no imports
-scheduler.js: v1.2.9 → v1.2.10 — Deprecated stub, use utils.js
-versionReporter.js: +patch — imports switched to './utils.js'
-playerController.js: +patch — imports switched to './utils.js'
-watchdog.js: +patch — imports switched to './utils.js'
-main.js: +patch — imports switched to './utils.js'
+- playerController.js: v6.30.1 → v6.30.2
+  Summary: Non-functional refactor — added helpers (\_canSeek, \_hasStableDuration, \_clampTarget, \_safeSeek), refactored doSeek, mid-seek guards, timers registry, region markers, JSDoc placeholders.
+  Notes: No public API changes; only internal cleanup.
+- playerController.js: v6.30.0 → v6.30.1
+  Summary: Quick-fix pack — ready gates, safeSeek clamps, mid-seek guards (minGap/maxSeeks/near-end).
+  Notes: Internal refactor only; no public API changes.
+- policies.js: 1.0.0 - Policies file
+- playerController.js: v6.24.9 → v6.24.10 — Refactor: ενοποίηση imports από utils (αφαίρεση `retry`), διόρθωση `requestPlay` (χρήση `pLocal` αντί `p`), διόρθωση `pauseGuardTimer` (αναφορά σε `p`), σταθεροποίηση χωρίς αλλαγή συμπεριφοράς.
+- playerController.js: v6.24.9 — Fix: αποφυγή redeclare (var/const) για το identifier `p` στο Unified Logging, μετονομασία σε `pLocal`.
+- playerController.js: v6.24.8 — Fix: stateName ως function expression (block-safe), αποφυγή SyntaxError σε catch.
+- playerController.js: v6.24.7 — Event-driven PauseGuard + Unified state logging (scheduled/random), t(sec), prev/next. Χωρίς &&/||.
+- playerController.js: None — Διόρθωση emoji logging (🎬) σε UTF‑8, ενοποιημένο logging.
+- watchdog.js: v2.22.13 → v2.22.14 — fix null guard before getPlayerState; added prefilter & per-player try/catch; tests: null player, BUFFERING jitter reset, PAUSED retry/recheck.2025-12-28 — watchdog.js: + slack(250ms) in allowedPause; iterative rechecks (max 3) using WATCHDOG_PAUSE_RECHECK_MS; reset after retries; version bump. Tests: planned pause with expectedPauseMs; unplanned pause with retries→reset; PLAYING clears pauseRechecks.
+- utils.js: v1.6.1 — added log() (console + CustomEvent 'app:log'), no imports
+- Unification to utils.js API (no imports)
+- utils.js: v1.4.4 → v1.6.0 — Unified helpers + Scheduler API, removed &&/||, no imports
+- scheduler.js: v1.2.9 → v1.2.10 — Deprecated stub, use utils.js
+- versionReporter.js: +patch — imports switched to './utils.js'
+- playerController.js: +patch — imports switched to './utils.js'
+- watchdog.js: +patch — imports switched to './utils.js'
+- main.js: +patch — imports switched to './utils.js'
 
 **2025-12-27**
 
