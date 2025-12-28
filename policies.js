@@ -1,5 +1,5 @@
 // --- policies.js ---
-const VERSION = 'v1.0.0';
+const VERSION = 'v1.5.0';
 /*
  * Περιγραφή: Ενιαίο module πολιτικών (watch-time, pause plan, backoff/jitter profiles).
  * Προφίλ: conservative | balanced | aggressive
@@ -92,6 +92,61 @@ export function getPausePlan(durationSec) {
     return { count: rndInt(3, 4), min: 50, max: 110 };
   }
   return { count: rndInt(4, 5), min: 90, max: 160 };
+}
+
+/** ΝΕΟ: Αρχικός στόχος seek με τυχαιότητα βάσει διάρκειας. */
+/**
+* < 2 min: 0–10%
+* 2–5 min: 0–15%
+* 5–30 min: 0–20%
+* 30–120 min: 0–20%
+> 120 min: 0–25%
+*/
+export function getStartSeek(durationSec) {
+  // Guards
+  if (typeof durationSec !== 'number') {
+    return 0;
+  }
+  if (durationSec <= 0) {
+    return 0;
+  }
+
+  // Πίνακας ranges (ποσοστό) βάσει πρότασής σου
+  var maxPct = 0.1; // default
+  if (durationSec < 120) {
+    maxPct = 0.1; // < 2 min: 0–10%
+  } else {
+    if (durationSec < 300) {
+      maxPct = 0.15; // 2–5 min: 0–15%
+    } else {
+      if (durationSec < 1800) {
+        maxPct = 0.2; // 5–30 min: 0–20%
+      } else {
+        if (durationSec < 7200) {
+          maxPct = 0.2; // 30–120 min: 0–20%
+        } else {
+          maxPct = 0.25; // > 120 min: 0–25%
+        }
+      }
+    }
+  }
+
+  // Ομοιόμορφη τυχαιότητα στο [0, maxPct]
+  var pct = Math.random() * maxPct;
+
+  // Στόχος σε δευτερόλεπτα
+  var target = Math.floor(durationSec * pct);
+
+  // Προστασία από near-end (αν και το _safeSeek θα κάνει clamp)
+  var pad = 2;
+  var maxTarget = Math.max(0, Math.floor(durationSec - pad));
+  if (target > maxTarget) {
+    target = maxTarget;
+  }
+  if (target < 0) {
+    target = 0;
+  }
+  return target;
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
