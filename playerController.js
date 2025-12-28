@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v6.30.3';
+const VERSION = 'v6.30.4';
 /*
 Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
 Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
@@ -830,7 +830,7 @@ export class PlayerController {
             scheduleDelay(() => {
               log(`⚠️ Player ${this.index + 1} Force AutoNext -> inactivity fallback`);
               if (guardHasAnyList(this)) {
-                this.loadNextVideo(p);
+                this.loadNextVideo(this.player);
               } else {
                 stats.errors++;
                 log(`❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
@@ -840,7 +840,7 @@ export class PlayerController {
           }
 
           if (guardHasAnyList(this)) {
-            this.loadNextVideo(p);
+            this.loadNextVideo(this.player);
           } else {
             stats.errors++;
             log(`❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
@@ -871,7 +871,11 @@ export class PlayerController {
    * Επαναφέρει μετρητές χρόνου και επαναπρογραμματίζει παύσεις/mid-seek.
    */
   loadNextVideo(player) {
-    if (!allTrue([player, typeof player.loadVideoById === 'function'])) return;
+    if (!allTrue([player, typeof player.loadVideoById === 'function'])) {
+      stats.errors++;
+      log(`❌ AutoNext skipped -> player/loadVideoById unavailable`);
+      return;
+    }
 
     if (!canAutoNext(this.index)) {
       log(`⚠️ AutoNext limit reached -> ${AUTO_NEXT_LIMIT_PER_PLAYER}/hour for Player ${this.index + 1}`);
@@ -888,13 +892,15 @@ export class PlayerController {
     else if (hasMain) list = this.mainList;
     else list = this.altList;
 
-    if ((list?.length ?? 0) === 0) {
+    const listLen = (list ? list.length : 0);
+    if (listLen === 0) {
       stats.errors++;
       log(`❌ AutoNext aborted -> no available list`);
       return;
     }
 
     const newId = list[Math.floor(Math.random() * list.length)];
+    log(`[DBG] AutoNext picking -> source=${useMain ? 'main' : 'alt'} size=${String(listLen)} id=${String(newId)}`);
     player.loadVideoById(newId);
     this.guardPlay(player);
     stats.autoNext++;
