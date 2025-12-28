@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v3.17.6';
+const VERSION = 'v3.18.0';
 /*
  * Περιγραφή:
  * Συγκεντρώνει εκδόσεις όλων των modules και του HTML. Ελαφρύς renderer για panel/κείμενο,
@@ -23,7 +23,6 @@ import { getVersion as getListsVersion } from './lists.js';
 import { getVersion as getHumanModeVersion } from './humanMode.js';
 import { getVersion as getPlayerControllerVersion } from './playerController.js';
 import { getVersion as getUiControlsVersion } from './uiControls.js';
-import { getVersion as getWatchdogVersion } from './watchdog.js';
 import { getVersion as getConsoleFilterVersion } from './consoleFilter.js';
 import { getVersion as getYoutubeReadyVersion } from './youtubeReady.js';
 import { getVersion as getUtilitiesVersion, log, isDefined, domReady, deepClone, fmtMs, scheduleSafe } from './utils.js';
@@ -57,7 +56,6 @@ export function reportAllVersions() {
     HumanMode: getHumanModeVersion(),
     PlayerController: getPlayerControllerVersion(),
     UiControls: getUiControlsVersion(),
-    Watchdog: getWatchdogVersion(),
     ConsoleFilter: getConsoleFilterVersion(),
     YoutubeReady: getYoutubeReadyVersion(),
     Utilities: getUtilitiesVersion(),
