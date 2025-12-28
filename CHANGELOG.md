@@ -2,20 +2,12 @@
 
 ---
 
-**2025-12-28**
+## 2025-12-28
+
 playerController.js: v6.24.9 — Fix: αποφυγή redeclare (var/const) για το identifier `p` στο Unified Logging, μετονομασία σε `pLocal`.
-
-**2025-12-28**
 playerController.js: v6.24.8 — Fix: stateName ως function expression (block-safe), αποφυγή SyntaxError σε catch.
-
-**2025-12-28**
 playerController.js: v6.24.7 — Event-driven PauseGuard + Unified state logging (scheduled/random), t(sec), prev/next. Χωρίς &&/||.
-
-**2025-12-28**
 playerController.js: None — Διόρθωση emoji logging (🎬) σε UTF‑8, ενοποιημένο logging.
-
-**2025-12-28**
-
 watchdog.js: v2.22.13 → v2.22.14 — fix null guard before getPlayerState; added prefilter & per-player try/catch; tests: null player, BUFFERING jitter reset, PAUSED retry/recheck.2025-12-28 — watchdog.js: + slack(250ms) in allowedPause; iterative rechecks (max 3) using WATCHDOG_PAUSE_RECHECK_MS; reset after retries; version bump. Tests: planned pause with expectedPauseMs; unplanned pause with retries→reset; PLAYING clears pauseRechecks.
 utils.js: v1.6.1 — added log() (console + CustomEvent 'app:log'), no imports
 Unification to utils.js API (no imports)
