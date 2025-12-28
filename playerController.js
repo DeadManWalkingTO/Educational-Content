@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v7.1.1';
+const VERSION = 'v7.1.2';
 /*
  * Περιγραφή: Ελεγκτής αναπαραγωγής για YouTube IFrame API με ανθρώπινη συμπεριφορά.
  * Χρήση utils API: scheduleSafe, delay, repeat, cancel, groupCancel, retry, debounce, throttle, clamp, log κ.ά.
@@ -46,6 +46,7 @@ function isPlaying(p) {
   }
   return false;
 }
+
 /* Προαιρετικό: Debounced logger */
 const stateLogDebounced = debounce((idx, msg) => {
   log(`Player ${String(idx + 1)} ${String(msg)}`);
@@ -212,6 +213,7 @@ export class PlayerController {
     try {
       this.plan = getBehaviorPlan(ctx);
     } catch (_) {}
+
     let targetSec = 0;
     const planOk = allTrue([!!this.plan]);
     if (planOk === true) {
@@ -229,9 +231,15 @@ export class PlayerController {
         }
       }
     }
+
+    // === Λύση Α: μπλοκάρισμα scheduled volume έως το auto-unmute ===
+    this.pendingUnmute = true; // θα καθαριστεί στο PLAYING μετά το handlePendingUnmute
+
     initUnmute(this.player, this.plan);
+
     this._safeSeek(targetSec);
     scheduleSafe(() => this._safeSeek(targetSec), 800, this._group('init-seek'), 'init-seek-repeat');
+
     if (isFunction(e.target.playVideo)) {
       scheduleSafe(
         () => {
@@ -246,8 +254,10 @@ export class PlayerController {
         'guardPlay-initial'
       );
     }
+
     const seekInfo = isNumber(targetSec) ? targetSec : '-';
     log(`⏩ Player ${this.index + 1} Behavior Plan Start Seek -> Seek=${seekInfo}s`);
+
     this.schedulePauses();
     this.scheduleMidSeek();
     this.scheduleVolumeChanges();
@@ -255,7 +265,7 @@ export class PlayerController {
   onStateChange(e) {
     try {
       onStateChangeExternal(this, e);
-      // ΠΕΡΝΑΜΕ ctrl στο handlePendingUnmute για ασφαλές logging
+      // ΠΕΡΝΑΜΕ ctrl στο handlePendingUnmute για ασφαλέστερο logging
       let state;
       try {
         state = e?.data;
@@ -264,6 +274,10 @@ export class PlayerController {
         if (typeof YT?.PlayerState !== 'undefined') {
           if (state === YT.PlayerState.PLAYING) {
             handlePendingUnmute(this.player, this.plan, this);
+            // === Λύση Α: μόλις καλεστεί το auto-unmute, ανοίγουμε τον δρόμο για scheduled volume ===
+            try {
+              this.pendingUnmute = false;
+            } catch (_) {}
           }
         }
       }
@@ -456,6 +470,7 @@ export class PlayerController {
       this.seekMeta.count = (this.seekMeta.count ?? 0) + 1;
     } catch (_) {}
   }
+
   /* Προγραμματισμένες, τυχαίες αλλαγές έντασης */
   scheduleVolumeChanges() {
     const p = this.player;
@@ -468,6 +483,7 @@ export class PlayerController {
     if (canVolume !== true) {
       return;
     }
+
     let duration = 0;
     if (isFunction(p.getDuration)) {
       const d = p.getDuration();
@@ -475,9 +491,11 @@ export class PlayerController {
         duration = d;
       }
     }
+
     const hasChance = isNumber(this.config?.volumeChangeChance);
     const chance = hasChance ? this.config.volumeChangeChance : 0.2;
     const rangeArr = Array.isArray(this.config?.volumeRange) ? this.config.volumeRange : [10, 50];
+
     let baseCount = 1;
     if (duration >= 300) {
       baseCount = 2;
@@ -488,6 +506,7 @@ export class PlayerController {
     const chanceClamped = Math.min(1, Math.max(0, chance));
     const planned = Math.max(0, Math.floor(baseCount * chanceClamped));
     this.volumeMeta.changesPlanned = planned;
+
     const applyVolume = () => {
       try {
         let vmin = Number(rangeArr[0] ?? 10);
@@ -505,13 +524,68 @@ export class PlayerController {
         }
       } catch (_) {}
     };
+
     for (let i = 0; i < planned; i = i + 1) {
       const fromMs = duration > 0 ? Math.floor(duration * 0.1) * 1000 : 20000;
       const toMs = duration > 0 ? Math.floor(duration * 0.8) * 1000 : 120000;
       const delayMs = rndInt(Math.floor(fromMs / 1000), Math.floor(toMs / 1000)) * 1000;
+
       const id = scheduleSafe(
         () => {
           try {
+            // === Λύση Α: guard για pendingUnmute ===
+            if (this.pendingUnmute === true) {
+              const retryDelay = rndInt(1000, 2000);
+              scheduleSafe(
+                () => {
+                  try {
+                    if (this.pendingUnmute !== true) {
+                      applyVolume();
+                    }
+                  } catch (_) {}
+                },
+                retryDelay,
+                this._group('volume'),
+                'volume-retry-pending'
+              );
+              return;
+            }
+
+            // === Λύση Α: guard για muted state ===
+            let isMutedNow = false;
+            if (isFunction(p?.isMuted)) {
+              try {
+                if (p.isMuted() === true) {
+                  isMutedNow = true;
+                }
+              } catch (_) {}
+            }
+            if (isMutedNow === true) {
+              const retryDelay = rndInt(800, 2000);
+              scheduleSafe(
+                () => {
+                  try {
+                    let stillMuted = false;
+                    if (isFunction(p?.isMuted)) {
+                      try {
+                        if (p.isMuted() === true) {
+                          stillMuted = true;
+                        }
+                      } catch (_) {}
+                    }
+                    if (stillMuted !== true) {
+                      applyVolume();
+                    }
+                  } catch (_) {}
+                },
+                retryDelay,
+                this._group('volume'),
+                'volume-retry-unmuted'
+              );
+              return;
+            }
+
+            // Υπάρχων guard: εκτελούμε μόνο σε PLAYING (με retry)
             let isPlay = false;
             if (isFunction(p.getPlayerState)) {
               if (typeof YT !== 'undefined') {
@@ -544,6 +618,7 @@ export class PlayerController {
               );
               return;
             }
+
             applyVolume();
           } catch (_) {}
         },
@@ -553,6 +628,7 @@ export class PlayerController {
       );
       this.volumeMeta.scheduledIds.push(id);
     }
+
     if (duration >= 600) {
       const microFrom = Math.floor(duration * 0.85);
       const microTo = Math.floor(duration * 0.95);
@@ -560,6 +636,82 @@ export class PlayerController {
       const id2 = scheduleSafe(
         () => {
           try {
+            // === Λύση Α: guard pendingUnmute/muted και εδώ ===
+            if (this.pendingUnmute === true) {
+              const retryDelay = rndInt(1000, 2000);
+              scheduleSafe(
+                () => {
+                  try {
+                    if (this.pendingUnmute !== true) {
+                      // θα ξανατρέξει το micro μπλοκ στις επόμενες επανακλήσεις
+                      // προτιμούμε να αφήσουμε το apply εντός guard παρακάτω
+                      const canGetVol = isFunction(p?.getVolume);
+                      const canSetVol = isFunction(p?.setVolume);
+                      const canBoth = allTrue([canGetVol === true, canSetVol === true]);
+                      if (!canBoth) {
+                        return;
+                      }
+                      const cur = p.getVolume();
+                      const delta = rndInt(-6, 6);
+                      let tgt = cur + delta;
+                      if (tgt < 0) tgt = 0;
+                      if (tgt > 100) tgt = 100;
+                      p.setVolume(tgt);
+                      log(`🔉 Player ${this.index + 1} Micro-volume adjust → ${tgt}% (Δ=${delta})`);
+                    }
+                  } catch (_) {}
+                },
+                retryDelay,
+                this._group('volume'),
+                'volume-micro-retry-pending'
+              );
+              return;
+            }
+            let muted = false;
+            if (isFunction(p?.isMuted)) {
+              try {
+                if (p.isMuted() === true) {
+                  muted = true;
+                }
+              } catch (_) {}
+            }
+            if (muted === true) {
+              const retryDelay = rndInt(800, 2000);
+              scheduleSafe(
+                () => {
+                  try {
+                    let stillMuted = false;
+                    if (isFunction(p?.isMuted)) {
+                      try {
+                        if (p.isMuted() === true) {
+                          stillMuted = true;
+                        }
+                      } catch (_) {}
+                    }
+                    if (stillMuted !== true) {
+                      const canGetVol = isFunction(p?.getVolume);
+                      const canSetVol = isFunction(p?.setVolume);
+                      const canBoth = allTrue([canGetVol === true, canSetVol === true]);
+                      if (!canBoth) {
+                        return;
+                      }
+                      const cur = p.getVolume();
+                      const delta = rndInt(-6, 6);
+                      let tgt = cur + delta;
+                      if (tgt < 0) tgt = 0;
+                      if (tgt > 100) tgt = 100;
+                      p.setVolume(tgt);
+                      log(`🔉 Player ${this.index + 1} Micro-volume adjust → ${tgt}% (Δ=${delta})`);
+                    }
+                  } catch (_) {}
+                },
+                retryDelay,
+                this._group('volume'),
+                'volume-micro-retry-unmuted'
+              );
+              return;
+            }
+
             const canGetVol = isFunction(p?.getVolume);
             const canSetVol = isFunction(p?.setVolume);
             const canBoth = allTrue([canGetVol === true, canSetVol === true]);
@@ -582,6 +734,7 @@ export class PlayerController {
       this.volumeMeta.scheduledIds.push(id2);
     }
   }
+
   stopAllTimers() {
     try {
       groupCancel(this._group());
