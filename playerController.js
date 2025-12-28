@@ -558,24 +558,41 @@ export class PlayerController {
    * Περιγραφή: Κεντρικός χειριστής καταστάσεων του IFrame API.
    * Καταγράφει μεταβολές, ενημερώνει meters χρόνου αναπαραγωγής και αποφασίζει AutoNext.
    */
+
   onStateChange(e) {
+    // Δηλώνουμε τη s εκτός block για ορατότητα σε όλη τη μέθοδο.
+    let s;
+
+    // 1) Ανάγνωση κατάστασης με guards (χωρίς || και &&).
     try {
-      let s;
-      if (typeof e !== 'undefined' ? typeof e.data !== 'undefined' : false) {
-        s = e.data; // προτιμούμε την κατάσταση από το event
+      // Μπορούμε να διαβάσουμε από e.data;
+      const canReadData = allTrue([typeof e !== 'undefined', typeof e?.data !== 'undefined']);
+
+      if (canReadData) {
+        s = e.data;
       } else {
-        s = this.player ? this.player.getPlayerState() : undefined; // εφεδρεία
+        // Fallback: μπορούμε να διαβάσουμε από this.player.getPlayerState();
+        const canReadFromPlayer = allTrue([!!this.player, typeof this.player?.getPlayerState === 'function']);
+
+        if (canReadFromPlayer) {
+          s = this.player.getPlayerState();
+        } else {
+          s = undefined; // Δεν υπάρχει διαθέσιμη κατάσταση.
+        }
       }
     } catch (err) {
       log(`❌ Player ${this.index + 1} StateChange Error ${String(err?.message ?? err)}`);
     }
 
-    
+    // 2) Κλήση dispatcher ΜΟΝΟ αν έχουμε έγκυρη s.
     try {
-      this._stateManagerDispatch(s, e);
+      const canDispatch = typeof s !== 'undefined';
+      if (canDispatch) {
+        this._stateManagerDispatch(s, e);
+      }
     } catch (_) {}
 
-// Unified State Logging (scheduled/random)
+    // Unified State Logging (scheduled/random)
     try {
       var currentState = s;
       var prevState = this.lastKnownState;
