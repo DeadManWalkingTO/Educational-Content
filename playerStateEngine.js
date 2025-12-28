@@ -1,9 +1,9 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v2.0.6';
+const VERSION = 'v2.0.7';
 /*
- * Περιγραφή: State Handlers για YT onStateChange, με ασφαλή χρήση utils (guards, time/random, scheduler, logging).
- * Ρόλος: Ενιαίο dispatcher + καθαροί handlers για logs, fake-end guard, unmute/retry, accumulators, pause-guard.
- * Ενσωμάτωση AutoNext: Delegate στο autoNextAfterEnded(ctrl) για ENDED path.
+ * Περιγραφή: State Handlers για YT onStateChange, με ασφαλή χρήση utils (guards, scheduler, logging).
+ * Ρόλος: Dispatcher + handlers για logs, fake-end guard, unmute/retry, accumulators, pause-guard.
+ * Εξαρτήσεις: utils.js, globals.js, autoNext.js, autoUnmute.js
  */
 
 // --- Export Version ---
@@ -22,7 +22,8 @@ import { scheduleSafe, cancel, log, rndInt, randomFloat, anyTrue, allTrue, isDef
 import { hasUserGesture, stats } from './globals.js';
 import { autoNextAfterEnded } from './autoNext.js';
 import { handlePendingUnmute } from './autoUnmute.js';
-// -------------------- Helpers --------------------
+
+// ------------- Helpers -------------
 function hasYT() {
   if (typeof YT === 'undefined') {
     return false;
@@ -172,7 +173,8 @@ function applyFakeEndGuard(ctrl) {
   }
   return false;
 }
-// -------------------- Handlers --------------------
+
+// ------------- Handlers -------------
 function onUnstarted(ctrl) {
   log(`🎬 Player ${ctrl.index + 1} State -> UNSTARTED`);
 }
@@ -184,7 +186,6 @@ function onEnded(ctrl) {
   }
   ctrl.clearTimers();
   log(`🔚 Player ${ctrl.index + 1} Finalize -> ENDED`);
-  // ΝΕΟ: Delegate στο autoNext module (αντί για inline scheduler)
   autoNextAfterEnded(ctrl);
   try {
     window.dispatchEvent(new CustomEvent('videoEnded', { detail: { index: ctrl.index } }));
@@ -195,9 +196,66 @@ function onPlaying(ctrl) {
     ctrl.isPlayingActive = true;
   }
   log(`▶️ Player ${ctrl.index + 1} State -> PLAYING`);
-  // Ασφαλής auto-unmute: ΠΕΡΝΑΜΕ τον ctrl
+
+  // ❗ ΝΕΟΣ GUARD: Μην κάνεις άμεσο unmute εδώ, αν υπάρχει πολιτική καθυστέρησης
+  // ή αν ο controller έχει ήδη προγραμματίσει delayed unmute.
   try {
-    handlePendingUnmute(ctrl.player, ctrl.plan, ctrl);
+    let hasGracePolicy = false;
+    try {
+      const u = ctrl?.plan?.unmute;
+      let hasU = false;
+      if (typeof u !== 'undefined') {
+        if (u !== null) {
+          hasU = true;
+        }
+      }
+      if (hasU === true) {
+        const arr = u.playingGraceMsRange;
+        let isArr = false;
+        if (Array.isArray(arr)) {
+          isArr = true;
+        }
+        if (isArr === true) {
+          hasGracePolicy = true;
+        }
+      }
+    } catch (_) {}
+
+    let alreadyScheduled = false;
+    try {
+      if (ctrl?.unmuteScheduled === true) {
+        alreadyScheduled = true;
+      }
+    } catch (_) {}
+
+    const needImmediateUnmute = allTrue([hasGracePolicy === false, alreadyScheduled === false]);
+    if (needImmediateUnmute === true) {
+      // Μόνο αν ΔΕΝ υπάρχει grace στο plan ΚΑΙ δεν έχει προγραμματιστεί από τον controller
+      try {
+        handlePendingUnmute(ctrl.player, ctrl.plan, ctrl);
+      } catch (_) {}
+    }
+  } catch (_) {}
+
+  // Ασφάλεια auto-unmute που υπήρχε ήδη (παραμένει ως no-op όταν ισχύει grace/alreadyScheduled)
+  try {
+    const p = ctrl.player;
+    const planLocal = ctrl.plan;
+    const state = YT?.PlayerState?.PLAYING;
+    let isPlayNow = false;
+    try {
+      if (typeof YT !== 'undefined') {
+        if (typeof YT?.PlayerState !== 'undefined') {
+          if (state === YT.PlayerState.PLAYING) {
+            isPlayNow = true;
+          }
+        }
+      }
+    } catch (_) {}
+    if (isPlayNow === true) {
+      // Σημείωση: το handlePendingUnmute εδώ καλείται μόνο όταν needImmediateUnmute===true (βλέπε guard).
+      // Άρα δεν θα προκαλέσει διπλό unmute όταν υπάρχει grace ή unmuteScheduled.
+    }
   } catch (_) {}
 }
 function onPaused(ctrl) {
@@ -212,7 +270,8 @@ function onCued(ctrl) {
 function onUnknown(ctrl, s) {
   log(`🟡 Player ${ctrl.index + 1} State -> UNKNOWN (${String(s)})`);
 }
-// -------------------- Dispatcher --------------------
+
+// ------------- Dispatcher -------------
 function createStateHandlers(ctrl) {
   if (hasYT()) {
     return {
@@ -226,8 +285,9 @@ function createStateHandlers(ctrl) {
   }
   return {};
 }
+
 export function onStateChangeExternal(ctrl, e) {
-  // Αν μπήκε σε PLAYING, κάνε unmute (εξωτερικός guard, επιπλέον του handler)
+  // Σύντομος έλεγχος PLAYING για unmute (ο κύριος έλεγχος βρίσκεται στο onPlaying με guards)
   try {
     const state = e?.data;
     let isPlayingNow = false;
@@ -238,11 +298,7 @@ export function onStateChangeExternal(ctrl, e) {
         }
       }
     }
-    if (isPlayingNow === true) {
-      try {
-        handlePendingUnmute(ctrl.player, ctrl.plan, ctrl);
-      } catch (_) {}
-    }
+    // Παλιός άμεσος χειρισμός unmute μεταφέρεται στο onPlaying με guards.
   } catch (_) {}
 
   let s;
@@ -268,7 +324,6 @@ export function onStateChangeExternal(ctrl, e) {
         tSec = pLocal.getCurrentTime();
       }
     } catch (_) {}
-    // scheduled/random flag
     let scheduled = false;
     try {
       const hasTimersObj = isDefined(ctrl.timers) ? typeof ctrl.timers === 'object' : false;
@@ -305,6 +360,7 @@ export function onStateChangeExternal(ctrl, e) {
     } catch (_) {}
     ctrl.lastKnownState = s;
   } catch (_) {}
+
   try {
     const handlers = createStateHandlers(ctrl);
     const h = handlers[s];
@@ -314,11 +370,13 @@ export function onStateChangeExternal(ctrl, e) {
       onUnknown(ctrl, s);
     }
   } catch (_) {}
+
   if (isDefined(s)) {
     updateAccumulators(ctrl, s);
     restartPauseGuard(ctrl);
   }
 }
+
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 
