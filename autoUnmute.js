@@ -1,9 +1,9 @@
 // --- autoUnmute.js ---
-const VERSION = 'v1.0.3';
+const VERSION = 'v2.3.1';
 /*
- * Περιγραφή:
- * Κεντρική λογική για το unmute, μαζί με limiter και helpers.
- * Δεν εξαρτάται πλέον από globals.js για το limiter.
+ * Περιγραφή: Ασφαλές auto-unmute με clamps 0..100, safe logging index και προαιρετικό micro-adjust.
+ *   - initUnmute(player, plan): αρχικοποίηση ρυθμίσεων unmute βάσει plan.
+ *   - handlePendingUnmute(player, plan, ctrl?): εκτελεί unMute + setVolume όταν είναι κατάλληλη στιγμή.
  */
 
 // --- Export Version ---
@@ -17,118 +17,134 @@ const FILENAME = import.meta.url.split('/').pop();
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
-/* ========================= AutoUnmute Logic =========================
- *
- * API:
- *   initUnmute(player, plan)        -> Προγραμματίζει το unmute με βάση το plan
- *   handlePendingUnmute(player)     -> Εκτελεί unmute όταν γίνει PLAYING
- *   retryIfPaused(player)           -> Retry αν μετά το unmute ο player είναι PAUSED
- *   canUnmuteNow()                  -> Ελέγχει αν υπάρχει διαθέσιμη θέση για unmute
- *   incUnmutePending()              -> Αυξάνει τον μετρητή pending
- *   decUnmutePending()              -> Μειώνει τον μετρητή pending
- */
+/* Imports */
+import { allTrue, anyTrue, isFunction, isNumber, clamp, log, rndInt } from './utils.js';
 
-// --- Imports ---
-import { scheduleSafe, rndInt, log, isFunction, allTrue } from './utils.js';
-import { stats, hasUserGesture } from './globals.js';
-
-// --- Limiter State ---
-const unmuteLimiter = { limit: 2, pending: 0 };
-
-// --- Limiter Helpers ---
-export function canUnmuteNow() {
-  return unmuteLimiter.pending < unmuteLimiter.limit;
-}
-
-export function incUnmutePending() {
-  unmuteLimiter.pending++;
-}
-
-export function decUnmutePending() {
-  if (unmuteLimiter.pending > 0) {
-    unmuteLimiter.pending--;
+/* Βοηθητικό: ασφαλής μετατροπή index σε εμφανίσιμο 1-based */
+function _toIndexShown(v) {
+  let n = Number(v);
+  if (!isNumber(n)) {
+    n = NaN;
   }
+  let isNan = Number.isNaN(n);
+  if (isNan === true) {
+    return '#';
+  }
+  let base = Math.floor(n);
+  return base + 1;
 }
 
-// --- Κύρια Συνάρτηση: Προγραμματισμός Unmute ---
+/* Αποθήκη κατάστασης (προαιρετική) για pacing */
+const _state = {
+  initializedAtMs: 0,
+  lastUnmuteMs: 0,
+};
+
+/* Αρχικοποίηση unmute βάσει plan (π.χ. delays/volume range) */
 export function initUnmute(player, plan) {
-  if (!player || !plan?.unmute) {
-    log('⚠️ autoUnmute: Missing player or plan');
-    return;
-  }
-
-  const baseDelaySec = Number(plan.unmute.baseDelaySec ?? 5);
-  const extraRange = Array.isArray(plan.unmute.extraDelaySecRange) ? plan.unmute.extraDelaySecRange : [30, 90];
-  const extraDelaySec = rndInt(extraRange[0], extraRange[1]);
-  const totalDelayMs = (baseDelaySec + extraDelaySec) * 1000;
-
-  scheduleSafe(
-    () => {
-      if (!hasUserGesture) {
-        log('🔇 autoUnmute: Awaiting user gesture');
-        player.pendingUnmute = true;
-        return;
-      }
-
-      if (!canUnmuteNow()) {
-        log('⏳ autoUnmute: Unmute limiter active');
-        player.pendingUnmute = true;
-        return;
-      }
-
-      incUnmutePending();
-      applyUnmute(player, plan);
-      decUnmutePending();
-    },
-    totalDelayMs,
-    `autoUnmute:${player.index}`,
-    'unmute-init'
-  );
-}
-
-// --- Εφαρμογή Unmute ---
-function applyUnmute(player, plan) {
   try {
-    if (isFunction(player.unMute)) {
-      player.unMute();
-    }
-    const volRange = Array.isArray(plan.unmute.volumeRangePct) ? plan.unmute.volumeRangePct : [10, 30];
-    const v = rndInt(volRange[0], volRange[1]);
-    if (isFunction(player.setVolume)) {
-      player.setVolume(v);
-    }
-    stats.volumeChanges++;
-    log(`🔊 Player ${player.index + 1} Auto Unmute -> ${v}%`);
-    retryIfPaused(player);
-  } catch (err) {
-    log(`❌ autoUnmute Error: ${String(err.message ?? err)}`);
-  }
+    let now = Date.now();
+    _state.initializedAtMs = now;
+
+    // Δεν αλλάζουμε εδώ volume/mute — το handlePendingUnmute θα κάνει τη δουλειά όταν επιτραπεί.
+    // Μπορούμε προαιρετικά να σημειώσουμε baseDelaySec/extraDelaySecRange από το plan.
+    // Το YouTube API απαιτεί user gesture για ήχο — η κεντρική ρουτίνα θα καλέσει handlePendingUnmute στο PLAYING.
+  } catch (_) {}
 }
 
-// --- Χειρισμός Pending Unmute όταν γίνει PLAYING ---
-export function handlePendingUnmute(player, plan) {
-  if (player.pendingUnmute === true && hasUserGesture && canUnmuteNow()) {
-    incUnmutePending();
-    applyUnmute(player, plan);
-    player.pendingUnmute = false;
-    decUnmutePending();
-  }
-}
+/* Κύρια ρουτίνα: όταν μπορούμε να κάνουμε unmute, εφαρμόζουμε volume με ασφάλεια */
+export function handlePendingUnmute(player, plan, ctrl = null) {
+  try {
+    // Guards player
+    let hasPlayer = false;
+    if (player) {
+      hasPlayer = true;
+    }
+    if (hasPlayer !== true) {
+      return;
+    }
 
-// --- Retry αν μετά το unmute είναι PAUSED ---
-export function retryIfPaused(player) {
-  scheduleSafe(
-    () => {
-      const canPlay = allTrue([isFunction(player.getPlayerState), player.getPlayerState() === YT.PlayerState.PAUSED]);
-      if (canPlay && isFunction(player.playVideo)) {
-        log(`🔁 Player ${player.index + 1} Retry play after unmute`);
-        player.playVideo();
+    // Έλεγχος βασικού API
+    let canUnmute = isFunction(player?.unMute);
+    let canSetVol = isFunction(player?.setVolume);
+    let apiOk = allTrue([canUnmute === true, canSetVol === true]);
+    if (apiOk !== true) {
+      return;
+    }
+
+    // Προαιρετικό pacing: αποφύγετε υπερβολικά συχνά unmute
+    let now = Date.now();
+    let sinceLast = now - _state.lastUnmuteMs;
+    let minGapMs = 800; // ελάχιστο διάστημα μεταξύ unmute ενεργειών
+    if (_state.lastUnmuteMs > 0) {
+      let tooSoon = sinceLast < minGapMs;
+      if (tooSoon === true) {
+        return;
       }
-    },
-    250,
-    `autoUnmute:${player.index}`,
-    'unmute-retry'
-  );
+    }
+
+    // Volume range από plan (ποσοστό 0..100), ή fallback
+    let r0 = 10;
+    let r1 = 30;
+    let hasPlan = plan ? true : false;
+    if (hasPlan === true) {
+      let u = plan?.unmute;
+      let hasUnmuteObj = typeof u !== 'undefined' ? u !== null : false;
+      if (hasUnmuteObj === true) {
+        let vr = u.volumeRangePct;
+        let isArr = Array.isArray(vr);
+        if (isArr === true) {
+          let a = Number(vr[0]);
+          let b = Number(vr[1]);
+          let aOk = isNumber(a);
+          let bOk = isNumber(b);
+          if (allTrue([aOk === true, bOk === true]) === true) {
+            r0 = a;
+            r1 = b;
+          }
+        }
+      }
+    }
+
+    // Clamp 0..100 και ασφαλής επιλογή στόχου
+    let lo = clamp(Number(r0), 0, 100);
+    let hi = clamp(Number(r1), 0, 100);
+    let needSwap = lo > hi;
+    if (needSwap === true) {
+      let tmp = lo;
+      lo = hi;
+      hi = tmp;
+    }
+    let target = rndInt(Math.floor(lo), Math.floor(hi));
+
+    // Εκτέλεση: πρώτα unMute, μετά setVolume
+    player.unMute();
+    player.setVolume(target);
+
+    // Προαιρετικό micro-adjust ±0..3, αν υπάρχει τρέχων volume
+    let canGetVol = isFunction(player?.getVolume);
+    if (canGetVol === true) {
+      let cur = player.getVolume();
+      let curIsNum = isNumber(cur);
+      if (curIsNum === true) {
+        let delta = rndInt(-3, 3);
+        let micro = cur + delta;
+        micro = clamp(micro, 0, 100);
+        player.setVolume(micro);
+      }
+    }
+
+    // Safe logging με σωστό index
+    let idxShown = '#';
+    let hasCtrl = ctrl ? true : false;
+    if (hasCtrl === true) {
+      idxShown = _toIndexShown(ctrl.index);
+    }
+    log(`🔊 Player ${String(idxShown)} Auto Unmute -> ${String(target)}%`);
+
+    // Τελευταία στιγμή unmute
+    _state.lastUnmuteMs = now;
+  } catch (_) {}
 }
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου

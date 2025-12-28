@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v7.0.3';
+const VERSION = 'v7.1.0';
 /*
  * Περιγραφή: Ελεγκτής αναπαραγωγής για YouTube IFrame API με ανθρώπινη συμπεριφορά.
  * Χρήση utils API: scheduleSafe, delay, repeat, cancel, groupCancel, retry, debounce, throttle, clamp, log κ.ά.
@@ -35,7 +35,12 @@ function getState(p) {
 }
 function isPlaying(p) {
   const s = getState(p);
-  const ytDefined = allTrue([typeof YT !== 'undefined', typeof YT?.PlayerState !== 'undefined']);
+  let ytDefined = false;
+  if (typeof YT !== 'undefined') {
+    if (typeof YT?.PlayerState !== 'undefined') {
+      ytDefined = true;
+    }
+  }
   if (ytDefined) {
     return s === YT.PlayerState.PLAYING;
   }
@@ -71,7 +76,10 @@ export class PlayerController {
     this.seekMeta = { lastMs: 0, count: 0 };
     /* Behavior plan */
     this.plan = null;
+    /* ΝΕΟ: Μετα-πληροφορίες/Timers για Volume */
+    this.volumeMeta = { scheduledIds: [], changesPlanned: 0 };
   }
+
   _group(suffix = '') {
     const base = `pc:${this.index}`;
     if (suffix === '') {
@@ -79,12 +87,24 @@ export class PlayerController {
     }
     return `${base}:${suffix}`;
   }
+
   _canSeek() {
     const pMissing = !this.player;
-    const noDuration = this.player ? !isFunction(this.player.getDuration) : true;
-    const noSeekTo = this.player ? !isFunction(this.player.seekTo) : true;
+    let noDuration = true;
+    if (this.player) {
+      if (isFunction(this.player.getDuration)) {
+        noDuration = false;
+      }
+    }
+    let noSeekTo = true;
+    if (this.player) {
+      if (isFunction(this.player.seekTo)) {
+        noSeekTo = false;
+      }
+    }
     return !anyTrue([pMissing, noDuration, noSeekTo]);
   }
+
   _hasStableDuration() {
     let d = this.player ? this.player.getDuration() : 0;
     if (!isNumber(d)) {
@@ -92,6 +112,7 @@ export class PlayerController {
     }
     return d > 1;
   }
+
   /* Ενοποιημένο safe-seek (δυναμικό end-padding ≥3s ή ~5% του duration) */
   _safeSeek(seconds) {
     try {
@@ -127,6 +148,7 @@ export class PlayerController {
       stats.errors += 1;
     }
   }
+
   doSeek(seconds) {
     if (!this.player) {
       return;
@@ -136,6 +158,7 @@ export class PlayerController {
     }
     this._safeSeek(seconds);
   }
+
   tryPlay(p) {
     const jitterMs = jitter(150, 0.67);
     scheduleSafe(
@@ -149,15 +172,19 @@ export class PlayerController {
       'guardPlay'
     );
   }
+
   guardPlay(p) {
     try {
-      if (p ? isFunction(p.playVideo) : false) {
-        p.playVideo();
+      if (p) {
+        if (isFunction(p.playVideo)) {
+          p.playVideo();
+        }
       }
     } catch (err) {
       log(`❌ Player ${this.index + 1} LogPlayer Error ${String(err?.message ?? err)}`);
     }
   }
+
   init(videoId) {
     const containerId = `player${this.index + 1}`;
     this.player = new YT.Player(containerId, {
@@ -178,10 +205,12 @@ export class PlayerController {
     log(`ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
     log(`👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
   }
+
   onReady(e) {
     const p = e.target;
     this.startTime = Date.now();
     p.mute();
+
     /* Συγκρότηση context και ανάκτηση behavior plan */
     let durationNow = 0;
     const canGetDuration = allTrue([!!p, isFunction(p.getDuration)]);
@@ -200,12 +229,18 @@ export class PlayerController {
     try {
       this.plan = getBehaviorPlan(ctx);
     } catch (_) {}
+
     /* Αρχικό seek από policy */
     let targetSec = 0;
     const planOk = allTrue([!!this.plan]);
     if (planOk === true) {
       const startObj = this.plan.startSeek;
-      const hasStart = typeof startObj !== 'undefined' ? startObj !== null : false;
+      let hasStart = false;
+      if (typeof startObj !== 'undefined') {
+        if (startObj !== null) {
+          hasStart = true;
+        }
+      }
       if (hasStart) {
         const t = startObj.targetSec;
         if (typeof t === 'number') {
@@ -213,11 +248,14 @@ export class PlayerController {
         }
       }
     }
-    // Αρχικοποίηση AutoUnmute module
+
+    /* AutoUnmute module */
     initUnmute(this.player, this.plan);
-    /* Εφαρμογή seek με επανάληψη μετά από ~800 ms */
+
+    /* Εφαρμογή seek με επανάληψη ~800ms */
     this._safeSeek(targetSec);
     scheduleSafe(() => this._safeSeek(targetSec), 800, this._group('init-seek'), 'init-seek-repeat');
+
     /* Μη-αποκλειστικό play στο ξεκίνημα */
     if (isFunction(e.target.playVideo)) {
       scheduleSafe(
@@ -233,29 +271,41 @@ export class PlayerController {
         'guardPlay-initial'
       );
     }
+
     /* Logs plan */
     const seekInfo = isNumber(targetSec) ? targetSec : '-';
     log(`⏩ Player ${this.index + 1} Behavior Plan Start Seek -> Seek=${seekInfo}s`);
-    /* Προγραμματισμός Pauses/MidSeek βάσει policy */
+
+    /* Scheduling βάσει policy */
     this.schedulePauses();
     this.scheduleMidSeek();
+
+    /* ΝΕΟ: Τυχαίες αλλαγές έντασης */
+    this.scheduleVolumeChanges();
   }
+
   onStateChange(e) {
     try {
       onStateChangeExternal(this, e);
+      let state;
+      try {
+        state = e?.data;
+      } catch (_) {}
       if (state === YT.PlayerState.PLAYING) {
         handlePendingUnmute(this.player, this.plan);
       }
     } catch (_) {}
   }
+
   onError() {
     try {
       this.clearTimers();
     } catch (_) {}
-    // ΝΕΟ: Delegate στο autoNext module (αντί για inline ERROR AutoNext)
+    /* Delegate στο autoNext (ERROR) */
     autoNextAfterError(this);
     stats.errors++;
   }
+
   _guardHasAnyList(ctrl = this) {
     if (!ctrl) {
       return false;
@@ -272,6 +322,7 @@ export class PlayerController {
     }
     return false;
   }
+
   loadNextVideo(player) {
     const canLoad = allTrue([player ? true : false, isFunction(player.loadVideoById)]);
     if (!canLoad) {
@@ -279,15 +330,15 @@ export class PlayerController {
       log(`❌ AutoNext skipped -> player/loadVideoById unavailable`);
       return;
     }
-    // Επιλογή λίστας (κρατάμε ως utility—δεν μετράμε counters εδώ πλέον)
+    /* Επιλογή λίστας */
     const useMain = Math.random() < MAIN_PROBABILITY;
     const hasMain = allTrue([Array.isArray(this.mainList), this.mainList.length > 0]);
     const hasAlt = allTrue([Array.isArray(this.altList), this.altList.length > 0]);
     let list;
-    if (allTrue([useMain, hasMain])) {
+    if (allTrue([useMain === true, hasMain === true])) {
       list = this.mainList;
     } else {
-      if (allTrue([!useMain, hasAlt])) {
+      if (allTrue([useMain !== true, hasAlt === true])) {
         list = this.altList;
       } else {
         if (hasMain) {
@@ -307,10 +358,9 @@ export class PlayerController {
     log(`[DBG] AutoNext picking -> source=${useMain ? 'main' : 'alt'} size=${String(listLen)} id=${String(newId)}`);
     player.loadVideoById(newId);
     this.guardPlay(player);
-    // ❗Counters & resets πλέον γίνονται στο autoNext.js (finalizeAutoNext)
     log(`⏭️ Player ${this.index + 1} AutoNext (utility) -> ${newId} (Source:${useMain ? 'main' : 'alt'})`);
-    // Δεν καλούμε schedulePauses/scheduleMidSeek εδώ για να αποφύγουμε διπλό scheduling.
   }
+
   schedulePauses() {
     const p = this.player;
     if (anyTrue([!p])) {
@@ -361,6 +411,7 @@ export class PlayerController {
       this.timers.pauseTimers.push(id);
     }
   }
+
   scheduleMidSeek() {
     const p = this.player;
     if (anyTrue([!p])) {
@@ -411,6 +462,7 @@ export class PlayerController {
       'midseek-tick'
     );
   }
+
   _doMidSeekOnce() {
     try {
       const p = this.player;
@@ -440,6 +492,153 @@ export class PlayerController {
       this.seekMeta.count = (this.seekMeta.count ?? 0) + 1;
     } catch (_) {}
   }
+
+  /* ΝΕΟ: Προγραμματισμένες, τυχαίες αλλαγές έντασης */
+  scheduleVolumeChanges() {
+    const p = this.player;
+
+    /* Guards: player & setVolume διαθέσιμα; */
+    let canVolume = false;
+    if (p) {
+      if (isFunction(p?.setVolume)) {
+        canVolume = true;
+      }
+    }
+    if (canVolume !== true) {
+      return;
+    }
+
+    /* Διάρκεια (αν διαθέσιμη) για ρεαλιστικό timing */
+    let duration = 0;
+    if (isFunction(p.getDuration)) {
+      const d = p.getDuration();
+      if (isNumber(d)) {
+        duration = d;
+      }
+    }
+
+    /* Ανάγνωση config */
+    const hasChance = isNumber(this.config?.volumeChangeChance);
+    const chance = hasChance ? this.config.volumeChangeChance : 0.2;
+    const rangeArr = Array.isArray(this.config?.volumeRange) ? this.config.volumeRange : [10, 50];
+
+    /* Πλήθος αλλαγών συναρτήσει διάρκειας και πιθανότητας */
+    let baseCount = 1;
+    if (duration >= 300) {
+      baseCount = 2;
+    }
+    if (duration >= 900) {
+      baseCount = 3;
+    }
+    const chanceClamped = Math.min(1, Math.max(0, chance));
+    const planned = Math.max(0, Math.floor(baseCount * chanceClamped));
+    this.volumeMeta.changesPlanned = planned;
+
+    /* Helper: εφαρμογή τιμής volume από range με clamp 0..100 */
+    const applyVolume = () => {
+      try {
+        let vmin = Number(rangeArr[0] ?? 10);
+        let vmax = Number(rangeArr[1] ?? 50);
+        if (vmin < 0) vmin = 0;
+        if (vmin > 100) vmin = 100;
+        if (vmax < 0) vmax = 0;
+        if (vmax > 100) vmax = 100;
+        const lo = Math.min(vmin, vmax);
+        const hi = Math.max(vmin, vmax);
+        const target = rndInt(lo, hi);
+        if (isFunction(p.setVolume)) {
+          p.setVolume(target);
+          log(`🔈 Player ${this.index + 1} Volume → ${target}%`);
+        }
+      } catch (_) {}
+    };
+
+    /* Προγραμματισμός αλλαγών */
+    for (let i = 0; i < planned; i = i + 1) {
+      const fromMs = duration > 0 ? Math.floor(duration * 0.1) * 1000 : 20000;
+      const toMs = duration > 0 ? Math.floor(duration * 0.8) * 1000 : 120000;
+      const delayMs = rndInt(Math.floor(fromMs / 1000), Math.floor(toMs / 1000)) * 1000;
+
+      const id = scheduleSafe(
+        () => {
+          try {
+            /* Αν δεν είναι PLAYING, κάνε ένα μικρό retry */
+            let isPlay = false;
+            if (isFunction(p.getPlayerState)) {
+              if (typeof YT !== 'undefined') {
+                if (typeof YT?.PlayerState !== 'undefined') {
+                  if (p.getPlayerState() === YT.PlayerState.PLAYING) {
+                    isPlay = true;
+                  }
+                }
+              }
+            }
+            if (isPlay !== true) {
+              const retryDelay = rndInt(800, 2000);
+              scheduleSafe(
+                () => {
+                  try {
+                    let okNow = false;
+                    if (isFunction(p.getPlayerState)) {
+                      if (p.getPlayerState() === YT.PlayerState.PLAYING) {
+                        okNow = true;
+                      }
+                    }
+                    if (okNow) {
+                      applyVolume();
+                    }
+                  } catch (_) {}
+                },
+                retryDelay,
+                this._group('volume'),
+                'volume-retry'
+              );
+              return;
+            }
+
+            /* Αν είναι mute, αλλάζουμε volume ούτως ή άλλως — θα ακουστεί μετά το unmute */
+            applyVolume();
+          } catch (_) {}
+        },
+        delayMs,
+        this._group('volume'),
+        'volume-change'
+      );
+      this.volumeMeta.scheduledIds.push(id);
+    }
+
+    /* Προαιρετικό micro-adjust κοντά στο τέλος (±2–6%) σε μεγάλα βίντεο */
+    if (duration >= 600) {
+      const microFrom = Math.floor(duration * 0.85);
+      const microTo = Math.floor(duration * 0.95);
+      const microDelayMs = rndInt(microFrom, microTo) * 1000;
+
+      const id2 = scheduleSafe(
+        () => {
+          try {
+            const canGetVol = isFunction(p?.getVolume);
+            const canSetVol = isFunction(p?.setVolume);
+            const canBoth = allTrue([canGetVol === true, canSetVol === true]);
+            if (!canBoth) {
+              return;
+            }
+            const cur = p.getVolume();
+            const delta = rndInt(-6, 6);
+            let tgt = cur + delta;
+            if (tgt < 0) tgt = 0;
+            if (tgt > 100) tgt = 100;
+            p.setVolume(tgt);
+            log(`🔉 Player ${this.index + 1} Micro-volume adjust → ${tgt}% (Δ=${delta})`);
+          } catch (_) {}
+        },
+        microDelayMs,
+        this._group('volume'),
+        'volume-micro'
+      );
+      this.volumeMeta.scheduledIds.push(id2);
+    }
+  }
+
   stopAllTimers() {
     try {
       groupCancel(this._group());
@@ -463,6 +662,7 @@ export class PlayerController {
       }
     }
   }
+
   clearTimers() {
     try {
       groupCancel(this._group());
@@ -479,6 +679,16 @@ export class PlayerController {
       cancel(this.timers.progressCheck);
       this.timers.progressCheck = null;
     }
+    /* ΝΕΟ: Καθαρισμός volume timers */
+    try {
+      const hasArr = Array.isArray(this.volumeMeta?.scheduledIds);
+      if (hasArr === true) {
+        for (const id of this.volumeMeta.scheduledIds) {
+          cancel(id);
+        }
+        this.volumeMeta.scheduledIds = [];
+      }
+    } catch (_) {}
     this.expectedPauseMs = 0;
   }
 }
