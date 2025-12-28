@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v6.44.0';
+const VERSION = 'v6.45.1';
 /*
  * Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
  * - Dynamic end-padding σε clamp όλων των seeks (≥3s ή ~5% της διάρκειας).
@@ -278,7 +278,7 @@ export class PlayerController {
 
     /* Behavior plan — logs */
     const seekInfo = isNumber(targetSec) ? targetSec : '-';
-    log(`🟡 Player ${this.index + 1} Behavior plan start -> Seek=${seekInfo}s`);
+    log(`🕒 Player ${this.index + 1} Behavior Plan Start Seek -> Seek=${seekInfo}s`);
 
     /* Εγγραφή Pauses/MidSeek βάσει policy */
     this.schedulePauses();
@@ -656,26 +656,7 @@ export class PlayerController {
         const afterEndPauseMs = rndInt(15000, 60000);
         scheduleDelay(
           () => {
-            const requiredTime = this.plan?.watch?.requiredWatchTimeSec ?? 15;
-            const insufficient = this.totalPlayTime < requiredTime;
-            if (insufficient) {
-              log(`⏳ Player ${this.index + 1} AutoNext blocked -> required:${requiredTime}s, actual:${Math.round(this.totalPlayTime)}s`);
-              scheduleDelay(
-                () => {
-                  log(`⚠️ Player ${this.index + 1} Force AutoNext -> inactivity fallback`);
-                  if (this._guardHasAnyList()) {
-                    this.loadNextVideo(this.player);
-                  } else {
-                    stats.errors++;
-                    log(`❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
-                  }
-                },
-                15000,
-                this._group('inactivity')
-              );
-              return;
-            }
-
+            // Πάντα προχωράμε σε AutoNext μετά το afterEndPauseMs
             if (this._guardHasAnyList()) {
               this.loadNextVideo(this.player);
             } else {

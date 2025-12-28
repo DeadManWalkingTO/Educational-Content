@@ -1,5 +1,5 @@
 // --- main.js ---
-const VERSION = 'v3.45.11';
+const VERSION = 'v3.46.0';
 /*
 Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 Ορίζει start gate ώστε η εκκίνηση να γίνεται είτε με user gesture (κουμπί) είτε με fallback.
@@ -139,8 +139,8 @@ async function startApp() {
     - Εκκινεί ανεξάρτητα από την κατάσταση του Human Mode init.
     - Στόχος είναι η επιτήρηση/ανίχνευση ανωμαλιών κατά τη διάρκεια λειτουργίας.
     */
-    startWatchdog();
-    log(`✅ Watchdog -> Started από main.js`);
+    //startWatchdog();
+    //log(`✅ Watchdog -> Started από main.js`);
   } catch (err) {
     log(`❌ Σφάλμα κατά την εκκίνηση -> ${err}`);
   }
