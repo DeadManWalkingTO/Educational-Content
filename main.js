@@ -1,5 +1,5 @@
 // --- main.js ---
-const VERSION = 'v3.44.11';
+const VERSION = 'v3.45.11';
 /*
 Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
 Ορίζει start gate ώστε η εκκίνηση να γίνεται είτε με user gesture (κουμπί) είτε με fallback.
@@ -107,12 +107,6 @@ async function startApp() {
     Φόρτωση λιστών σε παράλληλη εκτέλεση για μείωση συνολικού χρόνου εκκίνησης.
     */
     const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
-
-    /*
-    Δημιουργία containers πριν το init των players ώστε το DOM να είναι έτοιμο για mount.
-    */
-    createPlayerContainers();
-
     log(`📂 Lists Loaded -> Main:${mainList.length} Alt:${altList.length}`);
 
     /*
@@ -121,6 +115,11 @@ async function startApp() {
     log(`⏳ YouTubeAPI -> Αναμονή`);
     await youtubeReady(20000); // π.χ. 20s timeout
     log(`✅ YouTubeAPI -> Έτοιμο`);
+
+    /*
+    Δημιουργία containers πριν το init των players ώστε το DOM να είναι έτοιμο για mount.
+    */
+    createPlayerContainers();
 
     /*
     Human Mode initialization:

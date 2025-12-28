@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v2.22.14';
+const VERSION = 'v2.22.15';
 /*
 Περιγραφή: Παρακολούθηση κατάστασης των YouTube players για PAUSED/BUFFERING και επαναφορά.
 Συμμόρφωση με κανόνα State Machine με Guard Steps.
@@ -211,6 +211,7 @@ export function startWatchdog() {
    * @param {number} now Τρέχων χρόνος (ms).
    * @returns {boolean} true αν έγινε επέμβαση (retry/recheck scheduling), αλλιώς false.
    */
+  
   function maybeHandlePaused(c, state, now) {
     if (!allTrue([state === YT.PlayerState.PAUSED, c.lastPausedStart])) {
       return false;
@@ -224,32 +225,80 @@ export function startWatchdog() {
     /* Default ανεκτό pause: 2000ms όταν δεν υπάρχει expectedPauseMs. */
     var allowedPause = basePause === 0 ? 2000 : basePause;
 
-    var over = now - c.lastPausedStart > allowedPause;
+    /* NEW: μικρό περιθώριο ασφάλειας (slack) */
+    var slackMs = 250; // ms
+
+    var over = now - c.lastPausedStart > (allowedPause + slackMs);
     if (!over) {
       return false;
     }
 
-    log(`🛠 Watchdog Info -> Player ${c.index + 1} PAUSED -> Watchdog retry playVideo before AutoNext`);
+    log(`🛠️ Watchdog Info -> Player ${c.index + 1} PAUSED -> Watchdog retry playVideo before AutoNext`);
 
     stats.watchdog++;
     tryRequestPlay(c);
 
-    setTimeout(function () {
-      var canCheck = allTrue([typeof c.player.getPlayerState === 'function']);
-      var stillNotPlaying = false;
+    // NEW: επαναληπτικά rechecks με WATCHDOG_PAUSE_RECHECK_MS (έως 3 κύκλοι)
+    if (typeof c.pauseRechecks !== 'number') {
+      c.pauseRechecks = 0;
+    }
 
-      if (canCheck) {
-        stillNotPlaying = c.player.getPlayerState() !== YT.PlayerState.PLAYING;
-      }
+    function scheduleRecheck() {
+      setTimeout(function () {
+        var canCheck = false;
+        if (typeof c !== 'undefined') {
+          if (c !== null) {
+            if (typeof c.player !== 'undefined') {
+              if (c.player !== null) {
+                if (typeof c.player.getPlayerState === 'function') {
+                  canCheck = true;
+                }
+              }
+            }
+          }
+        }
 
-      if (stillNotPlaying) {
-        log(`♻️ Watchdog Info -> Player ${c.index + 1} stuck in PAUSED -> Watchdog reset`);
-        maybeResetPlayer(c, Date.now());
-      }
-    }, WATCHDOG_PAUSE_RECHECK_MS);
+        var stillNotPlaying = false;
+        if (canCheck) {
+          var sNow = c.player.getPlayerState();
+          if (sNow !== YT.PlayerState.PLAYING) {
+            stillNotPlaying = true;
+          }
+        }
+
+        if (!stillNotPlaying) {
+          try { c.pauseRechecks = 0; } catch (_) {}
+          return;
+        }
+
+        try { c.pauseRechecks = (typeof c.pauseRechecks === 'number') ? c.pauseRechecks + 1 : 1; } catch (_) {}
+
+        var maxRechecks = 3;
+        var shouldReset = false;
+        if (typeof c.pauseRechecks === 'number') {
+          if (c.pauseRechecks >= maxRechecks) {
+            shouldReset = true;
+          }
+        }
+
+        if (shouldReset) {
+          log(`♻️ Watchdog Info -> Player ${c.index + 1} stuck in PAUSED -> reset after ${c.pauseRechecks} rechecks`);
+          maybeResetPlayer(c, Date.now());
+          try { c.pauseRechecks = 0; } catch (_) {}
+          return;
+        }
+
+        log(`🔁 Watchdog Info -> Player ${c.index + 1} PAUSED persists -> retry & recheck #${c.pauseRechecks}`);
+        tryRequestPlay(c);
+        scheduleRecheck();
+      }, WATCHDOG_PAUSE_RECHECK_MS);
+    }
+
+    scheduleRecheck();
 
     return true;
   }
+
 
   /**
    * Ο κύριος βρόχος watchdog.
