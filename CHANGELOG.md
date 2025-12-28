@@ -4,6 +4,8 @@
 
 ## 2025-12-28
 
+- playerController.js: v6.48.2 → v6.50.0 — Moved onStateChange to external engine stub; added import; maintained behavior via external function.
+- playerStateEngine.js: v1.0.0 — New module housing onStateChangeExternal and state dispatcher/logging.
 - playerController.js: v6.30.6 → v6.30.7 — Grouped timers (delay/groupCancel), safeSeek with clamp/isNumber, initialSeekSec accepts 0, scheduleMidSeek duration refresh, onError clears timers + grouped AutoNext, ENDED inactivity fallback grouped, post-unmute retry with backoff.
 - playerController.js v6.30.5 → v6.30.6
   - Removed `isValidOrigin` and `originVal`; always pass `origin: getOrigin()` to YouTube `playerVars`.
