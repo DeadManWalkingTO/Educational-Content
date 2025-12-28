@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v6.51.0';
+const VERSION = 'v6.52.3';
 /*
  * Περιγραφή: Ελεγκτής αναπαραγωγής για YouTube IFrame API με ανθρώπινη συμπεριφορά.
  * Χρήση utils API: scheduleSafe, delay, repeat, cancel, groupCancel, retry, debounce, throttle, clamp, log κ.ά.
@@ -23,6 +23,7 @@ import { MAIN_PROBABILITY, controllers, getOrigin, getYouTubeEmbedHost, hasUserG
 import { getBehaviorPlan } from './policies.js';
 import { onStateChangeExternal } from './playerStateEngine.js';
 import { autoNextAfterError } from './autoNext.js';
+import { initUnmute, handlePendingUnmute } from './autoUnmute.js';
 
 /* ===== Helpers ===== */
 function getState(p) {
@@ -212,6 +213,8 @@ export class PlayerController {
         }
       }
     }
+    // Αρχικοποίηση AutoUnmute module
+    initUnmute(this.player, this.plan);
     /* Εφαρμογή seek με επανάληψη μετά από ~800 ms */
     this._safeSeek(targetSec);
     scheduleSafe(() => this._safeSeek(targetSec), 800, this._group('init-seek'), 'init-seek-repeat');
@@ -236,20 +239,7 @@ export class PlayerController {
     /* Προγραμματισμός Pauses/MidSeek βάσει policy */
     this.schedulePauses();
     this.scheduleMidSeek();
-    /* Unmute βάσει policy (καθυστερήσεις + εύρος έντασης) */
-    let unmuteDelayExtra = this.config?.unmuteDelayExtra;
-    if (typeof unmuteDelayExtra !== 'number') {
-      unmuteDelayExtra = rndInt(30, 90);
-    }
-    const baseDelaySec = planOk === true ? Number(this.plan?.unmute?.baseDelaySec) : rndInt(5, 180);
-    const volRange = planOk === true ? this.plan?.unmute?.volumeRangePct : [10, 30];
-    const unmuteDelay = (baseDelaySec + unmuteDelayExtra) * 1000;
-    scheduleSafe(
-      () => {
-        const userGesture = !!hasUserGesture;
-        if (!userGesture) {
-          this.pendingUnmute = true;
-          log(`🔇 Player ${this.index + 1} Awaiting user gesture for unmute`);
+    
           return;
         }
         const canPlay = allTrue([isFunction(p.getPlayerState), p.getPlayerState() === YT.PlayerState.PLAYING]);
@@ -265,7 +255,7 @@ export class PlayerController {
             p.setVolume(v);
           }
           stats.volumeChanges++;
-          log(`🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
+          
           /* Quick retry μετά από άμεσο unmute */
           scheduleSafe(
             () => {
@@ -308,7 +298,7 @@ export class PlayerController {
           );
         } else {
           this.pendingUnmute = true;
-          log(`⚠️ Player ${this.index + 1} Auto Unmute skipped -> not playing (will retry on PLAYING)`);
+          
         }
       },
       unmuteDelay,
@@ -319,6 +309,9 @@ export class PlayerController {
   onStateChange(e) {
     try {
       onStateChangeExternal(this, e);
+      if (state === YT.PlayerState.PLAYING) {
+        handlePendingUnmute(this.player, this.plan);
+      }
     } catch (_) {}
   }
   onError() {

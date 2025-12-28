@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v1.6.0';
+const VERSION = 'v1.8.5';
 /*
  * Περιγραφή: State Handlers για YT onStateChange, με ασφαλή χρήση utils (guards, time/random, scheduler, logging).
  * Ρόλος: Ενιαίος dispatcher + καθαροί handlers για logs, fake-end guard, unmute/retry, accumulators, pause-guard.
@@ -21,6 +21,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 import { scheduleSafe, cancel, log, rndInt, randomFloat, anyTrue, allTrue, isDefined, isFunction, isNumber, clamp, retry } from './utils.js';
 import { hasUserGesture, stats } from './globals.js';
 import { autoNextAfterEnded } from './autoNext.js';
+import { handlePendingUnmute } from './autoUnmute.js';
 
 // -------------------- Helpers --------------------
 function hasYT() {
@@ -172,17 +173,6 @@ function applyFakeEndGuard(ctrl) {
   }
   return false;
 }
-function maybeUnmuteAfterPlaying(ctrl) {
-  const want = allTrue([ctrl.pendingUnmute === true]);
-  if (want) {
-    const userGesture = hasUserGesture === true;
-    if (userGesture !== true) {
-      log(`🔇 Player ${ctrl.index + 1} Still awaiting user gesture before unmute`);
-    } else {
-      const p = ctrl.player;
-      if (isFunction(p?.unMute)) {
-        p.unMute();
-      }
       const volRange = isDefined(ctrl.plan?.unmute?.volumeRangePct) ? ctrl.plan.unmute.volumeRangePct : [10, 30];
       const vMin = Array.isArray(volRange) ? volRange[0] : 10;
       const vMax = Array.isArray(volRange) ? volRange[1] : 30;
@@ -192,7 +182,7 @@ function maybeUnmuteAfterPlaying(ctrl) {
       }
       ctrl.pendingUnmute = false;
       stats.volumeChanges++;
-      log(`🔊 Player ${ctrl.index + 1} Unmute after PLAYING -> ${v}%`);
+      
       // Retry κύκλος: αν παραμείνει PAUSED, κάνε guardPlay
       scheduleSafe(
         async () => {
@@ -279,6 +269,10 @@ function createStateHandlers(ctrl) {
   return {};
 }
 export function onStateChangeExternal(ctrl, e) {
+  const state = e.data;
+  if (state === YT.PlayerState.PLAYING) {
+    if (typeof canUnmuteNow === 'function' && canUnmuteNow()) { handlePendingUnmute(ctrl.player, ctrl.plan); }
+  }
   let s;
   try {
     s = readPlayerState(ctrl, e);

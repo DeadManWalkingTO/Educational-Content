@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v4.13.2';
+const VERSION = 'v4.18.4';
 /*
 Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
 Αναθεώρηση: Αφαίρεση τοπικού scheduler και χρήση των APIs από utils.js (delay/cancel/scheduleSafe/rndInt).
@@ -92,33 +92,6 @@ export const AUTO_NEXT_LIMIT_PER_PLAYER = 50;
 /* Πίνακας controllers: γεμίζει από main.js */
 export const controllers = [];
 /** --- Σταθερές εφαρμογής - End --- */
-
-/** --- Global unmute limiter - Start --- */
-/**
- * Εφαρμογή ορίου ταυτόχρονων unmute ενεργειών.
- */
-export const unmuteLimiter = { limit: 2, pending: 0 };
-
-/**
- * Έλεγχος αν μπορεί να ξεκινήσει νέο unmute τώρα.
- * @returns {boolean}
- */
-export function canUnmuteNow() {
-  return unmuteLimiter.pending < unmuteLimiter.limit;
-}
-
-/** Αύξηση pending unmute */
-export function incUnmutePending() {
-  unmuteLimiter.pending = unmuteLimiter.pending + 1;
-}
-
-/** Μείωση pending unmute */
-export function decUnmutePending() {
-  if (unmuteLimiter.pending > 0) {
-    unmuteLimiter.pending = unmuteLimiter.pending - 1;
-  }
-}
-/** --- Global unmute limiter - End --- */
 
 /** --- Lists state - Start --- */
 /* Κύρια και εναλλακτική λίστα video IDs */
@@ -222,93 +195,6 @@ export function setUserGesture() {
   log(`[${ts()}] 💻 Αλληλεπίδραση Χρήστη`);
 }
 /** --- User gesture flag - End --- */
-
-/** --- UI Utilities (stats & activity panel bindings) - Start --- */
-/**
- * Ενημέρωση του panel στατιστικών. Δημιουργεί το στοιχείο εάν δεν υπάρχει.
- */
-function updateStats() {
-  if (typeof document === 'undefined') {
-    return;
-  }
-  let el = document.getElementById('statsPanel');
-  if (el === null) {
-    el = document.createElement('div');
-    el.id = 'statsPanel';
-    el.className = 'stats';
-    document.body.appendChild(el);
-  }
-  el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Replay:${stats.replay} - Pauses:${stats.pauses} - MidSeeks:${stats.midSeeks} - Watchdog:${stats.watchdog} - Errors:${stats.errors} - VolumeChanges:${stats.volumeChanges}`;
-}
-
-// Listener για app:log (γράφει Activity Panel + updateStats)
-if (typeof document !== 'undefined') {
-  document.addEventListener('app:log', (ev) => {
-    const { full } = ev.detail;
-    const panel = document.getElementById('activityPanel');
-    if (panel !== null) {
-      const div = document.createElement('div');
-      div.textContent = full;
-      panel.appendChild(div);
-      const LOG_PANEL_MAX = 250;
-      while (panel.children.length > LOG_PANEL_MAX) {
-        panel.removeChild(panel.firstChild);
-      }
-      panel.scrollTop = panel.scrollHeight;
-    }
-    // Ενημέρωση stats
-    try {
-      updateStats();
-    } catch (e) {
-      // no-op
-    }
-  });
-}
-/** --- UI Utilities - End --- */
-
-/** --- Scheduler facade (delegates to utils.js) - Start --- */
-/*
- Αντί του παλιού τοπικού scheduler, εκθέτουμε συμβατό facade πάνω από utils.delay/cancel.
- Η "jitter" εδώ παραμένει με absolute spread για backward compatibility (χρήση rndInt).
-*/
-export const scheduler = (function () {
-  function schedule(fn, delayMs) {
-    // Ασφαλής εκτέλεση: τυλίγουμε τη συνάρτηση ώστε να μην ρίχνει exceptions στον event loop.
-    return delay(function () {
-      try {
-        if (typeof fn === 'function') {
-          fn();
-        }
-      } catch (e) {
-        try {
-          const msg = e && typeof e.message === 'string' ? e.message : String(e);
-          log(`⚠️ Scheduler Error ${msg}`);
-        } catch (_) {
-          // no-op
-        }
-      }
-    }, Number(delayMs));
-  }
-
-  function cancelTimer(id) {
-    try {
-      cancel(id);
-    } catch (e) {
-      // no-op
-    }
-  }
-
-  // Jitter: baseMs + [0 .. spreadMs]
-  function jitterAbs(baseMs, spreadMs) {
-    const base = Math.max(0, Math.floor(Number(baseMs)));
-    const spread = Math.max(0, Math.floor(Number(spreadMs)));
-    const delta = rndInt(0, spread);
-    return base + delta;
-  }
-
-  return { schedule: schedule, cancel: cancelTimer, jitter: jitterAbs };
-})();
-/** --- Scheduler facade - End --- */
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
