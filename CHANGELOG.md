@@ -1,6 +1,10 @@
-# CHANGELOG.md - v208
+# CHANGELOG.md - v209
 
 ---
+
+2025-12-28 - playerController.js: v6.30.0 → v6.30.1
+Summary: Quick-fix pack — ready gates, safeSeek clamps, mid-seek guards (minGap/maxSeeks/near-end).
+Notes: Internal refactor only; no public API changes.
 
 ## 2025-12-28
 

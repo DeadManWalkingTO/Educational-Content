@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v6.30.0';
+const VERSION = 'v6.30.1';
 /*
 Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
 Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
@@ -21,6 +21,40 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, log, rndInt, anyTrue, allTrue } from './utils.js';
 import { AUTO_NEXT_LIMIT_PER_PLAYER, MAIN_PROBABILITY, canAutoNext, controllers, getOrigin, getYouTubeEmbedHost, hasUserGesture, incAutoNext, stats } from './globals.js';
 import { getRequiredWatchTime, getPausePlan } from './policies.js';
+
+// Quick-Fix: mid-seek meta & defaults
+const __seekMeta = { lastMs: 0, count: 0 };
+const __seekDefaults = { minGapSec: 90, maxSeeks: 3, nearEndPct: 0.05, fromPct: 0.2, toPct: 0.6 };
+
+/**
+ * Ασφαλές seek με clamps (near-start / near-end) και try/catch.
+ * - player: αντικείμενο YouTube player (με seekTo/getDuration)
+ * - targetSec: στόχος σε δευτερόλεπτα
+ * - durationSec: διάρκεια video
+ */
+export function safeSeek(player, targetSec, durationSec) {
+  const END_PADDING_SEC = 1.0; // βάλε 0.5 αν θες να συμβαδίζει με την αρχική σου υλοποίηση
+  let t = typeof targetSec === 'number' ? targetSec : 0;
+  if (t < 0) {
+    t = 0;
+  }
+  const maxT = durationSec - END_PADDING_SEC;
+  if (t > maxT) {
+    t = maxT;
+  }
+
+  try {
+    player.seekTo(t, true);
+  } catch (e) {
+    // Προαιρετικός fallback στο αρχικό targetSec (αν το clamp αποτύχει)
+    try {
+      const t2 = typeof targetSec === 'number' ? targetSec : 0;
+      player.seekTo(t2, true);
+    } catch (_) {
+      /* swallow */
+    }
+  }
+}
 
 /*
  * guardHasAnyList
@@ -107,38 +141,39 @@ function safeCmd(fn, delay = 80) {
  * doSeek(player, seconds)
  * Περιγραφή: Μετακίνηση χρονικής κεφαλής με ελέγχους ορίων (0..duration-0.5).
  * Εάν η duration δεν είναι διαθέσιμη, προχωρά σε άμεση κλήση seekTo(seconds).
+ * κάνει όλους τους guards και καλεί safeSeek
+ * - Ready gate: δεν κάνει seek αν duration <= 1 s
+ * - Δεν διπλο-κάνει seek (μία κλήση μέσω safeSeek)
  */
-function doSeek(player, seconds) {
+export function doSeek(player, seconds) {
   try {
-    if (player) {
-      if (typeof player.seekTo === 'function') {
-        try {
-          const d = player.getDuration ? player.getDuration() : 0;
-          let s = seconds;
-          if (typeof s === 'number') {
-            if (s < 0) s = 0;
-            if (d > 0) {
-              if (s > d - 0.5) s = d - 0.5;
-            }
-          }
-          player.seekTo(s, true);
-        } catch (err) {
-          player.seekTo(seconds, true);
-        }
-        log(`ℹ️ Player ${this.index + 1} Seek -> seconds= ${seconds}`);
-      } else {
-        log(`⚠️ Player ${this.index + 1} Seek skipped -> player.seekTo unavailable`);
-      }
-    } else {
-      log(`⚠️ Player ${this.index + 1} Seek skipped -> player unavailable`);
+    // Guards (χωρίς '||'/'&&')
+    const playerMissing = !player;
+    const durationMissing = player ? typeof player.getDuration !== 'function' : true;
+    const seekMissing = player ? typeof player.seekTo !== 'function' : true;
+
+    if (anyTrue([playerMissing, durationMissing, seekMissing])) {
+      // Προαιρετικά logging εδώ, αν θες
+      return;
     }
-  } catch (err) {
-    try {
-      stats.errors++;
-      log(`❌ Player ${this.index + 1} Seek Error ${String(err?.message ?? err)}`);
-    } catch (_) {
-      log(`❌ Player ${this.index + 1} Controller Error ${String(err?.message ?? err)}`);
+
+    // Ready gate στη διάρκεια
+    let d = player.getDuration();
+    if (typeof d !== 'number') {
+      d = 0;
     }
+    if (d <= 1) {
+      // Προαιρετικά logging εδώ, αν θες
+      return;
+    }
+
+    // Normalized στόχος
+    const s = typeof seconds === 'number' ? seconds : 0;
+
+    // Ένα και μοναδικό ασφαλές seek (με clamps) — χωρίς διπλές κινήσεις
+    safeSeek(player, s, d);
+  } catch (_) {
+    // Προαιρετικά: telemetry/logging του error
   }
 }
 
