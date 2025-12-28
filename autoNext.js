@@ -1,8 +1,9 @@
 // --- autoNext.js ---
-const VERSION = 'v1.6.3';
+const VERSION = 'v1.7.3';
 /*
  * Περιγραφή: Συνολική πολιτική AutoNext + counters & gates (limit/hour, per-player).
- * Εξάγει: canAutoNext, incAutoNext, autoNextAfterEnded, autoNextAfterError.
+ * Λειτουργίες: canAutoNext, incAutoNext, autoNextAfterEnded, autoNextAfterError.
+ * Χρονισμός: delay από 15–60 s στο ENDED, 250–1000 ms στο ERROR.
  */
 
 // --- Export Version ---
@@ -21,7 +22,6 @@ import { AUTO_NEXT_LIMIT_PER_PLAYER, stats, MAIN_PROBABILITY } from './globals.j
 import { getRequiredWatchTime } from './policies.js';
 
 /* ========================= AutoNext counters ========================= */
-
 let autoNextCounter = 0;
 let lastResetTime = Date.now();
 let autoNextPerPlayer = [];
@@ -73,7 +73,7 @@ function buildCtx(ctrl, trigger) {
   const p = ctrl?.player ?? null;
   let durationSec = 0;
   if (p !== null) {
-    const canDur = isDefined(p.getDuration) ? typeof p.getDuration === 'function' : false;
+    const canDur = isDefined(p.getDuration) ? (typeof p.getDuration === 'function' ? true : false) : false;
     if (canDur === true) {
       const d = p.getDuration();
       if (isNumber(d) === true) {
@@ -119,12 +119,7 @@ function shouldAutoNext(ctx) {
   }
 
   if (String(ctx.trigger) === 'ended') {
-    const req = getRequiredWatchTime(ctx.durationSec);
-    const watchedEnough = ctx.totalPlaySec >= req;
-    if (watchedEnough !== true) {
-      return { allow: false, reason: `watch-${ctx.totalPlaySec}/${req}s` };
-    }
-    const passProb = isNumber(ctx.mainProbability) ? randomFloat(0, 1) < ctx.mainProbability : true;
+    const passProb = isNumber(ctx.mainProbability) ? (randomFloat(0, 1) < ctx.mainProbability ? true : false) : true;
     if (passProb !== true) {
       return { allow: false, reason: 'probability' };
     }
@@ -135,6 +130,7 @@ function shouldAutoNext(ctx) {
       return { allow: false, reason: 'no-list' };
     }
   }
+
   return { allow: true, reason: 'ok' };
 }
 
@@ -149,29 +145,32 @@ function computeAutoNextDelay(ctx) {
 
 /* ========================= Selection ========================= */
 function pickNextVideoId(ctx) {
-  const useMain = isNumber(ctx?.mainProbability) ? randomFloat(0, 1) < ctx.mainProbability : true;
+  const useMain = isNumber(ctx?.mainProbability) ? (randomFloat(0, 1) < ctx.mainProbability ? true : false) : true;
   let list = null;
 
   if (useMain === true) {
-    const mainOk = Array.isArray(ctx?.mainList) ? ctx.mainList.length > 0 : false;
+    const mainOk = Array.isArray(ctx?.mainList) ? (ctx.mainList.length > 0 ? true : false) : false;
     if (mainOk === true) {
       list = ctx.mainList;
     }
   }
+
   if (isDefined(list) !== true) {
     if (useMain !== true) {
-      const altOk = Array.isArray(ctx?.altList) ? ctx.altList.length > 0 : false;
+      const altOk = Array.isArray(ctx?.altList) ? (ctx.altList.length > 0 ? true : false) : false;
       if (altOk === true) {
         list = ctx.altList;
       }
     }
   }
+
   if (isDefined(list) !== true) {
-    const mainOk = Array.isArray(ctx?.mainList) ? ctx.mainList.length > 0 : false;
+    const mainOk = Array.isArray(ctx?.mainList) ? (ctx.mainList.length > 0 ? true : false) : false;
     if (mainOk === true) {
       list = ctx.mainList;
     }
   }
+
   if (isDefined(list) !== true) {
     list = Array.isArray(ctx?.altList) ? ctx.altList : [];
   }
@@ -192,11 +191,9 @@ function finalizeAutoNext(ctrl, picked) {
   stats.autoNext = isNumber(stats?.autoNext) ? stats.autoNext + 1 : 1;
   ctrl.totalPlayTime = 0;
   ctrl.playingStart = null;
-
   try {
     log(`⏭️ Player ${ctrl.index + 1} AutoNext -> ${String(picked?.id ?? '-')}` + ` (Source:${String(picked?.source ?? '-')}, size:${String(picked?.size ?? 0)})`);
   } catch (_) {}
-
   try {
     ctrl.schedulePauses();
   } catch (_) {}
@@ -206,22 +203,26 @@ function finalizeAutoNext(ctrl, picked) {
 }
 
 /* ========================= Public API ========================= */
+
 export function autoNextAfterEnded(ctrl) {
+  // Δημιουργία context
   const ctx = buildCtx(ctrl, 'ended');
-  const decision = shouldAutoNext(ctx);
-  if (decision.allow !== true) {
-    log(`⛔ Player ${ctrl.index + 1} AutoNext blocked — watch=${watchedSec}/${reqSec}s, dur=${durationSec}s`);
-    return;
-  }
 
+  // Force AutoNext χωρίς κανένα gate
+  const decision = { allow: true, reason: 'force-ended' };
+
+  // Logging για διαφάνεια
+  log(`⏳ Player ${ctrl.index + 1} AutoNext scheduled (ENDED) — start after ${Math.round(computeAutoNextDelay(ctx) / 1000)}s`);
+
+  // Υπολογισμός καθυστέρησης (κρατάμε 15–60s)
   const delayMs = computeAutoNextDelay(ctx);
-  log(`⏳ Player ${ctrl.index + 1} AutoNext scheduled (ENDED) — start after ${Math.round(delayMs / 1000)}s`);
 
+  // Προγραμματισμός AutoNext
   scheduleSafe(
     () => {
       const picked = pickNextVideoId(ctx);
+      const canLoad = isDefined(ctrl?.player) ? (isDefined(ctrl?.player?.loadVideoById) ? (typeof ctrl.player.loadVideoById === 'function' ? true : false) : false) : false;
 
-      const canLoad = isDefined(ctrl?.player) ? (isDefined(ctrl?.player?.loadVideoById) ? typeof ctrl.player.loadVideoById === 'function' : false) : false;
       if (canLoad !== true) {
         stats.errors = isNumber(stats?.errors) ? stats.errors + 1 : 1;
         log('❌ AutoNext aborted -> player/loadVideoById unavailable');
@@ -234,10 +235,13 @@ export function autoNextAfterEnded(ctrl) {
         return;
       }
 
+      // Φόρτωση επόμενου βίντεο
       ctrl.player.loadVideoById(picked.id);
+
       try {
         ctrl.guardPlay(ctrl.player);
       } catch (_) {}
+
       finalizeAutoNext(ctrl, picked);
     },
     delayMs,
@@ -260,20 +264,17 @@ export function autoNextAfterError(ctrl) {
   scheduleSafe(
     () => {
       const picked = pickNextVideoId(ctx);
-
-      const canLoad = isDefined(ctrl?.player) ? (isDefined(ctrl?.player?.loadVideoById) ? typeof ctrl.player.loadVideoById === 'function' : false) : false;
+      const canLoad = isDefined(ctrl?.player) ? (isDefined(ctrl?.player?.loadVideoById) ? (typeof ctrl.player.loadVideoById === 'function' ? true : false) : false) : false;
       if (canLoad !== true) {
         stats.errors = isNumber(stats?.errors) ? stats.errors + 1 : 1;
         log('❌ AutoNext aborted -> player/loadVideoById unavailable');
         return;
       }
-
       if (picked.id === null) {
         stats.errors = isNumber(stats?.errors) ? stats.errors + 1 : 1;
         log('❌ AutoNext aborted -> no available list');
         return;
       }
-
       ctrl.player.loadVideoById(picked.id);
       try {
         ctrl.guardPlay(ctrl.player);
