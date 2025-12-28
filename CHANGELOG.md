@@ -1,11 +1,10 @@
 # CHANGELOG.md - v203
 
 ---
-2025-12-28 — watchdog.js: v2.22.13 → v2.22.14 — fix null guard before getPlayerState; added prefilter & per-player try/catch; tests: null player, BUFFERING jitter reset, PAUSED retry/recheck.2025-12-28 — watchdog.js: + slack(250ms) in allowedPause; iterative rechecks (max 3) using WATCHDOG_PAUSE_RECHECK_MS; reset after retries; version bump. Tests: planned pause with expectedPauseMs; unplanned pause with retries→reset; PLAYING clears pauseRechecks.
-
 
 **2025-12-28**
 
+watchdog.js: v2.22.13 → v2.22.14 — fix null guard before getPlayerState; added prefilter & per-player try/catch; tests: null player, BUFFERING jitter reset, PAUSED retry/recheck.2025-12-28 — watchdog.js: + slack(250ms) in allowedPause; iterative rechecks (max 3) using WATCHDOG_PAUSE_RECHECK_MS; reset after retries; version bump. Tests: planned pause with expectedPauseMs; unplanned pause with retries→reset; PLAYING clears pauseRechecks.
 utils.js: v1.6.1 — added log() (console + CustomEvent 'app:log'), no imports
 Unification to utils.js API (no imports)
 utils.js: v1.4.4 → v1.6.0 — Unified helpers + Scheduler API, removed &&/||, no imports
