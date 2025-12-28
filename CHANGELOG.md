@@ -4,6 +4,15 @@
 
 ## 2025-12-28
 
+- playerController.js: v6.30.4 → v6.30.5
+  - Unified origin/host via globals.getOrigin/getYouTubeEmbedHost; removed local dynamic-origin helpers.
+  - Mid-seek refactor: \_doMidSeekOnce() + scheduleMidSeek(); constructor init of seekDefaults/seekMeta.
+  - Timers unified on utils.delay/repeat/cancel; proper cancel() usage; clarified progressCheck cleanup.
+  - Pauses gated by HumanMode.pauseChance; plan via policies.getPausePlan().
+  - Metrics: moved seeks/errors to globals.stats; onError single increment.
+  - Rule-12 compliance: guards with anyTrue/allTrue; avoided import shadowing (jitter).
+- humanMode.js: v4.14.22 → v4.14.23
+  - Explicit import of hasUserGesture; small cleanups.
 - playerController.js: v6.30.2 → v6.30.3, Προσθήκη State Manager dispatcher και event 'videoEnded' για ENDED. Συμβατότητα με υπάρχοντα API.
 - playerController.js: v6.30.1 → v6.30.2
   Summary: Non-functional refactor — added helpers (\_canSeek, \_hasStableDuration, \_clampTarget, \_safeSeek), refactored doSeek, mid-seek guards, timers registry, region markers, JSDoc placeholders.

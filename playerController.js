@@ -1,9 +1,9 @@
 // --- playerController.js ---
-const VERSION = 'v6.30.4';
+const VERSION = 'v6.30.5';
 /*
 Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
 Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
-        ενδιάμεσες μετακινήσεις (mid-seek), και χειρισμός καταστάσεων/σφαλμάτων.
+ ενδιάμεσες μετακινήσεις (mid-seek), και χειρισμός καταστάσεων/σφαλμάτων.
 */
 
 // --- Export Version ---
@@ -11,9 +11,8 @@ export function getVersion() {
   return VERSION;
 }
 
-//Όνομα αρχείου για logging.
+// Όνομα αρχείου για logging.
 const FILENAME = import.meta.url.split('/').pop();
-
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
@@ -22,18 +21,14 @@ import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, log, rndIn
 import { AUTO_NEXT_LIMIT_PER_PLAYER, MAIN_PROBABILITY, canAutoNext, controllers, getOrigin, getYouTubeEmbedHost, hasUserGesture, incAutoNext, stats } from './globals.js';
 import { getRequiredWatchTime, getPausePlan } from './policies.js';
 
-// Quick-Fix: mid-seek meta & defaults
-const __seekMeta = { lastMs: 0, count: 0 };
-const __seekDefaults = { minGapSec: 90, maxSeeks: 3, nearEndPct: 0.05, fromPct: 0.2, toPct: 0.6 };
-
 /**
- * Ασφαλές seek με clamps (near-start / near-end) και try/catch.
+ * Ασφαλές seek με clamps (near-start / near-end) και try/catch (module-level helper).
  * - player: αντικείμενο YouTube player (με seekTo/getDuration)
  * - targetSec: στόχος σε δευτερόλεπτα
  * - durationSec: διάρκεια video
  */
 export function safeSeek(player, targetSec, durationSec) {
-  const END_PADDING_SEC = 1.0; // βάλε 0.5 αν θες να συμβαδίζει με την αρχική σου υλοποίηση
+  const END_PADDING_SEC = 1.0;
   let t = typeof targetSec === 'number' ? targetSec : 0;
   if (t < 0) {
     t = 0;
@@ -42,11 +37,9 @@ export function safeSeek(player, targetSec, durationSec) {
   if (t > maxT) {
     t = maxT;
   }
-
   try {
     player.seekTo(t, true);
   } catch (e) {
-    // Προαιρετικός fallback στο αρχικό targetSec (αν το clamp αποτύχει)
     try {
       const t2 = typeof targetSec === 'number' ? targetSec : 0;
       player.seekTo(t2, true);
@@ -59,7 +52,7 @@ export function safeSeek(player, targetSec, durationSec) {
 /*
  * guardHasAnyList
  * Περιγραφή: Πιστοποιεί ότι υπάρχει τουλάχιστον μία διαθέσιμη λίστα (main ή alt)
- *            για AutoNext. Η λογική είναι σειριακή για συμβατότητα με τους κανόνες.
+ * για AutoNext. Η λογική είναι σειριακή για συμβατότητα με τους κανόνες.
  */
 function guardHasAnyList(ctrl) {
   if (!ctrl) {
@@ -77,46 +70,6 @@ function guardHasAnyList(ctrl) {
   }
   return false;
 }
-
-// --- Phase-2/3: State transition mapping (Rule 12) ---
-/**
- * STATE_TRANSITIONS
- * Περιγραφή: Περιγραφικός χάρτης καταστάσεων για υψηλού επιπέδου ενέργειες.
- * Δεν εκτελείται απευθείας ως state machine· χρησιμοποιείται ενδεικτικά στα handlers
- * για οργάνωση συνθηκών (guards) και ενεργειών (actions).
- */
-const STATE_TRANSITIONS = {
-  UNSTARTED: {
-    onReady: { guard: (ctrl) => true, action: (ctrl) => ctrl.onReady?.() },
-  },
-  PLAYING: {
-    onPause: {
-      guard: (ctrl) => pc_canPause(ctrl),
-      action: (ctrl) => ctrl.onPause?.(),
-    },
-    onEnd: {
-      guard: (ctrl) => pc_guardCanAutoNext(ctrl),
-      action: (ctrl) => ctrl.autoNext?.(),
-    },
-  },
-  PAUSED: {
-    onResume: {
-      guard: (ctrl) => pc_canResume(ctrl),
-
-      action: (ctrl) => ctrl.onResume?.(),
-    },
-    onSeek: {
-      guard: (ctrl) => pc_canSeek(ctrl),
-      action: (ctrl) => pc_commitSeek(ctrl),
-    },
-  },
-  ENDED: {
-    onEnd: {
-      guard: (ctrl) => pc_guardCanAutoNext(ctrl),
-      action: (ctrl) => ctrl.autoNext?.(),
-    },
-  },
-};
 
 /**
  * safeCmd(fn, delay)
@@ -139,68 +92,30 @@ function safeCmd(fn, delay = 80) {
 
 /**
  * doSeek(player, seconds)
- * Περιγραφή: Μετακίνηση χρονικής κεφαλής με ελέγχους ορίων (0..duration-0.5).
+ * Περιγραφή: Μετακίνηση χρονικής κεφαλής με ελέγχους ορίων (0..duration-1.0).
  * Εάν η duration δεν είναι διαθέσιμη, προχωρά σε άμεση κλήση seekTo(seconds).
- * κάνει όλους τους guards και καλεί safeSeek
- * - Ready gate: δεν κάνει seek αν duration <= 1 s
- * - Δεν διπλο-κάνει seek (μία κλήση μέσω safeSeek)
+ * Κάνει όλους τους guards και καλεί safeSeek.
  */
 export function doSeek(player, seconds) {
   try {
-    // Guards (χωρίς '||'/'&&')
     const playerMissing = !player;
     const durationMissing = player ? typeof player.getDuration !== 'function' : true;
     const seekMissing = player ? typeof player.seekTo !== 'function' : true;
-
     if (anyTrue([playerMissing, durationMissing, seekMissing])) {
-      // Προαιρετικά logging εδώ, αν θες
       return;
     }
-
-    // Ready gate στη διάρκεια
     let d = player.getDuration();
     if (typeof d !== 'number') {
       d = 0;
     }
     if (d <= 1) {
-      // Προαιρετικά logging εδώ, αν θες
       return;
     }
-
-    // Normalized στόχος
     const s = typeof seconds === 'number' ? seconds : 0;
-
-    // Ένα και μοναδικό ασφαλές seek (με clamps) — χωρίς διπλές κινήσεις
     safeSeek(player, s, d);
   } catch (_) {
     // Προαιρετικά: telemetry/logging του error
   }
-}
-
-// --- Utils: dynamic origin/host ---
-/**
- * getDynamicOrigin()
- * Περιγραφή: Επιστρέφει δυναμικά το origin (πρωτόκολλο+host+port) της τρέχουσας σελίδας.
- * Ασφάλεια: Αγνοεί περιβάλλοντα file:// και χειρίζεται ελλείψεις ιδιοτήτων window.location.
- */
-function getDynamicOrigin() {
-  try {
-    if (allTrue([window.location, window.location.origin])) return window.location.origin;
-    const __loc = typeof window !== 'undefined' ? (window.location ? window.location : {}) : {};
-    const { protocol, hostname, port } = __loc;
-    if (allTrue([protocol, hostname])) return `${protocol}//${hostname}${port ? ':' + port : ''}`;
-  } catch (err) {
-    log(`⚠️ getDynamicOrigin Error ${String(err?.message ?? err)}`);
-  }
-  return '';
-}
-
-/**
- * getYouTubeHostFallback()
- * Περιγραφή: Επιστρέφει σταθερό host ως εφεδρεία· χρησιμοποιείται μόνο για logging.
- */
-function getYouTubeHostFallback() {
-  return 'https://www.youtube.com';
 }
 
 /**
@@ -208,14 +123,17 @@ function getYouTubeHostFallback() {
  * Περιγραφή: Βοηθητικές συναρτήσεις για ασφαλή ανάγνωση κατάστασης player και έλεγχο PLAYING.
  */
 function getState(p) {
-  if (allTrue([p, typeof p.getPlayerState === 'function'])) {
+  if (allTrue([p ? true : false, typeof p.getPlayerState === 'function'])) {
     return p.getPlayerState();
   }
   return undefined;
 }
 function isPlaying(p) {
   const s = getState(p);
-  return s === YT.PlayerState.PLAYING;
+  if (allTrue([typeof YT !== 'undefined', typeof YT?.PlayerState !== 'undefined'])) {
+    return s === YT.PlayerState.PLAYING;
+  }
+  return false;
 }
 
 /** PlayerController class --- Start */
@@ -223,7 +141,6 @@ export class PlayerController {
   /**
    * constructor(index, mainList, altList, config)
    * Περιγραφή: Αρχικοποιεί ιδιότητες ελέγχου και αποθηκεύει λίστες video IDs.
-   * Σημείωση: Οι λίστες εξομαλύνονται σε κενές όταν δεν δίνονται έγκυρα arrays.
    */
   constructor(index, mainList, altList, config = null) {
     this.pendingUnmute = false; // flag αναμονής για unmute όταν δεν υπάρχει gesture
@@ -231,7 +148,7 @@ export class PlayerController {
     this.mainList = Array.isArray(mainList) ? mainList : [];
     this.altList = Array.isArray(altList) ? altList : [];
     this.player = null; // instance του YT.Player
-    this.timers = { midSeek: null, pauseTimers: [], progressCheck: null }; // αποθήκευση χρονομετρητών
+    this.timers = { midSeek: null, pauseTimers: [], progressCheck: null }; // αποθήκευση job ids (utils)
     this.config = config; // προαιρετικές ρυθμίσεις (καθυστερήσεις, intervals, κ.ά.)
     this.profileName = config?.profileName ?? 'Unknown';
     this.startTime = null; // timestamp πρώτης ετοιμότητας
@@ -243,6 +160,9 @@ export class PlayerController {
     this.lastPausedStart = null; // σημείωση έναρξης PAUSED
     this.expectedPauseMs = 0; // αναμενόμενη διάρκεια παύσης (για επαναφορά)
     this.initialSeekSec = this.config?.initialSeekSec; // προαιρετικό αρχικό seek
+    // mid-seek defaults/meta (για throttling & στόχευση)
+    this.seekDefaults = { minGapSec: 90, maxSeeks: 3, nearEndPct: 0.05, fromPct: 0.2, toPct: 0.6 };
+    this.seekMeta = { lastMs: 0, count: 0 };
   }
 
   // ===== Helpers & Guards =====
@@ -252,7 +172,6 @@ export class PlayerController {
     const noSeekTo = this.player ? typeof this.player.seekTo !== 'function' : true;
     return !anyTrue([pMissing, noDuration, noSeekTo]);
   }
-
   _hasStableDuration() {
     let d = this.player ? this.player.getDuration() : 0;
     if (typeof d !== 'number') {
@@ -260,7 +179,6 @@ export class PlayerController {
     }
     return d > 1;
   }
-
   _clampTarget(durationSec, targetSec) {
     const END_PADDING_SEC = 1.0;
     let t = typeof targetSec === 'number' ? targetSec : 0;
@@ -273,7 +191,6 @@ export class PlayerController {
     }
     return t;
   }
-
   _safeSeek(seconds) {
     try {
       if (!this._canSeek()) {
@@ -291,18 +208,14 @@ export class PlayerController {
           this.player.seekTo(typeof seconds === 'number' ? seconds : 0, true);
         } catch (_) {}
       }
-      if (typeof this.stats.seeksDone !== 'number') {
-        this.stats.seeksDone = 0;
+      if (typeof stats.seeksDone !== 'number') {
+        stats.seeksDone = 0;
       }
-      this.stats.seeksDone += 1;
+      stats.seeksDone += 1;
     } catch (err) {
-      if (typeof this.stats.errors !== 'number') {
-        this.stats.errors = 0;
-      }
-      this.stats.errors += 1;
+      stats.errors += 1;
     }
   }
-
   doSeek(seconds) {
     if (!this.player) {
       return;
@@ -313,78 +226,93 @@ export class PlayerController {
     this._safeSeek(seconds);
   }
 
-  scheduleMidSeek() {
+  // Unified mid-seek once
+  _doMidSeekOnce() {
     try {
-      if (!this.player) {
-        return;
+      const p = this.player;
+      if (anyTrue([!p])) return;
+      const dur = typeof p.getDuration === 'function' ? p.getDuration() : 0;
+      if (dur < 300) return; // > 5min μόνο
+      const nearEnd = this.seekDefaults.nearEndPct;
+      const cur = typeof p.getCurrentTime === 'function' ? p.getCurrentTime() : 0;
+      if (dur > 0) {
+        const nearEndSec = dur * (1 - nearEnd);
+        if (cur > nearEndSec) return; // πολύ κοντά στο τέλος
       }
-      const state = this.player.getPlayerState ? this.player.getPlayerState() : -1;
-      const dur = this.player.getDuration ? this.player.getDuration() : 0;
-      const cur = this.player.getCurrentTime ? this.player.getCurrentTime() : 0;
-      if (dur <= 0) {
-        return;
-      }
-      if (typeof PLAYER_STATE !== 'undefined') {
-        if (state !== PLAYER_STATE.PLAYING) {
-          return;
-        }
-      }
-      if (cur > dur * (1 - this.seekDefaults.nearEndPct)) {
-        return;
-      }
+      const from = Math.floor(dur * this.seekDefaults.fromPct);
+      const to = Math.floor(dur * this.seekDefaults.toPct);
+      const target = rndInt(from, to);
+      this._safeSeek(target);
+      stats.midSeeks += 1;
+      log(`🔁 Player ${this.index + 1} Mid-seek -> ${target}s`);
+      // throttling με meta
       const now = Date.now();
-      if (this.seekMeta.lastMs > 0 && now - this.seekMeta.lastMs < this.seekDefaults.minGapSec * 1000) {
-        return;
-      }
-      if (this.seekMeta.count >= this.seekDefaults.maxSeeks) {
-        return;
-      }
-      const span = this.seekDefaults.toPct - this.seekDefaults.fromPct;
-      const targetPct = this.seekDefaults.fromPct + Math.random() * span;
-      const target = Math.floor(dur * targetPct);
-      const clamped = this._clampTarget(dur, target);
-      try {
-        this.player.seekTo(clamped, true);
-      } catch (_) {}
       this.seekMeta.lastMs = now;
-      this.seekMeta.count += 1;
+      this.seekMeta.count = (this.seekMeta.count ?? 0) + 1;
     } catch (_) {}
   }
 
-  armTimer(name, fn, ms) {
-    if (!this.timers) {
-      this.timers = {};
-    }
-    if (typeof this.timers[name] === 'number') {
-      clearTimeout(this.timers[name]);
-    }
-    this.timers[name] = setTimeout(() => {
-      try {
-        fn();
-      } catch (_) {}
-    }, ms);
+  // Scheduler για mid-seek (σεβασμός config.midSeekInterval)
+  scheduleMidSeek() {
+    const p = this.player;
+    if (anyTrue([!p])) return;
+    const duration = typeof p.getDuration === 'function' ? p.getDuration() : 0;
+    if (duration < 300) return;
+
+    const interval = this.config?.midSeekInterval ?? rndInt(8, 12) * 60000;
+    this.timers.midSeek = scheduleDelay(() => {
+      const canPlayNow = allTrue([duration > 0, typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING]);
+      if (canPlayNow) {
+        // respect min gap & max seeks
+        const now = Date.now();
+        let blockByGap = false;
+        if (this.seekMeta.lastMs > 0) {
+          const diff = now - this.seekMeta.lastMs;
+          if (diff < this.seekDefaults.minGapSec * 1000) blockByGap = true;
+        }
+        const reachedMax = (this.seekMeta.count ?? 0) >= this.seekDefaults.maxSeeks;
+        if (!anyTrue([blockByGap, reachedMax])) {
+          this._doMidSeekOnce();
+        }
+      }
+      this.scheduleMidSeek(); // επαναπρογραμματισμός
+    }, interval);
   }
 
-  clearTimer(name) {
-    if (!this.timers) {
-      return;
-    }
-    if (typeof this.timers[name] === 'number') {
-      clearTimeout(this.timers[name]);
-    }
-    this.timers[name] = undefined;
-  }
-
+  // Timers helpers με utils.cancel ids
   stopAllTimers() {
     if (!this.timers) {
       return;
     }
-    for (const k of Object.keys(this.timers)) {
-      if (typeof this.timers[k] === 'number') {
-        clearTimeout(this.timers[k]);
+    const keys = Object.keys(this.timers);
+    for (const k of keys) {
+      const v = this.timers[k];
+      if (Array.isArray(v)) {
+        for (const id of v) {
+          cancel(id);
+        }
+        this.timers[k] = [];
+      } else if (typeof v === 'number') {
+        cancel(v);
+        this.timers[k] = null;
       }
-      this.timers[k] = undefined;
     }
+  }
+
+  clearTimers() {
+    this.timers.pauseTimers.forEach((id) => {
+      cancel(id);
+    });
+    this.timers.pauseTimers = [];
+    if (this.timers.midSeek) {
+      cancel(this.timers.midSeek);
+      this.timers.midSeek = null;
+    }
+    if (this.timers.progressCheck) {
+      cancel(this.timers.progressCheck);
+      this.timers.progressCheck = null;
+    }
+    this.expectedPauseMs = 0;
   }
 
   /**
@@ -392,13 +320,13 @@ export class PlayerController {
    * Περιγραφή: Προσπαθεί να καλέσει playVideo με μικρή τυχαία καθυστέρηση (jitter).
    */
   tryPlay(p) {
-    const jitter = 50 + Math.floor(Math.random() * 200);
+    const jitterMs = jitter(150, 0.67); // ~100..200ms
     const attempt = () => {
       if (typeof p.playVideo === 'function') {
         this.guardPlay(p);
       }
     };
-    setTimeout(attempt, jitter);
+    setTimeout(attempt, jitterMs);
   }
 
   /**
@@ -421,7 +349,7 @@ export class PlayerController {
    */
   requestPlay() {
     try {
-      var pLocal = this.player;
+      const pLocal = this.player;
       if (pLocal) {
         this.guardPlay(pLocal);
       }
@@ -433,14 +361,11 @@ export class PlayerController {
   /**
    * init(videoId)
    * Περιγραφή: Δημιουργεί YT.Player με ασφαλή ορισμό origin και callbacks.
-   * Χρήση: Καλείται μετά την κατασκευή για σύνδεση κοντέινερ και φόρτωση video.
    */
   init(videoId) {
     const containerId = `player${this.index + 1}`;
-    const dyn = typeof getDynamicOrigin === 'function' ? getDynamicOrigin() : '';
-    const computedOrigin = dyn ? dyn : window.location?.origin ?? '';
-    const isValidOrigin = allTrue([typeof computedOrigin === 'string', /^https?:\/\/[^/]+$/.test(computedOrigin), !/^file:\/\//.test(computedOrigin), computedOrigin !== '<URL>']);
-    const hostVal = getYouTubeHostFallback(); // μόνο για ενημερωτικό logging
+    const originVal = getOrigin();
+    const isValidOrigin = allTrue([typeof originVal === 'string', /^https?:\/\/[^/]+$/.test(originVal), !/^file:\/\//.test(originVal), originVal !== '<URL>']);
 
     this.player = new YT.Player(containerId, {
       videoId,
@@ -448,7 +373,7 @@ export class PlayerController {
       playerVars: {
         enablejsapi: 1,
         playsinline: 1,
-        ...(isValidOrigin ? { origin: getOrigin() } : {}),
+        ...(isValidOrigin ? { origin: originVal } : {}),
       },
       events: {
         onReady: (e) => this.onReady(e),
@@ -456,16 +381,13 @@ export class PlayerController {
         onError: () => this.onError(),
       },
     });
-
-    log(`ℹ️ YT PlayerVars origin→ ${isValidOrigin ? computedOrigin : '(none)'} host→ ${hostVal}`);
+    log(`ℹ️ YT PlayerVars origin→ ${isValidOrigin ? originVal : '(none)'} host→ ${getYouTubeEmbedHost()}`);
     log(`ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
     log(`👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
   }
 
   /**
    * onReady(e)
-   * Περιγραφή: Callback ετοιμότητας. Θέτει αρχικές καθυστερήσεις, προγραμματίζει παύσεις/mid-seek,
-   *            και προετοιμάζει την αποσίγαση (unmute) με σεβασμό σε user-gesture πολιτική.
    */
   onReady(e) {
     const p = e.target;
@@ -504,20 +426,16 @@ export class PlayerController {
           log(`❌ Player ${this.index + 1} onReady Error ${String(_e?.message ?? _e)}`);
         }
       }
-    }, __jitterMs); // JITTER_APPLIED: μικρή μετατόπιση για σταθερότητα IFrame μηνυμάτων
+    }, __jitterMs);
 
     scheduleDelay(() => {
-      var seekSec = typeof this.initialSeekSec === 'number' ? this.initialSeekSec : '-';
+      const seekSec = typeof this.initialSeekSec === 'number' ? this.initialSeekSec : '-';
       log(`▶ Player ${this.index + 1} Ready -> Seek= ${seekSec}s after ${startDelaySec}s`);
       this.schedulePauses();
       this.scheduleMidSeek();
     }, startDelay);
 
     // Auto Unmute + fallback
-    /**
-     * Περιγραφή: Η αποσίγαση γίνεται μόνο όταν υπάρχει user-gesture (πολιτική browser/YouTube).
-     * Αν δεν υπάρχει, κρατάμε pendingUnmute και δοκιμάζουμε ξανά όταν ο player περάσει σε PLAYING.
-     */
     const unmuteDelayExtra = this.config?.unmuteDelayExtra ?? rndInt(30, 90);
     const unmuteDelay = (startDelaySec + unmuteDelayExtra) * 1000;
     scheduleDelay(() => {
@@ -555,18 +473,13 @@ export class PlayerController {
 
   /**
    * onStateChange(e)
-   * Περιγραφή: Κεντρικός χειριστής καταστάσεων του IFrame API.
-   * Καταγράφει μεταβολές, ενημερώνει meters χρόνου αναπαραγωγής και αποφασίζει AutoNext.
    */
-
   onStateChange(e) {
-    // === 1) Ανάγνωση κατάστασης με guards (χωρίς || / &&) ===
-    let s; // ορατή σε όλη τη μέθοδο
-
+    // === 1) Ανάγνωση κατάστασης με guards ===
+    let s;
     try {
       const hasEvent = typeof e !== 'undefined';
       const hasData = hasEvent ? typeof e.data !== 'undefined' : false;
-
       if (hasData) {
         s = e.data;
       } else {
@@ -581,7 +494,7 @@ export class PlayerController {
       log(`❌ Player ${this.index + 1} StateChange Error ${String(err?.message ?? err)}`);
     }
 
-    // === 2) Dispatcher (μόνο αν υπάρχει σ) ===
+    // === 2) Dispatcher ===
     try {
       const canDispatch = typeof s !== 'undefined';
       if (canDispatch) {
@@ -589,7 +502,7 @@ export class PlayerController {
       }
     } catch (_) {}
 
-    // === 3) Unified State Logging (χωρίς || / &&) ===
+    // === 3) Unified State Logging ===
     try {
       // prev state
       let prevState = this.lastKnownState;
@@ -610,7 +523,6 @@ export class PlayerController {
       let scheduled = false;
       try {
         const hasTimersObj = !!this.timers && typeof this.timers === 'object';
-
         if (hasTimersObj) {
           let hasPauseTimers = false;
           const hasPauseArr = Array.isArray(this.timers?.pauseTimers);
@@ -622,7 +534,6 @@ export class PlayerController {
           if (hasPauseTimers === true) {
             scheduled = true;
           }
-
           if (scheduled !== true) {
             const hasMid = typeof this.timers?.midSeek !== 'undefined' ? this.timers.midSeek !== null : false;
             if (hasMid) {
@@ -636,7 +547,6 @@ export class PlayerController {
             }
           }
         }
-
         if (scheduled !== true) {
           const hasExpectedPause = typeof this.expectedPauseMs === 'number' ? this.expectedPauseMs > 0 : false;
           if (hasExpectedPause) {
@@ -677,17 +587,14 @@ export class PlayerController {
         }
         return name;
       };
-
       const tag = scheduled === true ? 'scheduled' : 'random';
       log('Player ' + String(this.index + 1) + ' State: ' + stateName(s) + ' (prev: ' + stateName(prevState) + ') — ' + tag + ' — t=' + String(Math.round(tSec)) + 's');
-
       this.lastKnownState = s;
     } catch (_) {}
 
-    // === 4) Switch (χωρίς return), μόνο για απλά side-effects/logs ===
+    // === 4) Switch: απλά side-effects/logs ===
     try {
       const p = this.player;
-
       if (typeof s !== 'undefined') {
         if (s === YT.PlayerState.UNSTARTED) {
           log(`🟢 Player ${this.index + 1} State -> UNSTARTED`);
@@ -702,6 +609,26 @@ export class PlayerController {
                 this.isPlayingActive = true;
               }
               log(`▶ Player ${this.index + 1} State -> PLAYING`);
+              // Unmute retry όταν περάσουμε σε PLAYING και υπάρχει pendingUnmute
+              if (allTrue([this.pendingUnmute === true])) {
+                if (!hasUserGesture) {
+                  log(`🔇 Player ${this.index + 1} Still awaiting user gesture before unmute`);
+                } else {
+                  if (typeof p?.unMute === 'function') p.unMute();
+                  const [vMin, vMax] = this.config?.volumeRange ?? [10, 30];
+                  const v = rndInt(vMin, vMax);
+                  if (typeof p?.setVolume === 'function') p.setVolume(v);
+                  this.pendingUnmute = false;
+                  stats.volumeChanges++;
+                  log(`🔊 Player ${this.index + 1} Unmute after PLAYING -> ${v}%`);
+                  scheduleDelay(() => {
+                    if (allTrue([typeof p?.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
+                      log(`⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
+                      if (typeof p?.playVideo === 'function') this.guardPlay(p);
+                    }
+                  }, 1000);
+                }
+              }
             } else {
               if (s === YT.PlayerState.PAUSED) {
                 log(`⏸️ Player ${this.index + 1} State -> PAUSED`);
@@ -713,7 +640,7 @@ export class PlayerController {
                     log(`🟢 Player ${this.index + 1} State -> CUED`);
                   } else {
                     log(`🔴 Player ${this.index + 1} State -> UNKNOWN (${String(s)})`);
-                    if (allTrue([this.isPlayingActive, s !== YT.PlayerState.PLAYING])) {
+                    if (allTrue([this.isPlayingActive === true, s !== YT.PlayerState.PLAYING])) {
                       this.isPlayingActive = false;
                     }
                   }
@@ -723,108 +650,82 @@ export class PlayerController {
           }
         }
       }
-
-      // Unmute retry όταν περάσουμε σε PLAYING και υπάρχει pendingUnmute
-      const isPlayingNow = typeof s !== 'undefined' ? s === YT.PlayerState.PLAYING : false;
-      if (allTrue([isPlayingNow, this.pendingUnmute])) {
-        if (!hasUserGesture) {
-          log(`🔇 Player ${this.index + 1} Still awaiting user gesture before unmute`);
-        } else {
-          if (typeof p?.unMute === 'function') p.unMute();
-          const [vMin, vMax] = this.config?.volumeRange ?? [10, 30];
-          const v = rndInt(vMin, vMax);
-          if (typeof p?.setVolume === 'function') p.setVolume(v);
-          this.pendingUnmute = false;
-          stats.volumeChanges++;
-          log(`🔊 Player ${this.index + 1} Unmute after PLAYING -> ${v}%`);
-          scheduleDelay(() => {
-            if (allTrue([typeof p?.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
-              log(`⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
-              if (typeof p?.playVideo === 'function') this.guardPlay(p);
-            }
-          }, 1000);
-        }
-      }
-
-      // Accumulated play time
-      if (typeof s !== 'undefined') {
-        if (s === YT.PlayerState.PLAYING) {
-          this.playingStart = Date.now();
-          this.currentRate = typeof p?.getPlaybackRate === 'function' ? p.getPlaybackRate() : 1.0;
-        } else {
-          const endedOrPaused = anyTrue([s === YT.PlayerState.PAUSED, s === YT.PlayerState.ENDED]);
-          if (allTrue([!!this.playingStart, endedOrPaused])) {
-            this.totalPlayTime += ((Date.now() - this.playingStart) / 1000) * this.currentRate;
-            this.playingStart = null;
-          }
-        }
-        if (s === YT.PlayerState.BUFFERING) this.lastBufferingStart = Date.now();
-        if (s === YT.PlayerState.PAUSED) this.lastPausedStart = Date.now();
-      }
-
-      // PauseGuard
-      try {
-        if (this.pauseGuardTimer) {
-          clearTimeout(this.pauseGuardTimer);
-        }
-      } catch (_) {}
-      (function (self) {
-        let basePause = 2000;
-        if (typeof self.expectedPauseMs === 'number') {
-          if (self.expectedPauseMs > 0) {
-            basePause = self.expectedPauseMs;
-          }
-        }
-        const slack = 250;
-        self.pauseGuardTimer = setTimeout(function () {
-          try {
-            const p = self.player;
-            let canCheck = false;
-            if (typeof p !== 'undefined') {
-              if (p !== null) {
-                if (typeof p.getPlayerState === 'function') {
-                  canCheck = true;
-                }
-              }
-            }
-            if (canCheck) {
-              const st = p.getPlayerState();
-              if (st === YT.PlayerState.PAUSED) {
-                try {
-                  if (typeof tryRequestPlay === 'function') {
-                    tryRequestPlay(self);
-                  } else {
-                    p.playVideo();
-                  }
-                } catch (_) {}
-              } else {
-                try {
-                  self.pauseRechecks = 0;
-                } catch (_) {}
-              }
-            }
-          } catch (_) {}
-        }, basePause + slack);
-      })(this);
     } catch (_) {}
+
+    // Accumulated play time
+    if (typeof s !== 'undefined') {
+      const p = this.player;
+      if (s === YT.PlayerState.PLAYING) {
+        this.playingStart = Date.now();
+        this.currentRate = typeof p?.getPlaybackRate === 'function' ? p.getPlaybackRate() : 1.0;
+      } else {
+        const endedOrPaused = anyTrue([s === YT.PlayerState.PAUSED, s === YT.PlayerState.ENDED]);
+        if (allTrue([!!this.playingStart, endedOrPaused])) {
+          this.totalPlayTime += ((Date.now() - this.playingStart) / 1000) * this.currentRate;
+          this.playingStart = null;
+        }
+      }
+      if (s === YT.PlayerState.BUFFERING) this.lastBufferingStart = Date.now();
+      if (s === YT.PlayerState.PAUSED) this.lastPausedStart = Date.now();
+    }
+
+    // PauseGuard με utils.delay/cancel
+    try {
+      if (this.pauseGuardTimer) {
+        cancel(this.pauseGuardTimer);
+      }
+    } catch (_) {}
+    ((self) => {
+      let basePause = 2000;
+      if (typeof self.expectedPauseMs === 'number') {
+        if (self.expectedPauseMs > 0) {
+          basePause = self.expectedPauseMs;
+        }
+      }
+      const slack = 250;
+      self.pauseGuardTimer = scheduleDelay(function () {
+        try {
+          const p = self.player;
+          let canCheck = false;
+          if (typeof p !== 'undefined') {
+            if (p !== null) {
+              if (typeof p.getPlayerState === 'function') {
+                canCheck = true;
+              }
+            }
+          }
+          if (canCheck) {
+            const st = p.getPlayerState();
+            if (st === YT.PlayerState.PAUSED) {
+              try {
+                if (typeof tryRequestPlay === 'function') {
+                  tryRequestPlay(self);
+                } else {
+                  p.playVideo();
+                }
+              } catch (_) {}
+            } else {
+              try {
+                self.pauseRechecks = 0;
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
+      }, basePause + slack);
+    })(this);
 
     // === 5) Ενιαία απόφαση AutoNext (μετά από ENDED) ===
     try {
       const p = this.player;
       const isEnded = typeof s !== 'undefined' ? s === YT.PlayerState.ENDED : false;
-
       if (isEnded) {
-        // Προαιρετική αναμονή μετά το τέλος (Phase-2)
         const duration = typeof p?.getDuration === 'function' ? p.getDuration() : 0;
         const percentWatched = duration > 0 ? Math.round((this.totalPlayTime / duration) * 100) : 0;
         log(`✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(this.totalPlayTime)}s)`);
-
         const afterEndPauseMs = rndInt(15000, 60000);
-
         scheduleDelay(() => {
           const requiredTime = getRequiredWatchTime(duration);
           const insufficient = this.totalPlayTime < requiredTime;
-
           if (insufficient) {
             log(`⏳ Player ${this.index + 1} AutoNext blocked -> required:${requiredTime}s, actual:${Math.round(this.totalPlayTime)}s`);
             scheduleDelay(() => {
@@ -838,7 +739,6 @@ export class PlayerController {
             }, 15000);
             return;
           }
-
           if (guardHasAnyList(this)) {
             this.loadNextVideo(this.player);
           } else {
@@ -852,66 +752,55 @@ export class PlayerController {
 
   /**
    * onError()
-   * Περιγραφή: Fallback σφάλματος. Προσπαθεί AutoNext εφόσον υπάρχουν διαθέσιμες λίστες.
    */
   onError() {
     if (guardHasAnyList(this)) {
       this.loadNextVideo(this.player);
+      log(`❌ Player ${this.index + 1} Error -> AutoNext`);
     } else {
-      stats.errors++;
       log(`❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
     }
     stats.errors++;
-    log(`❌ Player ${this.index + 1} Error -> AutoNext`);
   }
 
   /**
    * loadNextVideo(player)
-   * Περιγραφή: Επιλέγει επόμενο video ID από main/alt λίστα με τυχαιότητα και όριο AutoNext.
-   * Επαναφέρει μετρητές χρόνου και επαναπρογραμματίζει παύσεις/mid-seek.
    */
   loadNextVideo(player) {
-    if (!allTrue([player, typeof player.loadVideoById === 'function'])) {
+    if (!allTrue([player ? true : false, typeof player.loadVideoById === 'function'])) {
       stats.errors++;
       log(`❌ AutoNext skipped -> player/loadVideoById unavailable`);
       return;
     }
-
     if (!canAutoNext(this.index)) {
       log(`⚠️ AutoNext limit reached -> ${AUTO_NEXT_LIMIT_PER_PLAYER}/hour for Player ${this.index + 1}`);
       return;
     }
-
     const useMain = Math.random() < MAIN_PROBABILITY;
     const hasMain = allTrue([Array.isArray(this.mainList), this.mainList.length > 0]);
     const hasAlt = allTrue([Array.isArray(this.altList), this.altList.length > 0]);
-
     let list;
     if (allTrue([useMain, hasMain])) list = this.mainList;
     else if (allTrue([!useMain, hasAlt])) list = this.altList;
     else if (hasMain) list = this.mainList;
     else list = this.altList;
 
-    const listLen = (list ? list.length : 0);
+    const listLen = list ? list.length : 0;
     if (listLen === 0) {
       stats.errors++;
       log(`❌ AutoNext aborted -> no available list`);
       return;
     }
-
     const newId = list[Math.floor(Math.random() * list.length)];
     log(`[DBG] AutoNext picking -> source=${useMain ? 'main' : 'alt'} size=${String(listLen)} id=${String(newId)}`);
     player.loadVideoById(newId);
     this.guardPlay(player);
     stats.autoNext++;
     incAutoNext(this.index);
-
     // επαναφορά μετρητών χρόνου θέασης
     this.totalPlayTime = 0;
     this.playingStart = null;
-
     log(`⏭️ Player ${this.index + 1} AutoNext -> ${newId} (Source:${useMain ? 'main' : 'alt'})`);
-
     // προγραμματισμός νέων γεγονότων συμπεριφοράς
     this.schedulePauses();
     this.scheduleMidSeek();
@@ -919,22 +808,26 @@ export class PlayerController {
 
   /**
    * schedulePauses()
-   * Περιγραφή: Προγραμματίζει τυχαίες παύσεις εντός του χρονικού διαστήματος 10%..80% της διάρκειας.
-   * Κατά την παύση, αποθηκεύεται expectedPauseMs για να επιτραπεί στοχευμένη επαναφορά.
    */
   schedulePauses() {
     const p = this.player;
     if (anyTrue([!p])) return;
-    if (!allTrue([p, typeof p.getDuration === 'function'])) return;
-
+    if (!allTrue([p ? true : false, typeof p.getDuration === 'function'])) return;
     const duration = p.getDuration();
     if (duration <= 0) return;
 
     const plan = getPausePlan(duration);
-    for (let i = 0; i < plan.count; i++) {
-      const delay = rndInt(Math.floor(duration * 0.1), Math.floor(duration * 0.8)) * 1000;
+    const pauseChance = typeof this.config?.pauseChance === 'number' ? this.config.pauseChance : 0.3;
+
+    let count = plan.count;
+    if (pauseChance < 0.5) {
+      count = Math.max(0, Math.floor(count * pauseChance));
+    }
+
+    for (let i = 0; i < count; i++) {
+      const delayMs = rndInt(Math.floor(duration * 0.1), Math.floor(duration * 0.8)) * 1000;
       const pauseLen = rndInt(plan.min, plan.max) * 1000;
-      const timer = scheduleDelay(() => {
+      const id = scheduleDelay(() => {
         if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING])) {
           p.pauseVideo();
           stats.pauses++;
@@ -945,62 +838,18 @@ export class PlayerController {
             this.expectedPauseMs = 0;
           }, pauseLen);
         }
-      }, delay);
-      this.timers.pauseTimers.push(timer);
+      }, delayMs);
+      this.timers.pauseTimers.push(id);
     }
-  }
-
-  /**
-   * scheduleMidSeek()
-   * Περιγραφή: Προγραμματίζει ενδιάμεσες μετακινήσεις κεφαλής (mid-seek) σε μεγάλα videos (>5min).
-   * Το interval είναι ρυθμιζόμενο: default τυχαίο μεταξύ 8..12 λεπτών.
-   */
-  scheduleMidSeek() {
-    const p = this.player;
-    if (anyTrue([!p])) return;
-    if (!allTrue([p, typeof p.getDuration === 'function'])) return;
-
-    const duration = p.getDuration();
-    if (duration < 300) return;
-
-    const interval = this.config?.midSeekInterval ?? rndInt(8, 12) * 60000;
-    this.timers.midSeek = scheduleDelay(() => {
-      if (allTrue([duration > 0, typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING])) {
-        const seek = rndInt(Math.floor(duration * 0.2), Math.floor(duration * 0.6));
-        p.seekTo(seek, true);
-        stats.midSeeks++;
-        log(`🔁 Player ${this.index + 1} Mid-seek -> ${seek}s`);
-      }
-      this.scheduleMidSeek(); // επαναπρογραμματισμός για επόμενη μετακίνηση
-    }, interval);
   }
 
   /**
    * clearTimers()
-   * Περιγραφή: Ακυρώνει όλους τους ενεργούς χρονομετρητές (pauses/midSeek/progressCheck) και
-   *            επαναφέρει δείκτες παύσης.
    */
-  clearTimers() {
-    this.timers.pauseTimers.forEach((t) => {
-      clearTimeout(t);
-    });
-    this.timers.pauseTimers = [];
-
-    if (this.timers.midSeek) {
-      clearTimeout(this.timers.midSeek);
-      this.timers.midSeek = null;
-    }
-    if (this.timers.progressCheck) {
-      clearInterval(this.timers.progressCheck);
-      this.timers.progressCheck = null;
-    }
-
-    this.expectedPauseMs = 0;
-  }
+  // (Παραμένει για συμβατότητα — χρησιμοποιεί utils.cancel)
 
   /**
    * _stateManagerDispatch(state, event)
-   * Κεντρικός dispatcher καταστάσεων YT.PlayerState -> handlers.
    */
   _stateManagerDispatch(state, event) {
     const handlers = {
@@ -1016,30 +865,24 @@ export class PlayerController {
       h();
     }
   }
-
   _onUnstarted() {
     log(`🎬 Player ${this.index + 1} State→ UNSTARTED`);
   }
-
   _onEnded() {
     log(`🏁 Player ${this.index + 1} State→ ENDED`);
     try {
       window.dispatchEvent(new CustomEvent('videoEnded', { detail: { index: this.index } }));
     } catch (_) {}
   }
-
   _onPlaying() {
     log(`▶️ Player ${this.index + 1} State→ PLAYING`);
   }
-
   _onPaused() {
     log(`⏸️ Player ${this.index + 1} State→ PAUSED`);
   }
-
   _onBuffering() {
     log(`⏳ Player ${this.index + 1} State→ BUFFERING`);
   }
-
   _onCued() {
     log(`🎯 Player ${this.index + 1} State→ CUED`);
   }
@@ -1048,5 +891,4 @@ export class PlayerController {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
-
 // --- End Of File ---
