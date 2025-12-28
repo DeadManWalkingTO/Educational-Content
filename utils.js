@@ -1,10 +1,10 @@
 // --- utils.js ---
-const VERSION = 'v2.3.0';
+const VERSION = 'v2.3.1';
 /*
-- Ενοποιημένο API (χωρίς imports) για όλο το project: αγνές συναρτήσεις + Scheduler API.
-- Κανόνες: Header spec, SemVer, ESM exports, χωρίς imports
-- Prettier style (semicolons, single quotes, LF).
-*/
+ * Περιγραφή: Ενιαίο module βοηθητικών συναρτήσεων (λογική, τύποι, χρόνος, τυχαία, μορφοποίηση, JSON, DOM, γεγονότα, logging, scheduler).
+ * Αλλαγές: Προσθήκη isDefined/isFiniteNumber, formatMs/fmtMs, deepClone, safeAddEvent/removeEvent/once, log, scheduler API.
+ * Εξαρτήσεις: Καμία.
+ */
 
 // --- Export Version ---
 export function getVersion() {
@@ -19,11 +19,10 @@ export function getVersion() {
   (D) DOM/Events (domReady/safeAddEvent/removeEvent/once)
   (D2) Logging (log)
   (E) Scheduler API (delay/repeat/cancel/groupCancel/debounce/throttle/backoff/jitter/retry/pause/resume/flush/getStats)
-      scheduleSafe(fn, ms, group, label) 
+  scheduleSafe(fn, ms, group, label)
 */
 
 // ======================= (A) Logic / Guards / Types =======================
-
 export function anyTrue(items) {
   if (!Array.isArray(items)) {
     return false;
@@ -66,6 +65,16 @@ export function isNumber(v) {
   return typeof v === 'number';
 }
 
+export function isFiniteNumber(v) {
+  if (typeof v !== 'number') {
+    return false;
+  }
+  if (Number.isFinite(v) === true) {
+    return true;
+  }
+  return false;
+}
+
 export function isString(v) {
   return typeof v === 'string';
 }
@@ -93,7 +102,6 @@ export function ensure(condition, message) {
 }
 
 // ======================= (B) Time / Random / Format =======================
-
 // Timestamp
 export function ts() {
   const d = new Date();
@@ -193,7 +201,6 @@ export function clamp(v, min, max) {
 }
 
 // ======================= (C) JSON / Clone =======================
-
 export function safeJsonParse(text) {
   try {
     const v = JSON.parse(text);
@@ -231,7 +238,6 @@ export function deepClone(obj) {
 }
 
 // ======================= (D) DOM / Events =======================
-
 export function domReady() {
   const rs = document.readyState;
   if (rs === 'interactive') {
@@ -298,28 +304,23 @@ export function once(fn) {
 }
 
 // ======================= (D2) Logging =======================
-
 // Απλό log: κονσόλα + app event (χωρίς imports)
 export function log(msg) {
+  const s = String(msg);
   const time = typeof ts === 'function' ? ts() : new Date().toLocaleTimeString();
-  const full = `[${time}] ${String(msg)}`;
-
-  // Κονσόλα
+  const full = `[${time}] ${s}`;
   console.log(full);
-
-  // Ενημέρωση UI/Stats μέσω event (αν υπάρχει DOM)
   try {
     if (typeof document !== 'undefined') {
-      const ev = new CustomEvent('app:log', { detail: { msg: String(msg), ts: time, full } });
+      const ev = new CustomEvent('app:log', { detail: { msg: s, ts: time, full } });
       document.dispatchEvent(ev);
     }
-  } catch (e) {
+  } catch (_) {
     // no-op
   }
 }
 
 // ======================= (E) Scheduler API (χωρίς imports) =======================
-
 const _jobs = new Map();
 let _nextId = 1;
 const _stats = { created: 0, canceled: 0, paused: 0, resumed: 0, ran: 0 };
@@ -494,6 +495,11 @@ export function debounce(fn, waitMs) {
       tid = null;
     }
     tid = setTimeout(() => {
+      const localTid = tid;
+      if (isDefined(localTid)) {
+        clearTimeout(localTid);
+        tid = null;
+      }
       fn.apply(this, args);
     }, Number(waitMs));
   };
@@ -501,28 +507,43 @@ export function debounce(fn, waitMs) {
 
 export function throttle(fn, waitMs) {
   let last = 0;
-  let pending = false;
+  let tid = null;
   let argsCache = null;
+
   return function throttled(...args) {
     const now = nowMs();
     const elapsed = now - last;
+
     if (elapsed >= Number(waitMs)) {
       last = now;
       fn.apply(this, args);
-    } else {
-      pending = true;
-      argsCache = args;
-      const remaining = Number(waitMs) - elapsed;
-      setTimeout(() => {
-        if (pending === true) {
-          pending = false;
-          last = nowMs();
-          const callArgs = isDefined(argsCache) ? argsCache : [];
-          argsCache = null;
-          fn.apply(this, callArgs);
-        }
-      }, remaining);
+      if (isDefined(tid)) {
+        clearTimeout(tid);
+        tid = null;
+        argsCache = null;
+      }
+      return;
     }
+
+    argsCache = args;
+    const remaining = Number(waitMs) - elapsed;
+
+    if (isDefined(tid)) {
+      clearTimeout(tid);
+      tid = null;
+    }
+
+    tid = setTimeout(() => {
+      last = nowMs();
+      const callArgs = isDefined(argsCache) ? argsCache : [];
+      argsCache = null;
+      const localTid = tid;
+      if (isDefined(localTid)) {
+        clearTimeout(localTid);
+        tid = null;
+      }
+      fn.apply(this, callArgs);
+    }, remaining);
   };
 }
 
@@ -575,12 +596,10 @@ export async function retry(fnAsync, attempts, baseMs, factor, maxMs, jitterRati
 }
 
 // Τρέξε τη συνάρτηση μου μετά από Χ ms, με try/catch, λογόραψε τα σφάλματα και βάλε την εργασία σε named group
-
 export function scheduleSafe(fn, ms, group, label) {
   const name = isDefined(label) ? String(label) : 'scheduleSafe';
   const delayMs = Math.floor(Number(ms));
   const grp = isDefined(group) ? group : null;
-
   return delay(
     function () {
       try {
