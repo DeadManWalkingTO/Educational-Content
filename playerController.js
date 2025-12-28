@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v7.1.0';
+const VERSION = 'v7.1.1';
 /*
  * Περιγραφή: Ελεγκτής αναπαραγωγής για YouTube IFrame API με ανθρώπινη συμπεριφορά.
  * Χρήση utils API: scheduleSafe, delay, repeat, cancel, groupCancel, retry, debounce, throttle, clamp, log κ.ά.
@@ -17,7 +17,7 @@ const FILENAME = import.meta.url.split('/').pop();
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
-/* Imports (ESM / relative paths) */
+/* Imports */
 import { delay as scheduleDelay, scheduleSafe, repeat, cancel, groupCancel, jitter, log, rndInt, anyTrue, allTrue, isFunction, isNumber, clamp, retry, debounce, throttle } from './utils.js';
 import { MAIN_PROBABILITY, controllers, getOrigin, getYouTubeEmbedHost, hasUserGesture, stats } from './globals.js';
 import { getBehaviorPlan } from './policies.js';
@@ -46,8 +46,7 @@ function isPlaying(p) {
   }
   return false;
 }
-
-/* Προαιρετικό: Debounced logger για μείωση spam στα state transitions */
+/* Προαιρετικό: Debounced logger */
 const stateLogDebounced = debounce((idx, msg) => {
   log(`Player ${String(idx + 1)} ${String(msg)}`);
 }, 120);
@@ -71,15 +70,11 @@ export class PlayerController {
     this.lastBufferingStart = null;
     this.lastPausedStart = null;
     this.expectedPauseMs = 0;
-    /* Defaults (θα αναπροσαρμοστούν από policy στο onReady) */
     this.seekDefaults = { minGapSec: 90, maxSeeks: 3, nearEndPct: 0.05, fromPct: 0.2, toPct: 0.6 };
     this.seekMeta = { lastMs: 0, count: 0 };
-    /* Behavior plan */
     this.plan = null;
-    /* ΝΕΟ: Μετα-πληροφορίες/Timers για Volume */
     this.volumeMeta = { scheduledIds: [], changesPlanned: 0 };
   }
-
   _group(suffix = '') {
     const base = `pc:${this.index}`;
     if (suffix === '') {
@@ -87,7 +82,6 @@ export class PlayerController {
     }
     return `${base}:${suffix}`;
   }
-
   _canSeek() {
     const pMissing = !this.player;
     let noDuration = true;
@@ -104,7 +98,6 @@ export class PlayerController {
     }
     return !anyTrue([pMissing, noDuration, noSeekTo]);
   }
-
   _hasStableDuration() {
     let d = this.player ? this.player.getDuration() : 0;
     if (!isNumber(d)) {
@@ -112,8 +105,6 @@ export class PlayerController {
     }
     return d > 1;
   }
-
-  /* Ενοποιημένο safe-seek (δυναμικό end-padding ≥3s ή ~5% του duration) */
   _safeSeek(seconds) {
     try {
       if (!this._canSeek()) {
@@ -134,7 +125,6 @@ export class PlayerController {
       } catch (e) {
         try {
           this.player.seekTo(raw, true);
-          /* swallow secondary failure silently */
         } catch (_) {}
       }
       if (!isNumber(stats.seeksDone)) {
@@ -148,7 +138,6 @@ export class PlayerController {
       stats.errors += 1;
     }
   }
-
   doSeek(seconds) {
     if (!this.player) {
       return;
@@ -158,7 +147,6 @@ export class PlayerController {
     }
     this._safeSeek(seconds);
   }
-
   tryPlay(p) {
     const jitterMs = jitter(150, 0.67);
     scheduleSafe(
@@ -172,7 +160,6 @@ export class PlayerController {
       'guardPlay'
     );
   }
-
   guardPlay(p) {
     try {
       if (p) {
@@ -184,7 +171,6 @@ export class PlayerController {
       log(`❌ Player ${this.index + 1} LogPlayer Error ${String(err?.message ?? err)}`);
     }
   }
-
   init(videoId) {
     const containerId = `player${this.index + 1}`;
     this.player = new YT.Player(containerId, {
@@ -205,13 +191,10 @@ export class PlayerController {
     log(`ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
     log(`👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
   }
-
   onReady(e) {
     const p = e.target;
     this.startTime = Date.now();
     p.mute();
-
-    /* Συγκρότηση context και ανάκτηση behavior plan */
     let durationNow = 0;
     const canGetDuration = allTrue([!!p, isFunction(p.getDuration)]);
     if (canGetDuration === true) {
@@ -229,8 +212,6 @@ export class PlayerController {
     try {
       this.plan = getBehaviorPlan(ctx);
     } catch (_) {}
-
-    /* Αρχικό seek από policy */
     let targetSec = 0;
     const planOk = allTrue([!!this.plan]);
     if (planOk === true) {
@@ -248,15 +229,9 @@ export class PlayerController {
         }
       }
     }
-
-    /* AutoUnmute module */
     initUnmute(this.player, this.plan);
-
-    /* Εφαρμογή seek με επανάληψη ~800ms */
     this._safeSeek(targetSec);
     scheduleSafe(() => this._safeSeek(targetSec), 800, this._group('init-seek'), 'init-seek-repeat');
-
-    /* Μη-αποκλειστικό play στο ξεκίνημα */
     if (isFunction(e.target.playVideo)) {
       scheduleSafe(
         () => {
@@ -271,41 +246,36 @@ export class PlayerController {
         'guardPlay-initial'
       );
     }
-
-    /* Logs plan */
     const seekInfo = isNumber(targetSec) ? targetSec : '-';
     log(`⏩ Player ${this.index + 1} Behavior Plan Start Seek -> Seek=${seekInfo}s`);
-
-    /* Scheduling βάσει policy */
     this.schedulePauses();
     this.scheduleMidSeek();
-
-    /* ΝΕΟ: Τυχαίες αλλαγές έντασης */
     this.scheduleVolumeChanges();
   }
-
   onStateChange(e) {
     try {
       onStateChangeExternal(this, e);
+      // ΠΕΡΝΑΜΕ ctrl στο handlePendingUnmute για ασφαλές logging
       let state;
       try {
         state = e?.data;
       } catch (_) {}
-      if (state === YT.PlayerState.PLAYING) {
-        handlePendingUnmute(this.player, this.plan);
+      if (typeof YT !== 'undefined') {
+        if (typeof YT?.PlayerState !== 'undefined') {
+          if (state === YT.PlayerState.PLAYING) {
+            handlePendingUnmute(this.player, this.plan, this);
+          }
+        }
       }
     } catch (_) {}
   }
-
   onError() {
     try {
       this.clearTimers();
     } catch (_) {}
-    /* Delegate στο autoNext (ERROR) */
     autoNextAfterError(this);
     stats.errors++;
   }
-
   _guardHasAnyList(ctrl = this) {
     if (!ctrl) {
       return false;
@@ -322,7 +292,6 @@ export class PlayerController {
     }
     return false;
   }
-
   loadNextVideo(player) {
     const canLoad = allTrue([player ? true : false, isFunction(player.loadVideoById)]);
     if (!canLoad) {
@@ -330,7 +299,6 @@ export class PlayerController {
       log(`❌ AutoNext skipped -> player/loadVideoById unavailable`);
       return;
     }
-    /* Επιλογή λίστας */
     const useMain = Math.random() < MAIN_PROBABILITY;
     const hasMain = allTrue([Array.isArray(this.mainList), this.mainList.length > 0]);
     const hasAlt = allTrue([Array.isArray(this.altList), this.altList.length > 0]);
@@ -360,7 +328,6 @@ export class PlayerController {
     this.guardPlay(player);
     log(`⏭️ Player ${this.index + 1} AutoNext (utility) -> ${newId} (Source:${useMain ? 'main' : 'alt'})`);
   }
-
   schedulePauses() {
     const p = this.player;
     if (anyTrue([!p])) {
@@ -411,7 +378,6 @@ export class PlayerController {
       this.timers.pauseTimers.push(id);
     }
   }
-
   scheduleMidSeek() {
     const p = this.player;
     if (anyTrue([!p])) {
@@ -423,7 +389,6 @@ export class PlayerController {
       log(`ℹ️ Player ${this.index + 1} scheduleMidSeek skipped (short or disabled)`);
       return;
     }
-    /* Defaults από plan */
     this.seekDefaults = {
       minGapSec: mid.minGapSec,
       maxSeeks: mid.maxSeeks,
@@ -462,7 +427,6 @@ export class PlayerController {
       'midseek-tick'
     );
   }
-
   _doMidSeekOnce() {
     try {
       const p = this.player;
@@ -492,12 +456,9 @@ export class PlayerController {
       this.seekMeta.count = (this.seekMeta.count ?? 0) + 1;
     } catch (_) {}
   }
-
-  /* ΝΕΟ: Προγραμματισμένες, τυχαίες αλλαγές έντασης */
+  /* Προγραμματισμένες, τυχαίες αλλαγές έντασης */
   scheduleVolumeChanges() {
     const p = this.player;
-
-    /* Guards: player & setVolume διαθέσιμα; */
     let canVolume = false;
     if (p) {
       if (isFunction(p?.setVolume)) {
@@ -507,8 +468,6 @@ export class PlayerController {
     if (canVolume !== true) {
       return;
     }
-
-    /* Διάρκεια (αν διαθέσιμη) για ρεαλιστικό timing */
     let duration = 0;
     if (isFunction(p.getDuration)) {
       const d = p.getDuration();
@@ -516,13 +475,9 @@ export class PlayerController {
         duration = d;
       }
     }
-
-    /* Ανάγνωση config */
     const hasChance = isNumber(this.config?.volumeChangeChance);
     const chance = hasChance ? this.config.volumeChangeChance : 0.2;
     const rangeArr = Array.isArray(this.config?.volumeRange) ? this.config.volumeRange : [10, 50];
-
-    /* Πλήθος αλλαγών συναρτήσει διάρκειας και πιθανότητας */
     let baseCount = 1;
     if (duration >= 300) {
       baseCount = 2;
@@ -533,8 +488,6 @@ export class PlayerController {
     const chanceClamped = Math.min(1, Math.max(0, chance));
     const planned = Math.max(0, Math.floor(baseCount * chanceClamped));
     this.volumeMeta.changesPlanned = planned;
-
-    /* Helper: εφαρμογή τιμής volume από range με clamp 0..100 */
     const applyVolume = () => {
       try {
         let vmin = Number(rangeArr[0] ?? 10);
@@ -548,21 +501,17 @@ export class PlayerController {
         const target = rndInt(lo, hi);
         if (isFunction(p.setVolume)) {
           p.setVolume(target);
-          log(`🔈 Player ${this.index + 1} Volume → ${target}%`);
+          log(`🔈 Player ${this.index + 1} PC Volume → ${target}%`);
         }
       } catch (_) {}
     };
-
-    /* Προγραμματισμός αλλαγών */
     for (let i = 0; i < planned; i = i + 1) {
       const fromMs = duration > 0 ? Math.floor(duration * 0.1) * 1000 : 20000;
       const toMs = duration > 0 ? Math.floor(duration * 0.8) * 1000 : 120000;
       const delayMs = rndInt(Math.floor(fromMs / 1000), Math.floor(toMs / 1000)) * 1000;
-
       const id = scheduleSafe(
         () => {
           try {
-            /* Αν δεν είναι PLAYING, κάνε ένα μικρό retry */
             let isPlay = false;
             if (isFunction(p.getPlayerState)) {
               if (typeof YT !== 'undefined') {
@@ -595,8 +544,6 @@ export class PlayerController {
               );
               return;
             }
-
-            /* Αν είναι mute, αλλάζουμε volume ούτως ή άλλως — θα ακουστεί μετά το unmute */
             applyVolume();
           } catch (_) {}
         },
@@ -606,13 +553,10 @@ export class PlayerController {
       );
       this.volumeMeta.scheduledIds.push(id);
     }
-
-    /* Προαιρετικό micro-adjust κοντά στο τέλος (±2–6%) σε μεγάλα βίντεο */
     if (duration >= 600) {
       const microFrom = Math.floor(duration * 0.85);
       const microTo = Math.floor(duration * 0.95);
       const microDelayMs = rndInt(microFrom, microTo) * 1000;
-
       const id2 = scheduleSafe(
         () => {
           try {
@@ -638,7 +582,6 @@ export class PlayerController {
       this.volumeMeta.scheduledIds.push(id2);
     }
   }
-
   stopAllTimers() {
     try {
       groupCancel(this._group());
@@ -662,7 +605,6 @@ export class PlayerController {
       }
     }
   }
-
   clearTimers() {
     try {
       groupCancel(this._group());
@@ -679,7 +621,6 @@ export class PlayerController {
       cancel(this.timers.progressCheck);
       this.timers.progressCheck = null;
     }
-    /* ΝΕΟ: Καθαρισμός volume timers */
     try {
       const hasArr = Array.isArray(this.volumeMeta?.scheduledIds);
       if (hasArr === true) {

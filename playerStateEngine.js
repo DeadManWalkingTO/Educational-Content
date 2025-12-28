@@ -1,8 +1,8 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v2.0.5';
+const VERSION = 'v2.0.6';
 /*
  * Περιγραφή: State Handlers για YT onStateChange, με ασφαλή χρήση utils (guards, time/random, scheduler, logging).
- * Ρόλος: Ενιαίος dispatcher + καθαροί handlers για logs, fake-end guard, unmute/retry, accumulators, pause-guard.
+ * Ρόλος: Ενιαίο dispatcher + καθαροί handlers για logs, fake-end guard, unmute/retry, accumulators, pause-guard.
  * Ενσωμάτωση AutoNext: Delegate στο autoNextAfterEnded(ctrl) για ENDED path.
  */
 
@@ -22,7 +22,6 @@ import { scheduleSafe, cancel, log, rndInt, randomFloat, anyTrue, allTrue, isDef
 import { hasUserGesture, stats } from './globals.js';
 import { autoNextAfterEnded } from './autoNext.js';
 import { handlePendingUnmute } from './autoUnmute.js';
-
 // -------------------- Helpers --------------------
 function hasYT() {
   if (typeof YT === 'undefined') {
@@ -173,7 +172,6 @@ function applyFakeEndGuard(ctrl) {
   }
   return false;
 }
-
 // -------------------- Handlers --------------------
 function onUnstarted(ctrl) {
   log(`🎬 Player ${ctrl.index + 1} State -> UNSTARTED`);
@@ -197,7 +195,10 @@ function onPlaying(ctrl) {
     ctrl.isPlayingActive = true;
   }
   log(`▶️ Player ${ctrl.index + 1} State -> PLAYING`);
-  maybeUnmuteAfterPlaying(ctrl);
+  // Ασφαλής auto-unmute: ΠΕΡΝΑΜΕ τον ctrl
+  try {
+    handlePendingUnmute(ctrl.player, ctrl.plan, ctrl);
+  } catch (_) {}
 }
 function onPaused(ctrl) {
   log(`⏸️ Player ${ctrl.index + 1} State -> PAUSED`);
@@ -209,9 +210,8 @@ function onCued(ctrl) {
   log(`🎯 Player ${ctrl.index + 1} State -> CUED`);
 }
 function onUnknown(ctrl, s) {
-  log(`🟥 Player ${ctrl.index + 1} State -> UNKNOWN (${String(s)})`);
+  log(`🟡 Player ${ctrl.index + 1} State -> UNKNOWN (${String(s)})`);
 }
-
 // -------------------- Dispatcher --------------------
 function createStateHandlers(ctrl) {
   if (hasYT()) {
@@ -227,12 +227,24 @@ function createStateHandlers(ctrl) {
   return {};
 }
 export function onStateChangeExternal(ctrl, e) {
-  const state = e.data;
-  if (state === YT.PlayerState.PLAYING) {
-    if (typeof canUnmuteNow === 'function' && canUnmuteNow()) {
-      handlePendingUnmute(ctrl.player, ctrl.plan);
+  // Αν μπήκε σε PLAYING, κάνε unmute (εξωτερικός guard, επιπλέον του handler)
+  try {
+    const state = e?.data;
+    let isPlayingNow = false;
+    if (typeof YT !== 'undefined') {
+      if (typeof YT?.PlayerState !== 'undefined') {
+        if (state === YT.PlayerState.PLAYING) {
+          isPlayingNow = true;
+        }
+      }
     }
-  }
+    if (isPlayingNow === true) {
+      try {
+        handlePendingUnmute(ctrl.player, ctrl.plan, ctrl);
+      } catch (_) {}
+    }
+  } catch (_) {}
+
   let s;
   try {
     s = readPlayerState(ctrl, e);
@@ -307,7 +319,6 @@ export function onStateChangeExternal(ctrl, e) {
     restartPauseGuard(ctrl);
   }
 }
-
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 
