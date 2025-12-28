@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v3.18.0';
+const VERSION = 'v3.20.0';
 /*
  * Περιγραφή:
  * Συγκεντρώνει εκδόσεις όλων των modules και του HTML. Ελαφρύς renderer για panel/κείμενο,
@@ -27,6 +27,8 @@ import { getVersion as getConsoleFilterVersion } from './consoleFilter.js';
 import { getVersion as getYoutubeReadyVersion } from './youtubeReady.js';
 import { getVersion as getUtilitiesVersion, log, isDefined, domReady, deepClone, fmtMs, scheduleSafe } from './utils.js';
 import { getVersion as getPoliciesVersion } from './policies.js';
+import { getVersion as getPlayerStateEngineVersion } from './playerStateEngine.js';
+import { getVersion as getAutoNextVersion } from './autoNext.js';
 
 /**
  * Ανάκτηση HTML έκδοσης από <meta name="html-version" content="vX.Y.Z">.
@@ -60,6 +62,8 @@ export function reportAllVersions() {
     YoutubeReady: getYoutubeReadyVersion(),
     Utilities: getUtilitiesVersion(),
     Policies: getPoliciesVersion(),
+    PlayerStateEngine: getPlayerStateEngineVersion(),
+    AutoNext: getAutoNextVersion(),
     VersionReporter: VERSION,
   };
 
@@ -151,10 +155,16 @@ function iconFor(name) {
     return '🧰';
   }
   if (name === 'VersionReporter') {
-    return '🧪';
+    return '🧩';
   }
   if (name === 'Policies') {
     return '📜';
+  }
+  if (name === 'PlayerStateEngine') {
+    return '🎛️';
+  }
+  if (name === 'AutoNext') {
+    return '⏭️';
   }
   if (name === 'Main') {
     return '🚀';

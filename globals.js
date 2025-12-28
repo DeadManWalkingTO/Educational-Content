@@ -86,10 +86,8 @@ export const stats = {
 export const PLAYER_COUNT = 8; // Αριθμός Players.
 export const MAIN_PROBABILITY = 0.5; // Πιθανότητα επιλογής κύριας λίστας έναντι εναλλακτικής.
 
-/* Ρυθμίσεις Watchdog (σε ms) */
-export const WATCHDOG_BUFFER_MIN = 45000; // Ελάχιστη ανοχή BUFFERING.
-export const WATCHDOG_BUFFER_MAX = 75000; // Μέγιστη ανοχή BUFFERING (jitter).
-export const WATCHDOG_PAUSE_RECHECK_MS = 5000; // Επανέλεγχος μετά από PAUSED retry.
+/* Global μετρητής AutoNext και rolling reset ανά 1 ώρα */
+export const AUTO_NEXT_LIMIT_PER_PLAYER = 50;
 
 /* Πίνακας controllers: γεμίζει από main.js */
 export const controllers = [];
@@ -121,48 +119,6 @@ export function decUnmutePending() {
   }
 }
 /** --- Global unmute limiter - End --- */
-
-/** --- AutoNext counters (ενoποιημένοι) - Start --- */
-/* Global μετρητής AutoNext και rolling reset ανά 1 ώρα */
-export let autoNextCounter = 0;
-export let lastResetTime = Date.now();
-export const AUTO_NEXT_LIMIT_PER_PLAYER = 50;
-export const autoNextPerPlayer = Array(PLAYER_COUNT).fill(0);
-
-/**
- * Reset counters (global & per-player) όταν περάσει 1h.
- */
-export function resetAutoNextCountersIfNeeded() {
-  const now = Date.now();
-  if (now - lastResetTime >= 3600000) {
-    autoNextCounter = 0;
-    lastResetTime = now;
-    for (let i = 0; i < autoNextPerPlayer.length; i = i + 1) {
-      autoNextPerPlayer[i] = 0;
-    }
-    log('🔄 AutoNext counters reset (hourly)');
-  }
-}
-
-/**
- * Επιτρέπει AutoNext για τον συγκεκριμένο player;
- * @param {number} playerIndex
- * @returns {boolean}
- */
-export function canAutoNext(playerIndex) {
-  resetAutoNextCountersIfNeeded();
-  return autoNextPerPlayer[playerIndex] < AUTO_NEXT_LIMIT_PER_PLAYER;
-}
-
-/**
- * Αύξηση μετρητών AutoNext.
- * @param {number} playerIndex
- */
-export function incAutoNext(playerIndex) {
-  autoNextCounter = autoNextCounter + 1;
-  autoNextPerPlayer[playerIndex] = autoNextPerPlayer[playerIndex] + 1;
-}
-/** --- AutoNext counters - End --- */
 
 /** --- Lists state - Start --- */
 /* Κύρια και εναλλακτική λίστα video IDs */
