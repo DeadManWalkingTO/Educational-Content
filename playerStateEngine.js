@@ -1,9 +1,9 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v1.3.0';
+const VERSION = 'v1.4.0';
 /*
- * Περιγραφή: State Handlers για YT onStateChange.
- * Ρόλος: Ενιαίο dispatcher + καθαροί handlers για logs, fake-end guard, unmute/retry,
- * accumulators, pause-guard, AutoNext. Χωρίς χρήση &&/||.
+ * Περιγραφή: State Handlers για YT onStateChange, με αυστηρή χρήση utils (guards, time/random, scheduler, logging).
+ * Ρόλος: Ενιαίος dispatcher + καθαροί handlers για logs, fake-end guard, unmute/retry,
+ * accumulators, pause-guard, AutoNext.
  */
 
 // --- Export Version ---
@@ -11,21 +11,39 @@ export function getVersion() {
   return VERSION;
 }
 
-//Όνομα αρχείου για logging.
+// Όνομα αρχείου για logging.
 const FILENAME = import.meta.url.split('/').pop();
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
-// Imports
-import { delay as scheduleDelay, scheduleSafe, repeat, cancel, groupCancel, jitter, log, rndInt, anyTrue, allTrue, isFunction, isNumber, clamp, retry, throttle } from './utils.js';
+// Imports (ESM, relative paths, χρήση μόνο helpers από utils.js)
+import {
+  delay as scheduleDelay,
+  scheduleSafe,
+  repeat,
+  cancel,
+  groupCancel,
+  jitter,
+  log,
+  rndInt,
+  randomFloat,
+  anyTrue,
+  allTrue,
+  isDefined,
+  isFunction,
+  isNumber,
+  clamp,
+  retry,
+  throttle,
+} from './utils.js';
 import { AUTO_NEXT_LIMIT_PER_PLAYER, MAIN_PROBABILITY, canAutoNext, controllers, getOrigin, getYouTubeEmbedHost, hasUserGesture, incAutoNext, stats } from './globals.js';
 
 // ---------- Helpers (κοινή λογική) ----------
 function stateName(v) {
   let name = 'UNKNOWN';
-  if (typeof YT !== 'undefined') {
-    if (typeof YT.PlayerState !== 'undefined') {
+  if (isDefined(typeof YT) && isDefined(YT)) {
+    if (isDefined(YT.PlayerState)) {
       if (v === YT.PlayerState.UNSTARTED) {
         name = 'UNSTARTED';
       } else {
@@ -56,12 +74,12 @@ function stateName(v) {
 
 function readPlayerState(ctrl, e) {
   let s;
-  const hasEvent = typeof e !== 'undefined';
-  const hasData = hasEvent ? typeof e.data !== 'undefined' : false;
+  const hasEvent = isDefined(e);
+  const hasData = hasEvent ? isDefined(e.data) : false;
   if (hasData) {
     s = e.data;
   } else {
-    const canRead = allTrue([!!ctrl.player, isFunction(ctrl.player?.getPlayerState)]);
+    const canRead = allTrue([isDefined(ctrl.player), isFunction(ctrl.player?.getPlayerState)]);
     if (canRead) {
       s = ctrl.player.getPlayerState();
     }
@@ -71,19 +89,23 @@ function readPlayerState(ctrl, e) {
 
 function updateAccumulators(ctrl, s) {
   const p = ctrl.player;
+
   if (s === YT.PlayerState.PLAYING) {
     ctrl.playingStart = Date.now();
     ctrl.currentRate = isFunction(p?.getPlaybackRate) ? p.getPlaybackRate() : 1.0;
   } else {
     const endedOrPaused = anyTrue([s === YT.PlayerState.PAUSED, s === YT.PlayerState.ENDED]);
-    if (allTrue([!!ctrl.playingStart, endedOrPaused])) {
+    const canFinalize = allTrue([isDefined(ctrl.playingStart), endedOrPaused]);
+    if (canFinalize) {
       ctrl.totalPlayTime += ((Date.now() - ctrl.playingStart) / 1000) * ctrl.currentRate;
       ctrl.playingStart = null;
     }
   }
+
   if (s === YT.PlayerState.BUFFERING) {
     ctrl.lastBufferingStart = Date.now();
   }
+
   if (s === YT.PlayerState.PAUSED) {
     ctrl.lastPausedStart = Date.now();
   }
@@ -91,14 +113,14 @@ function updateAccumulators(ctrl, s) {
 
 function restartPauseGuard(ctrl) {
   try {
-    if (ctrl.pauseGuardTimer) {
+    if (isDefined(ctrl.pauseGuardTimer)) {
       cancel(ctrl.pauseGuardTimer);
     }
   } catch (_) {}
 
   (function (self) {
     let basePause = 2000;
-    if (typeof self.expectedPauseMs === 'number') {
+    if (isNumber(self.expectedPauseMs)) {
       if (self.expectedPauseMs > 0) {
         basePause = self.expectedPauseMs;
       }
@@ -109,7 +131,7 @@ function restartPauseGuard(ctrl) {
       try {
         const p2 = self.player;
         let canCheck = false;
-        if (typeof p2 !== 'undefined') {
+        if (isDefined(p2)) {
           if (p2 !== null) {
             if (isFunction(p2.getPlayerState)) {
               canCheck = true;
@@ -145,18 +167,16 @@ function applyFakeEndGuard(ctrl) {
   const minRealPlaySec = 3;
   const p = ctrl.player;
   let dur = 0;
+
   if (isFunction(p?.getDuration)) {
     dur = p.getDuration();
   }
+
   const tooShort = ctrl.totalPlayTime < minRealPlaySec;
   if (tooShort) {
+    // 5% του τέλους, με clamp 2..5 s
     let back = Math.floor(dur * 0.05);
-    if (back < 2) {
-      back = 2;
-    }
-    if (back > 5) {
-      back = 5;
-    }
+    back = clamp(back, 2, 5);
     const target = Math.max(0, dur - back);
     ctrl._safeSeek(target);
     ctrl.guardPlay(p);
@@ -169,14 +189,14 @@ function applyFakeEndGuard(ctrl) {
 function maybeUnmuteAfterPlaying(ctrl) {
   if (allTrue([ctrl.pendingUnmute === true])) {
     const userGesture = hasUserGesture === true;
-    if (!userGesture) {
+    if (userGesture !== true) {
       log(`🔇 Player ${ctrl.index + 1} Still awaiting user gesture before unmute`);
     } else {
       const p = ctrl.player;
       if (isFunction(p?.unMute)) {
         p.unMute();
       }
-      const volRange = ctrl.plan?.unmute?.volumeRangePct ?? [10, 30];
+      const volRange = isDefined(ctrl.plan?.unmute?.volumeRangePct) ? ctrl.plan.unmute.volumeRangePct : [10, 30];
       const vMin = Array.isArray(volRange) ? volRange[0] : 10;
       const vMax = Array.isArray(volRange) ? volRange[1] : 30;
       const v = rndInt(vMin, vMax);
@@ -222,23 +242,25 @@ function scheduleAutoNextIfAllowed(ctrl) {
   const p = ctrl.player;
   const duration = isFunction(p?.getDuration) ? p.getDuration() : 0;
   const percentWatched = duration > 0 ? Math.round((ctrl.totalPlayTime / duration) * 100) : 0;
+
   log(`✅ Player ${ctrl.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(ctrl.totalPlayTime)}s)`);
 
   const allowPolicy = isFunction(canAutoNext) ? canAutoNext(ctrl.index) : true;
-  const passProb = typeof MAIN_PROBABILITY === 'number' ? Math.random() < MAIN_PROBABILITY : true;
+  const passProb = isNumber(MAIN_PROBABILITY) ? randomFloat(0, 1) < MAIN_PROBABILITY : true;
 
   let proceed = false;
-  if (allowPolicy) {
-    if (passProb) {
+  if (allowPolicy === true) {
+    if (passProb === true) {
       proceed = true;
     }
   }
 
-  if (proceed) {
+  if (proceed === true) {
     const afterEndPauseMs = rndInt(15000, 60000);
     scheduleSafe(
       () => {
-        if (ctrl._guardHasAnyList()) {
+        const hasList = ctrl._guardHasAnyList();
+        if (hasList === true) {
           if (isFunction(incAutoNext)) {
             incAutoNext(ctrl.index);
           }
@@ -255,6 +277,44 @@ function scheduleAutoNextIfAllowed(ctrl) {
   } else {
     log(`⛔ Player ${ctrl.index + 1} AutoNext blocked by policy`);
   }
+}
+
+function isScheduled(ctrl) {
+  // Ελέγχουμε timers/flags χωρίς &&/||.
+  let scheduled = false;
+
+  // timers.pauseTimers
+  try {
+    const hasTimersObj = isDefined(ctrl.timers) ? typeof ctrl.timers === 'object' : false;
+    if (hasTimersObj === true) {
+      const hasPauseArr = Array.isArray(ctrl.timers?.pauseTimers);
+      if (hasPauseArr === true) {
+        if (ctrl.timers.pauseTimers.length > 0) {
+          scheduled = true;
+        }
+      }
+      if (scheduled !== true) {
+        const hasMid = isDefined(ctrl.timers?.midSeek) ? ctrl.timers.midSeek !== null : false;
+        if (hasMid === true) {
+          scheduled = true;
+        }
+      }
+      if (scheduled !== true) {
+        const hasProg = isDefined(ctrl.timers?.progressCheck) ? ctrl.timers.progressCheck !== null : false;
+        if (hasProg === true) {
+          scheduled = true;
+        }
+      }
+    }
+    if (scheduled !== true) {
+      const hasExpectedPause = isNumber(ctrl.expectedPauseMs) ? ctrl.expectedPauseMs > 0 : false;
+      if (hasExpectedPause === true) {
+        scheduled = true;
+      }
+    }
+  } catch (_) {}
+
+  return scheduled;
 }
 
 // ---------- Handlers ----------
@@ -283,7 +343,7 @@ function onEnded(ctrl) {
 }
 
 function onPlaying(ctrl) {
-  if (!ctrl.isPlayingActive) {
+  if (ctrl.isPlayingActive !== true) {
     ctrl.isPlayingActive = true;
   }
   log(`▶️ Player ${ctrl.index + 1} State -> PLAYING`);
@@ -326,16 +386,12 @@ export function onStateChangeExternal(ctrl, e) {
     log(`❌ Player ${ctrl.index + 1} StateChange Error ${String(err?.message ?? err)}`);
   }
 
-  // Εμπλουτισμένο logging (όπως είχες)
+  // Έξτρα logging (όπως είχες), με ασφαλείς ελέγχους
   try {
     let prevState = ctrl.lastKnownState;
-    if (typeof prevState === 'undefined') {
-      if (typeof YT !== 'undefined') {
-        if (typeof YT.PlayerState !== 'undefined') {
-          prevState = YT.PlayerState.UNSTARTED;
-        } else {
-          prevState = -1;
-        }
+    if (!isDefined(prevState)) {
+      if (isDefined(typeof YT) && isDefined(YT) && isDefined(YT.PlayerState)) {
+        prevState = YT.PlayerState.UNSTARTED;
       } else {
         prevState = -1;
       }
@@ -344,50 +400,15 @@ export function onStateChangeExternal(ctrl, e) {
     let tSec = 0;
     try {
       const pLocal = ctrl.player;
-      const canCT = allTrue([!!pLocal, isFunction(pLocal?.getCurrentTime)]);
+      const canCT = allTrue([isDefined(pLocal), isFunction(pLocal?.getCurrentTime)]);
       if (canCT) {
         tSec = pLocal.getCurrentTime();
       }
     } catch (_) {}
 
-    // Υπολογισμός scheduled
-    let scheduled = false;
-    try {
-      const hasTimersObj = typeof ctrl.timers !== 'undefined' && ctrl.timers !== null && typeof ctrl.timers === 'object';
-
-      if (hasTimersObj) {
-        let hasPauseTimers = false;
-        const hasPauseArr = Array.isArray(ctrl.timers?.pauseTimers);
-        if (hasPauseArr) {
-          if (ctrl.timers.pauseTimers.length > 0) {
-            hasPauseTimers = true;
-          }
-        }
-        if (hasPauseTimers === true) {
-          scheduled = true;
-        }
-        if (scheduled !== true) {
-          const hasMid = typeof ctrl.timers?.midSeek !== 'undefined' ? ctrl.timers.midSeek !== null : false;
-          if (hasMid) {
-            scheduled = true;
-          }
-        }
-        if (scheduled !== true) {
-          const hasProg = typeof ctrl.timers?.progressCheck !== 'undefined' ? ctrl.timers.progressCheck !== null : false;
-          if (hasProg) {
-            scheduled = true;
-          }
-        }
-      }
-      if (scheduled !== true) {
-        const hasExpectedPause = typeof ctrl.expectedPauseMs === 'number' ? ctrl.expectedPauseMs > 0 : false;
-        if (hasExpectedPause) {
-          scheduled = true;
-        }
-      }
-    } catch (_) {}
-
+    const scheduled = isScheduled(ctrl);
     const msg = `State: ${stateName(s)} (prev: ${stateName(prevState)}) — ${scheduled === true ? 'scheduled' : 'random'} — t=${String(Math.round(tSec))}s`;
+
     try {
       log(`Player ${String(ctrl.index + 1)} ${String(msg)}`);
     } catch (_) {}
@@ -399,7 +420,7 @@ export function onStateChangeExternal(ctrl, e) {
   try {
     const handlers = createStateHandlers(ctrl);
     const h = handlers[s];
-    if (typeof h !== 'undefined') {
+    if (isDefined(h)) {
       h();
     } else {
       onUnknown(ctrl, s);
@@ -407,7 +428,7 @@ export function onStateChangeExternal(ctrl, e) {
   } catch (_) {}
 
   // Cross-cutting: accumulators + pause-guard (ίδια συμπεριφορά για όλα τα states)
-  if (typeof s !== 'undefined') {
+  if (isDefined(s)) {
     updateAccumulators(ctrl, s);
     restartPauseGuard(ctrl);
   }
@@ -415,5 +436,4 @@ export function onStateChangeExternal(ctrl, e) {
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
-
 // --- End Of File ---
