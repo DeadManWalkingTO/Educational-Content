@@ -1,6 +1,18 @@
-# CHANGELOG.md - v203
+# CHANGELOG.md - v207
 
 ---
+
+**2025-12-28**
+playerController.js: v6.24.9 — Fix: αποφυγή redeclare (var/const) για το identifier `p` στο Unified Logging, μετονομασία σε `pLocal`.
+
+**2025-12-28**
+playerController.js: v6.24.8 — Fix: stateName ως function expression (block-safe), αποφυγή SyntaxError σε catch.
+
+**2025-12-28**
+playerController.js: v6.24.7 — Event-driven PauseGuard + Unified state logging (scheduled/random), t(sec), prev/next. Χωρίς &&/||.
+
+**2025-12-28**
+playerController.js: None — Διόρθωση emoji logging (🎬) σε UTF‑8, ενοποιημένο logging.
 
 **2025-12-28**
 

@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v6.24.6';
+const VERSION = 'v6.24.9';
 /*
 Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
 Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
@@ -345,7 +345,7 @@ export class PlayerController {
    */
   requestPlay() {
     try {
-      var p = this.player;
+      var pLocal = this.player;
       if (p) {
         this.guardPlay(p);
       }
@@ -494,6 +494,43 @@ export class PlayerController {
       log(`❌ Player ${this.index + 1} StateChange Error ${String(err?.message ?? err)}`);
     }
 
+
+    // Unified State Logging (scheduled/random)
+    try {
+      var currentState = s;
+      var prevState = this.lastKnownState;
+      if (typeof prevState === 'undefined') { prevState = YT.PlayerState.UNSTARTED; }
+      var tSec = 0;
+      try { var pLocal = this.player; var okCT = false; if (typeof pLocal !== 'undefined') { if (pLocal !== null) { if (typeof pLocal.getCurrentTime === 'function') { okCT = true; } } } if (okCT === true) { tSec = pLocal.getCurrentTime(); } } catch (_) {}
+      var scheduled = false;
+      if (this.timers && typeof this.timers === 'object') {
+        var hasPauseTimers = false;
+        if (typeof this.timers.pauseTimers !== 'undefined') { if (this.timers.pauseTimers !== null) { if (Array.isArray(this.timers.pauseTimers)) { if (this.timers.pauseTimers.length > 0) { hasPauseTimers = true; } } } }
+        if (hasPauseTimers === true) { scheduled = true; }
+        if (scheduled !== true) { if (typeof this.timers.midSeek !== 'undefined') { if (this.timers.midSeek !== null) { scheduled = true; } } }
+        if (scheduled !== true) { if (typeof this.timers.progressCheck !== 'undefined') { if (this.timers.progressCheck !== null) { scheduled = true; } } }
+      }
+      if (scheduled !== true) { if (typeof this.expectedPauseMs === 'number') { if (this.expectedPauseMs > 0) { scheduled = true; } } }
+      var stateName = function(v) {
+  var name = 'UNKNOWN';
+  if (typeof YT !== 'undefined') {
+    if (typeof YT.PlayerState !== 'undefined') {
+      if (v === YT.PlayerState.UNSTARTED) { name = 'UNSTARTED'; }
+      else { if (v === YT.PlayerState.ENDED) { name = 'ENDED'; }
+      else { if (v === YT.PlayerState.PLAYING) { name = 'PLAYING'; }
+      else { if (v === YT.PlayerState.PAUSED) { name = 'PAUSED'; }
+      else { if (v === YT.PlayerState.BUFFERING) { name = 'BUFFERING'; }
+      else { if (v === YT.PlayerState.CUED) { name = 'CUED'; } } } } } }
+    }
+  }
+  return name;
+};
+      var tag = scheduled === true ? 'scheduled' : 'random';
+      try { log('Player ' + String(this.index + 1) + ' State: ' + stateName(currentState) + ' (prev: ' + stateName(prevState) + ') — ' + tag + ' — t=' + String(Math.round(tSec)) + 's'); } catch (_) {}
+      try { this.lastKnownState = currentState; } catch (_) {}
+    } catch (_) {}
+    // End Unified State Logging
+
     // Ενδεικτικές μεταβάσεις μέσω STATE_TRANSITIONS (χωρίς πλήρη state machine)
     try {
       if (e.data === YT.PlayerState.PAUSED) {
@@ -579,6 +616,27 @@ export class PlayerController {
 
     if (e.data === YT.PlayerState.BUFFERING) this.lastBufferingStart = Date.now();
     if (e.data === YT.PlayerState.PAUSED) this.lastPausedStart = Date.now();
+    // Event-driven PauseGuard: schedule a check after tolerance to retry play if still PAUSED
+    try { if (this.pauseGuardTimer) { clearTimeout(this.pauseGuardTimer); } } catch (_) {}
+    (function(self){
+      var basePause = 2000;
+      if (typeof self.expectedPauseMs === 'number') { if (self.expectedPauseMs > 0) { basePause = self.expectedPauseMs; } }
+      var slack = 250;
+      self.pauseGuardTimer = setTimeout(function(){
+        try {
+          var p = self.player;
+          var canCheck = false;
+          if (typeof pLocal !== 'undefined') { if (pLocal !== null) { if (typeof p.getPlayerState === 'function') { canCheck = true; } } }
+          if (canCheck) {
+            var st = p.getPlayerState();
+            if (st === YT.PlayerState.PAUSED) {
+              try { if (typeof tryRequestPlay === 'function') { tryRequestPlay(self); } else { p.playVideo(); } } catch (_) {}
+            } else { try { self.pauseRechecks = 0; } catch (_) {} }
+          }
+        } catch (_) {}
+      }, basePause + slack);
+    })(this);
+
 
     // ENDED -> Δεύτερη φάση απόφασης AutoNext με αναμονή μετά το τέλος
     if (e.data === YT.PlayerState.ENDED) {

@@ -213,6 +213,12 @@ export function startWatchdog() {
    */
   
   function maybeHandlePaused(c, state, now) {
+    // Fallback: αν εντοπίσουμε PAUSED χωρίς lastPausedStart από το PlayerController,
+    // αρχικοποιούμε εδώ ώστε να μετρήσουμε την ανοχή και να ξαναελέγξουμε στον επόμενο κύκλο.
+    if (state === YT.PlayerState.PAUSED) {
+      if (!c.lastPausedStart) { try { c.lastPausedStart = now; } catch (_) {} return false; }
+    }
+
     if (!allTrue([state === YT.PlayerState.PAUSED, c.lastPausedStart])) {
       return false;
     }
