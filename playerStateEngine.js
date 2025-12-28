@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v1.8.5';
+const VERSION = 'v2.0.5';
 /*
  * Περιγραφή: State Handlers για YT onStateChange, με ασφαλή χρήση utils (guards, time/random, scheduler, logging).
  * Ρόλος: Ενιαίος dispatcher + καθαροί handlers για logs, fake-end guard, unmute/retry, accumulators, pause-guard.
@@ -173,48 +173,6 @@ function applyFakeEndGuard(ctrl) {
   }
   return false;
 }
-      const volRange = isDefined(ctrl.plan?.unmute?.volumeRangePct) ? ctrl.plan.unmute.volumeRangePct : [10, 30];
-      const vMin = Array.isArray(volRange) ? volRange[0] : 10;
-      const vMax = Array.isArray(volRange) ? volRange[1] : 30;
-      const v = rndInt(vMin, vMax);
-      if (isFunction(p?.setVolume)) {
-        p.setVolume(v);
-      }
-      ctrl.pendingUnmute = false;
-      stats.volumeChanges++;
-      
-      // Retry κύκλος: αν παραμείνει PAUSED, κάνε guardPlay
-      scheduleSafe(
-        async () => {
-          await retry(
-            async () => {
-              if (isFunction(p?.getPlayerState)) {
-                const st = p.getPlayerState();
-                if (hasYT()) {
-                  if (st === YT.PlayerState.PAUSED) {
-                    if (isFunction(p?.playVideo)) {
-                      ctrl.guardPlay(p);
-                      return true;
-                    }
-                  }
-                }
-              }
-              throw new Error('not-ready');
-            },
-            3, // attempts
-            200, // baseMs
-            2, // factor
-            1200, // maxMs
-            0.3 // jitterRatio
-          );
-        },
-        1000,
-        ctrl._group('unmute-retry'),
-        'unmute-retry-after-playing'
-      );
-    }
-  }
-}
 
 // -------------------- Handlers --------------------
 function onUnstarted(ctrl) {
@@ -271,7 +229,9 @@ function createStateHandlers(ctrl) {
 export function onStateChangeExternal(ctrl, e) {
   const state = e.data;
   if (state === YT.PlayerState.PLAYING) {
-    if (typeof canUnmuteNow === 'function' && canUnmuteNow()) { handlePendingUnmute(ctrl.player, ctrl.plan); }
+    if (typeof canUnmuteNow === 'function' && canUnmuteNow()) {
+      handlePendingUnmute(ctrl.player, ctrl.plan);
+    }
   }
   let s;
   try {

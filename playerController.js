@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v6.52.3';
+const VERSION = 'v7.0.3';
 /*
  * Περιγραφή: Ελεγκτής αναπαραγωγής για YouTube IFrame API με ανθρώπινη συμπεριφορά.
  * Χρήση utils API: scheduleSafe, delay, repeat, cancel, groupCancel, retry, debounce, throttle, clamp, log κ.ά.
@@ -239,72 +239,6 @@ export class PlayerController {
     /* Προγραμματισμός Pauses/MidSeek βάσει policy */
     this.schedulePauses();
     this.scheduleMidSeek();
-    
-          return;
-        }
-        const canPlay = allTrue([isFunction(p.getPlayerState), p.getPlayerState() === YT.PlayerState.PLAYING]);
-        if (canPlay) {
-          if (isFunction(p.unMute)) {
-            p.unMute();
-          }
-          const arrOk = Array.isArray(volRange);
-          const vMin = arrOk ? volRange[0] : 10;
-          const vMax = arrOk ? volRange[1] : 30;
-          const v = rndInt(vMin, vMax);
-          if (isFunction(p.setVolume)) {
-            p.setVolume(v);
-          }
-          stats.volumeChanges++;
-          
-          /* Quick retry μετά από άμεσο unmute */
-          scheduleSafe(
-            () => {
-              const paused = allTrue([isFunction(p.getPlayerState), p.getPlayerState() === YT.PlayerState.PAUSED]);
-              if (paused) {
-                log(`🔁 Player ${this.index + 1} Quick retry playVideo after immediate unmute`);
-                if (isFunction(p.playVideo)) {
-                  this.guardPlay(p);
-                }
-              }
-            },
-            250,
-            this._group('unmute'),
-            'unmute-quick-retry'
-          );
-          /* Retry κύκλος αν παραμένει PAUSED */
-          scheduleSafe(
-            async () => {
-              await retry(
-                async () => {
-                  const paused = allTrue([isFunction(p.getPlayerState), p.getPlayerState() === YT.PlayerState.PAUSED]);
-                  if (paused === true) {
-                    if (isFunction(p.playVideo)) {
-                      this.guardPlay(p);
-                      return true;
-                    }
-                  }
-                  throw new Error('not-ready');
-                },
-                3,
-                200,
-                2,
-                1200,
-                0.3
-              );
-            },
-            0,
-            this._group('unmute-retry'),
-            'unmute-retry'
-          );
-        } else {
-          this.pendingUnmute = true;
-          
-        }
-      },
-      unmuteDelay,
-      this._group('unmute'),
-      'unmute'
-    );
   }
   onStateChange(e) {
     try {
