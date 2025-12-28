@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v4.21.0';
+const VERSION = 'v4.21.4';
 /*
 Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
 Αναθεώρηση: Αφαίρεση τοπικού scheduler και χρήση των APIs από utils.js (delay/cancel/scheduleSafe/rndInt).
@@ -75,7 +75,6 @@ export const stats = {
   replay: 0,
   pauses: 0,
   midSeeks: 0,
-  watchdog: 0,
   errors: 0,
   volumeChanges: 0,
 };
@@ -211,7 +210,7 @@ function updateStats() {
     el.className = 'stats';
     document.body.appendChild(el);
   }
-  el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Replay:${stats.replay} - Pauses:${stats.pauses} - MidSeeks:${stats.midSeeks} - Watchdog:${stats.watchdog} - Errors:${stats.errors} - VolumeChanges:${stats.volumeChanges}`;
+  el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Replay:${stats.replay} - Pauses:${stats.pauses} - MidSeeks:${stats.midSeeks} - Errors:${stats.errors} - VolumeChanges:${stats.volumeChanges}`;
 }
 
 // Listener για app:log (γράφει Activity Panel + updateStats)
