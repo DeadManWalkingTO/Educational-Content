@@ -1,9 +1,9 @@
 // --- playerController.js ---
-const VERSION = 'v7.1.2';
+const VERSION = 'v7.1.4';
 /*
  * Περιγραφή: Ελεγκτής αναπαραγωγής για YouTube IFrame API με ανθρώπινη συμπεριφορά.
- * Χρήση utils API: scheduleSafe, delay, repeat, cancel, groupCancel, retry, debounce, throttle, clamp, log κ.ά.
- * Πολιτικές: unmute, pauses, mid-seeks, duration-aware start, και ENCODED ενσωμάτωση AutoNext μέσω autoNext.js.
+ * Πολιτικές: unmute, pauses, mid-seeks, duration-aware start, ENCODED ενσωμάτωση AutoNext μέσω autoNext.js.
+ * ΝΕΟ: Διαβάζει από plan.unmute.playingGraceMsRange το παράθυρο καθυστέρησης για το unmute στο PLAYING.
  */
 
 // --- Export Version ---
@@ -47,7 +47,7 @@ function isPlaying(p) {
   return false;
 }
 
-/* Προαιρετικό: Debounced logger */
+/* Debounced logger */
 const stateLogDebounced = debounce((idx, msg) => {
   log(`Player ${String(idx + 1)} ${String(msg)}`);
 }, 120);
@@ -56,6 +56,7 @@ const stateLogDebounced = debounce((idx, msg) => {
 export class PlayerController {
   constructor(index, mainList, altList, config = null) {
     this.pendingUnmute = false;
+    this.unmuteScheduled = false;
     this.index = index;
     this.mainList = Array.isArray(mainList) ? mainList : [];
     this.altList = Array.isArray(altList) ? altList : [];
@@ -196,12 +197,14 @@ export class PlayerController {
     const p = e.target;
     this.startTime = Date.now();
     p.mute();
+
     let durationNow = 0;
     const canGetDuration = allTrue([!!p, isFunction(p.getDuration)]);
     if (canGetDuration === true) {
       const dtmp = p.getDuration();
       durationNow = isNumber(dtmp) === true ? dtmp : 0;
     }
+
     const ctx = {
       durationSec: durationNow,
       profileName: this.profileName,
@@ -232,8 +235,9 @@ export class PlayerController {
       }
     }
 
-    // === Λύση Α: μπλοκάρισμα scheduled volume έως το auto-unmute ===
-    this.pendingUnmute = true; // θα καθαριστεί στο PLAYING μετά το handlePendingUnmute
+    // Λύση Α: μπλοκάρισμα scheduled volume έως το auto-unmute
+    this.pendingUnmute = true;
+    this.unmuteScheduled = false;
 
     initUnmute(this.player, this.plan);
 
@@ -265,19 +269,64 @@ export class PlayerController {
   onStateChange(e) {
     try {
       onStateChangeExternal(this, e);
-      // ΠΕΡΝΑΜΕ ctrl στο handlePendingUnmute για ασφαλέστερο logging
       let state;
       try {
         state = e?.data;
       } catch (_) {}
+
+      // Καθυστερημένο auto-unmute μετά από PLAYING, βάσει πολιτικής
       if (typeof YT !== 'undefined') {
         if (typeof YT?.PlayerState !== 'undefined') {
           if (state === YT.PlayerState.PLAYING) {
-            handlePendingUnmute(this.player, this.plan, this);
-            // === Λύση Α: μόλις καλεστεί το auto-unmute, ανοίγουμε τον δρόμο για scheduled volume ===
-            try {
-              this.pendingUnmute = false;
-            } catch (_) {}
+            let shouldSchedule = true;
+            if (this.unmuteScheduled === true) {
+              shouldSchedule = false;
+            }
+            if (shouldSchedule === true) {
+              // Ανάγνωση εύρους grace από plan.unmute.playingGraceMsRange
+              let gMin = 1500;
+              let gMax = 3000;
+              try {
+                const u = this.plan?.unmute;
+                let hasU = false;
+                if (typeof u !== 'undefined') {
+                  if (u !== null) {
+                    hasU = true;
+                  }
+                }
+                if (hasU === true) {
+                  const arr = u.playingGraceMsRange;
+                  let isArr = false;
+                  if (Array.isArray(arr)) {
+                    isArr = true;
+                  }
+                  if (isArr === true) {
+                    let a = Number(arr[0]);
+                    let b = Number(arr[1]);
+                    let aOk = isNumber(a);
+                    let bOk = isNumber(b);
+                    if (allTrue([aOk === true, bOk === true]) === true) {
+                      gMin = a;
+                      gMax = b;
+                    }
+                  }
+                }
+              } catch (_) {}
+              const graceMs = rndInt(Math.floor(gMin / 1), Math.floor(gMax / 1));
+              this.unmuteScheduled = true;
+              scheduleSafe(
+                () => {
+                  try {
+                    handlePendingUnmute(this.player, this.plan, this);
+                    this.pendingUnmute = false;
+                  } catch (_) {}
+                },
+                graceMs,
+                this._group('unmute'),
+                'delayed-unmute'
+              );
+              log(`🔕 Player ${this.index + 1} Unmute scheduled after ${Math.round(graceMs / 1000)}s`);
+            }
           }
         }
       }
@@ -471,7 +520,7 @@ export class PlayerController {
     } catch (_) {}
   }
 
-  /* Προγραμματισμένες, τυχαίες αλλαγές έντασης */
+  /* Προγραμματισμένες αλλαγές έντασης με guards (Λύση Α) */
   scheduleVolumeChanges() {
     const p = this.player;
     let canVolume = false;
@@ -533,7 +582,6 @@ export class PlayerController {
       const id = scheduleSafe(
         () => {
           try {
-            // === Λύση Α: guard για pendingUnmute ===
             if (this.pendingUnmute === true) {
               const retryDelay = rndInt(1000, 2000);
               scheduleSafe(
@@ -551,7 +599,6 @@ export class PlayerController {
               return;
             }
 
-            // === Λύση Α: guard για muted state ===
             let isMutedNow = false;
             if (isFunction(p?.isMuted)) {
               try {
@@ -585,7 +632,6 @@ export class PlayerController {
               return;
             }
 
-            // Υπάρχων guard: εκτελούμε μόνο σε PLAYING (με retry)
             let isPlay = false;
             if (isFunction(p.getPlayerState)) {
               if (typeof YT !== 'undefined') {
@@ -636,15 +682,12 @@ export class PlayerController {
       const id2 = scheduleSafe(
         () => {
           try {
-            // === Λύση Α: guard pendingUnmute/muted και εδώ ===
             if (this.pendingUnmute === true) {
               const retryDelay = rndInt(1000, 2000);
               scheduleSafe(
                 () => {
                   try {
                     if (this.pendingUnmute !== true) {
-                      // θα ξανατρέξει το micro μπλοκ στις επόμενες επανακλήσεις
-                      // προτιμούμε να αφήσουμε το apply εντός guard παρακάτω
                       const canGetVol = isFunction(p?.getVolume);
                       const canSetVol = isFunction(p?.setVolume);
                       const canBoth = allTrue([canGetVol === true, canSetVol === true]);
@@ -789,5 +832,4 @@ export class PlayerController {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
-
 // --- End Of File ---
