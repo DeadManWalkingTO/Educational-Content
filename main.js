@@ -1,9 +1,9 @@
 // --- main.js ---
-const VERSION = 'v3.46.0';
+const VERSION = 'v4.0.1';
 /*
-Περιγραφή: Entry point της εφαρμογής με Promise-based YouTube API readiness και DOM readiness.
-Ορίζει start gate ώστε η εκκίνηση να γίνεται είτε με user gesture (κουμπί) είτε με fallback.
-Εκκινεί human-mode initialization και watchdog παράλληλα, με κεντρική αναφορά εκδόσεων.
+Περιγραφή: Entry point με εκτεταμένη χρήση utils.js (domReady, safeAddEvent, once, log, retry, scheduleSafe).
+Start gate με user gesture & ασφαλές fallback, readiness του YouTube API με exponential backoff + jitter,
+sequential init Human Mode, versions panel/fallback logging, και προαιρετικό watchdog.
 */
 
 // --- Export Version ---
@@ -19,23 +19,18 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 // Imports
 import { installConsoleFilter } from './consoleFilter.js';
-import { log } from './utils.js';
+import { log, domReady, safeAddEvent, once, isDefined, delay, repeat, cancel, groupCancel, jitter, retry, fmtMs } from './utils.js';
 import { setUserGesture, stats } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions, renderVersionsPanel, renderVersionsText } from './versionReporter.js';
 import { bindUiEvents, setControlsEnabled } from './uiControls.js';
 import { startWatchdog } from './watchdog.js';
-import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } from './utils.js';
 import { youtubeReady } from './youtubeReady.js';
 
 /* -------------------------
-   Console filter (defensive install)
-   -------------------------
-   Η εγκατάσταση του console filter εκτελείται αμυντικά σε try/catch ώστε:
-   - να μη διακόπτεται η εκκίνηση αν υπάρχει ασυμβατότητα ή σφάλμα,
-   - να παραμένει διαθέσιμη η βασική καταγραφή (console/log).
-*/
+   Console filter (defensive)
+   ------------------------- */
 (function safeInstallConsoleFilter() {
   try {
     installConsoleFilter();
@@ -46,168 +41,128 @@ import { youtubeReady } from './youtubeReady.js';
 
 /* -------------------------
    Versions report (UI + fallback)
-   -------------------------
-   Συλλογή και παρουσίαση εκδόσεων:
-   - Αν υπάρχει activityPanel, γίνεται render σε HTML panel.
-   - Διαφορετικά, γίνεται log ως JSON.
-*/
+   ------------------------- */
 const versions = reportAllVersions();
 versions.Main = VERSION;
 
 const panel = document.getElementById('activityPanel');
-if (panel) {
+if (isDefined(panel)) {
   panel.innerHTML = renderVersionsPanel(versions);
+  panel.style.whiteSpace = 'pre-line';
 } else {
   log(`✅ Εκδόσεις: ${JSON.stringify(versions)}`);
 }
 
 /* -------------------------
-   Application start gate
-   -------------------------
-   Το startApp() εκκινεί μία φορά.
-   Όταν υπάρχει κουμπί εκκίνησης, απαιτείται user gesture (click).
-*/
-let appStarted = false;
-
-/* -------------------------
-   App startup sequence
-   -------------------------
-   Ακολουθία εκκίνησης:
-   1) Αναφορά εκδόσεων (και προετοιμασία panel)
-   2) Φόρτωση λιστών (main + alt)
-   3) Δημιουργία DOM containers για players
-   4) Αναμονή readiness του YouTube API
-   5) Εκκίνηση sequential init των players (Human Mode)
-   6) Εκκίνηση watchdog παράλληλα (χωρίς await)
-*/
+   Application start (once)
+   ------------------------- */
 /**
- * Εκκινεί την εφαρμογή.
- * Η συνάρτηση καλείται το πολύ μία φορά μέσω του start gate.
- * @returns {Promise<void>}
+ * Εκκίνηση εφαρμογής με ασφαλή ακολουθία:
+ * 1) Αναφορά εκδόσεων σε log (multiline text fallback).
+ * 2) Φόρτωση λιστών (main + alt).
+ * 3) Readiness YouTube IFrame API με retry/backoff/jitter.
+ * 4) Δημιουργία DOM containers για players.
+ * 5) Human Mode: sequential init των players.
+ * 6) Προαιρετικό watchdog μέσω scheduleSafe (μη μπλοκάρει το chain).
  */
-async function startApp() {
+const startOnce = once(async function startApp() {
   try {
     log(`🚀 Εκκίνηση εφαρμογής -> main.js ${VERSION}`);
-
-    /*
-    Το panel, όταν υπάρχει, προετοιμάζεται για multiline περιεχόμενο.
-    Η κίνηση αυτή επιτρέπει καθαρή εμφάνιση της renderVersionsText().
-    */
-    if (panel) {
-      panel.style.whiteSpace = 'pre-line';
-    }
-
-    /*
-    Αναλυτική αναφορά εκδόσεων σε text μορφή.
-    Εξυπηρετεί debugging και γρήγορο έλεγχο ασυμβατοτήτων μεταξύ modules.
-    */
     log(`${renderVersionsText(versions)}`);
 
-    /*
-    Φόρτωση λιστών σε παράλληλη εκτέλεση για μείωση συνολικού χρόνου εκκίνησης.
-    */
-    const [mainList, altList] = await Promise.all([loadVideoList(), loadAltList()]);
+    // Φόρτωση λιστών
+    const listPromises = [loadVideoList(), loadAltList()];
+    const lists = await Promise.all(listPromises);
+    const mainList = lists[0];
+    const altList = lists[1];
     log(`📂 Lists Loaded -> Main:${mainList.length} Alt:${altList.length}`);
 
-    /*
-    Αναμονή για YouTube IFrame API readiness.
-    */
-    log(`⏳ YouTubeAPI -> Αναμονή`);
-    await youtubeReady(20000); // π.χ. 20s timeout
-    log(`✅ YouTubeAPI -> Έτοιμο`);
+    // Readiness YouTube API με retry/backoff/jitter
+    log(`⏳ YouTubeAPI -> Αναμονή (με retry/backoff/jitter)`);
+    const readyResult = await retry(
+      async () => {
+        await youtubeReady(20000); // 20s timeout ανά προσπάθεια
+        return true;
+      },
+      3, // attempts
+      500, // baseMs
+      2, // factor
+      8000, // maxMs
+      0.2 // jitterRatio
+    );
+    if (readyResult.ok === true) {
+      log(`✅ YouTubeAPI -> Έτοιμο (προσπάθειες: ${readyResult.attempts})`);
+    } else {
+      log(`❌ YouTubeAPI -> Απέτυχε (προσπάθειες: ${readyResult.attempts})`);
+    }
 
-    /*
-    Δημιουργία containers πριν το init των players ώστε το DOM να είναι έτοιμο για mount.
-    */
+    // Δημιουργία containers πριν το init των players
     createPlayerContainers();
 
-    /*
-    Human Mode initialization:
-    - Διατηρείται ως Promise chain (then/catch).
-    - Δεν γίνεται await ώστε να ξεκινήσει άμεσα ο watchdog.
-    */
+    // Human Mode sequential init
     initPlayersSequentially(mainList, altList)
       .then(() => {
-        log(`✅ HumanMode -> Ολοκλήρωση sequential init`);
+        log(`✅ HumanMode -> Ολοκληρώθηκε sequential init`);
+        /* Watchdog start (μη μπλοκάρει το chain)
+        scheduleSafe(
+          () => {
+            try {
+              startWatchdog();
+              log(`✅ Watchdog -> Started από main.js`);
+            } catch (err) {
+              log(`❌ Watchdog start error -> ${err}`);
+            }
+          },
+          0,
+          'watchdog',
+          'watchdog-start'
+        );*/
       })
       .catch((err) => {
         log(`❌ HumanMode init error -> ${err}`);
       });
-
-    /*
-    Watchdog:
-    - Εκκινεί ανεξάρτητα από την κατάσταση του Human Mode init.
-    - Στόχος είναι η επιτήρηση/ανίχνευση ανωμαλιών κατά τη διάρκεια λειτουργίας.
-    */
-    //startWatchdog();
-    //log(`✅ Watchdog -> Started από main.js`);
   } catch (err) {
     log(`❌ Σφάλμα κατά την εκκίνηση -> ${err}`);
   }
-}
+});
 
 /* -------------------------
    DOM gate & UI binding
-   -------------------------
-   Δύο μονοπάτια εκκίνησης:
-   - Primary: ύπαρξη btnStartSession => εκκίνηση μέσω click (user gesture).
-   - Fallback: απουσία κουμπιού => ενεργοποίηση controls και άμεση εκκίνηση.
-*/
+   ------------------------- */
 /**
- * Ρυθμίζει το start gate με βάση την ύπαρξη κουμπιού εκκίνησης.
- * - Δεσμεύει UI events μία φορά ώστε τα handlers να υπάρχουν πριν από enable.
- * - Στο click ενημερώνει user gesture και ενεργοποιεί controls σε κάθε πάτημα.
+ * Ρυθμίζει το start gate:
+ * - Bind UI events μία φορά.
+ * - Αν υπάρχει κουμπί start, περιμένει user gesture (click).
+ * - Αλλιώς ενεργοποιεί controls και ξεκινά fallback.
  * @returns {void}
  */
 function setupDomGate() {
+  // Bind UI controls (μία φορά στην αρχή)
+  bindUiEvents();
+
   const btnStart = document.getElementById('btnStartSession');
-
-  if (btnStart) {
-    /*
-    UI events bind μία φορά.
-    Σκοπός είναι να υπάρχουν handlers πριν ενεργοποιηθούν controls.
-    */
-    bindUiEvents();
-
-    /*
-    Click handler:
-    - setUserGesture() εκτελείται πάντα, ως ιδιότητα του event.
-    - setControlsEnabled(true) εκτελείται πάντα, ώστε να επανενεργοποιούνται controls.
-    - startApp() εκτελείται μόνο μία φορά μέσω appStarted gate.
-    */
-    btnStart.addEventListener('click', async () => {
+  if (isDefined(btnStart)) {
+    // Click handler με safeAddEvent
+    safeAddEvent(btnStart, 'click', async () => {
       setUserGesture();
       setControlsEnabled(true);
-
-      if (!appStarted) {
-        appStarted = true;
-        await startApp();
-      }
+      // Single-start gate (once)
+      startOnce();
     });
-
     return;
   }
 
-  /*
-  Fallback path:
-  - Διατηρεί την συμπεριφορά “άμεσης εκκίνησης” όταν απουσιάζει το start button.
-  - Κάνει bind, ενεργοποιεί controls, και ξεκινά startApp().
-  */
-  bindUiEvents();
+  // Fallback: δεν υπάρχει start button -> ενεργοποίηση controls & άμεση εκκίνηση
   setControlsEnabled(true);
-  startApp();
+  startOnce();
 }
 
-/*
-DOM readiness:
-- Η δέσμευση handlers και ο εντοπισμός DOM στοιχείων γίνεται μετά το DOMContentLoaded,
-  ώστε να αποφεύγονται null references λόγω μη έτοιμου DOM.
-*/
-document.addEventListener('DOMContentLoaded', () => {
+// DOM readiness μέσω utils.domReady()
+domReady().then(function () {
   setupDomGate();
 });
 
-// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

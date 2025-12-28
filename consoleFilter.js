@@ -1,63 +1,35 @@
 // --- consoleFilter.js ---
-const VERSION = 'v3.4.12';
+const VERSION = 'v3.5.7';
 /*
-Console Filter: αυτόνομο module για state machine, tagging και wrapping των console.
-Δεν χρησιμοποιούμε τους τελεστές OR και AND (τηρούμε πολιτική project).
-Semicolons πάντα, ESM imports, relative paths, UTF-8, LF.
-*/
+ * Τυποποιημένο wrapping της global console με state-machine και tagging.
+ * Προωθεί non-critical logs (error/warn/info/log) σε επιλεγμένο level με prefix tag,
+ * βάσει patterns του payload ή/και hints από Error.stack.
+ */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
 
-//Όνομα αρχείου για logging.
+// Όνομα αρχείου για logging.
 const FILENAME = import.meta.url.split('/').pop();
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
-// Imports
-import { anyTrue, allTrue, log } from './utils.js';
+import { isDefined, isNonEmptyArray, isString, anyTrue, allTrue, safeJsonStringify, log } from './utils.js';
+
+// Εσωτερική κατάσταση & original bindings
+let _installed = false;
+let _orig = { error: null, warn: null, info: null, log: null };
 
 /**
-ΣΚΟΠΟΣ:
-- Να "τυλίξουμε" (wrap) τις συναρτήσεις της global κονσόλας ώστε να εφαρμόζουμε φίλτρα/κανόνες πριν εμφανιστούν τα μηνύματα.
-- Καθαρό state management, αμυντικός προγραμματισμός και μοτίβα επαναχρησιμοποίησης
-  (DRY: Don't Repeat Yourself), χωρίς χρήση των τελεστών OR/AND όπως ζητά το project.
-
-ΤΙ ΚΑΝΕΙ:
-- Αν κάποιο log ταιριάζει σε ορισμένα patterns (regular expressions) ή σε πηγή (stack hints),
-  τότε δεν εμφανίζεται ως έχει, αλλά γίνεται "forward" σε επιλεγμένο επίπεδο (info|warn)
-  και προστίθεται ένα tag-πρόθεμα για ευκολότερη αναγνώριση.
-- Αν δεν ταιριάζει, εμφανίζεται κανονικά.
-
-ΠΩΣ ΧΡΗΣΙΜΟΠΟΙΕΙΤΑΙ:
-1) installConsoleFilter(cfg): Ενεργοποιεί το φίλτρο και κάνει wrap τις console.* συναρτήσεις.
-2) setFilterLevel(level): Ρυθμίζει πού θα στέλνονται τα tagged μηνύματα ('info' ή 'warn').
-3) addPatterns(regexList): Προσθέτει Regular Expressions για έλεγχο πάνω στο κείμενο των μηνυμάτων.
-4) addSources(regexList): Προσθέτει Regular Expressions για έλεγχο πάνω στο Error.stack (ενδείξεις πηγής).
-5) restoreConsole(): Επαναφέρει την κονσόλα στην αρχική της κατάσταση (ξετυλίγει τα wrappers).
-
-ΕΓΓΥΗΣΕΙΣ ΚΩΔΙΚΑ:
-- Δεν χρησιμοποιούμε τους τελεστές OR και AND (τηρούμε πολιτική project).
-- Semicolons πάντα, ESM imports, relative paths, UTF-8, LF.
-- Η συμπεριφορά παραμένει ακριβώς ίδια με τις προηγούμενες εκδόσεις.
-*/
-
-// Εσωτερική κατάσταση & αρχικά hooks
-// ΣΗΜΕΙΩΣΗ: Δεν αλλάζουμε απευθείας την global console, κρατάμε references στα αρχικά της μέλη
-// ώστε να μπορούμε να τα αποκαταστήσουμε με ασφάλεια στο restoreConsole().
-let _installed = false; // Flag: το φίλτρο έχει εγκατασταθεί;
-let _orig = { error: null, warn: null, info: null, log: null }; // Αρχικά bindings της console
-
-/**
- * _st: State ρύθμισης φίλτρου
- * - enabled: on/off λειτουργίας του φίλτρου.
- * - level: 'info' | 'warn' → επίπεδο στο οποίο θα προωθούνται (forward) τα tagged μηνύματα.
- * - patterns: Array<RegExp> → ελέγχονται απέναντι στο "stringified" περιεχόμενο των arguments.
- * - sources:  Array<RegExp> → ελέγχονται απέναντι στο Error.stack (όπου υπάρχει στα arguments).
- * - tag: prefix προθεματικό, ώστε τα forwarded logs να ξεχωρίζουν οπτικά.
+ * State φίλτρου:
+ * - enabled: on/off
+ * - level: 'info' ή 'warn' -> επίπεδο προώθησης
+ * - patterns: Array<RegExp> για stringified args
+ * - sources: Array<RegExp> για Error.stack hints
+ * - tag: prefix στα forwarded logs
  */
 let _st = {
   enabled: true,
@@ -68,101 +40,61 @@ let _st = {
 };
 
 /**
- * safeToString(x): αμυντική μετατροπή "ό,τι τύπος και να είναι" σε string.
- * Προτεραιότητες:
- * 1) Αν είναι ήδη string → επιστρέφουμε το ίδιο.
- * 2) Αν μοιάζει με Error αντικείμενο → παίρνουμε το message.
- * 3) Αλλιώς → String(x) ως γενικό fallback.
- * 4) Αν αποτύχει (π.χ. κυκλικές αναφορές) → δοκιμάζουμε JSON.stringify.
- * 5) Αν αποτύχει κι αυτό → επιστρέφουμε κενό string (""), ώστε να μην πετάξει εξαίρεση ο κώδικας.
+ * safeToString(x): Ασφαλής μετατροπή σε string με guards από utils.
  */
 function safeToString(x) {
   try {
-    if (typeof x === 'string') {
+    if (isString(x) === true) {
       return x;
     }
-    // Προτίμησε Error.message αν υπάρχει (τυπικό στα λάθη)
-    if (anyTrue([typeof x === 'object', !!x])) {
-      if (!x) {
-        /* noop: null/undefined */
-      } else if (!x.message) {
-        /* noop: δεν είναι Error ή δεν έχει μήνυμα */
-      } else {
-        return String(x.message);
+    const isObj = typeof x === 'object';
+    if (isObj === true) {
+      if (isDefined(x) === true) {
+        const hasMessage = isDefined(x.message);
+        if (hasMessage === true) {
+          return String(x.message);
+        }
+        // Fallback: γενική μετατροπή
+        return String(x);
       }
-      // Αν δεν είναι Error, δοκίμασε γενική μετατροπή
-      return String(x);
+      // null/undefined
+      return '';
     }
     return String(x);
   } catch (_) {
-    // Αν κάποια μετατροπή πέταξε εξαίρεση, δοκίμασε JSON.stringify
     try {
-      return JSON.stringify(x);
-    } catch (__) {
-      // Αν ούτε αυτό δουλέψει (π.χ. κυκλικές αναφορές), επέστρεψε κενό
+      const ser = safeJsonStringify(x);
+      if (ser.ok === true) {
+        return ser.value;
+      }
+      return '';
+    } catch (__e) {
       return '';
     }
   }
 }
 
 /**
- * matchAnyArg(args, regexList): Επιστρέφει true αν κάποιο από τα arguments
- * (μετατρεμμένο σε string μέσω safeToString) ταιριάζει σε κάποιο από τα RegExp της λίστας.
- *
- * ΣΗΜΕΙΩΣΗ ΔΙΔΑΚΤΙΚΗ:
- * - Το διπλό loop (i/j) είναι σκόπιμο για να αποφύγουμε σύνθετους λογικούς τελεστές.
- * - Μόλις βρεθεί match → επιστρέφουμε αμέσως true (early exit) για αποτελεσματικότητα.
+ * matchAnyArg(args, regexList): true αν κάποιο arg ταιριάζει σε κάποιο RegExp.
  */
 function matchAnyArg(args, regexList) {
+  const hasList = isNonEmptyArray(regexList);
+  if (hasList !== true) {
+    return false;
+  }
   try {
-    for (let i = 0; i < args.length; i += 1) {
+    let i = 0;
+    while (i < args.length) {
       const s = safeToString(args[i]);
-      for (let j = 0; j < regexList.length; j += 1) {
+      let j = 0;
+      while (j < regexList.length) {
         const ok = regexList[j].test(s);
-        if (ok) {
+        if (ok === true) {
           return true;
         }
+        j = j + 1;
       }
-    }
-  } catch (err) {
-    // Αν κάτι πάει στραβά, δεν σταματάμε την εφαρμογή: καταγράφουμε προειδοποίηση.
-    log(`⚠️ ConsoleFilter Error ${err}`);
-  }
-  return false; // Αν δεν βρεθεί match, επιστρέφουμε false.
-}
-
-/**
- * matchSourceHints(args, sources): Ελέγχει αν υπάρχει ένδειξη προέλευσης (source)
- * μέσα από Error.stack σε κάποιο από τα arguments.
- *
- * ΠΡΑΚΤΙΚΟ ΠΑΡΑΔΕΙΓΜΑ:
- * - Αν πετάμε new Error('...') από συγκεκριμένο module, το stack θα περιέχει paths/ονόματα αρχείων.
- * - Με ένα RegExp στο sources μπορούμε να αναγνωρίσουμε αυτά τα μονοπάτια και να κάνουμε tagging.
- */
-function matchSourceHints(args, sources) {
-  // Αμυντικές επιστροφές όταν δεν υπάρχουν sources
-  if (!sources) {
-    return false;
-  }
-  if (sources.length === 0) {
-    return false;
-  }
-  try {
-    for (let i = 0; i < args.length; i += 1) {
-      const a = args[i];
-      if (!a) {
-        /* skip: null/undefined */
-      } else if (!a.stack) {
-        /* skip: δεν υπάρχει stack */
-      } else {
-        const st = String(a.stack);
-        for (let j = 0; j < sources.length; j += 1) {
-          const ok = sources[j].test(st);
-          if (ok) {
-            return true;
-          }
-        }
-      }
+      i = i + 1;
     }
   } catch (err) {
     log(`⚠️ ConsoleFilter Error ${err}`);
@@ -171,166 +103,217 @@ function matchSourceHints(args, sources) {
 }
 
 /**
- * buildState(cfg): Χτίζει το state από το config αντικείμενο.
- *
- * ΣΗΜΕΙΩΣΗ:
- * - Χρησιμοποιούμε ρητές ternary/ελέγχους αντί για ||/&&.
- * - Το tagLevel επηρεάζει μόνο το επίπεδο forwarding ('warn' ή 'info').
+ * matchSourceHints(args, sources): true αν υπάρχουν hints από Error.stack.
+ */
+function matchSourceHints(args, sources) {
+  const hasList = isNonEmptyArray(sources);
+  if (hasList !== true) {
+    return false;
+  }
+  try {
+    let i = 0;
+    while (i < args.length) {
+      const a = args[i];
+      if (isDefined(a) === true) {
+        const hasStack = isDefined(a.stack);
+        if (hasStack === true) {
+          const st = String(a.stack);
+          let j = 0;
+          while (j < sources.length) {
+            const ok = sources[j].test(st);
+            if (ok === true) {
+              return true;
+            }
+            j = j + 1;
+          }
+        }
+      }
+      i = i + 1;
+    }
+  } catch (err) {
+    log(`⚠️ ConsoleFilter Error ${err}`);
+  }
+  return false;
+}
+
+/**
+ * buildState(cfg): Δημιουργεί state με ασφαλή αντιγραφή και defaults.
  */
 function buildState(cfg) {
-  const st = {
-    enabled: !!cfg.enabled, // Μετατρέπουμε σε boolean με διπλό αρνητικό
-    level: cfg.tagLevel === 'warn' ? 'warn' : 'info',
-    patterns: cfg.patterns ? cfg.patterns.slice() : [], // Δημιουργούμε αντίγραφο (αποφυγή side-effects)
-    sources: cfg.sources ? cfg.sources.slice() : [],
-    tag: cfg.tag ? cfg.tag : '[YouTubeAPI][non-critical]', // Default tag αν δεν δοθεί
+  let st = {
+    enabled: true,
+    level: 'info',
+    patterns: [],
+    sources: [],
+    tag: '[YouTubeAPI][non-critical]',
   };
+
+  if (isDefined(cfg) === true) {
+    // enabled
+    if (isDefined(cfg.enabled) === true) {
+      st.enabled = !!cfg.enabled;
+    }
+
+    // level
+    if (isDefined(cfg.tagLevel) === true) {
+      if (String(cfg.tagLevel) === 'warn') {
+        st.level = 'warn';
+      } else {
+        st.level = 'info';
+      }
+    }
+
+    // patterns
+    if (isNonEmptyArray(cfg.patterns) === true) {
+      st.patterns = cfg.patterns.slice();
+    }
+
+    // sources
+    if (isNonEmptyArray(cfg.sources) === true) {
+      st.sources = cfg.sources.slice();
+    }
+
+    // tag
+    if (isDefined(cfg.tag) === true) {
+      st.tag = String(cfg.tag);
+    }
+  }
+
   return st;
 }
 
 /**
- * forward(level, args): Στέλνει το μήνυμα στο επιλεγμένο επίπεδο με prefix tag.
- *
- * ΙΕΡΑΡΧΙΑ FALLBACK:
- * - Αν ζητήθηκε 'warn' και υπάρχει αρχική console.warn → εκεί.
- * - Αλλιώς, αν ζητήθηκε 'info' και υπάρχει console.info → εκεί.
- * - Αλλιώς → console.log, ώστε να μην χαθεί το μήνυμα.
+ * forward(level, args): Στέλνει payload στο επιλεγμένο επίπεδο με tag prefix.
  */
 function forward(level, args) {
-  const payload = [_st.tag]; // Βάζουμε πρώτο το tag ώστε να ξεχωρίζει οπτικά
-  for (let i = 0; i < args.length; i += 1) {
+  const payload = [String(_st.tag)];
+  let i = 0;
+  while (i < args.length) {
     payload.push(args[i]);
+    i = i + 1;
   }
 
   if (level === 'warn') {
-    if (_orig.warn) {
+    if (isDefined(_orig.warn) === true) {
       _orig.warn.apply(console, payload);
-      return; // Early return: μην συνεχίσεις σε επόμενα επίπεδα
+      return;
     }
   }
 
   if (level === 'info') {
-    if (_orig.info) {
+    if (isDefined(_orig.info) === true) {
       _orig.info.apply(console, payload);
       return;
     }
   }
 
-  if (_orig.log) {
+  if (isDefined(_orig.log) === true) {
     _orig.log.apply(console, payload);
   }
 }
 
 /**
- * shouldTag(args): Αποφασίζει αν θα γίνει tagging/forwarding.
- *
- * ΚΡΙΤΗΡΙΑ:
- * - Αν το φίλτρο είναι απενεργοποιημένο → false.
- * - Αν ταιριάζει κάποιο argument σε pattern → true.
- * - Αν ταιριάζει κάποιο argument (ως Error.stack) σε source → true.
- * - Αλλιώς → false.
+ * shouldTag(args): Απόφαση tagging/forwarding βάσει state.
  */
 function shouldTag(args) {
-  if (!_st.enabled) {
+  if (_st.enabled !== true) {
     return false;
   }
   const byMsg = matchAnyArg(args, _st.patterns);
-  if (byMsg) {
-    return true;
-  }
   const bySrc = matchSourceHints(args, _st.sources);
-  if (bySrc) {
+
+  // Χρήση anyTrue για OR
+  const decide = anyTrue([byMsg === true, bySrc === true]);
+  if (decide === true) {
     return true;
   }
   return false;
 }
 
-/** --- Exports - Start --- */
+/* --- Exports - Start --- */
 export function installConsoleFilter(cfg) {
-  // Προφυλακτικό guard: αν έχει ήδη εγκατασταθεί, μην ξαναεγκαθιστάς.
-  if (_installed) {
+  // Αν έχει ήδη εγκατασταθεί, επιστρέφουμε
+  if (_installed === true) {
     return;
   }
 
-  // Αμυντικό config: αν είναι undefined/null, φτιάξε κενό αντικείμενο.
-  let __cfg = cfg;
-  if (!__cfg) {
-    __cfg = {};
-  }
-  _st = buildState(__cfg);
+  // Οικοδομούμε state
+  _st = buildState(cfg);
 
-  // Κρατάμε references στα αρχικά methods της κονσόλας (bind για σωστό this).
-  _orig.error = console.error ? console.error.bind(console) : null;
-  _orig.warn = console.warn ? console.warn.bind(console) : null;
-  _orig.info = console.info ? console.info.bind(console) : null;
-  _orig.log = console.log ? console.log.bind(console) : null;
+  // Κρατάμε references και κάνουμε bind
+  _orig.error = isDefined(console.error) ? console.error.bind(console) : null;
+  _orig.warn = isDefined(console.warn) ? console.warn.bind(console) : null;
+  _orig.info = isDefined(console.info) ? console.info.bind(console) : null;
+  _orig.log = isDefined(console.log) ? console.log.bind(console) : null;
 
-  // Γενικευμένο wrapper: παράγει λειτουργικά ισοδύναμες συναρτήσεις χωρίς επανάληψη κώδικα.
-  // ΔΙΔΑΚΤΙΚΑ:
-  // - Το closure "βλέπει" το _orig και το _st.
-  // - Χρησιμοποιούμε rest parameters (...args) για καθαρότητα.
   function wrapConsole(fnName) {
     const orig = _orig[fnName];
-    if (!orig) {
-      // Αν δεν υπάρχει αρχική συνάρτηση (π.χ. σε κάποια πλατφόρμα) επιστρέφουμε noop.
+    if (isDefined(orig) !== true) {
       return function () {};
     }
-    // Για τα τέσσερα βασικά επίπεδα (error/warn/info/log) κάνε την ίδια διαδικασία:
+
+    // Ειδικές περιπτώσεις: error/warn/info/log
     if (fnName === 'error') {
       return function (...args) {
         const tagIt = shouldTag(args);
-        if (tagIt) {
-          forward(_st.level, args);
-          return;
-        }
-        orig.apply(console, args);
-      };
-    } else if (fnName === 'warn') {
-      return function (...args) {
-        const tagIt = shouldTag(args);
-        if (tagIt) {
-          forward(_st.level, args);
-          return;
-        }
-        orig.apply(console, args);
-      };
-    } else if (fnName === 'info') {
-      return function (...args) {
-        const tagIt = shouldTag(args);
-        if (tagIt) {
-          forward(_st.level, args);
-          return;
-        }
-        orig.apply(console, args);
-      };
-    } else if (fnName === 'log') {
-      return function (...args) {
-        const tagIt = shouldTag(args);
-        if (tagIt) {
+        if (tagIt === true) {
           forward(_st.level, args);
           return;
         }
         orig.apply(console, args);
       };
     }
-    // Αν χρειαζόταν να τυλίξουμε άλλα μέλη, θα έμπαιναν εδώ.
+
+    if (fnName === 'warn') {
+      return function (...args) {
+        const tagIt = shouldTag(args);
+        if (tagIt === true) {
+          forward(_st.level, args);
+          return;
+        }
+        orig.apply(console, args);
+      };
+    }
+
+    if (fnName === 'info') {
+      return function (...args) {
+        const tagIt = shouldTag(args);
+        if (tagIt === true) {
+          forward(_st.level, args);
+          return;
+        }
+        orig.apply(console, args);
+      };
+    }
+
+    if (fnName === 'log') {
+      return function (...args) {
+        const tagIt = shouldTag(args);
+        if (tagIt === true) {
+          forward(_st.level, args);
+          return;
+        }
+        orig.apply(console, args);
+      };
+    }
+
+    // Γενικός fallback
     return function (...args) {
       orig.apply(console, args);
     };
   }
 
-  // Εφαρμογή wrappers στην global console
+  // Εφαρμογή wrappers
   console.error = wrapConsole('error');
   console.warn = wrapConsole('warn');
   console.info = wrapConsole('info');
   console.log = wrapConsole('log');
 
-  _installed = true; // Σημείωσε ότι το φίλτρο είναι πλέον ενεργό
+  _installed = true;
 }
 
 export function setFilterLevel(level) {
-  // Ρύθμιση του επιπέδου forwarding.
-  if (level === 'warn') {
+  if (String(level) === 'warn') {
     _st.level = 'warn';
     return;
   }
@@ -338,44 +321,62 @@ export function setFilterLevel(level) {
 }
 
 export function addPatterns(regexList) {
-  // Αμυντικός έλεγχος λίστας: πρέπει να υπάρχει και να έχει μήκος > 0.
-  if (allTrue([!!regexList, !!regexList.length])) {
-    for (let i = 0; i < regexList.length; i += 1) {
+  const ok = isNonEmptyArray(regexList);
+  const lenPositive = isDefined(regexList) ? regexList.length > 0 : false;
+  if (allTrue([ok === true, lenPositive === true]) === true) {
+    let i = 0;
+    while (i < regexList.length) {
       _st.patterns.push(regexList[i]);
+      i = i + 1;
     }
   }
 }
 
 export function addSources(regexList) {
-  // Όμοια με addPatterns αλλά για Error.stack πηγές.
-  if (allTrue([!!regexList, !!regexList.length])) {
-    for (let i = 0; i < regexList.length; i += 1) {
+  const ok = isNonEmptyArray(regexList);
+  const lenPositive = isDefined(regexList) ? regexList.length > 0 : false;
+  if (allTrue([ok === true, lenPositive === true]) === true) {
+    let i = 0;
+    while (i < regexList.length) {
       _st.sources.push(regexList[i]);
+      i = i + 1;
     }
   }
 }
 
+export function setTag(tag) {
+  if (isDefined(tag) === true) {
+    _st.tag = String(tag);
+  }
+}
+
+export function enable() {
+  _st.enabled = true;
+}
+
+export function disable() {
+  _st.enabled = false;
+}
+
 export function restoreConsole() {
-  // Επαναφορά: αν δεν έχει εγκατασταθεί, δεν χρειάζεται ενέργεια.
-  if (!_installed) {
+  if (_installed !== true) {
     return;
   }
-  // Αποκατάσταση των αρχικών functions (αν υπάρχουν).
-  if (_orig.error) {
+  if (isDefined(_orig.error) === true) {
     console.error = _orig.error;
   }
-  if (_orig.warn) {
+  if (isDefined(_orig.warn) === true) {
     console.warn = _orig.warn;
   }
-  if (_orig.info) {
+  if (isDefined(_orig.info) === true) {
     console.info = _orig.info;
   }
-  if (_orig.log) {
+  if (isDefined(_orig.log) === true) {
     console.log = _orig.log;
   }
-  _installed = false; // Το φίλτρο δεν είναι πλέον ενεργό
+  _installed = false;
 }
-/** --- Exports - End --- */
+/* --- Exports - End --- */
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);

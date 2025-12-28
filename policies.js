@@ -1,9 +1,9 @@
 // --- policies.js ---
-const VERSION = 'v1.9.0';
+const VERSION = 'v1.10.2';
 /*
- * Περιγραφή: Ενιαίο module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
- * Αλλαγές: Ενσωμάτωση ποικιλίας στο start-seek ανά profile (Explorer/Casual/Focused).
- * API: getBehaviorPlan(ctx) -> περιλαμβάνει startSeek.targetSec από getStartSeek(duration, profileName).
+ * Περιγραφή: Module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
+ * Στόχος: Πλήρης συμμόρφωση με κανόνες project (χωρίς && / ||), χρήση utils για guards/format/random/logging.
+ * API: getBehaviorPlan(ctx) -> επιστρέφει plan με watch/startSeek/pauses/midSeek/unmute.
  */
 
 // --- Export Version ---
@@ -11,40 +11,54 @@ export function getVersion() {
   return VERSION;
 }
 
-/* Όνομα αρχείου για logging και diagnostics. */
+//Όνομα αρχείου για logging.
 const FILENAME = import.meta.url.split('/').pop();
 
-/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
+// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
-/* Imports */
-import { rndInt, anyTrue, allTrue } from './utils.js';
+/* Imports από utils.js */
+import { rndInt, randomFloat, clamp, isDefined, isFiniteNumber, isString, log } from './utils.js';
 
 /* ========================= Required Watch Time =========================
- * < 2 min: 90–100%
- * < 5 min: 80–100%
- * 5–30 min: 50–70%
- * 30–120 min: 20–35%
- * > 120 min: 10–15%
+ * < 2 min: 92–100%
+ * < 5 min: 85–100%
+ * 5–30 min: 55–75%
+ * 30–120 min: 25–38%
+ * > 120 min: 12–18%
  */
 export function getRequiredWatchTime(durationSec) {
-  var capSec = (15 + rndInt(0, 5)) * 60;
-  var minPct = 0.5;
-  var maxPct = 0.7;
+  // Guards
+  let valid = false;
+  if (isFiniteNumber(durationSec) === true) {
+    if (durationSec > 0) {
+      valid = true;
+    }
+  }
+  if (valid !== true) {
+    return 15;
+  }
 
-  if (durationSec < 120) {
+  const d = Math.floor(Number(durationSec));
+  const capSec = (15 + rndInt(0, 5)) * 60;
+
+  // Εύρος ποσοστού ανά κατηγορία διάρκειας
+  let minPct = 0.55;
+  let maxPct = 0.75;
+
+  if (d < 120) {
     minPct = 0.92;
     maxPct = 1.0;
   } else {
-    if (durationSec < 300) {
+    if (d < 300) {
       minPct = 0.85;
       maxPct = 1.0;
     } else {
-      if (durationSec < 1800) {
+      if (d < 1800) {
         minPct = 0.55;
         maxPct = 0.75;
       } else {
-        if (durationSec < 7200) {
+        if (d < 7200) {
           minPct = 0.25;
           maxPct = 0.38;
         } else {
@@ -55,22 +69,14 @@ export function getRequiredWatchTime(durationSec) {
     }
   }
 
-  var span = maxPct - minPct;
-  if (span < 0) {
-    span = 0;
-  }
+  // Τυχαιοποίηση εντός εύρους με μικρή προκατάληψη
+  const span = Math.max(0, maxPct - minPct);
+  let pct = minPct + randomFloat(0, span);
+  const bias = rndInt(-1, 1) * 0.01;
+  pct = clamp(pct + bias, 0.05, 1.0);
 
-  var pct = minPct + Math.random() * span;
-  var b = rndInt(-1, 1);
-  var bias = b * 0.01;
-  pct = pct + bias;
-
-  if (pct < 0.05) {
-    pct = 0.05;
-  }
-
-  var required = Math.floor(durationSec * pct);
-
+  // Μετατροπή σε απαιτούμενα δευτερόλεπτα με όρια
+  let required = Math.floor(d * pct);
   if (required > capSec) {
     required = capSec;
   }
@@ -80,18 +86,39 @@ export function getRequiredWatchTime(durationSec) {
   return required;
 }
 
-/* ========================= Pause Plan ========================= */
+/* ========================= Pause Plan =========================
+ * Η συνάρτηση getPausePlan(durationSec) επιστρέφει ένα πλάνο παύσεων { count, min, max } ανάλογα με τη διάρκεια του βίντεο:
+ * Άκυρη/μη θετική διάρκεια → {count: 0, min: 0, max: 0} (guard).
+ * <120 s → 1 παύση, 6–15 s.
+ * <300 s → 1–2 παύσεις, 8–20 s.
+ * <1800 s → 2–3 παύσεις, 25–55 s.
+ * <7200 s → 3–4 παύσεις, 50–110 s.
+ * ≥7200 s → 4–5 παύσεις, 90–160 s.
+ * Ο αριθμός των παύσεων είναι τυχαίος εντός του εύρους, με rndInt(a,b) (inclusive)
+ */
 export function getPausePlan(durationSec) {
-  if (durationSec < 120) {
+  let valid = false;
+  if (isFiniteNumber(durationSec) === true) {
+    if (durationSec > 0) {
+      valid = true;
+    }
+  }
+  if (valid !== true) {
+    return { count: 0, min: 0, max: 0 };
+  }
+
+  const d = Math.floor(Number(durationSec));
+
+  if (d < 120) {
     return { count: rndInt(1, 1), min: 6, max: 15 };
   }
-  if (durationSec < 300) {
+  if (d < 300) {
     return { count: rndInt(1, 2), min: 8, max: 20 };
   }
-  if (durationSec < 1800) {
+  if (d < 1800) {
     return { count: rndInt(2, 3), min: 25, max: 55 };
   }
-  if (durationSec < 7200) {
+  if (d < 7200) {
     return { count: rndInt(3, 4), min: 50, max: 110 };
   }
   return { count: rndInt(4, 5), min: 90, max: 160 };
@@ -103,31 +130,36 @@ export function getPausePlan(durationSec) {
  * 5–30 min: 0–20%
  * 30–120 min: 0–20%
  * > 120 min: 0–25%
- *
  * Προσαρμογές:
- * - Explorer: +2% μονάδες στο max (όχι πάνω από 25%) σε κάθε εύρος.
- * - Focused : -3% μονάδες στο max (όχι κάτω από 8%) σε μικρά/μεσαία εύρη.
- * - Casual  : baseline (χωρίς αλλαγές).
+ * - Explorer: +2% στο max (όριο 25%)
+ * - Focused : -3% στο max (κατώφλι 8%)
+ * - Casual  : baseline
  */
 export function getStartSeek(durationSec, profileName) {
-  if (typeof durationSec !== 'number') {
-    return 0;
+  // Guards
+  let valid = false;
+  if (isFiniteNumber(durationSec) === true) {
+    if (durationSec > 0) {
+      valid = true;
+    }
   }
-  if (durationSec <= 0) {
+  if (valid !== true) {
     return 0;
   }
 
-  var baseMaxPct = 0.1;
-  if (durationSec < 120) {
+  const d = Math.floor(Number(durationSec));
+
+  let baseMaxPct = 0.1;
+  if (d < 120) {
     baseMaxPct = 0.1;
   } else {
-    if (durationSec < 300) {
+    if (d < 300) {
       baseMaxPct = 0.15;
     } else {
-      if (durationSec < 1800) {
+      if (d < 1800) {
         baseMaxPct = 0.2;
       } else {
-        if (durationSec < 7200) {
+        if (d < 7200) {
           baseMaxPct = 0.2;
         } else {
           baseMaxPct = 0.25;
@@ -136,30 +168,31 @@ export function getStartSeek(durationSec, profileName) {
     }
   }
 
-  var name = typeof profileName === 'string' ? profileName.toLowerCase() : 'unknown';
-  var maxPct = baseMaxPct;
+  let name = 'unknown';
+  if (isString(profileName) === true) {
+    name = String(profileName).toLowerCase();
+  }
 
+  // Προσαρμογή max ποσοστού ανά προφίλ
+  let maxPct = baseMaxPct;
   if (name === 'explorer') {
     maxPct = maxPct + 0.02;
-    if (maxPct > 0.25) {
-      maxPct = 0.25;
-    }
+    maxPct = clamp(maxPct, 0, 0.25);
   } else {
     if (name === 'focused') {
-      // πιο συντηρητικό start-seek
       maxPct = maxPct - 0.03;
-      // κάτω όριο ασφαλείας (για πολύ μικρά)
       if (maxPct < 0.08) {
         maxPct = 0.08;
       }
     }
   }
 
-  var pct = Math.random() * maxPct;
-  var target = Math.floor(durationSec * pct);
+  // Επιλογή στόχου
+  const pct = clamp(randomFloat(0, maxPct), 0, 1);
+  let target = Math.floor(d * pct);
 
-  var pad = 2;
-  var maxTarget = Math.max(0, Math.floor(durationSec - pad));
+  const pad = 2;
+  const maxTarget = Math.max(0, Math.floor(d - pad));
   if (target > maxTarget) {
     target = maxTarget;
   }
@@ -170,24 +203,46 @@ export function getStartSeek(durationSec, profileName) {
 }
 
 /* ========================= Behavior Plan (Κεντρική Πολιτική) =========================
- * Ενοποιεί:
- * - watch.requiredWatchTimeSec
- * - startSeek.targetSec (με profile-aware ποικιλία)
- * - pauses.{count,minSec,maxSec}
- * - midSeek.{enabled,intervalMs,minGapSec,maxSeeks,fromPct,toPct,nearEndPct}
- * - unmute.{enabled,baseDelaySec,extraDelaySecRange,volumeRangePct}
+ * watch.requiredWatchTimeSec
+ * startSeek.targetSec (profile-aware)
+ * pauses.{count,minSec,maxSec}
+ * midSeek.{enabled,intervalMs,minGapSec,maxSeeks,fromPct,toPct,nearEndPct}
+ * unmute.{enabled,baseDelaySec,extraDelaySecRange,volumeRangePct}
  */
 export function getBehaviorPlan(ctx) {
-  const hasCtx = typeof ctx === 'object' && ctx !== null;
+  // Guard για ctx χωρίς && / ||
+  let hasObject = false;
+  if (typeof ctx === 'object') {
+    hasObject = true;
+  }
+  let hasCtx = false;
+  if (hasObject === true) {
+    if (ctx !== null) {
+      hasCtx = true;
+    }
+  }
   if (hasCtx !== true) {
     return _defaultPlan();
   }
 
-  const d = Number(ctx.durationSec);
-  const prof = typeof ctx.profileName === 'string' ? ctx.profileName.toLowerCase() : 'unknown';
+  const dRaw = ctx.durationSec;
+  const profRaw = ctx.profileName;
   const isFirst = ctx.isFirstVideo === true;
 
-  const baseStartDelaySec = typeof ctx.baseStartDelaySec === 'number' ? ctx.baseStartDelaySec : isFirst ? rndInt(5, 180) : rndInt(2, 10);
+  // Base start delay (profile-agnostic)
+  let baseStartDelaySec = 5;
+  if (isFiniteNumber(ctx.baseStartDelaySec) === true) {
+    baseStartDelaySec = Math.floor(Number(ctx.baseStartDelaySec));
+  } else {
+    if (isFirst === true) {
+      baseStartDelaySec = rndInt(5, 180);
+    } else {
+      baseStartDelaySec = rndInt(2, 10);
+    }
+  }
+
+  const d = Math.floor(Number(dRaw));
+  const prof = isString(profRaw) === true ? String(profRaw).toLowerCase() : 'unknown';
 
   const watchRequired = getRequiredWatchTime(d);
   const startSeekSec = getStartSeek(d, prof);
@@ -212,10 +267,17 @@ export function getBehaviorPlan(ctx) {
 
 /* ===== Mid-Seek Policy (interval/band/minGap/maxSeeks/nearEnd) ===== */
 function _getMidSeekPlan(durationSec, profileName) {
-  const d = Number(durationSec);
-  if (Number.isNaN(d) === true) {
-    return { enabled: false, notes: 'NaN' };
+  let valid = false;
+  if (isFiniteNumber(durationSec) === true) {
+    if (durationSec > 0) {
+      valid = true;
+    }
   }
+  if (valid !== true) {
+    return { enabled: false, notes: 'invalid-duration' };
+  }
+
+  const d = Math.floor(Number(durationSec));
   if (d < 300) {
     return { enabled: false, notes: 'short-video' };
   }
@@ -225,7 +287,7 @@ function _getMidSeekPlan(durationSec, profileName) {
   let maxSeeks = 2;
   let fromPct = 0.2;
   let toPct = 0.6;
-  let nearEndPct = 0.05;
+  const nearEndPct = 0.05;
 
   if (d < 600) {
     intervalMs = rndInt(4, 6) * 60000;
@@ -245,19 +307,42 @@ function _getMidSeekPlan(durationSec, profileName) {
     }
   }
 
-  const n = typeof profileName === 'string' ? profileName.toLowerCase() : 'unknown';
+  let n = 'unknown';
+  if (isString(profileName) === true) {
+    n = String(profileName).toLowerCase();
+  }
+
   if (n === 'explorer') {
-    toPct = 0.62;
-    minGapSec = Math.max(90, minGapSec - 10);
+    toPct = clamp(0.62, 0, 1);
+    const mg = minGapSec - 10;
+    if (mg > 90) {
+      minGapSec = mg;
+    } else {
+      minGapSec = 90;
+    }
   } else {
     if (n === 'focused') {
-      toPct = 0.55;
+      toPct = clamp(0.55, 0, 1);
       minGapSec = minGapSec + 30;
-      maxSeeks = Math.max(1, maxSeeks - 1);
+      const m = maxSeeks - 1;
+      if (m >= 1) {
+        maxSeeks = m;
+      } else {
+        maxSeeks = 1;
+      }
     }
   }
 
-  return { enabled: true, intervalMs, minGapSec, maxSeeks, fromPct, toPct, nearEndPct, notes: n };
+  return {
+    enabled: true,
+    intervalMs,
+    minGapSec,
+    maxSeeks,
+    fromPct,
+    toPct,
+    nearEndPct,
+    notes: n,
+  };
 }
 
 /* ===== Default Plan (fallback) ===== */
@@ -273,4 +358,5 @@ function _defaultPlan() {
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+
 // --- End Of File ---

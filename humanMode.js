@@ -1,9 +1,9 @@
 // --- humanMode.js ---
-const VERSION = 'v4.16.0';
+const VERSION = 'v4.17.0';
 /*
- * Περιγραφή: Human Mode για προσομοίωση συμπεριφοράς χρήστη σε πολλαπλούς players.
- * Αλλαγές: Πλήρης αφαίρεση initialSeekSec από το config και την ανάθεση στον controller.
- * Στόχος: Το start-seek να καθορίζεται αποκλειστικά από το policy (duration-aware).
+ * Περιγραφή: Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς playback.
+ * Στόχος: duration-aware start, ρεαλιστικές παύσεις/seek/ένταση.
+ * Χρήση: Ανεξάρτητοι players με παραμετρικά profiles.
  */
 
 // --- Export Version ---
@@ -11,15 +11,15 @@ export function getVersion() {
   return VERSION;
 }
 
-/* Όνομα αρχείου για logging */
+//Όνομα αρχείου για logging.
 const FILENAME = import.meta.url.split('/').pop();
 
-/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
+// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 /* Imports */
-import { controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, stats, hasArrayWithItems, hasUserGesture } from './globals.js';
-import { rndInt, anyTrue, allTrue, log } from './utils.js';
+import { controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, stats, hasUserGesture } from './globals.js';
+import { rndInt, randomFloat, sleep, anyTrue, allTrue, isDefined, isNonEmptyArray, log, scheduleSafe } from './utils.js';
 import { PlayerController } from './playerController.js';
 
 /* Προφίλ συμπεριφοράς */
@@ -29,155 +29,226 @@ const BEHAVIOR_PROFILES = [
   { name: 'Focused', pauseChance: 0.2, seekChance: 0.05, volumeChangeChance: 0.1 },
 ];
 
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
+/* Βοηθητικά */
 function hasCtrlAndPlayer(ctrl) {
-  if (!ctrl) {
+  if (isDefined(ctrl) !== true) {
     return false;
   }
-  return !!ctrl.player;
+  if (isDefined(ctrl.player) !== true) {
+    return false;
+  }
+  return true;
 }
 
-/* Δημιουργία containers */
+/* Δημιουργία containers για τους players */
 export function createPlayerContainers() {
   const container = document.getElementById('playersContainer');
-  if (!container) {
-    stats.errors++;
+
+  if (isDefined(container) !== true) {
+    stats.errors = stats.errors + 1;
     log('❌ Δεν βρέθηκε το στοιχείο playersContainer στο HTML');
     return;
   }
+
   container.innerHTML = '';
-  for (let i = 0; i < PLAYER_COUNT; i++) {
+
+  let i = 0;
+  while (i < PLAYER_COUNT) {
     const div = document.createElement('div');
     div.id = `player${i + 1}`;
     div.className = 'player-box';
     container.appendChild(div);
+    i = i + 1;
   }
+
   log(`✅ Δημιουργήθηκαν ${PLAYER_COUNT} Player Containers`);
 }
 
-/* Δημιουργία τυχαίου config (χωρίς initialSeekSec) */
+/* Δημιουργία τυχαίου config ανά προφίλ (χωρίς initialSeekSec policy εδώ) */
 function createRandomPlayerConfig(profile) {
-  const isFocus = anyTrue([profile?.name === 'Focused']);
-  // Τα ranges παραμένουν για άλλα behaviors (pauses, volume, unmute pacing)
+  // Σκόπιμα χωρίς ||/&&
+  const profileName = isDefined(profile) ? profile.name : 'Casual';
+
+  const startDelay = rndInt(5, 240); // sec
+  const initSeekMax = rndInt(30, 120); // sec
+  const unmuteDelayExtra = rndInt(30, 90); // sec
+  const v1 = rndInt(5, 15);
+  const v2 = rndInt(20, 40);
+  const volumeRange = [v1, v2];
+
+  const pauseChance = isDefined(profile) ? profile.pauseChance : 0.3;
+  const seekChance = isDefined(profile) ? profile.seekChance : 0.1;
+  const volumeChangeChance = isDefined(profile) ? profile.volumeChangeChance : 0.2;
+  const replayChance = randomFloat(0, 1) < 0.15;
+
   return {
-    profileName: profile.name,
-    startDelay: rndInt(5, 240),
-    initSeekMax: rndInt(30, 120), // Χρησιμοποιείται πλέον μόνο ως "οροφή" για μελλοντική ποικιλία mid/late seeks
-    unmuteDelayExtra: rndInt(30, 90),
-    volumeRange: [rndInt(5, 15), rndInt(20, 40)],
-    // initialSeekSec: (ΑΦΑΙΡΕΘΗΚΕ) — policy θα αποφασίσει duration-aware
-    pauseChance: profile.pauseChance,
-    seekChance: profile.seekChance,
-    volumeChangeChance: profile.volumeChangeChance,
-    replayChance: Math.random() < 0.15,
+    profileName,
+    startDelay,
+    initSeekMax,
+    unmuteDelayExtra,
+    volumeRange,
+    pauseChance,
+    seekChance,
+    volumeChangeChance,
+    replayChance,
   };
 }
 
-/* Πρόχειρο session plan (για logs μόνο) */
+/* Πρόχειρος σχεδιασμός session (για logs/telemetry) */
 function createSessionPlan() {
-  return {
-    pauseChance: rndInt(1, 3),
-    seekChance: Math.random() < 0.5,
-    volumeChangeChance: Math.random() < 0.5,
-    replayChance: Math.random() < 0.15,
-  };
+  const pauseChance = rndInt(1, 3);
+  const seekChance = randomFloat(0, 1) < 0.5;
+  const volumeChangeChance = randomFloat(0, 1) < 0.5;
+  const replayChance = randomFloat(0, 1) < 0.15;
+
+  return { pauseChance, seekChance, volumeChangeChance, replayChance };
 }
 
-/* Ακολουθιακή αρχικοποίηση players (policy-centric) */
+/* Επιλογή λίστας πηγών με πολιτική fallback χωρίς ||/&& */
+function pickSourceList(useMain, mainList, altList) {
+  let chosen = null;
+
+  if (useMain === true) {
+    if (isNonEmptyArray(mainList) === true) {
+      chosen = mainList;
+    }
+  }
+
+  if (isDefined(chosen) !== true) {
+    if (useMain !== true) {
+      if (isNonEmptyArray(altList) === true) {
+        chosen = altList;
+      }
+    }
+  }
+
+  if (isDefined(chosen) !== true) {
+    if (isNonEmptyArray(mainList) === true) {
+      chosen = mainList;
+    }
+  }
+
+  if (isDefined(chosen) !== true) {
+    chosen = altList;
+  }
+
+  return chosen;
+}
+
+/* Αρχικοποίηση players με ρεαλιστικές καθυστερήσεις */
 export async function initPlayersSequentially(mainList, altList) {
   try {
+    // hasUserGesture μπορεί να είναι flag/συνάρτηση σε άλλα modules.
+    // Κρατάμε την ίδια λογική με safe guards.
     const noGesture = !hasUserGesture;
     if (noGesture) {
-      console.log('HumanMode: deferring init (no user gesture)');
+      log('HumanMode: αναβολή init (no user gesture)');
       return;
     }
-  } catch (_) {
-    log(`⚠️ hasUserGesture check Error ${_}`);
+  } catch (err) {
+    log(`⚠️ hasUserGesture check Error ${err}`);
   }
-  if (allTrue([Array.isArray(mainList), Array.isArray(altList)])) {
+
+  // Προαιρετική καταχώριση λιστών
+  const bothArrays = allTrue([Array.isArray(mainList) === true, Array.isArray(altList) === true]);
+  if (bothArrays === true) {
     setMainList(mainList);
     setAltList(altList);
   }
-  const mainEmpty = (mainList?.length ?? 0) === 0;
-  const altEmpty = (altList?.length ?? 0) === 0;
-  if (allTrue([mainEmpty, altEmpty])) {
-    stats.errors++;
+
+  const mainEmpty = (isDefined(mainList) ? mainList.length : 0) === 0;
+  const altEmpty = (isDefined(altList) ? altList.length : 0) === 0;
+
+  if (allTrue([mainEmpty === true, altEmpty === true]) === true) {
+    stats.errors = stats.errors + 1;
     log('❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκκίνηση σταματά.');
     return;
   }
 
-  for (let i = 0; i < PLAYER_COUNT; i++) {
+  let i = 0;
+  while (i < PLAYER_COUNT) {
+    // Διαφορετικά start offsets για να αποφεύγεται “ταυτόχρονη” εκκίνηση
     const playbackDelay = i === 0 ? 0 : rndInt(30, 180) * 1000;
-    log(`⌛ Player ${i + 1} HumanMode Scheduled -> Start after ${Math.round(playbackDelay / 1000)}s`);
-    await wait(rndInt(400, 600));
-    await wait(playbackDelay);
+    log(`⏳ Player ${i + 1} HumanMode Scheduled -> Start after ${Math.round(playbackDelay / 1000)}s`);
 
-    if (isStopping) {
-      log(`👤 HumanMode skipped initialization for Player ${i + 1} due to Stop All`);
+    // Μικρό jitter πριν το πραγματικό wait (δείγμα χρήσης scheduleSafe)
+    scheduleSafe(
+      function () {
+        log(`🧪 Pre-warm for Player ${i + 1}`);
+      },
+      rndInt(100, 300),
+      'humanInit',
+      `P${i + 1} prewarm`
+    );
+
+    // Μικρό τεχνητό delay για “ανθρώπινο” pacing
+    await sleep(rndInt(400, 600));
+    await sleep(playbackDelay);
+
+    if (isStopping === true) {
+      log(`👤 HumanMode: παράκαμψη init για Player ${i + 1} λόγω Stop All`);
+      i = i + 1;
       continue;
     }
 
+    // Εντοπισμός/δημιουργία controller
     let controller = controllers.find((c) => c.index === i) ?? null;
-    if (allTrue([hasCtrlAndPlayer(controller)])) {
-      log(`⚠️ Player ${i + 1} already initialized, skipping re-init`);
+
+    if (hasCtrlAndPlayer(controller) === true) {
+      log(`⚠️ Player ${i + 1} ήδη αρχικοποιημένος, γίνεται skip re-init`);
+      i = i + 1;
       continue;
     }
 
-    const useMain = Math.random() < MAIN_PROBABILITY;
-    const hasMain = hasArrayWithItems(mainList);
-    const hasAlt = hasArrayWithItems(altList);
+    // Επιλογή λίστας πηγής (χρήση randomFloat)
+    const useMain = randomFloat(0, 1) < MAIN_PROBABILITY;
+    const sourceList = pickSourceList(useMain, mainList, altList);
 
-    let sourceList;
-    if (allTrue([useMain, hasMain])) {
-      sourceList = mainList;
-    } else {
-      if (allTrue([!useMain, hasAlt])) {
-        sourceList = altList;
-      } else {
-        if (hasMain) {
-          sourceList = mainList;
-        } else {
-          sourceList = altList;
-        }
-      }
-    }
-
-    const listLength = sourceList?.length ?? 0;
+    const listLength = isDefined(sourceList) ? sourceList.length : 0;
     if (listLength === 0) {
-      stats.errors++;
-      log(`❌ HumanMode skipped Player ${i + 1} -> no videos available`);
+      stats.errors = stats.errors + 1;
+      log(`❌ HumanMode: skip Player ${i + 1} -> no videos available`);
+      i = i + 1;
       continue;
     }
 
-    const randomIndex = Math.floor(Math.random() * listLength);
+    const randomIndex = rndInt(0, listLength - 1);
     const videoId = sourceList[randomIndex];
 
-    const profileIndex = Math.floor(Math.random() * BEHAVIOR_PROFILES.length);
+    // Επιλογή behavior profile
+    const profileIndex = rndInt(0, BEHAVIOR_PROFILES.length - 1);
     const profile = BEHAVIOR_PROFILES[profileIndex];
     const config = createRandomPlayerConfig(profile);
 
-    if (!controller) {
+    if (isDefined(controller) !== true) {
       controller = new PlayerController(i, mainList, altList, config);
       controllers.push(controller);
-      // (ΑΦΑΙΡΕΘΗΚΕ) — ΔΕΝ αντιγράφουμε πλέον initialSeekSec
+      // Σκόπιμα δεν ορίζουμε initialSeekSec εδώ (duration-aware policy εφαρμόζεται downstream)
     } else {
       controller.config = config;
       controller.profileName = config.profileName;
     }
 
-    await wait(150 + Math.floor(Math.random() * 151));
+    // Μικρό jitter πριν την init
+    await sleep(rndInt(150, 300));
+
     controller.init(videoId);
 
     const session = createSessionPlan();
-    log(`👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
+    try {
+      const sessionTxt = JSON.stringify(session);
+      log(`👤 Player ${i + 1} HumanMode Init -> Session=${sessionTxt}`);
+    } catch (_e) {
+      log(`👤 Player ${i + 1} HumanMode Init -> Session=[unavailable]`);
+    }
+
+    i = i + 1;
   }
 
   log('✅ HumanMode sequential initialization completed');
 }
 
-/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+
 // --- End Of File ---

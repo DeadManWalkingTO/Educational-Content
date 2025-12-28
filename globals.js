@@ -1,9 +1,9 @@
 // --- globals.js ---
-const VERSION = 'v4.12.21';
+const VERSION = 'v4.13.2';
 /*
-Κατάσταση/Utilities, counters, lists, stop-all state, UI logging.
-Περιγραφή: Κεντρικό state και utilities για όλη την εφαρμογή (stats, controllers, lists, stop-all state, UI logging).
-Εκπαιδευτικός σχολιασμός: εμπλουτισμένα περιγραφικά σχόλια, χωρίς αλλαγή λειτουργίας.
+Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
+Αναθεώρηση: Αφαίρεση τοπικού scheduler και χρήση των APIs από utils.js (delay/cancel/scheduleSafe/rndInt).
+Ενοποίηση helpers (hasArrayWithItems -> isNonEmptyArray, ασφαλέστερα logs, ήπια κλωνοποίηση λιστών).
 */
 
 // --- Export Version ---
@@ -11,26 +11,22 @@ export function getVersion() {
   return VERSION;
 }
 
-//Όνομα αρχείου για logging.
+// Όνομα αρχείου για logging.
 const FILENAME = import.meta.url.split('/').pop();
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
-// Imports
-import { log, ts, anyTrue, allTrue, rndInt } from './utils.js';
+// Imports από utils.js
+import { log, ts, anyTrue, allTrue, rndInt, isDefined, isNonEmptyArray, deepClone, delay, cancel, scheduleSafe } from './utils.js';
 
-/**
- * --- Console Filter (external) Early Install - Start ---
- *
- * Configuration αντικειμένου για εξωτερικό console-filter.
- * Σκοπός είναι η μείωση θορυβώδων, μη-κρίσιμων μηνυμάτων (κυρίως από YouTube API/ads).
- *
- * Σημείωση:
- * - Το παρόν αρχείο απλώς ορίζει το configuration ως πηγή ρυθμίσεων.
- * - Η εφαρμογή/ενεργοποίηση του filtering γίνεται από άλλο module.
- */
-const consoleFilterConfig = {
+/** --- Console Filter (external) Early Install - Start --- */
+/*
+ Configuration αντικειμένου για εξωτερικό console-filter.
+ Σκοπός: μείωση θορύβου, μη-κρίσιμων μηνυμάτων (κυρίως από YouTube API/ads).
+ Σημείωση: Το παρόν είναι static config. Η πραγματική ενεργοποίηση γίνεται από άλλο module.
+*/
+export const consoleFilterConfig = {
   enabled: true,
   tagLevel: 'info',
   patterns: [
@@ -43,19 +39,14 @@ const consoleFilterConfig = {
   ],
   sources: [/www\-widgetapi\.js/i, /googleads\.g\.doubleclick\.net/i, /pagead\/viewthroughconversion/i],
   tag: '[YouTubeAPI][non-critical]',
+  // καμία λογική εδώ που να απαιτεί αλλοίωση
 };
 /** --- Console Filter (external) Early Install - End --- */
 
-/** --- Guard helpers for State Machine - Start --- */
-/**
-
-
 /** --- YouTube API Helpers - Start --- */
 /**
- * Επιστρέφει ενιαίο origin (πηγή αλήθειας) για χρήση σε origin checks.
- * Σε περιβάλλον χωρίς window/location επιστρέφει fallback.
- *
- * @returns {string} Το origin της σελίδας ή fallback.
+ * Επιστρέφει έγκυρο origin (fallback σε localhost για ασφαλή περιβάλλοντα).
+ * @returns {string}
  */
 export function getOrigin() {
   try {
@@ -66,10 +57,8 @@ export function getOrigin() {
 }
 
 /**
- * Επιστρέφει τον host για YouTube Iframe API (μόνο youtube.com).
- * Συγκεντρώνει το literal ώστε να μην είναι διάσπαρτο στον κώδικα.
- *
- * @returns {string} Host του YouTube embed.
+ * Host του YouTube Iframe API (μονό youtube.com).
+ * @returns {string}
  */
 export function getYouTubeEmbedHost() {
   return 'https://www.youtube.com';
@@ -78,8 +67,8 @@ export function getYouTubeEmbedHost() {
 
 /** --- Στατιστικά για την εφαρμογή - Start --- */
 /**
- * Global μετρητές συμβάντων εφαρμογής.
- * Αυξάνονται από controllers/modules και αποτυπώνονται στο UI μέσω updateStats().
+ * Global counters για tracking συμβάντων.
+ * Ενημερώνουν UI μέσω updateStats().
  */
 export const stats = {
   autoNext: 0,
@@ -100,7 +89,7 @@ export const MAIN_PROBABILITY = 0.5; // Πιθανότητα επιλογής κ
 /* Ρυθμίσεις Watchdog (σε ms) */
 export const WATCHDOG_BUFFER_MIN = 45000; // Ελάχιστη ανοχή BUFFERING.
 export const WATCHDOG_BUFFER_MAX = 75000; // Μέγιστη ανοχή BUFFERING (jitter).
-export const WATCHDOG_PAUSE_RECHECK_MS = 5000; // Επανέλεγχος μετά από retry σε PAUSED.
+export const WATCHDOG_PAUSE_RECHECK_MS = 5000; // Επανέλεγχος μετά από PAUSED retry.
 
 /* Πίνακας controllers: γεμίζει από main.js */
 export const controllers = [];
@@ -108,69 +97,57 @@ export const controllers = [];
 
 /** --- Global unmute limiter - Start --- */
 /**
- * Limiter για ταυτόχρονα unmute σε global επίπεδο.
- * Διατηρεί pending count ώστε να εφαρμόζεται απλό concurrency cap.
+ * Εφαρμογή ορίου ταυτόχρονων unmute ενεργειών.
  */
 export const unmuteLimiter = { limit: 2, pending: 0 };
 
 /**
- * Έλεγχος αν μπορεί να ξεκινήσει νέο unmute.
- * @returns {boolean} true όταν pending < limit.
+ * Έλεγχος αν μπορεί να ξεκινήσει νέο unmute τώρα.
+ * @returns {boolean}
  */
 export function canUnmuteNow() {
   return unmuteLimiter.pending < unmuteLimiter.limit;
 }
 
-/**
- * Δήλωση εκκίνησης διαδικασίας unmute (pending += 1).
- */
+/** Αύξηση pending unmute */
 export function incUnmutePending() {
-  unmuteLimiter.pending += 1;
+  unmuteLimiter.pending = unmuteLimiter.pending + 1;
 }
 
-/**
- * Δήλωση ολοκλήρωσης διαδικασίας unmute (pending -= 1).
- * Προστατεύεται από αρνητικές τιμές.
- */
+/** Μείωση pending unmute */
 export function decUnmutePending() {
   if (unmuteLimiter.pending > 0) {
-    unmuteLimiter.pending -= 1;
+    unmuteLimiter.pending = unmuteLimiter.pending - 1;
   }
 }
 /** --- Global unmute limiter - End --- */
 
-/** --- AutoNext counters (ενοποιημένοι) - Start --- */
-/** Global συνολικός μετρητής AutoNext (χρήσιμος για reporting). */
+/** --- AutoNext counters (ενoποιημένοι) - Start --- */
+/* Global μετρητής AutoNext και rolling reset ανά 1 ώρα */
 export let autoNextCounter = 0;
-
-/** Timestamp τελευταίου reset των counters (rolling ανά 1 ώρα). */
 export let lastResetTime = Date.now();
-
-/** Όριο AutoNext ανά player ανά ώρα. */
 export const AUTO_NEXT_LIMIT_PER_PLAYER = 50;
-
-/** Μετρητές AutoNext ανά player (index: playerIndex). */
 export const autoNextPerPlayer = Array(PLAYER_COUNT).fill(0);
 
 /**
- * Έλεγχος ωριαίου reset counters (global και per-player).
- * Όταν περάσει 1 ώρα από lastResetTime, μηδενίζονται όλοι οι μετρητές.
+ * Reset counters (global & per-player) όταν περάσει 1h.
  */
 export function resetAutoNextCountersIfNeeded() {
   const now = Date.now();
   if (now - lastResetTime >= 3600000) {
-    // 1 ώρα
     autoNextCounter = 0;
     lastResetTime = now;
-    for (let i = 0; i < autoNextPerPlayer.length; i++) autoNextPerPlayer[i] = 0;
-    log(`🔄 AutoNext counters reset (hourly)`);
+    for (let i = 0; i < autoNextPerPlayer.length; i = i + 1) {
+      autoNextPerPlayer[i] = 0;
+    }
+    log('🔄 AutoNext counters reset (hourly)');
   }
 }
 
 /**
- * Επιτρέπει AutoNext για τον συγκεκριμένο player σύμφωνα με το όριο/ώρα.
- * @param {number} playerIndex Index του player.
- * @returns {boolean} true όταν ο per-player counter είναι κάτω από το όριο.
+ * Επιτρέπει AutoNext για τον συγκεκριμένο player;
+ * @param {number} playerIndex
+ * @returns {boolean}
  */
 export function canAutoNext(playerIndex) {
   resetAutoNextCountersIfNeeded();
@@ -178,68 +155,72 @@ export function canAutoNext(playerIndex) {
 }
 
 /**
- * Αύξηση counters μετά από επιτυχές AutoNext.
- * @param {number} playerIndex Index του player.
+ * Αύξηση μετρητών AutoNext.
+ * @param {number} playerIndex
  */
 export function incAutoNext(playerIndex) {
-  autoNextCounter++;
-  autoNextPerPlayer[playerIndex]++;
+  autoNextCounter = autoNextCounter + 1;
+  autoNextPerPlayer[playerIndex] = autoNextPerPlayer[playerIndex] + 1;
 }
-/** --- AutoNext counters (ενοποιημένοι) - End --- */
+/** --- AutoNext counters - End --- */
 
-/* --- Lists state - Start --- */
-/**
- * Ιδιωτική αποθήκευση κύριας και εναλλακτικής λίστας video IDs.
- * Η πρόσβαση γίνεται μέσω getters/setters ώστε να ελέγχεται η εγκυρότητα και να γίνεται logging.
- */
+/** --- Lists state - Start --- */
+/* Κύρια και εναλλακτική λίστα video IDs */
 let _mainList = [];
 let _altList = [];
 
-/** @returns {Array} Η κύρια λίστα video IDs. */
+/** Getter κύριας λίστας */
 export function getMainList() {
   return _mainList;
 }
 
-/** @returns {Array} Η εναλλακτική λίστα video IDs. */
+/** Getter εναλλακτικής λίστας */
 export function getAltList() {
   return _altList;
 }
 
 /**
- * Εφαρμογή κύριας λίστας.
- * Αν η είσοδος δεν είναι array, εφαρμόζεται κενή λίστα.
- * @param {any} list Υποψήφια λίστα.
+ * Εφαρμογή κύριας λίστας (ασφαλής κλωνοποίηση).
+ * @param {any} list
  */
 export function setMainList(list) {
-  _mainList = Array.isArray(list) ? list : [];
+  const next = Array.isArray(list) ? deepClone(list) : [];
+  _mainList = next;
   log(`📂 Main list applied -> ${_mainList.length} videos`);
 }
 
 /**
- * Εφαρμογή εναλλακτικής λίστας.
- * Αν η είσοδος δεν είναι array, εφαρμόζεται κενή λίστα.
- * @param {any} list Υποψήφια λίστα.
+ * Εφαρμογή εναλλακτικής λίστας (ασφαλής κλωνοποίηση).
+ * @param {any} list
  */
 export function setAltList(list) {
-  _altList = Array.isArray(list) ? list : [];
+  const next = Array.isArray(list) ? deepClone(list) : [];
+  _altList = next;
   log(`📂 Alt list applied -> ${_altList.length} videos`);
 }
 
-/* --- Lists state - End --- */
-
-/* --- Stop All state & helpers - Start --- */
 /**
- * Flag stop-all.
- * Χρησιμοποιείται από modules ώστε να σταματούν/παγώνουν νέες ενέργειες όταν εκτελείται global stop.
+ * Ενοποιημένος helper: έχει η είσοδος array με στοιχεία;
+ * @param {any} arr
+ * @returns {boolean}
+ */
+export function hasArrayWithItems(arr) {
+  return isNonEmptyArray(arr);
+}
+/** --- Lists state - End --- */
+
+/** --- Stop All state & helpers - Start --- */
+/**
+ * Σημαία stop-all. Χρησιμοποιείται από modules ώστε να σταματούν/παγώνουν νέες ενέργειες.
  */
 export let isStopping = false;
 
-/** Registry timeouts που σχετίζονται με διαδικασίες stop-all. */
+/** Καταχωρημένοι χρονοπρογραμματισμοί που σχετίζονται με stop-all. */
 const stopTimers = [];
 
 /**
- * Θέτει το isStopping.
- * @param {any} flag Μετατρέπεται σε boolean.
+ * Θέτει το isStopping και το καταγράφει.
+ * @param {any} flag
  */
 export function setIsStopping(flag) {
   isStopping = !!flag;
@@ -247,61 +228,55 @@ export function setIsStopping(flag) {
 }
 
 /**
- * Καταγράφει timer στο registry ώστε να μπορεί να ακυρωθεί μαζικά.
- * @param {any} timer Timeout id.
+ * Καταχώριση id (από utils.delay/scheduleSafe) στο registry, για μαζική ακύρωση.
+ * @param {any} timerId
  */
-export function pushStopTimer(timer) {
-  if (timer) stopTimers.push(timer);
+export function pushStopTimer(timerId) {
+  if (isDefined(timerId)) {
+    stopTimers.push(timerId);
+  }
 }
 
 /**
- * Εκκαθάριση όλων των timers stop-all.
- * Η υλοποίηση αδειάζει το registry και επιχειρεί clearTimeout σε κάθε στοιχείο.
+ * Ακύρωση όλων των καταχωρημένων χρονοπρογραμματισμών stop-all (με utils.cancel).
  */
 export function clearStopTimers() {
-  while (stopTimers.length) {
-    const t = stopTimers.pop();
+  while (stopTimers.length > 0) {
+    const id = stopTimers.pop();
     try {
-      clearTimeout(t);
-    } catch {}
+      cancel(id);
+    } catch (e) {
+      // no-op
+    }
   }
-  log(`🧹 Stop timers cleared`);
+  log('🧹 Stop timers cleared');
 }
-
-/* --- Stop All state & helpers - End --- */
+/** --- Stop All state & helpers - End --- */
 
 /** --- User gesture flag - Start --- */
 /**
- * Flag που δηλώνει ότι έχει υπάρξει αλληλεπίδραση χρήστη (click/keyboard).
- * Αξιοποιείται για media policies browsers.
+ * Flag που δηλώνει ότι υπήρξε αλληλεπίδραση χρήστη (click/keyboard).
+ * Χρήσιμο για media policies των browsers.
  */
 export let hasUserGesture = false;
 
-/**
- * Θέτει hasUserGesture = true και καταγράφει στο console.
- */
+/** Θέτει hasUserGesture = true και το καταγράφει. */
 export function setUserGesture() {
   hasUserGesture = true;
-  console.log(`[${new Date().toLocaleTimeString()}] 💻 Αλληλεπίδραση Χρήστη`);
+  log(`[${ts()}] 💻 Αλληλεπίδραση Χρήστη`);
 }
-
 /** --- User gesture flag - End --- */
 
-/* --- Utilities - Start --- */
-
+/** --- UI Utilities (stats & activity panel bindings) - Start --- */
 /**
- * - Καλεί updateStats() για ανανέωση του statsPanel.
- * - Δημιουργεί το statsPanel αν δεν υπάρχει.
- * - Αγνοεί σφάλματα σε περιβάλλον χωρίς DOM.
+ * Ενημέρωση του panel στατιστικών. Δημιουργεί το στοιχείο εάν δεν υπάρχει.
  */
-// Τοπικό updateStats (έχει πρόσβαση στο stats εδώ)
 function updateStats() {
   if (typeof document === 'undefined') {
     return;
   }
   let el = document.getElementById('statsPanel');
   if (el === null) {
-    // Προαιρετικά: δημιουργία panel αν λείπει
     el = document.createElement('div');
     el.id = 'statsPanel';
     el.className = 'stats';
@@ -319,14 +294,12 @@ if (typeof document !== 'undefined') {
       const div = document.createElement('div');
       div.textContent = full;
       panel.appendChild(div);
-
       const LOG_PANEL_MAX = 250;
       while (panel.children.length > LOG_PANEL_MAX) {
         panel.removeChild(panel.firstChild);
       }
       panel.scrollTop = panel.scrollHeight;
     }
-
     // Ενημέρωση stats
     try {
       updateStats();
@@ -335,80 +308,51 @@ if (typeof document !== 'undefined') {
     }
   });
 }
+/** --- UI Utilities - End --- */
 
-/* Scheduler module - Χρονοπρογραμματιστής Εργασιών */
-/**
- * Wrapper γύρω από setTimeout.
- * Παρέχει:
- * - schedule(fn, delayMs): ασφαλή εκτέλεση συνάρτησης μετά από καθυστέρηση.
- * - cancel(id): ακύρωση timer.
- * - jitter(baseMs, spreadMs): παραγωγή καθυστέρησης με τυχαία διασπορά.
- *
- * Η διαχείριση σφαλμάτων:
- * - Προσπαθεί να εμφανίσει e.message όταν υπάρχει διαθέσιμο.
- * - Σε αποτυχία, καταγράφει fallback πληροφορία μέσω log().
- */
+/** --- Scheduler facade (delegates to utils.js) - Start --- */
+/*
+ Αντί του παλιού τοπικού scheduler, εκθέτουμε συμβατό facade πάνω από utils.delay/cancel.
+ Η "jitter" εδώ παραμένει με absolute spread για backward compatibility (χρήση rndInt).
+*/
 export const scheduler = (function () {
-  var timers = [];
-
   function schedule(fn, delayMs) {
-    var id = setTimeout(function () {
+    // Ασφαλής εκτέλεση: τυλίγουμε τη συνάρτηση ώστε να μην ρίχνει exceptions στον event loop.
+    return delay(function () {
       try {
-        fn();
+        if (typeof fn === 'function') {
+          fn();
+        }
       } catch (e) {
         try {
-          var msg = e;
-          try {
-            if (e) {
-              if (typeof e.message === 'string') {
-                msg = e.message;
-              }
-            }
-          } catch (_) {
-            log(`⚠️ Globals Error ${_}`);
-          }
-          console.error('[sched] ' + msg);
+          const msg = e && typeof e.message === 'string' ? e.message : String(e);
+          log(`⚠️ Scheduler Error ${msg}`);
         } catch (_) {
-          log(`⚠️ Globals Error ${_}`);
+          // no-op
         }
       }
-    }, delayMs);
-    timers.push(id);
-    return id;
+    }, Number(delayMs));
   }
 
-  function cancel(id) {
-    clearTimeout(id);
+  function cancelTimer(id) {
+    try {
+      cancel(id);
+    } catch (e) {
+      // no-op
+    }
   }
 
-  function jitter(baseMs, spreadMs) {
-    var rnd = Math.random();
-    var delta = Math.floor(rnd * (spreadMs + 1));
-    return baseMs + delta;
+  // Jitter: baseMs + [0 .. spreadMs]
+  function jitterAbs(baseMs, spreadMs) {
+    const base = Math.max(0, Math.floor(Number(baseMs)));
+    const spread = Math.max(0, Math.floor(Number(spreadMs)));
+    const delta = rndInt(0, spread);
+    return base + delta;
   }
 
-  return { schedule: schedule, cancel: cancel, jitter: jitter };
+  return { schedule: schedule, cancel: cancelTimer, jitter: jitterAbs };
 })();
-
-/* Helper: hasArrayWithItems (unified here) */
-/**
- * Έλεγχος αν μια τιμή είναι array και περιέχει τουλάχιστον ένα στοιχείο.
- * Υλοποιείται με “αναλυτικό” τρόπο για σαφήνεια.
- *
- * @param {any} arr Τιμή προς έλεγχο.
- * @returns {boolean} true όταν είναι array και έχει στοιχεία.
- */
-export function hasArrayWithItems(arr) {
-  if (!Array.isArray(arr)) {
-    return false;
-  }
-  if (arr.length > 0) {
-    return true;
-  }
-  return false;
-}
-
-/* --- Utilities - End --- */
+/** --- Scheduler facade - End --- */
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
