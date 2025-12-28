@@ -1,5 +1,5 @@
 // --- utils.js ---
-const VERSION = 'v2.2.2';
+const VERSION = 'v2.3.0';
 /*
 - Ενοποιημένο API (χωρίς imports) για όλο το project: αγνές συναρτήσεις + Scheduler API.
 - Κανόνες: Header spec, SemVer, ESM exports, χωρίς imports
@@ -19,6 +19,7 @@ export function getVersion() {
   (D) DOM/Events (domReady/safeAddEvent/removeEvent/once)
   (D2) Logging (log)
   (E) Scheduler API (delay/repeat/cancel/groupCancel/debounce/throttle/backoff/jitter/retry/pause/resume/flush/getStats)
+      scheduleSafe(fn, ms, group, label) 
 */
 
 // ======================= (A) Logic / Guards / Types =======================
@@ -571,6 +572,33 @@ export async function retry(fnAsync, attempts, baseMs, factor, maxMs, jitterRati
     }
   }
   return { ok: false, value: null, error: lastErr, attempts: maxAttempts };
+}
+
+// Τρέξε τη συνάρτηση μου μετά από Χ ms, με try/catch, λογόραψε τα σφάλματα και βάλε την εργασία σε named group
+
+export function scheduleSafe(fn, ms, group, label) {
+  const name = isDefined(label) ? String(label) : 'scheduleSafe';
+  const delayMs = Math.floor(Number(ms));
+  const grp = isDefined(group) ? group : null;
+
+  return delay(
+    function () {
+      try {
+        if (isFunction(fn)) {
+          fn();
+        }
+      } catch (err) {
+        try {
+          const msg = err instanceof Error ? err.message : String(err);
+          log('❌ ' + name + ' Error ' + msg);
+        } catch (_) {
+          // no-op
+        }
+      }
+    },
+    delayMs,
+    grp
+  );
 }
 
 // --- End Of File ---
