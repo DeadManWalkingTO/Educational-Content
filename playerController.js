@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v6.24.10';
+const VERSION = 'v6.30.0';
 /*
 Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
 Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
@@ -20,33 +20,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 // Imports
 import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, log, rndInt, anyTrue, allTrue } from './utils.js';
 import { AUTO_NEXT_LIMIT_PER_PLAYER, MAIN_PROBABILITY, canAutoNext, controllers, getOrigin, getYouTubeEmbedHost, hasUserGesture, incAutoNext, stats } from './globals.js';
-
-/*
- * isNonEmptyArray
- * Περιγραφή: Επιστρέφει true μόνο εάν το όρισμα είναι πίνακας με τουλάχιστον ένα στοιχείο.
- * Χρήση: Αποφυγή λαθών όταν βασιζόμαστε σε λίστες video IDs.
- */
-function isNonEmptyArray(x) {
-  if (!Array.isArray(x)) {
-    return false;
-  }
-  if (x.length <= 0) {
-    return false;
-  }
-  return true;
-}
-
-/*
- * hasPlayer
- * Περιγραφή: Ελέγχει ότι το αντικείμενο αναπαραγωγής διαθέτει μέθοδο playVideo.
- * Σημασία: Πολλά βήματα προϋποθέτουν έγκυρο χειριστή YouTube IFrame API.
- */
-function hasPlayer(p) {
-  if (!p) {
-    return false;
-  }
-  return typeof p.playVideo === 'function';
-}
+import { getRequiredWatchTime, getPausePlan } from './policies.js';
 
 /*
  * guardHasAnyList
@@ -166,80 +140,6 @@ function doSeek(player, seconds) {
       log(`❌ Player ${this.index + 1} Controller Error ${String(err?.message ?? err)}`);
     }
   }
-}
-
-/**
- * getRequiredWatchTime(durationSec)
- * Περιγραφή: Υπολογίζει απαιτούμενο χρόνο θέασης (σε δευτερόλεπτα) πριν επιτραπεί AutoNext.
- * Λαμβάνει υπόψη το μήκος του video και εισάγει μικρή τυχαιότητα (bias) για ρεαλισμό.
- */
-/** Υπολογισμός απαιτούμενου χρόνου θέασης για AutoNext. 
-  // < 2 min: 90–100%
-  // < 5 min: 80–100%
-  // 5–30 min: 50–70%
-  // 30–120 min: 20–35%
-  // > 120 min: 10–15%
-*/
-export function getRequiredWatchTime(durationSec) {
-  var capSec = (15 + rndInt(0, 5)) * 60; // ανώτατο όριο απαίτησης (λεπτά -> sec)
-  var minPct = 0.5;
-  var maxPct = 0.7;
-  if (durationSec < 120) {
-    minPct = 0.92;
-    maxPct = 1.0;
-  } else if (durationSec < 300) {
-    minPct = 0.85;
-    maxPct = 1.0;
-  } else if (durationSec < 1800) {
-    minPct = 0.55;
-    maxPct = 0.75;
-  } else if (durationSec < 7200) {
-    minPct = 0.25;
-    maxPct = 0.38;
-  } else {
-    minPct = 0.12;
-    maxPct = 0.18;
-  }
-  var span = maxPct - minPct;
-  if (span < 0) {
-    span = 0;
-  }
-  var pct = minPct + Math.random() * span; // ποσοστό απαιτούμενης θέασης
-  var b = rndInt(-1, 1);
-  var bias = b * 0.01; // μικρή μεταβολή +-1%
-  pct = pct + bias;
-  if (pct < 0.05) {
-    pct = 0.05;
-  }
-  var required = Math.floor(durationSec * pct);
-  if (required > capSec) {
-    required = capSec;
-  }
-  if (required < 15) {
-    required = 15;
-  }
-  return required;
-}
-
-/**
- * getPausePlan(duration)
- * Περιγραφή: Παράγει σχέδιο παύσεων (πλήθος και εύρος δευτερολέπτων) ανάλογα με τη διάρκεια.
- * Στόχος: Μιμητική συμπεριφορά χρήστη με ελεγχόμενη τυχαιότητα.
- */
-export function getPausePlan(duration) {
-  if (duration < 120) {
-    return { count: rndInt(1, 1), min: 6, max: 15 };
-  }
-  if (duration < 300) {
-    return { count: rndInt(1, 2), min: 8, max: 20 };
-  }
-  if (duration < 1800) {
-    return { count: rndInt(2, 3), min: 25, max: 55 };
-  }
-  if (duration < 7200) {
-    return { count: rndInt(3, 4), min: 50, max: 110 };
-  }
-  return { count: rndInt(4, 5), min: 90, max: 160 };
 }
 
 // --- Utils: dynamic origin/host ---
@@ -493,40 +393,103 @@ export class PlayerController {
       log(`❌ Player ${this.index + 1} StateChange Error ${String(err?.message ?? err)}`);
     }
 
-
     // Unified State Logging (scheduled/random)
     try {
       var currentState = s;
       var prevState = this.lastKnownState;
-      if (typeof prevState === 'undefined') { prevState = YT.PlayerState.UNSTARTED; }
+      if (typeof prevState === 'undefined') {
+        prevState = YT.PlayerState.UNSTARTED;
+      }
       var tSec = 0;
-      try { var pLocal = this.player; var okCT = false; if (typeof pLocal !== 'undefined') { if (pLocal !== null) { if (typeof pLocal.getCurrentTime === 'function') { okCT = true; } } } if (okCT === true) { tSec = pLocal.getCurrentTime(); } } catch (_) {}
+      try {
+        var pLocal = this.player;
+        var okCT = false;
+        if (typeof pLocal !== 'undefined') {
+          if (pLocal !== null) {
+            if (typeof pLocal.getCurrentTime === 'function') {
+              okCT = true;
+            }
+          }
+        }
+        if (okCT === true) {
+          tSec = pLocal.getCurrentTime();
+        }
+      } catch (_) {}
       var scheduled = false;
       if (this.timers && typeof this.timers === 'object') {
         var hasPauseTimers = false;
-        if (typeof this.timers.pauseTimers !== 'undefined') { if (this.timers.pauseTimers !== null) { if (Array.isArray(this.timers.pauseTimers)) { if (this.timers.pauseTimers.length > 0) { hasPauseTimers = true; } } } }
-        if (hasPauseTimers === true) { scheduled = true; }
-        if (scheduled !== true) { if (typeof this.timers.midSeek !== 'undefined') { if (this.timers.midSeek !== null) { scheduled = true; } } }
-        if (scheduled !== true) { if (typeof this.timers.progressCheck !== 'undefined') { if (this.timers.progressCheck !== null) { scheduled = true; } } }
+        if (typeof this.timers.pauseTimers !== 'undefined') {
+          if (this.timers.pauseTimers !== null) {
+            if (Array.isArray(this.timers.pauseTimers)) {
+              if (this.timers.pauseTimers.length > 0) {
+                hasPauseTimers = true;
+              }
+            }
+          }
+        }
+        if (hasPauseTimers === true) {
+          scheduled = true;
+        }
+        if (scheduled !== true) {
+          if (typeof this.timers.midSeek !== 'undefined') {
+            if (this.timers.midSeek !== null) {
+              scheduled = true;
+            }
+          }
+        }
+        if (scheduled !== true) {
+          if (typeof this.timers.progressCheck !== 'undefined') {
+            if (this.timers.progressCheck !== null) {
+              scheduled = true;
+            }
+          }
+        }
       }
-      if (scheduled !== true) { if (typeof this.expectedPauseMs === 'number') { if (this.expectedPauseMs > 0) { scheduled = true; } } }
-      var stateName = function(v) {
-  var name = 'UNKNOWN';
-  if (typeof YT !== 'undefined') {
-    if (typeof YT.PlayerState !== 'undefined') {
-      if (v === YT.PlayerState.UNSTARTED) { name = 'UNSTARTED'; }
-      else { if (v === YT.PlayerState.ENDED) { name = 'ENDED'; }
-      else { if (v === YT.PlayerState.PLAYING) { name = 'PLAYING'; }
-      else { if (v === YT.PlayerState.PAUSED) { name = 'PAUSED'; }
-      else { if (v === YT.PlayerState.BUFFERING) { name = 'BUFFERING'; }
-      else { if (v === YT.PlayerState.CUED) { name = 'CUED'; } } } } } }
-    }
-  }
-  return name;
-};
+      if (scheduled !== true) {
+        if (typeof this.expectedPauseMs === 'number') {
+          if (this.expectedPauseMs > 0) {
+            scheduled = true;
+          }
+        }
+      }
+      var stateName = function (v) {
+        var name = 'UNKNOWN';
+        if (typeof YT !== 'undefined') {
+          if (typeof YT.PlayerState !== 'undefined') {
+            if (v === YT.PlayerState.UNSTARTED) {
+              name = 'UNSTARTED';
+            } else {
+              if (v === YT.PlayerState.ENDED) {
+                name = 'ENDED';
+              } else {
+                if (v === YT.PlayerState.PLAYING) {
+                  name = 'PLAYING';
+                } else {
+                  if (v === YT.PlayerState.PAUSED) {
+                    name = 'PAUSED';
+                  } else {
+                    if (v === YT.PlayerState.BUFFERING) {
+                      name = 'BUFFERING';
+                    } else {
+                      if (v === YT.PlayerState.CUED) {
+                        name = 'CUED';
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        return name;
+      };
       var tag = scheduled === true ? 'scheduled' : 'random';
-      try { log('Player ' + String(this.index + 1) + ' State: ' + stateName(currentState) + ' (prev: ' + stateName(prevState) + ') — ' + tag + ' — t=' + String(Math.round(tSec)) + 's'); } catch (_) {}
-      try { this.lastKnownState = currentState; } catch (_) {}
+      try {
+        log('Player ' + String(this.index + 1) + ' State: ' + stateName(currentState) + ' (prev: ' + stateName(prevState) + ') — ' + tag + ' — t=' + String(Math.round(tSec)) + 's');
+      } catch (_) {}
+      try {
+        this.lastKnownState = currentState;
+      } catch (_) {}
     } catch (_) {}
     // End Unified State Logging
 
@@ -616,26 +579,49 @@ export class PlayerController {
     if (e.data === YT.PlayerState.BUFFERING) this.lastBufferingStart = Date.now();
     if (e.data === YT.PlayerState.PAUSED) this.lastPausedStart = Date.now();
     // Event-driven PauseGuard: schedule a check after tolerance to retry play if still PAUSED
-    try { if (this.pauseGuardTimer) { clearTimeout(this.pauseGuardTimer); } } catch (_) {}
-    (function(self){
+    try {
+      if (this.pauseGuardTimer) {
+        clearTimeout(this.pauseGuardTimer);
+      }
+    } catch (_) {}
+    (function (self) {
       var basePause = 2000;
-      if (typeof self.expectedPauseMs === 'number') { if (self.expectedPauseMs > 0) { basePause = self.expectedPauseMs; } }
+      if (typeof self.expectedPauseMs === 'number') {
+        if (self.expectedPauseMs > 0) {
+          basePause = self.expectedPauseMs;
+        }
+      }
       var slack = 250;
-      self.pauseGuardTimer = setTimeout(function(){
+      self.pauseGuardTimer = setTimeout(function () {
         try {
           var p = self.player;
           var canCheck = false;
-          if (typeof p !== 'undefined') { if (p !== null) { if (typeof p.getPlayerState === 'function') { canCheck = true; } } }
+          if (typeof p !== 'undefined') {
+            if (p !== null) {
+              if (typeof p.getPlayerState === 'function') {
+                canCheck = true;
+              }
+            }
+          }
           if (canCheck) {
             var st = p.getPlayerState();
             if (st === YT.PlayerState.PAUSED) {
-              try { if (typeof tryRequestPlay === 'function') { tryRequestPlay(self); } else { p.playVideo(); } } catch (_) {}
-            } else { try { self.pauseRechecks = 0; } catch (_) {} }
+              try {
+                if (typeof tryRequestPlay === 'function') {
+                  tryRequestPlay(self);
+                } else {
+                  p.playVideo();
+                }
+              } catch (_) {}
+            } else {
+              try {
+                self.pauseRechecks = 0;
+              } catch (_) {}
+            }
           }
         } catch (_) {}
       }, basePause + slack);
     })(this);
-
 
     // ENDED -> Δεύτερη φάση απόφασης AutoNext με αναμονή μετά το τέλος
     if (e.data === YT.PlayerState.ENDED) {

@@ -2,13 +2,10 @@
 
 ---
 
-
 ## 2025-12-28
 
+policies.js: 1.0.0 - Policies file
 playerController.js: v6.24.9 → v6.24.10 — Refactor: ενοποίηση imports από utils (αφαίρεση `retry`), διόρθωση `requestPlay` (χρήση `pLocal` αντί `p`), διόρθωση `pauseGuardTimer` (αναφορά σε `p`), σταθεροποίηση χωρίς αλλαγή συμπεριφοράς.
-
-## 2025-12-28
-
 playerController.js: v6.24.9 — Fix: αποφυγή redeclare (var/const) για το identifier `p` στο Unified Logging, μετονομασία σε `pLocal`.
 playerController.js: v6.24.8 — Fix: stateName ως function expression (block-safe), αποφυγή SyntaxError σε catch.
 playerController.js: v6.24.7 — Event-driven PauseGuard + Unified state logging (scheduled/random), t(sec), prev/next. Χωρίς &&/||.
