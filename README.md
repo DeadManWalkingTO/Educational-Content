@@ -1,6 +1,30 @@
 # 🎬 Educational Content
 
-Ένα web‑based multi‑viewer εκπαιδευτικού περιεχομένου που εμφανίζει και διαχειρίζεται πολλαπλά YouTube βίντεο ταυτόχρονα, με φυσική συμπεριφορά και πλήρη έλεγχο μέσω UI.
+Ένα web-based multi-viewer εκπαιδευτικού περιεχομένου που εμφανίζει και διαχειρίζεται πολλαπλά YouTube βίντεο ταυτόχρονα, με φυσική συμπεριφορά και πλήρη έλεγχο μέσω UI.
+
+---
+
+## Δομή Αρχείων
+```
+index.html            # UI και meta έκδοση
+main.js               # Entry point και orchestrator
+utils.js              # Guards, logging, scheduler
+globals.js            # Global state και στατιστικά
+lists.js              # Λίστες βίντεο
+humanMode.js          # Sequential init για human-like συμπεριφορά
+playerController.js   # Συντονισμός γεγονότων
+playerStateEngine.js  # Finite State Machine
+policies.js           # Πολιτικές AutoNext/Replay
+autoNext.js           # Αυτόματη μετάβαση
+autoUnmute.js         # Διαχείριση έντασης
+uiControls.js         # UI bindings
+versionReporter.js    # Panel εκδόσεων
+consoleFilter.js      # Φίλτρο κονσόλας
+youtubeReady.js       # Έλεγχος YouTube API readiness
+CHANGELOG.md          # Ιστορικό αλλαγών
+CONTEXT.md            # Κανόνες και πολιτικές
+.prettierrc.json      # Ρυθμίσεις μορφοποίησης
+```
 
 ---
 
@@ -33,7 +57,6 @@
 
 - 💻 Start
 - ⏹ Stop All
-- 🔁 Restart All
 - 🌙 Dark/Light Mode Toggle
 - 🧹 Clear Logs
 - 📋 Copy Logs
@@ -62,40 +85,18 @@
 
 ## Πίνακας Χαρακτηριστικών
 
-| Χαρακτηριστικό     | Περιγραφή                                                | Κατάσταση        |
-| ------------------ | -------------------------------------------------------- | ---------------- |
-| Sequential Init    | Σταδιακή εκκίνηση players για μείωση spikes              | Υλοποιημένο      |
-| Human Mode         | Προσομοίωση ανθρώπινης συμπεριφοράς με προφίλ και jitter | Υλοποιημένο      |
-| State Machine      | Διαχείριση καταστάσεων READY → SEEK → PLAY με watchdog   | Υλοποιημένο      |
-| AutoNext           | Αυτόματη μετάβαση στο επόμενο video μετά από thresholds  | Υλοποιημένο      |
-| Console Filtering  | Φιλτράρισμα θορυβωδών logs από YouTube API               | Υλοποιημένο      |
-| UI Stats Panel     | Εμφάνιση μετρήσεων (AutoNext, Pauses, Errors) στο UI     | Υλοποιημένο      |
-| Version Reporter   | Συγκεντρωτική αναφορά εκδόσεων όλων των modules          | Υλοποιημένο      |
-| Adaptive Profiles  | Δυναμική αλλαγή συμπεριφοράς βάσει buffering             | Σε εξέλιξη       |
-| Structured Logging | Εξαγωγή logs σε JSON για ανάλυση                         | Προγραμματισμένο |
+| Feature                | Περιγραφή                              |
+|------------------------|----------------------------------------|
+| Human-like Behavior    | Sequential init, delays, jitter       |
+| AutoNext               | Αυτόματη μετάβαση στο επόμενο video   |
+| AutoUnmute             | Διαχείριση έντασης                    |
+| UI Controls            | Stop/Restart, Reload Lists, Theme     |
+| Version Panel          | Εμφάνιση εκδόσεων HTML + JS modules   |
+| Console Filter         | Καθαρισμός θορύβου από logs           |
+| Scheduler API          | Delay, retry, backoff, throttle       |
 
 ---
 
-## Δομή Αρχείων
-
-```
-BASE/
-├── index.html           # UI shell και έκδοση HTML
-├── main.js              # Entry point, startup λογική
-├── globals.js           # Καθολικές σταθερές, μετρητές, helpers
-├── humanMode.js         # Προσομοίωση ανθρώπινης συμπεριφοράς
-├── playerController.js  # State machine ανά player
-├── uiControls.js        # Δέσμευση UI events
-├── lists.js             # Λίστες video IDs
-├── consoleFilter.js     # Φίλτρο για καθαρά logs
-├── watchdog.js          # Scheduler και guards
-├── versionReporter.js   # Συγκεντρωτική αναφορά εκδόσεων
-├── CHANGELOG.md         # Ιστορικό αλλαγών
-├── CONTEXT.md           # Κανόνες και πολιτικές
-└── .prettierrc.json     # Ρυθμίσεις μορφοποίησης
-```
-
----
 
 ## 🚀 Χρήση
 
@@ -142,9 +143,10 @@ BASE/
 
 ## Πολιτικές Κώδικα
 
-- **Μορφοποίηση**: UTF-8, LF, semicolons πάντα, σύμφωνα με `.prettierrc.json`.
-- **Εκδόσεις**: Κάθε αρχείο έχει δική του έκδοση (μορφή `vX.Y.Z`).
-- **CHANGELOG**: Καταγραφή όλων των αλλαγών ανά ημερομηνία (νεότερες στην κορυφή).
+- **Μορφοποίηση**: Σύμφωνα με `.prettierrc.json` (printWidth 100, tabWidth 2, semi true, singleQuote true).
+- **Εκδόσεις**: SemVer (vX.Y.Z), κάθε αλλαγή αυξάνει patch.
+- **CHANGELOG**: Καταγραφή όλων των αλλαγών, νεότερες στην κορυφή.
+- **Single-BASE Workflow**: Όλες οι αλλαγές γίνονται απευθείας στα αρχεία του BASE.
 
 ---
 
@@ -161,6 +163,17 @@ BASE/
 - READY → SEEK → PLAY.
 - Διαχείριση PAUSED/BUFFERING με watchdog.
 - AutoNext και unmute policies.
+
+---
+
+## Smoke Test Plan
+
+- Φόρτωση UI και εμφάνιση panels.
+- Έλεγχος Versions panel.
+- Sequential init χωρίς σφάλματα.
+- Λειτουργία κουμπιών Stop/Restart All.
+- AutoNext και Unmute σε λειτουργία.
+- Καθαρά logs και ενημέρωση counters.
 
 ---
 

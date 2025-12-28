@@ -6,41 +6,65 @@
 
 ---
 
-## 1) Baseline (copy/paste σε νέα συνομιλία)
+## 1) Baseline
 
 > **Project:** Educational-Content
 
 > **Baseline:**
-
-> • ES Modules. Τα UI events δένονται από `main.js` μετά το `DOMContentLoaded`.
-
-> • **Start gate**: Στην αρχή ενεργό μόνο το κουμπί **💻 Start**. Με το πρώτο click (`user gesture`) τρέχει _μία φορά_ το `startApp()` και ενεργοποιούνται τα υπόλοιπα controls.
-
-> • Watchdog: ξεκινά **μετά** το YouTube IFrame API readiness και **μετά** το Human Mode sequential init.
-
-> • Clipboard: fallback (textarea + `execCommand`) σε μη‑HTTPS· native Clipboard API σε HTTPS.
-
-> • AutoNext counters: ενοποιημένοι _global + per‑player_ (50/hour) με ωριαίο reset.
-
-> • Loader: `checkModulePaths()` αφαιρέθηκε (browser ESM loader).
-
-> • **Single‑BASE workflow**: δουλεύουμε _μέσα στο BASE_ (χωρίς νέα αποσυμπίεση), εφαρμόζουμε αλλαγές επί τόπου (JS/HTML/MD), τρέχουμε **lint/compat** και παράγουμε **MD αναφορές** όπου χρειάζεται. Bundle/πακέτο δημιουργείται **μόνο όταν ζητηθεί**, με όνομα `YY-MM-DD---HH-MM` σε **τοπική ώρα**.
-
-> **Rules (σύνοψη):** bump version σε κάθε αλλαγή αρχείου, τήρηση προτύπου header/versions, **ποτέ** υποβιβασμός έκδοσης, **απαγόρευση** `||`/`&&` και πάνω από δύο διαδοχικά _template literals_, strings μονοσειριακά χωρίς backslash συνένωσης, Prettier config όπως στο `.prettierrc.json`.
+> Κανόνας 1. Baseline
+> Κανόνας 2. Αρχιτεκτονική & Ροή (συνοπτικά)
+> Κανόνας 3. Κανόνες Εργασίας (συγκεντρωμένοι)
+> Κανόνας 4. Τρέχουσες Εκδόσεις (source of truth)
+> Κανόνας 5. Roadmap (επόμενα βήματα)
+> Κανόνας 6. Διαδικασία Ανάπτυξης (GitHub)
+> Κανόνας 7. Quick Test Plan (smoke)
+> Κανόνας 8. Πρότυπο Changelog
+> Κανόνας 9. CHANGELOG policy
+> Κανόνας 10. Κανόνες για τη συγγραφή και μεταφορά του CONTEXT.md
+> Κανόνας 11. Πολιτική Line Endings (EOL) και .gitattributes
+> Κανόνας 12. Κανόνας — State Machine με Guard Steps (χωρίς ρητούς τελεστές)
+> Κανόνας 13. Αλλαγές - Προσθήκες
 
 ---
 
 ## 2) Αρχιτεκτονική & Ροή (συνοπτικά)
 
-1. **index.html**: φορτώνει YouTube IFrame API και `main.js` (ESM)· παρέχει `#playersContainer`, `#activityPanel`, `#statsPanel`, **💻 Start**.
-2. **main.js**: ορχήστρωση startup (Start gate → φόρτωση λιστών/containers → binding UI → version report → αναμονή YouTube ready → Human Mode init → `startWatchdog()`).
-3. **humanMode.js**: δημιουργεί player containers και αρχικοποιεί `PlayerController` instances με τυχαία configs.
-4. **playerController.js**: lifecycle κάθε player (auto‑unmute με σεβασμό στο user gesture, pauses, mid‑seeks, AutoNext).
-5. **watchdog.js**: παρακολουθεί BUFFERING/PAUSED και εκτελεί gentle retries/AutoNext.
-6. **uiControls.js**: εκθέτει UI actions (named exports). Τα events δένονται από `main.js`. Περιλαμβάνει `setControlsEnabled()`.
-7. **lists.js**: φορτώνει main/alt lists με fallbacks (local → GitHub raw → internal για main, local → empty για alt).
-8. **versionReporter.js**: συγκεντρώνει εκδόσεις modules + HTML meta· _το `main.js` προσθέτει τη δική του έκδοση χωριστά_.
-9. **globals.js**: shared state, utilities, UI logging, Stop All, unified AutoNext counters, flag `hasUserGesture`.
+### Αρχιτεκτονική (συνοπτικά)
+Η εφαρμογή είναι modular, βασισμένη σε ESM imports και οργανωμένη σε επιμέρους αρχεία:
+**index.html**: UI δομή (controls, grid για players, activity panel) + meta για HTML version.
+**main.js**: Entry point και orchestrator.
+ - Εγκαθιστά φίλτρο κονσόλας. 
+ - Δείχνει panel εκδόσεων. 
+ - Δένει UI events. 
+ - Περιμένει YouTube API readiness. 
+ - Καλεί sequential init των players.)
+**utils.js**: Βοηθητικός πυρήνας (guards, logging, scheduler με delay/backoff/jitter/retry).
+**globals.js**: Global state, στατιστικά, controllers, λίστες.
+**lists.js**: Φόρτωση/ανανεώσεις λιστών βίντεο.
+**humanMode.js**: Δημιουργία containers και sequential init για “ανθρώπινη” συμπεριφορά.
+**playerController.js**: Συντονισμός γεγονότων player, stop/restart all.
+**playerStateEngine.js**: Finite State Machine για καταστάσεις (Idle → Ready → Playing → Paused → Ended).
+**policies.js**: Κανόνες για AutoNext, Replay, Seek.
+**autoNext.js**: Αυτόματη μετάβαση.
+**autoUnmute.js**: Διαχείριση έντασης.
+**uiControls.js**: Binding κουμπιών (Stop All, Reload Lists, Theme).
+**versionReporter.js**: Συγκεντρώνει εκδόσεις όλων των modules + HTML.
+**youtubeReady.js**: Ελέγχει φόρτωση YouTube Iframe API με backoff/jitter.
+
+### Ροή Εκτέλεσης
+
+**Φόρτωση index.html** → εμφανίζει UI.
+**main.js**:
+- Εγκαθιστά console filter.
+- Εμφανίζει versions panel.
+- Δένει UI events.
+- Περιμένει YouTube API (με retry/backoff).
+- Καλεί initPlayersSequentially() για δημιουργία και αρχικοποίηση players.
+**humanMode.js** δημιουργεί containers και καλεί controller.
+**playerController.js** + **playerStateEngine.js** διαχειρίζονται καταστάσεις και πολιτικές.
+**policies.js** εφαρμόζει κανόνες για AutoNext/Replay.
+**uiControls.js** χειρίζεται κουμπιά και ενημερώνει στατιστικά.
+**utils.js** παρέχει logging, guards, scheduler για όλες τις λειτουργίες.
 
 ---
 
@@ -93,56 +117,26 @@
 - UI binding: χωρίς inline `onclick` στο HTML· μόνο `addEventListener`.
 - ESM imports: relative paths, reliance στον browser loader.
 
-**Single‑BASE workflow (λειτουργικοί κανόνες)**
+**Single-BASE workflow (λειτουργικοί κανόνες)**
 
 - Δουλεύουμε _μέσα στο BASE_, χωρίς νέα αποσυμπίεση.
 - Αλλαγές επί τόπου (JS/HTML/MD).
 - Σε κάθε κύκλο: format (Prettier) → lint/compat → **MD αναφορά**.
 - Bundle/πακέτο **μόνο όταν ζητηθεί**: όνομα `YY-MM-DD---HH-MM` σε **τοπική ώρα**.
 
-**CHANGELOG policy**
 
--Οι πρώτες γραμμές να είναι πάντα:
-
-- Γραμμή 1:"# CHANGELOG.md - vX" (όπου X η έκδοση)
-- Γραμμή 2:(κενή γραμμή)
-- Γραμμή 3:"---"
-- Γραμμή 4:(κενή γραμμή)
-- Από την πέμπτη γραμμή και κάτω θα πραγματοποιούνται οι προσθήκες.»
-- Καταγράφουμε όλες τις νέες αλλαγές ανά ημερομηνία.
-- Νεότερες ημερομηνίες στην κορυφή (αντίστροφη χρονολογική).
-- Δεν αφαιρούμε ποτέ προηγούμενες εγγραφές.
-- Κάθε entry: αρχείο, παλιά → νέα έκδοση, σύντομο summary, προαιρετικά Notes/Tests.
-- Σε κάθε αλλαγή προσθέτουμε +1 στην έκδοση (στην πρώτη γραμμή).
 
 ---
 
 ## 4) Τρέχουσες Εκδόσεις (source of truth)
 
-- **index.html** → v6.0.11
-- **main.js** → v1.7.21
-- **globals.js** → v2.9.10
-- **uiControls.js** → v2.5.12
-- **lists.js** → v3.4.12
-- **playerController.js** → v6.6.7
-- **humanMode.js** → v4.7.17
-- **watchdog.js** → v2.5.16
-- **versionReporter.js** → v2.3.5
-  > Runtime: `versionReporter.js` (συγκεντρώνει modules + HTML meta).
+- Runtime: `versionReporter.js` (συγκεντρώνει modules + HTML meta).
 
 ---
 
 ## 5) Roadmap (επόμενα βήματα)
 
-1. **Watchdog hardening**: jitter intervals, cleanup σε Stop All / `visibilitychange`, counters per reset‑reason.
-2. **External config**: `config.json` (PLAYER_COUNT, MAIN_PROBABILITY, AutoNext limits, watchdog interval).
-3. **Lists loader hardening**: retry με backoff για GitHub fallback, cache‑busting param, πλουσιότερα logs.
-4. **Telemetry export**: Download Logs (CSV/JSON) με snapshot session.
-5. **Activity panel cap/virtualization**: cap ~500 entries με efficient pruning.
-6. **Cross‑browser guards**: YT IFrame API επιπλέον έλεγχοι για Safari/Firefox quirks.
-7. **Επέκταση στατιστικών**: per‑player sessions (duration, playTime, watchPct, pauses, midSeeks, volumeChanges, errors), aggregators, `exportStatsJSON()`.
-8. **Αξιοπιστία αναπαραγωγής**: retry/backoff σε network errors, μικρό wait πριν από `seekTo()` για σταθερότητα.
-9. **QA & Validation**: edge cases (κενές λίστες, μεγάλα videos, throttled network), runtime validator.
+- Βελτιώσεις και νέα χαρακτηριστικά
 
 ---
 
@@ -156,11 +150,30 @@
 
 ## 7) Quick Test Plan (smoke)
 
-- **Startup**: Start gate → click Start → versions logged · lists loaded · containers created.
-- **Clipboard**: HTTPS → native copy ok · HTTP/file:// → fallback ok.
-- **Human Mode**: sequential init logs, auto‑unmute (μετά από gesture), pauses/mid‑seeks scheduled.
-- **AutoNext**: τηρεί required watch time · unified per‑player limit 50/hour.
-- **Watchdog**: ξεκινά μετά YouTube ready & init · αντιδρά σε BUFFERING>60s & PAUSED>allowed.
+**Φόρτωση UI**
+- Βήμα: Ανοίγουμε index.html σε browser.
+- Αναμενόμενο: Εμφανίζεται toolbar (κουμπιά), grid για players, activity panel.
+**Versions Panel**
+- Βήμα: Ελέγχουμε αν εμφανίζεται panel με εκδόσεις (HTML + JS modules).
+- Αναμενόμενο: Όλες οι εκδόσεις εμφανίζονται σωστά.
+**YouTube API Readiness**
+- Βήμα: Παρακολουθούμε console για μηνύματα YouTube API ready.
+- Αναμενόμενο: Δεν υπάρχουν σφάλματα, API φορτώνει.
+**Sequential Init Players**
+- Βήμα: Μετά το readiness, οι players δημιουργούνται ένας-ένας.
+- Αναμενόμενο: Δεν υπάρχει burst load, εμφανίζονται iframes στα slots.
+**UI Controls**
+- Βήμα:
+- Πατάμε Stop All → Όλοι οι players σταματούν.
+- Πατάμε Restart All → Όλοι οι players επανεκκινούν.
+- Πατάμε Reload Lists → Ενημερώνονται οι λίστες.
+- Αναμενόμενο: Καμία εξαίρεση, logs ενημερώνονται.
+**AutoNext & Unmute**
+- Βήμα: Αφήνουμε ένα player να τελειώσει.
+- Αναμενόμενο: AutoNext ενεργοποιείται, Unmute εφαρμόζεται αν χρειάζεται.
+**Logging & Stats**
+- Βήμα: Ελέγχουμε activity panel και console.
+- Αναμενόμενο: Εμφανίζονται logs με timestamps, counters ενημερώνονται.
 
 ---
 
@@ -176,11 +189,19 @@
 
 ---
 
-## 9) Πώς ξεκινάμε νέα συνομιλία
+## 9) CHANGELOG policy
 
-1. Επικόλλησε το **Baseline** block (Section 1) ή πες: «Χρησιμοποίησε το baseline από CONTEXT.md».
-2. Δήλωσε το επόμενο roadmap item (π.χ. «Προχώρα με Watchdog hardening»).
-3. Παραδοτέα: αρχεία με bumped versions + σύντομο test plan.
+Οι πρώτες γραμμές να είναι πάντα:
+- Γραμμή 1:"# CHANGELOG.md - vX" (όπου X η έκδοση)
+- Γραμμή 2:(κενή γραμμή)
+- Γραμμή 3:"---"
+- Γραμμή 4:(κενή γραμμή)
+- Από την πέμπτη γραμμή και κάτω θα πραγματοποιούνται οι προσθήκες.»
+- Καταγράφουμε όλες τις νέες αλλαγές ανά ημερομηνία.
+- Νεότερες ημερομηνίες στην κορυφή (αντίστροφη χρονολογική).
+- Δεν αφαιρούμε ποτέ προηγούμενες εγγραφές.
+- Κάθε entry: αρχείο, παλιά → νέα έκδοση, σύντομο summary, προαιρετικά Notes/Tests.
+- Σε κάθε αλλαγή προσθέτουμε +1 στην έκδοση (στην πρώτη γραμμή).
 
 ---
 
@@ -320,13 +341,17 @@ const S_CHECK_ENV = 0,
 
 ## 13) Αλλαγές - Προσθήκες
 
-- **2025-12-12**: Ενοποίηση/συμπύκνωση CONTEXT.md· προσθήκη ενότητας Prettier· επέκταση Κανόνα 12 (απαγόρευση `||`/`&&` γενικά, απαγόρευση template literals, strings μονοσειριακά, χωρίς backslash).
-- **2025-12-09**: Κανόνες ενημέρωσης YouTube embeds (`https://www.youtube.com` μόνο) και ενιαία πηγή `playerVars.origin` από `globals.getOrigin()`.
-- **2025-12-09**: Νέα λογική παρακολούθησης βίντεο (εύρη watch %, παύσεων, min watch 15s, cap 15–20min, τυχαία κατανομή παύσεων 10%–80%).
+### [2025-12-09] Κανόνες ενημέρωσης 
+- YouTube embeds (`https://www.youtube.com` μόνο) 
+- Ενιαία πηγή `playerVars.origin` από `globals.getOrigin()`.
+
+### [2025-12-12] Ενοποίηση/συμπύκνωση CONTEXT.md
+- Προσθήκη ενότητας Prettier
+- Επέκταση Κανόνα 12 (απαγόρευση `||`/`&&` γενικά, απαγόρευση template literals, strings μονοσειριακά, χωρίς backslash).
 
 ---
 
-## [2025-12-16] Νέες Προσθήκες / Κανόνες
+### [2025-12-16] Νέες Προσθήκες / Κανόνες
 
 - Το README.md πρέπει να περιλαμβάνει:
   - Περιγραφή εφαρμογής
@@ -338,7 +363,9 @@ const S_CHECK_ENV = 0,
 - Όλες οι αλλαγές στο README.md καταγράφονται στο CHANGELOG.md με αύξηση έκδοσης.
 - Πολιτική Single-BASE workflow ισχύει: όλες οι ενημερώσεις γίνονται απευθείας στα αρχεία του BASE.
 
-**Policy Update (2025-12-28):** API (Χωρίς Imports): μόνο `utils.js`. Όλες οι κοινές λειτουργίες και ο Scheduler API διατίθενται από `utils.js`.
+### [2025-12-28] **Policy Update**
+- API (Χωρίς Imports): μόνο `utils.js`. 
+- Όλες οι κοινές λειτουργίες και ο Scheduler API διατίθενται από `utils.js`.
 
 ---
 
