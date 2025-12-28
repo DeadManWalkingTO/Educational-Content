@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-const VERSION = 'v4.17.0';
+const VERSION = 'v4.17.2';
 /*
  * Περιγραφή: Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς playback.
  * Στόχος: duration-aware start, ρεαλιστικές παύσεις/seek/ένταση.
@@ -174,7 +174,7 @@ export async function initPlayersSequentially(mainList, altList) {
     // Μικρό jitter πριν το πραγματικό wait (δείγμα χρήσης scheduleSafe)
     scheduleSafe(
       function () {
-        log(`🧪 Pre-warm for Player ${i + 1}`);
+        log(`🧪 Player ${i + 1} Safe -> Pre-warm`);
       },
       rndInt(100, 300),
       'humanInit',
