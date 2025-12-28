@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v6.24.9';
+const VERSION = 'v6.24.10';
 /*
 Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
 Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
@@ -18,8 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 // Imports
-import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, retry } from './utils.js';
-import { log, rndInt, anyTrue, allTrue } from './utils.js';
+import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, log, rndInt, anyTrue, allTrue } from './utils.js';
 import { AUTO_NEXT_LIMIT_PER_PLAYER, MAIN_PROBABILITY, canAutoNext, controllers, getOrigin, getYouTubeEmbedHost, hasUserGesture, incAutoNext, stats } from './globals.js';
 
 /*
@@ -346,8 +345,8 @@ export class PlayerController {
   requestPlay() {
     try {
       var pLocal = this.player;
-      if (p) {
-        this.guardPlay(p);
+      if (pLocal) {
+        this.guardPlay(pLocal);
       }
     } catch (err) {
       log(`❌ Player ${this.index + 1} requestPlay Error ${String(err?.message ?? err)}`);
@@ -626,7 +625,7 @@ export class PlayerController {
         try {
           var p = self.player;
           var canCheck = false;
-          if (typeof pLocal !== 'undefined') { if (pLocal !== null) { if (typeof p.getPlayerState === 'function') { canCheck = true; } } }
+          if (typeof p !== 'undefined') { if (p !== null) { if (typeof p.getPlayerState === 'function') { canCheck = true; } } }
           if (canCheck) {
             var st = p.getPlayerState();
             if (st === YT.PlayerState.PAUSED) {

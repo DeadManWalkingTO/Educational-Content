@@ -1,6 +1,11 @@
-# CHANGELOG.md - v207
+# CHANGELOG.md - v208
 
 ---
+
+
+## 2025-12-28
+
+playerController.js: v6.24.9 → v6.24.10 — Refactor: ενοποίηση imports από utils (αφαίρεση `retry`), διόρθωση `requestPlay` (χρήση `pLocal` αντί `p`), διόρθωση `pauseGuardTimer` (αναφορά σε `p`), σταθεροποίηση χωρίς αλλαγή συμπεριφοράς.
 
 ## 2025-12-28
 
