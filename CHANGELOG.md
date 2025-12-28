@@ -4,6 +4,7 @@
 
 ## 2025-12-28
 
+- playerController.js: v6.30.6 → v6.30.7 — Grouped timers (delay/groupCancel), safeSeek with clamp/isNumber, initialSeekSec accepts 0, scheduleMidSeek duration refresh, onError clears timers + grouped AutoNext, ENDED inactivity fallback grouped, post-unmute retry with backoff.
 - playerController.js v6.30.5 → v6.30.6
   - Removed `isValidOrigin` and `originVal`; always pass `origin: getOrigin()` to YouTube `playerVars`.
   - Simplified related logging. No functional changes beyond origin handling.

@@ -1,26 +1,47 @@
+
 // --- playerController.js ---
-const VERSION = 'v6.30.6';
+const VERSION = 'v6.30.7';
 /*
 Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
 Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
  ενδιάμεσες μετακινήσεις (mid-seek), και χειρισμός καταστάσεων/σφαλμάτων.
 */
-
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
-
 // Όνομα αρχείου για logging.
 const FILENAME = import.meta.url.split('/').pop();
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
-
 // Imports
-import { delay as scheduleDelay, repeat, cancel, groupCancel, jitter, log, rndInt, anyTrue, allTrue } from './utils.js';
-import { AUTO_NEXT_LIMIT_PER_PLAYER, MAIN_PROBABILITY, canAutoNext, controllers, getOrigin, getYouTubeEmbedHost, hasUserGesture, incAutoNext, stats } from './globals.js';
+import {
+  delay as scheduleDelay,
+  repeat,
+  cancel,
+  groupCancel,
+  jitter,
+  log,
+  rndInt,
+  anyTrue,
+  allTrue,
+  isFunction,
+  isNumber,
+  clamp,
+  retry
+} from './utils.js';
+import {
+  AUTO_NEXT_LIMIT_PER_PLAYER,
+  MAIN_PROBABILITY,
+  canAutoNext,
+  controllers,
+  getOrigin,
+  getYouTubeEmbedHost,
+  hasUserGesture,
+  incAutoNext,
+  stats
+} from './globals.js';
 import { getRequiredWatchTime, getPausePlan } from './policies.js';
-
 /**
  * Ασφαλές seek με clamps (near-start / near-end) και try/catch (module-level helper).
  * - player: αντικείμενο YouTube player (με seekTo/getDuration)
@@ -29,26 +50,19 @@ import { getRequiredWatchTime, getPausePlan } from './policies.js';
  */
 export function safeSeek(player, targetSec, durationSec) {
   const END_PADDING_SEC = 1.0;
-  let t = typeof targetSec === 'number' ? targetSec : 0;
-  if (t < 0) {
-    t = 0;
-  }
-  const maxT = durationSec - END_PADDING_SEC;
-  if (t > maxT) {
-    t = maxT;
-  }
+  const d = isNumber(durationSec) ? durationSec : 0;
+  const raw = isNumber(targetSec) ? targetSec : 0;
+  const s = clamp(raw, 0, Math.max(0, d - END_PADDING_SEC));
   try {
-    player.seekTo(t, true);
+    player.seekTo(s, true);
   } catch (e) {
     try {
-      const t2 = typeof targetSec === 'number' ? targetSec : 0;
-      player.seekTo(t2, true);
+      player.seekTo(raw, true);
     } catch (_) {
       /* swallow */
     }
   }
 }
-
 /*
  * guardHasAnyList
  * Περιγραφή: Πιστοποιεί ότι υπάρχει τουλάχιστον μία διαθέσιμη λίστα (main ή alt)
@@ -70,7 +84,6 @@ function guardHasAnyList(ctrl) {
   }
   return false;
 }
-
 /**
  * safeCmd(fn, delay)
  * Περιγραφή: Εκτελεί συνάρτηση με μικρή καθυστέρηση, παγιδεύοντας τυχόν σφάλμα.
@@ -87,43 +100,48 @@ function safeCmd(fn, delay = 80) {
         // σκόπιμη αποσιώπηση
       }
     }
-  }, delay);
+  }, delay, 'pc:safeCmd');
 }
-
 /**
  * doSeek(player, seconds)
  * Περιγραφή: Μετακίνηση χρονικής κεφαλής με ελέγχους ορίων (0..duration-1.0).
- * Εάν η duration δεν είναι διαθέσιμη, προχωρά σε άμεση κλήση seekTo(seconds).
+ * Εάν η duration δεν είναι διαθέσιμη, προχωρά σε «τυφλό» seekTo(seconds).
  * Κάνει όλους τους guards και καλεί safeSeek.
  */
 export function doSeek(player, seconds) {
   try {
-    const playerMissing = !player;
-    const durationMissing = player ? typeof player.getDuration !== 'function' : true;
-    const seekMissing = player ? typeof player.seekTo !== 'function' : true;
-    if (anyTrue([playerMissing, durationMissing, seekMissing])) {
+    const noPlayer = !player;
+    const noSeekTo = player ? !isFunction(player.seekTo) : true;
+    const noDurationFn = player ? !isFunction(player.getDuration) : true;
+    if (anyTrue([noPlayer, noSeekTo])) {
+      return;
+    }
+    if (noDurationFn) {
+      const s = isNumber(seconds) ? seconds : 0;
+      try {
+        player.seekTo(s, true);
+      } catch (_) {}
       return;
     }
     let d = player.getDuration();
-    if (typeof d !== 'number') {
+    if (!isNumber(d)) {
       d = 0;
     }
     if (d <= 1) {
       return;
     }
-    const s = typeof seconds === 'number' ? seconds : 0;
+    const s = isNumber(seconds) ? seconds : 0;
     safeSeek(player, s, d);
   } catch (_) {
     // Προαιρετικά: telemetry/logging του error
   }
 }
-
 /**
  * getState(p) / isPlaying(p)
  * Περιγραφή: Βοηθητικές συναρτήσεις για ασφαλή ανάγνωση κατάστασης player και έλεγχο PLAYING.
  */
 function getState(p) {
-  if (allTrue([p ? true : false, typeof p.getPlayerState === 'function'])) {
+  if (allTrue([p ? true : false, isFunction(p.getPlayerState)])) {
     return p.getPlayerState();
   }
   return undefined;
@@ -135,8 +153,7 @@ function isPlaying(p) {
   }
   return false;
 }
-
-/** PlayerController class --- Start */
+/*** PlayerController class --- Start */
 export class PlayerController {
   /**
    * constructor(index, mainList, altList, config)
@@ -164,32 +181,27 @@ export class PlayerController {
     this.seekDefaults = { minGapSec: 90, maxSeeks: 3, nearEndPct: 0.05, fromPct: 0.2, toPct: 0.6 };
     this.seekMeta = { lastMs: 0, count: 0 };
   }
-
+  // Ομαδοποίηση timers ανά player
+  _group(suffix = '') {
+    const base = `pc:${this.index}`;
+    if (suffix === '') {
+      return base;
+    }
+    return `${base}:${suffix}`;
+  }
   // ===== Helpers & Guards =====
   _canSeek() {
     const pMissing = !this.player;
-    const noDuration = this.player ? typeof this.player.getDuration !== 'function' : true;
-    const noSeekTo = this.player ? typeof this.player.seekTo !== 'function' : true;
+    const noDuration = this.player ? !isFunction(this.player.getDuration) : true;
+    const noSeekTo = this.player ? !isFunction(this.player.seekTo) : true;
     return !anyTrue([pMissing, noDuration, noSeekTo]);
   }
   _hasStableDuration() {
     let d = this.player ? this.player.getDuration() : 0;
-    if (typeof d !== 'number') {
+    if (!isNumber(d)) {
       d = 0;
     }
     return d > 1;
-  }
-  _clampTarget(durationSec, targetSec) {
-    const END_PADDING_SEC = 1.0;
-    let t = typeof targetSec === 'number' ? targetSec : 0;
-    if (t < 0) {
-      t = 0;
-    }
-    const maxT = durationSec - END_PADDING_SEC;
-    if (t > maxT) {
-      t = maxT;
-    }
-    return t;
   }
   _safeSeek(seconds) {
     try {
@@ -200,19 +212,23 @@ export class PlayerController {
         return;
       }
       const d = this.player.getDuration();
-      const s = this._clampTarget(d, seconds);
+      const raw = isNumber(seconds) ? seconds : 0;
+      const s = clamp(raw, 0, Math.max(0, d - 1.0));
       try {
         this.player.seekTo(s, true);
       } catch (e) {
         try {
-          this.player.seekTo(typeof seconds === 'number' ? seconds : 0, true);
+          this.player.seekTo(raw, true);
         } catch (_) {}
       }
-      if (typeof stats.seeksDone !== 'number') {
+      if (!isNumber(stats.seeksDone)) {
         stats.seeksDone = 0;
       }
       stats.seeksDone += 1;
     } catch (err) {
+      if (!isNumber(stats.errors)) {
+        stats.errors = 0;
+      }
       stats.errors += 1;
     }
   }
@@ -220,21 +236,20 @@ export class PlayerController {
     if (!this.player) {
       return;
     }
-    if (typeof this.player.seekTo !== 'function') {
+    if (!isFunction(this.player.seekTo)) {
       return;
     }
     this._safeSeek(seconds);
   }
-
   // Unified mid-seek once
   _doMidSeekOnce() {
     try {
       const p = this.player;
       if (anyTrue([!p])) return;
-      const dur = typeof p.getDuration === 'function' ? p.getDuration() : 0;
+      const dur = isFunction(p.getDuration) ? p.getDuration() : 0;
       if (dur < 300) return; // > 5min μόνο
       const nearEnd = this.seekDefaults.nearEndPct;
-      const cur = typeof p.getCurrentTime === 'function' ? p.getCurrentTime() : 0;
+      const cur = isFunction(p.getCurrentTime) ? p.getCurrentTime() : 0;
       if (dur > 0) {
         const nearEndSec = dur * (1 - nearEnd);
         if (cur > nearEndSec) return; // πολύ κοντά στο τέλος
@@ -251,16 +266,22 @@ export class PlayerController {
       this.seekMeta.count = (this.seekMeta.count ?? 0) + 1;
     } catch (_) {}
   }
-
   // Scheduler για mid-seek (σεβασμός config.midSeekInterval)
   scheduleMidSeek() {
     const p = this.player;
     if (anyTrue([!p])) return;
-    const duration = typeof p.getDuration === 'function' ? p.getDuration() : 0;
-    if (duration < 300) return;
     const interval = this.config?.midSeekInterval ?? rndInt(8, 12) * 60000;
     this.timers.midSeek = scheduleDelay(() => {
-      const canPlayNow = allTrue([duration > 0, typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING]);
+      const playerOk = allTrue([!!this.player, isFunction(this.player?.getDuration)]);
+      let dNow = 0;
+      if (playerOk) {
+        dNow = this.player.getDuration();
+      }
+      const canPlayNow = allTrue([
+        dNow > 0,
+        isFunction(this.player?.getPlayerState),
+        this.player.getPlayerState() === YT.PlayerState.PLAYING
+      ]);
       if (canPlayNow) {
         // respect min gap & max seeks
         const now = Date.now();
@@ -275,11 +296,13 @@ export class PlayerController {
         }
       }
       this.scheduleMidSeek(); // επαναπρογραμματισμός
-    }, interval);
+    }, interval, this._group('midseek'));
   }
-
   // Timers helpers με utils.cancel ids
   stopAllTimers() {
+    // Μαζική ακύρωση όλων των grouped timers του player
+    try { groupCancel(this._group()); } catch (_) {}
+    // Επιπλέον καθαρισμός των τοπικών refs
     if (!this.timers) {
       return;
     }
@@ -298,6 +321,7 @@ export class PlayerController {
     }
   }
   clearTimers() {
+    try { groupCancel(this._group()); } catch (_) {}
     this.timers.pauseTimers.forEach((id) => {
       cancel(id);
     });
@@ -312,35 +336,31 @@ export class PlayerController {
     }
     this.expectedPauseMs = 0;
   }
-
   /**
    * tryPlay(p)
    * Περιγραφή: Προσπαθεί να καλέσει playVideo με μικρή τυχαία καθυστέρηση (jitter).
    */
   tryPlay(p) {
     const jitterMs = jitter(150, 0.67); // ~100..200ms
-    const attempt = () => {
-      if (typeof p.playVideo === 'function') {
+    scheduleDelay(() => {
+      if (isFunction(p?.playVideo)) {
         this.guardPlay(p);
       }
-    };
-    setTimeout(attempt, jitterMs);
+    }, jitterMs, this._group('play'));
   }
-
   /**
    * guardPlay(p)
    * Περιγραφή: Ασφαλής κλήση playVideo με παγίδευση σφάλματος για σταθερότητα.
    */
   guardPlay(p) {
     try {
-      if (p ? typeof p.playVideo === 'function' : false) {
+      if (p ? isFunction(p.playVideo) : false) {
         p.playVideo();
       }
     } catch (err) {
       log(`❌ Player ${this.index + 1} LogPlayer Error ${String(err?.message ?? err)}`);
     }
   }
-
   /**
    * requestPlay()
    * Περιγραφή: Δημόσια μέθοδος που ενεργοποιεί αναπαραγωγή στον τρέχοντα player.
@@ -355,7 +375,6 @@ export class PlayerController {
       log(`❌ Player ${this.index + 1} requestPlay Error ${String(err?.message ?? err)}`);
     }
   }
-
   /**
    * init(videoId)
    * Περιγραφή: Δημιουργεί YT.Player με ασφαλή ορισμό origin και callbacks.
@@ -380,7 +399,6 @@ export class PlayerController {
     log(`ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
     log(`👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
   }
-
   /**
    * onReady(e)
    */
@@ -394,12 +412,12 @@ export class PlayerController {
     const __jitterMs = 100 + Math.floor(Math.random() * 120);
     scheduleDelay(() => {
       try {
-        if (typeof e.target.seekTo === 'function') {
-          if (this.initialSeekSec) {
+        if (isFunction(e.target.seekTo)) {
+          if (isNumber(this.initialSeekSec)) {
             safeCmd(() => e.target.seekTo(this.initialSeekSec, true), 120);
           }
         }
-        if (typeof e.target.playVideo === 'function') {
+        if (isFunction(e.target.playVideo)) {
           safeCmd(
             function () {
               try {
@@ -413,55 +431,68 @@ export class PlayerController {
         }
       } catch (__err) {
         try {
+          if (!isNumber(stats.errors)) stats.errors = 0;
           stats.errors++;
           log(`❌ onReady jitter failed: ${String(__err?.message ?? __err)}`);
         } catch (_e) {
           log(`❌ Player ${this.index + 1} onReady Error ${String(_e?.message ?? _e)}`);
         }
       }
-    }, __jitterMs);
+    }, __jitterMs, this._group('ready-jitter'));
     scheduleDelay(() => {
-      const seekSec = typeof this.initialSeekSec === 'number' ? this.initialSeekSec : '-';
+      const seekSec = isNumber(this.initialSeekSec) ? this.initialSeekSec : '-';
       log(`▶ Player ${this.index + 1} Ready -> Seek= ${seekSec}s after ${startDelaySec}s`);
       this.schedulePauses();
       this.scheduleMidSeek();
-    }, startDelay);
+    }, startDelay, this._group('start'));
     // Auto Unmute + fallback
     const unmuteDelayExtra = this.config?.unmuteDelayExtra ?? rndInt(30, 90);
     const unmuteDelay = (startDelaySec + unmuteDelayExtra) * 1000;
     scheduleDelay(() => {
-      if (!hasUserGesture) {
+      const userGesture = !!hasUserGesture;
+      if (!userGesture) {
         this.pendingUnmute = true;
         log(`🔇 Player ${this.index + 1} Awaiting user gesture for unmute`);
         return;
       }
-      if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING])) {
-        if (typeof p.unMute === 'function') p.unMute();
+      if (allTrue([isFunction(p.getPlayerState), p.getPlayerState() === YT.PlayerState.PLAYING])) {
+        if (isFunction(p.unMute)) p.unMute();
         const [vMin, vMax] = this.config?.volumeRange ?? [10, 30];
         const v = rndInt(vMin, vMax);
-        if (typeof p.setVolume === 'function') p.setVolume(v);
+        if (isFunction(p.setVolume)) p.setVolume(v);
         stats.volumeChanges++;
         log(`🔊 Player ${this.index + 1} Auto Unmute -> ${v}%`);
         // γρήγορη επαναδοκιμή play αν προκύψει άμεσο pause μετά το unmute
         scheduleDelay(() => {
-          if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
+          if (allTrue([isFunction(p.getPlayerState), p.getPlayerState() === YT.PlayerState.PAUSED])) {
             log(`🔁 Player ${this.index + 1} Quick retry playVideo after immediate unmute`);
-            if (typeof p.playVideo === 'function') this.guardPlay(p);
+            if (isFunction(p.playVideo)) this.guardPlay(p);
           }
-        }, 250);
-        scheduleDelay(() => {
-          if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
-            log(`⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
-            if (typeof p.playVideo === 'function') this.guardPlay(p);
-          }
-        }, 1000);
+        }, 250, this._group('unmute'));
+        // backoff/jitter retry αντί για σταθερό 1000ms
+        scheduleDelay(async () => {
+          await retry(
+            async () => {
+              const paused = allTrue([isFunction(p.getPlayerState), p.getPlayerState() === YT.PlayerState.PAUSED]);
+              if (paused && isFunction(p.playVideo)) {
+                this.guardPlay(p);
+                return true;
+              }
+              throw new Error('not-ready');
+            },
+            3,
+            200,
+            2,
+            1200,
+            0.3
+          );
+        }, 0, this._group('unmute-retry'));
       } else {
         this.pendingUnmute = true;
         log(`⚠️ Player ${this.index + 1} Auto Unmute skipped -> not playing (will retry on PLAYING)`);
       }
-    }, unmuteDelay);
+    }, unmuteDelay, this._group('unmute'));
   }
-
   /**
    * onStateChange(e)
    */
@@ -474,7 +505,7 @@ export class PlayerController {
       if (hasData) {
         s = e.data;
       } else {
-        const canReadPlayerState = allTrue([!!this.player, typeof this.player?.getPlayerState === 'function']);
+        const canReadPlayerState = allTrue([!!this.player, isFunction(this.player?.getPlayerState)]);
         if (canReadPlayerState) {
           s = this.player.getPlayerState();
         } else {
@@ -484,7 +515,6 @@ export class PlayerController {
     } catch (err) {
       log(`❌ Player ${this.index + 1} StateChange Error ${String(err?.message ?? err)}`);
     }
-
     // === 2) Dispatcher ===
     try {
       const canDispatch = typeof s !== 'undefined';
@@ -492,7 +522,6 @@ export class PlayerController {
         this._stateManagerDispatch(s, e);
       }
     } catch (_) {}
-
     // === 3) Unified State Logging ===
     try {
       // prev state
@@ -504,7 +533,7 @@ export class PlayerController {
       let tSec = 0;
       try {
         const pLocal = this.player;
-        const canCT = allTrue([!!pLocal, typeof pLocal?.getCurrentTime === 'function']);
+        const canCT = allTrue([!!pLocal, isFunction(pLocal?.getCurrentTime)]);
         if (canCT) {
           tSec = pLocal.getCurrentTime();
         }
@@ -580,7 +609,6 @@ export class PlayerController {
       log('Player ' + String(this.index + 1) + ' State: ' + stateName(s) + ' (prev: ' + stateName(prevState) + ') — ' + tag + ' — t=' + String(Math.round(tSec)) + 's');
       this.lastKnownState = s;
     } catch (_) {}
-
     // === 4) Switch: απλά side-effects/logs ===
     try {
       const p = this.player;
@@ -600,22 +628,34 @@ export class PlayerController {
               log(`▶ Player ${this.index + 1} State -> PLAYING`);
               // Unmute retry όταν περάσουμε σε PLAYING και υπάρχει pendingUnmute
               if (allTrue([this.pendingUnmute === true])) {
-                if (!hasUserGesture) {
+                const userGesture = !!hasUserGesture;
+                if (!userGesture) {
                   log(`🔇 Player ${this.index + 1} Still awaiting user gesture before unmute`);
                 } else {
-                  if (typeof p?.unMute === 'function') p.unMute();
+                  if (isFunction(p?.unMute)) p.unMute();
                   const [vMin, vMax] = this.config?.volumeRange ?? [10, 30];
                   const v = rndInt(vMin, vMax);
-                  if (typeof p?.setVolume === 'function') p.setVolume(v);
+                  if (isFunction(p?.setVolume)) p.setVolume(v);
                   this.pendingUnmute = false;
                   stats.volumeChanges++;
                   log(`🔊 Player ${this.index + 1} Unmute after PLAYING -> ${v}%`);
-                  scheduleDelay(() => {
-                    if (allTrue([typeof p?.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PAUSED])) {
-                      log(`⚠️ Player ${this.index + 1} Unmute Fallback -> Retry PlayVideo`);
-                      if (typeof p?.playVideo === 'function') this.guardPlay(p);
-                    }
-                  }, 1000);
+                  scheduleDelay(async () => {
+                    await retry(
+                      async () => {
+                        const paused = allTrue([isFunction(p?.getPlayerState), p.getPlayerState() === YT.PlayerState.PAUSED]);
+                        if (paused && isFunction(p?.playVideo)) {
+                          this.guardPlay(p);
+                          return true;
+                        }
+                        throw new Error('not-ready');
+                      },
+                      3,
+                      200,
+                      2,
+                      1200,
+                      0.3
+                    );
+                  }, 1000, this._group('unmute-retry'));
                 }
               }
             } else {
@@ -626,7 +666,7 @@ export class PlayerController {
                   log(`🟠 Player ${this.index + 1} State -> BUFFERING`);
                 } else {
                   if (s === YT.PlayerState.CUED) {
-                    log(`🟢 Player ${this.index + 1} State -> CUED`);
+                    log(`🎯 Player ${this.index + 1} State -> CUED`);
                   } else {
                     log(`🔴 Player ${this.index + 1} State -> UNKNOWN (${String(s)})`);
                     if (allTrue([this.isPlayingActive === true, s !== YT.PlayerState.PLAYING])) {
@@ -640,13 +680,12 @@ export class PlayerController {
         }
       }
     } catch (_) {}
-
     // Accumulated play time
     if (typeof s !== 'undefined') {
       const p = this.player;
       if (s === YT.PlayerState.PLAYING) {
         this.playingStart = Date.now();
-        this.currentRate = typeof p?.getPlaybackRate === 'function' ? p.getPlaybackRate() : 1.0;
+        this.currentRate = isFunction(p?.getPlaybackRate) ? p.getPlaybackRate() : 1.0;
       } else {
         const endedOrPaused = anyTrue([s === YT.PlayerState.PAUSED, s === YT.PlayerState.ENDED]);
         if (allTrue([!!this.playingStart, endedOrPaused])) {
@@ -657,7 +696,6 @@ export class PlayerController {
       if (s === YT.PlayerState.BUFFERING) this.lastBufferingStart = Date.now();
       if (s === YT.PlayerState.PAUSED) this.lastPausedStart = Date.now();
     }
-
     // PauseGuard με utils.delay/cancel
     try {
       if (this.pauseGuardTimer) {
@@ -678,7 +716,7 @@ export class PlayerController {
           let canCheck = false;
           if (typeof p !== 'undefined') {
             if (p !== null) {
-              if (typeof p.getPlayerState === 'function') {
+              if (isFunction(p.getPlayerState)) {
                 canCheck = true;
               }
             }
@@ -687,8 +725,8 @@ export class PlayerController {
             const st = p.getPlayerState();
             if (st === YT.PlayerState.PAUSED) {
               try {
-                if (typeof tryRequestPlay === 'function') {
-                  tryRequestPlay(self);
+                if (isFunction(self.guardPlay)) {
+                  self.guardPlay(p);
                 } else {
                   p.playVideo();
                 }
@@ -700,15 +738,14 @@ export class PlayerController {
             }
           }
         } catch (_) {}
-      }, basePause + slack);
+      }, basePause + slack, self._group('pause-guard'));
     })(this);
-
     // === 5) Ενιαία απόφαση AutoNext (μετά από ENDED) ===
     try {
       const p = this.player;
       const isEnded = typeof s !== 'undefined' ? s === YT.PlayerState.ENDED : false;
       if (isEnded) {
-        const duration = typeof p?.getDuration === 'function' ? p.getDuration() : 0;
+        const duration = isFunction(p?.getDuration) ? p.getDuration() : 0;
         const percentWatched = duration > 0 ? Math.round((this.totalPlayTime / duration) * 100) : 0;
         log(`✅ Player ${this.index + 1} Watched -> ${percentWatched}% (duration:${duration}s, playTime:${Math.round(this.totalPlayTime)}s)`);
         const afterEndPauseMs = rndInt(15000, 60000);
@@ -725,7 +762,7 @@ export class PlayerController {
                 stats.errors++;
                 log(`❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
               }
-            }, 15000);
+            }, 15000, this._group('inactivity'));
             return;
           }
           if (guardHasAnyList(this)) {
@@ -734,29 +771,30 @@ export class PlayerController {
             stats.errors++;
             log(`❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
           }
-        }, afterEndPauseMs);
+        }, afterEndPauseMs, this._group('ended'));
       }
     } catch (_) {}
   }
-
   /**
    * onError()
    */
   onError() {
+    try { this.clearTimers(); } catch (_) {}
     if (guardHasAnyList(this)) {
-      this.loadNextVideo(this.player);
-      log(`❌ Player ${this.index + 1} Error -> AutoNext`);
+      scheduleDelay(() => {
+        this.loadNextVideo(this.player);
+        log(`❌ Player ${this.index + 1} Error -> AutoNext`);
+      }, rndInt(250, 1000), this._group('autonext'));
     } else {
       log(`❌ Player ${this.index + 1} AutoNext aborted -> no available list`);
     }
     stats.errors++;
   }
-
   /**
    * loadNextVideo(player)
    */
   loadNextVideo(player) {
-    if (!allTrue([player ? true : false, typeof player.loadVideoById === 'function'])) {
+    if (!allTrue([player ? true : false, isFunction(player.loadVideoById)])) {
       stats.errors++;
       log(`❌ AutoNext skipped -> player/loadVideoById unavailable`);
       return;
@@ -793,18 +831,17 @@ export class PlayerController {
     this.schedulePauses();
     this.scheduleMidSeek();
   }
-
   /**
    * schedulePauses()
    */
   schedulePauses() {
     const p = this.player;
     if (anyTrue([!p])) return;
-    if (!allTrue([p ? true : false, typeof p.getDuration === 'function'])) return;
+    if (!allTrue([p ? true : false, isFunction(p.getDuration)])) return;
     const duration = p.getDuration();
     if (duration <= 0) return;
     const plan = getPausePlan(duration);
-    const pauseChance = typeof this.config?.pauseChance === 'number' ? this.config.pauseChance : 0.3;
+    const pauseChance = isNumber(this.config?.pauseChance) ? this.config.pauseChance : 0.3;
     let count = plan.count;
     if (pauseChance < 0.5) {
       count = Math.max(0, Math.floor(count * pauseChance));
@@ -813,7 +850,7 @@ export class PlayerController {
       const delayMs = rndInt(Math.floor(duration * 0.1), Math.floor(duration * 0.8)) * 1000;
       const pauseLen = rndInt(plan.min, plan.max) * 1000;
       const id = scheduleDelay(() => {
-        if (allTrue([typeof p.getPlayerState === 'function', p.getPlayerState() === YT.PlayerState.PLAYING])) {
+        if (allTrue([isFunction(p.getPlayerState), p.getPlayerState() === YT.PlayerState.PLAYING])) {
           p.pauseVideo();
           stats.pauses++;
           this.expectedPauseMs = pauseLen;
@@ -821,13 +858,12 @@ export class PlayerController {
           scheduleDelay(() => {
             this.guardPlay(p);
             this.expectedPauseMs = 0;
-          }, pauseLen);
+          }, pauseLen, this._group('pause'));
         }
-      }, delayMs);
+      }, delayMs, this._group('pause'));
       this.timers.pauseTimers.push(id);
     }
   }
-
   /**
    * _stateManagerDispatch(state, event)
    */
@@ -867,8 +903,7 @@ export class PlayerController {
     log(`🎯 Player ${this.index + 1} State = CUED`);
   }
 }
-/** PlayerController class --- End */
-
+/*** PlayerController class --- End */
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 // --- End Of File ---
