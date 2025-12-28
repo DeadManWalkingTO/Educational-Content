@@ -1,9 +1,9 @@
 // --- policies.js ---
-const VERSION = 'v1.8.0';
+const VERSION = 'v1.9.0';
 /*
  * Περιγραφή: Ενιαίο module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
- * Προφίλ: explorer | casual | focused (εναρμονισμένα με HumanMode).
- * Εξαρτήσεις: utils.js (rndInt, anyTrue, allTrue).
+ * Αλλαγές: Ενσωμάτωση ποικιλίας στο start-seek ανά profile (Explorer/Casual/Focused).
+ * API: getBehaviorPlan(ctx) -> περιλαμβάνει startSeek.targetSec από getStartSeek(duration, profileName).
  */
 
 // --- Export Version ---
@@ -31,6 +31,7 @@ export function getRequiredWatchTime(durationSec) {
   var capSec = (15 + rndInt(0, 5)) * 60;
   var minPct = 0.5;
   var maxPct = 0.7;
+
   if (durationSec < 120) {
     minPct = 0.92;
     maxPct = 1.0;
@@ -53,18 +54,23 @@ export function getRequiredWatchTime(durationSec) {
       }
     }
   }
+
   var span = maxPct - minPct;
   if (span < 0) {
     span = 0;
   }
+
   var pct = minPct + Math.random() * span;
   var b = rndInt(-1, 1);
   var bias = b * 0.01;
   pct = pct + bias;
+
   if (pct < 0.05) {
     pct = 0.05;
   }
+
   var required = Math.floor(durationSec * pct);
+
   if (required > capSec) {
     required = capSec;
   }
@@ -91,40 +97,67 @@ export function getPausePlan(durationSec) {
   return { count: rndInt(4, 5), min: 90, max: 160 };
 }
 
-/* ========================= Start-Seek =========================
+/* ========================= Start-Seek (με ποικιλία ανά profile) =========================
  * < 2 min: 0–10%
  * 2–5 min: 0–15%
  * 5–30 min: 0–20%
  * 30–120 min: 0–20%
  * > 120 min: 0–25%
+ *
+ * Προσαρμογές:
+ * - Explorer: +2% μονάδες στο max (όχι πάνω από 25%) σε κάθε εύρος.
+ * - Focused : -3% μονάδες στο max (όχι κάτω από 8%) σε μικρά/μεσαία εύρη.
+ * - Casual  : baseline (χωρίς αλλαγές).
  */
-export function getStartSeek(durationSec) {
+export function getStartSeek(durationSec, profileName) {
   if (typeof durationSec !== 'number') {
     return 0;
   }
   if (durationSec <= 0) {
     return 0;
   }
-  var maxPct = 0.1;
+
+  var baseMaxPct = 0.1;
   if (durationSec < 120) {
-    maxPct = 0.1;
+    baseMaxPct = 0.1;
   } else {
     if (durationSec < 300) {
-      maxPct = 0.15;
+      baseMaxPct = 0.15;
     } else {
       if (durationSec < 1800) {
-        maxPct = 0.2;
+        baseMaxPct = 0.2;
       } else {
         if (durationSec < 7200) {
-          maxPct = 0.2;
+          baseMaxPct = 0.2;
         } else {
-          maxPct = 0.25;
+          baseMaxPct = 0.25;
         }
       }
     }
   }
+
+  var name = typeof profileName === 'string' ? profileName.toLowerCase() : 'unknown';
+  var maxPct = baseMaxPct;
+
+  if (name === 'explorer') {
+    maxPct = maxPct + 0.02;
+    if (maxPct > 0.25) {
+      maxPct = 0.25;
+    }
+  } else {
+    if (name === 'focused') {
+      // πιο συντηρητικό start-seek
+      maxPct = maxPct - 0.03;
+      // κάτω όριο ασφαλείας (για πολύ μικρά)
+      if (maxPct < 0.08) {
+        maxPct = 0.08;
+      }
+    }
+  }
+
   var pct = Math.random() * maxPct;
   var target = Math.floor(durationSec * pct);
+
   var pad = 2;
   var maxTarget = Math.max(0, Math.floor(durationSec - pad));
   if (target > maxTarget) {
@@ -137,9 +170,9 @@ export function getStartSeek(durationSec) {
 }
 
 /* ========================= Behavior Plan (Κεντρική Πολιτική) =========================
- * getBehaviorPlan(ctx) ενοποιεί:
+ * Ενοποιεί:
  * - watch.requiredWatchTimeSec
- * - startSeek.targetSec
+ * - startSeek.targetSec (με profile-aware ποικιλία)
  * - pauses.{count,minSec,maxSec}
  * - midSeek.{enabled,intervalMs,minGapSec,maxSeeks,fromPct,toPct,nearEndPct}
  * - unmute.{enabled,baseDelaySec,extraDelaySecRange,volumeRangePct}
@@ -149,14 +182,15 @@ export function getBehaviorPlan(ctx) {
   if (hasCtx !== true) {
     return _defaultPlan();
   }
+
   const d = Number(ctx.durationSec);
   const prof = typeof ctx.profileName === 'string' ? ctx.profileName.toLowerCase() : 'unknown';
   const isFirst = ctx.isFirstVideo === true;
-  const baseStartDelaySec =
-    typeof ctx.baseStartDelaySec === 'number' ? ctx.baseStartDelaySec : isFirst ? rndInt(5, 180) : rndInt(2, 10);
+
+  const baseStartDelaySec = typeof ctx.baseStartDelaySec === 'number' ? ctx.baseStartDelaySec : isFirst ? rndInt(5, 180) : rndInt(2, 10);
 
   const watchRequired = getRequiredWatchTime(d);
-  const startSeekSec = getStartSeek(d);
+  const startSeekSec = getStartSeek(d, prof);
   const pausePlan = getPausePlan(d);
   const midSeekPlan = _getMidSeekPlan(d, prof);
 
@@ -185,6 +219,7 @@ function _getMidSeekPlan(durationSec, profileName) {
   if (d < 300) {
     return { enabled: false, notes: 'short-video' };
   }
+
   let intervalMs = 0;
   let minGapSec = 120;
   let maxSeeks = 2;
