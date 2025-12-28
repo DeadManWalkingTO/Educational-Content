@@ -1,9 +1,10 @@
-# CHANGELOG.md - v211
+# CHANGELOG.md - v212
 
 ---
 
 ## 2025-12-28
 
+- playerController.js: v6.30.2 → v6.30.3, Προσθήκη State Manager dispatcher και event 'videoEnded' για ENDED. Συμβατότητα με υπάρχοντα API.
 - playerController.js: v6.30.1 → v6.30.2
   Summary: Non-functional refactor — added helpers (\_canSeek, \_hasStableDuration, \_clampTarget, \_safeSeek), refactored doSeek, mid-seek guards, timers registry, region markers, JSDoc placeholders.
   Notes: No public API changes; only internal cleanup.
@@ -691,3 +692,5 @@ DRY refactor: Replace imports from globals.js → utils.js (where feasible)
 - **Αρχείο**: Notes
 - **Summary**: Added gate in doSeek() and routed seekTo via execStateCommand to enforce onReady rule.
 - Tests: Reduced www-widgetapi origin mismatch warnings; PLAYING sequence unaffected.
+
+---

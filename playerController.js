@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v6.30.2';
+const VERSION = 'v6.30.3';
 /*
 Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
 Σκοπός: Οργάνωση ροής αναπαραγωγής, αυτόματη μετάβαση (AutoNext), προγραμματισμένες παύσεις,
@@ -570,7 +570,12 @@ export class PlayerController {
       log(`❌ Player ${this.index + 1} StateChange Error ${String(err?.message ?? err)}`);
     }
 
-    // Unified State Logging (scheduled/random)
+    
+    try {
+      this._stateManagerDispatch(s, e);
+    } catch (_) {}
+
+// Unified State Logging (scheduled/random)
     try {
       var currentState = s;
       var prevState = this.lastKnownState;
@@ -972,6 +977,52 @@ export class PlayerController {
     }
 
     this.expectedPauseMs = 0;
+  }
+
+  /**
+   * _stateManagerDispatch(state, event)
+   * Κεντρικός dispatcher καταστάσεων YT.PlayerState -> handlers.
+   */
+  _stateManagerDispatch(state, event) {
+    const handlers = {
+      [YT.PlayerState.UNSTARTED]: () => this._onUnstarted(),
+      [YT.PlayerState.ENDED]: () => this._onEnded(),
+      [YT.PlayerState.PLAYING]: () => this._onPlaying(),
+      [YT.PlayerState.PAUSED]: () => this._onPaused(),
+      [YT.PlayerState.BUFFERING]: () => this._onBuffering(),
+      [YT.PlayerState.CUED]: () => this._onCued(),
+    };
+    const h = handlers[state];
+    if (typeof h !== 'undefined') {
+      h();
+    }
+  }
+
+  _onUnstarted() {
+    log(`🎬 Player ${this.index + 1} State→ UNSTARTED`);
+  }
+
+  _onEnded() {
+    log(`🏁 Player ${this.index + 1} State→ ENDED`);
+    try {
+      window.dispatchEvent(new CustomEvent('videoEnded', { detail: { index: this.index } }));
+    } catch (_) {}
+  }
+
+  _onPlaying() {
+    log(`▶️ Player ${this.index + 1} State→ PLAYING`);
+  }
+
+  _onPaused() {
+    log(`⏸️ Player ${this.index + 1} State→ PAUSED`);
+  }
+
+  _onBuffering() {
+    log(`⏳ Player ${this.index + 1} State→ BUFFERING`);
+  }
+
+  _onCued() {
+    log(`🎯 Player ${this.index + 1} State→ CUED`);
   }
 }
 /** PlayerController class --- End */
