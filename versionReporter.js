@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v3.20.0';
+const VERSION = 'v3.20.1';
 /*
  * Περιγραφή:
  * Συγκεντρώνει εκδόσεις όλων των modules και του HTML. Ελαφρύς renderer για panel/κείμενο,
@@ -183,7 +183,7 @@ export function renderVersionsPanel(versionsObj) {
 
   const wrapStyle = 'font-family: system-ui,Segoe UI,Roboto,Ubuntu; background:#0f172a; color:#e2e8f0; border-radius:8px; padding:8px 10px; line-height:1.35;';
   const titleStyle = 'font-weight:600; margin:0 0 6px 0; color:#a7f3d0;';
-  const gridStyle = 'display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:6px;';
+  const gridStyle = 'display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:6px;';
   const itemStyle = 'background:#1e293b; border-radius:6px; padding:4px 6px;';
   const textStyle = 'display:flex; align-items:center; gap:6px; font-weight:600; color:#f1f5f9;';
 
