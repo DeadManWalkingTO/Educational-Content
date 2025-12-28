@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v6.45.1';
+const VERSION = 'v6.45.2';
 /*
  * Περιγραφή: Ελεγκτής αναπαραγωγής (PlayerController) για ενσωματωμένους YouTube players.
  * - Dynamic end-padding σε clamp όλων των seeks (≥3s ή ~5% της διάρκειας).
@@ -278,7 +278,7 @@ export class PlayerController {
 
     /* Behavior plan — logs */
     const seekInfo = isNumber(targetSec) ? targetSec : '-';
-    log(`🕒 Player ${this.index + 1} Behavior Plan Start Seek -> Seek=${seekInfo}s`);
+    log(`⏩ Player ${this.index + 1} Behavior Plan Start Seek -> Seek=${seekInfo}s`);
 
     /* Εγγραφή Pauses/MidSeek βάσει policy */
     this.schedulePauses();
