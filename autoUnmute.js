@@ -1,5 +1,5 @@
 // --- autoUnmute.js ---
-const VERSION = 'v2.3.8';
+const VERSION = 'v2.3.9';
 /*
  * Περιγραφή: Ασφαλές auto-unmute με clamps 0..100, safe logging index και προαιρετικό micro-adjust.
  * Σημείωση v2.3.2: Το delayed-unmute εφαρμόζεται από τον PlayerController (onStateChange -> scheduleSafe),
@@ -19,7 +19,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* Imports */
 import { allTrue, anyTrue, isFunction, isNumber, clamp, log, rndInt } from './utils.js';
-import { stats } from './stats.js';
+import { stats } from './globals.js';
 
 /* Βοηθητικό: ασφαλές index σε 1-based */
 function _toIndexShown(v) {
