@@ -1,9 +1,10 @@
 // --- playerController.js ---
-const VERSION = 'v7.1.4';
+const VERSION = 'v7.1.5';
 /*
  * Περιγραφή: Ελεγκτής αναπαραγωγής για YouTube IFrame API με ανθρώπινη συμπεριφορά.
+ * Χρήση utils API: scheduleSafe, delay, repeat, cancel, groupCancel, retry, debounce, throttle, clamp, log.
  * Πολιτικές: unmute, pauses, mid-seeks, duration-aware start, ENCODED ενσωμάτωση AutoNext μέσω autoNext.js.
- * ΝΕΟ: Διαβάζει από plan.unmute.playingGraceMsRange το παράθυρο καθυστέρησης για το unmute στο PLAYING.
+ * ΝΕΟ v7.1.5: Το unmute προγραμματίζεται με totalDelay = baseDelaySec + extraDelaySecRange (+ προαιρετικό playingGraceMsRange).
  */
 
 // --- Export Version ---
@@ -55,8 +56,8 @@ const stateLogDebounced = debounce((idx, msg) => {
 /* ===== PlayerController ===== */
 export class PlayerController {
   constructor(index, mainList, altList, config = null) {
-    this.pendingUnmute = false;
-    this.unmuteScheduled = false;
+    this.pendingUnmute = false; // Λύση Α: μπλοκάρει scheduled volume πριν ολοκληρωθεί το unmute
+    this.unmuteScheduled = false; // guard ώστε να μη γίνει διπλός προγραμματισμός
     this.index = index;
     this.mainList = Array.isArray(mainList) ? mainList : [];
     this.altList = Array.isArray(altList) ? altList : [];
@@ -274,7 +275,7 @@ export class PlayerController {
         state = e?.data;
       } catch (_) {}
 
-      // Καθυστερημένο auto-unmute μετά από PLAYING, βάσει πολιτικής
+      // Καθυστερημένο auto-unmute: totalDelay = baseDelaySec + extraDelaySecRange (+ προαιρετικό grace)
       if (typeof YT !== 'undefined') {
         if (typeof YT?.PlayerState !== 'undefined') {
           if (state === YT.PlayerState.PLAYING) {
@@ -283,9 +284,10 @@ export class PlayerController {
               shouldSchedule = false;
             }
             if (shouldSchedule === true) {
-              // Ανάγνωση εύρους grace από plan.unmute.playingGraceMsRange
-              let gMin = 1500;
-              let gMax = 3000;
+              // 1) Ανάγνωση βάσης & επιπλέον καθυστέρησης από το plan.unmute
+              let baseSec = 5;
+              let extraMin = 0;
+              let extraMax = 0;
               try {
                 const u = this.plan?.unmute;
                 let hasU = false;
@@ -295,37 +297,102 @@ export class PlayerController {
                   }
                 }
                 if (hasU === true) {
-                  const arr = u.playingGraceMsRange;
+                  let b = Number(u.baseDelaySec);
+                  let okB = isNumber(b);
+                  if (okB === true) {
+                    baseSec = Math.floor(b);
+                  }
+                  const arr = u.extraDelaySecRange;
                   let isArr = false;
                   if (Array.isArray(arr)) {
                     isArr = true;
                   }
                   if (isArr === true) {
                     let a = Number(arr[0]);
-                    let b = Number(arr[1]);
+                    let b2 = Number(arr[1]);
                     let aOk = isNumber(a);
-                    let bOk = isNumber(b);
+                    let bOk = isNumber(b2);
                     if (allTrue([aOk === true, bOk === true]) === true) {
-                      gMin = a;
-                      gMax = b;
+                      extraMin = Math.floor(a);
+                      extraMax = Math.floor(b2);
                     }
                   }
                 }
               } catch (_) {}
-              const graceMs = rndInt(Math.floor(gMin / 1), Math.floor(gMax / 1));
+
+              // 2) Υπολογισμός extraDelay (sec) και totalDelayMs
+              let extraSec = 0;
+              try {
+                if (extraMax >= extraMin) {
+                  extraSec = rndInt(extraMin, extraMax);
+                }
+              } catch (_) {}
+              const totalDelayMs = Math.max(0, (baseSec + extraSec) * 1000);
+
+              // 3) Προαιρετικό grace μετά το PLAYING (από πολιτική, αν υπάρχει)
+              let gMin = 0;
+              let gMax = 0;
+              try {
+                const u = this.plan?.unmute;
+                let hasU = false;
+                if (typeof u !== 'undefined') {
+                  if (u !== null) {
+                    hasU = true;
+                  }
+                }
+                if (hasU === true) {
+                  const gr = u.playingGraceMsRange;
+                  let isArr = false;
+                  if (Array.isArray(gr)) {
+                    isArr = true;
+                  }
+                  if (isArr === true) {
+                    let a = Number(gr[0]);
+                    let b = Number(gr[1]);
+                    let aOk = isNumber(a);
+                    let bOk = isNumber(b);
+                    if (allTrue([aOk === true, bOk === true]) === true) {
+                      gMin = Math.max(0, Math.floor(a));
+                      gMax = Math.max(0, Math.floor(b));
+                      if (gMax < gMin) {
+                        gMax = gMin;
+                      }
+                    }
+                  }
+                }
+              } catch (_) {}
+              let graceMs = 0;
+              try {
+                if (gMax >= gMin) {
+                  graceMs = rndInt(gMin, gMax);
+                }
+              } catch (_) {}
+
+              // 4) Τελική καθυστέρηση
+              const finalDelayMs = totalDelayMs + graceMs;
+
               this.unmuteScheduled = true;
               scheduleSafe(
                 () => {
                   try {
                     handlePendingUnmute(this.player, this.plan, this);
-                    this.pendingUnmute = false;
+                    this.pendingUnmute = false; // επιτρέπουμε τις scheduled αλλαγές έντασης
                   } catch (_) {}
                 },
-                graceMs,
+                finalDelayMs,
                 this._group('unmute'),
                 'delayed-unmute'
               );
-              log(`🔕 Player ${this.index + 1} Unmute scheduled after ${Math.round(graceMs / 1000)}s`);
+
+              const totalSecShown = Math.round(finalDelayMs / 1000);
+              const parts = [];
+              parts.push(`base=${String(baseSec)}s`);
+              parts.push(`extra=${String(extraSec)}s`);
+              if (graceMs > 0) {
+                parts.push(`grace=${String(Math.round(graceMs / 1000))}s`);
+              }
+              const detail = parts.join(' + ');
+              log(`🔕 Player ${this.index + 1} Unmute scheduled after ${String(totalSecShown)}s (${detail})`);
             }
           }
         }
@@ -832,4 +899,5 @@ export class PlayerController {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+
 // --- End Of File ---
