@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v7.1.5';
+const VERSION = 'v7.1.9';
 /*
  * Περιγραφή: Ελεγκτής αναπαραγωγής για YouTube IFrame API με ανθρώπινη συμπεριφορά.
  * Χρήση utils API: scheduleSafe, delay, repeat, cancel, groupCancel, retry, debounce, throttle, clamp, log.
@@ -636,7 +636,10 @@ export class PlayerController {
         const target = rndInt(lo, hi);
         if (isFunction(p.setVolume)) {
           p.setVolume(target);
-          log(`🔈 Player ${this.index + 1} PC Volume → ${target}%`);
+          try {
+            stats.volumeChanges = (stats.volumeChanges ?? 0) + 1;
+          } catch (_) {}
+          log(`🔈 Player ${this.index + 1} Volume → ${target}%`);
         }
       } catch (_) {}
     };
@@ -767,6 +770,9 @@ export class PlayerController {
                       if (tgt < 0) tgt = 0;
                       if (tgt > 100) tgt = 100;
                       p.setVolume(tgt);
+                      try {
+                        stats.volumeChanges = (stats.volumeChanges ?? 0) + 1;
+                      } catch (_) {}
                       log(`🔉 Player ${this.index + 1} Micro-volume adjust → ${tgt}% (Δ=${delta})`);
                     }
                   } catch (_) {}
@@ -811,6 +817,9 @@ export class PlayerController {
                       if (tgt < 0) tgt = 0;
                       if (tgt > 100) tgt = 100;
                       p.setVolume(tgt);
+                      try {
+                        stats.volumeChanges = (stats.volumeChanges ?? 0) + 1;
+                      } catch (_) {}
                       log(`🔉 Player ${this.index + 1} Micro-volume adjust → ${tgt}% (Δ=${delta})`);
                     }
                   } catch (_) {}
@@ -834,6 +843,9 @@ export class PlayerController {
             if (tgt < 0) tgt = 0;
             if (tgt > 100) tgt = 100;
             p.setVolume(tgt);
+            try {
+              stats.volumeChanges = (stats.volumeChanges ?? 0) + 1;
+            } catch (_) {}
             log(`🔉 Player ${this.index + 1} Micro-volume adjust → ${tgt}% (Δ=${delta})`);
           } catch (_) {}
         },
