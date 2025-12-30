@@ -1,8 +1,8 @@
 // --- playerController.js ---
-const VERSION = 'v7.7.6';
+const VERSION = 'v7.7.8';
 /*
- * - Προσθήκη watch-time trigger (seek/pause-aware) με progress checker.
- * - Flags: autoNextScheduled, watchtimeFired, lastSeekAt, lastKnownCT.
+ * - Προσθήκη watch-time trigger (seek/pause-aware) έχει μεταφερθεί πλέον σε watchdog.js.
+ * - Flags: autoNextScheduled, watchtimeFired, lastSeekAt, lastKnownCT (διατηρούνται για συμβατότητα).
  * - Σήμανση auto-seek στο _safeSeek(), ανίχνευση external seek με jump στο getCurrentTime().
  */
 
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, cancel, groupCancel, jitter, log, rndInt, allTrue, isNumber, isDefined, repeat } from './utils.js';
+import { scheduleSafe, cancel, groupCancel, jitter, log, rndInt, allTrue, isNumber, isDefined } from './utils.js';
 import { MAIN_PROBABILITY, getOrigin, getYouTubeEmbedHost, stats } from './globals.js';
 import { getBehaviorPlan } from './policies.js';
 import { onStateChangeExternal } from './playerStateEngine.js';
@@ -55,9 +55,9 @@ export class PlayerController {
     this.unmuteScheduled = false;
     // --- Νέα πεδία για watch-time & autonext state ---
     this.lastSeekAt = null; // timestamp τελευταίου seek (auto ή external)
-    this.lastKnownCT = 0; // τελευταία δειγματοληψία currentTime
-    this.watchtimeFired = false; // αποφυγή διπλού trigger από progress
-    this.autoNextScheduled = false; // αν έχει ήδη προγραμματιστεί AutoNext (π.χ. από watch-time)
+    this.lastKnownCT = 0; // τελευταία διεγματοληψία currentTime
+    this.watchtimeFired = false; // trigger από watchdog πλέον
+    this.autoNextScheduled = false; // έχει ήδη προγραμματιστεί AutoNext (π.χ. από watchdog)
     this.cooldowns = { seekMs: 1500, pauseMs: 800 }; // gates μετά από seek/pause
     this.continuity = { minPlaySec: 4 }; // ελάχιστη συνεχόμενη αναπαραγωγή πριν το trigger
   }
@@ -70,7 +70,6 @@ export class PlayerController {
     }
     return `${base}:${suffix}`;
   }
-
   _can(obj, methodName) {
     if (typeof obj === 'undefined') {
       return false;
@@ -84,7 +83,6 @@ export class PlayerController {
     }
     return false;
   }
-
   _ytDefined() {
     let ok = false;
     if (typeof YT !== 'undefined') {
@@ -94,7 +92,6 @@ export class PlayerController {
     }
     return ok;
   }
-
   _isPlaying(p) {
     let playing = false;
     const parts = [];
@@ -110,7 +107,6 @@ export class PlayerController {
     }
     return playing;
   }
-
   _isMuted(p) {
     let muted = false;
     const parts = [];
@@ -125,17 +121,15 @@ export class PlayerController {
     }
     return muted;
   }
-
   _safeSeek(seconds) {
     try {
-      // Σήμανση seek πριν από το delegation στο autoSeek
+      // Σήμανση seek πριν από delegation στο autoSeek
       this.lastSeekAt = Date.now();
       safeSeekExternal(this, seconds);
     } catch (err) {
       // no-op
     }
   }
-
   _scheduleWhenPlayingAndUnmuted(taskFn, retryMinMs, retryMaxMs, groupSuffix, tag) {
     const attempt = () => {
       try {
@@ -250,7 +244,6 @@ export class PlayerController {
     try {
       this.plan = getBehaviorPlan(ctx);
     } catch (_) {}
-
     let targetSec = 0;
     const hasPlan = typeof this.plan !== 'undefined' ? this.plan !== null : false;
     if (hasPlan === true) {
@@ -263,14 +256,11 @@ export class PlayerController {
         }
       }
     }
-
     // Auto-unmute integration: μόνο flags (το scheduling γίνεται στο state engine)
     this.pendingUnmute = true;
     this.unmuteScheduled = false;
-
     // --- Αρχικό seek μέσω autoSeek ---
     applyInitSeek(this, targetSec);
-
     // Guard play (jitter)
     const jitterMs = jitter(240, 0.5);
     scheduleSafe(
@@ -285,14 +275,10 @@ export class PlayerController {
       this._group('play'),
       'guardPlay-initial'
     );
-
     const seekInfo = isNumber(targetSec) === true ? targetSec : '-';
     log(`⏩ Player ${this.index + 1} Behavior Plan Start Seek -> Seek=${seekInfo}s`);
 
-    // --- ΝΕΟ: Progress checker για watch-time (seek/pause-aware) ---
-    try {
-      this.scheduleProgressCheck();
-    } catch (_) {}
+    // --- ΣΗΜΑΝΤΙΚΟ: ΔΕΝ καλούμε πλέον scheduleProgressCheck() (μεταφέρθηκε στον watchdog) ---
 
     // Schedulers (pauses από autoPause, mid-seek, volume)
     schedulePauses(this);
@@ -351,6 +337,7 @@ export class PlayerController {
       this.timers.midSeek = null;
     }
     if (typeof this.timers.progressCheck === 'number') {
+      // Δεν χρησιμοποιούμε πλέον progressCheck, αλλά αν έχει μείνει από παλιό run, καθαρίζεται.
       cancel(this.timers.progressCheck);
       this.timers.progressCheck = null;
     }
@@ -366,7 +353,7 @@ export class PlayerController {
     this.expectedPauseMs = 0;
   }
 
-  // ---------- Deprecated wrapper: ενιαίο AutoNext από autoNext.js ----------
+  // ---------- Deprecated wrapper: ένδειξη AutoNext από autoNext.js ----------
   loadNextVideo(player) {
     try {
       autoNextAfterEnded(this);
@@ -375,31 +362,7 @@ export class PlayerController {
     }
   }
 
-  // ---------- ΝΕΟ: υπολογισμός πραγματικά παιγμένου χρόνου ----------
-  _computePlayedSoFarSec() {
-    let base = 0;
-    if (isNumber(this.totalPlayTime) === true) {
-      base = this.totalPlayTime;
-    }
-    let extra = 0;
-    const parts = [];
-    parts.push(isNumber(this.currentRate) === true);
-    parts.push(isDefined(this.playingStart) === true);
-    const canExtra = allTrue(parts);
-    if (canExtra === true) {
-      const ms = Date.now() - this.playingStart;
-      const rate = this.currentRate;
-      extra = (ms / 1000) * rate;
-    }
-    const total = base + extra;
-    let out = Math.floor(total);
-    if (out < 0) {
-      out = 0;
-    }
-    return out;
-  }
-
-  // ---------- ΝΕΟ: ανίχνευση external/user seek μέσω jump στο currentTime ----------
+  // ---------- ΝΕΟ: ανίχνευση external/user seek με jump στο currentTime ----------
   _detectExternalSeekAndMark() {
     try {
       const p = this.player;
@@ -418,124 +381,9 @@ export class PlayerController {
       this.lastKnownCT = ct;
     } catch (_) {}
   }
-
-  // ---------- ΝΕΟ: περιοδικός έλεγχος watch-time με cooldowns ----------
-  scheduleProgressCheck() {
-    try {
-      const hasPlan = typeof this.plan !== 'undefined' ? this.plan !== null : false;
-      if (hasPlan !== true) {
-        return;
-      }
-      const reqParts = [];
-      reqParts.push(isDefined(this.plan.watch) === true);
-      reqParts.push(isNumber(this.plan.watch.requiredWatchTimeSec) === true);
-      const canRun = allTrue(reqParts);
-      if (canRun !== true) {
-        return;
-      }
-
-      const group = this._group('progress');
-      const intervalMs = 10000; // έλεγχος κάθε 10 δευτερόλεπτα
-
-      const handler = () => {
-        try {
-          // Δειγματοληψία για εξωτερικά seeks
-          this._detectExternalSeekAndMark();
-
-          const required = this.plan.watch.requiredWatchTimeSec;
-          const played = this._computePlayedSoFarSec();
-
-          log(`⏱️ Player ${this.index + 1} Progress — played=${played}s / required=${required}s`);
-
-          // Cooldown gates: recent seek
-          let recentSeek = false;
-          const gSeek = [];
-          gSeek.push(isNumber(this.cooldowns?.seekMs) === true);
-          gSeek.push(isNumber(this.lastSeekAt) === true);
-          const seekCtxOk = allTrue(gSeek);
-          if (seekCtxOk === true) {
-            const diff = Date.now() - this.lastSeekAt;
-            if (diff < this.cooldowns.seekMs) {
-              recentSeek = true;
-            }
-          }
-
-          // Cooldown gates: recent pause
-          let recentPause = false;
-          const gPause = [];
-          gPause.push(isNumber(this.cooldowns?.pauseMs) === true);
-          gPause.push(isNumber(this.lastPausedStart) === true);
-          const pauseCtxOk = allTrue(gPause);
-          if (pauseCtxOk === true) {
-            const diffP = Date.now() - this.lastPausedStart;
-            if (diffP < this.cooldowns.pauseMs) {
-              recentPause = true;
-            }
-          }
-
-          // Ελάχιστη συνεχόμενη αναπαραγωγή
-          let continuityOk = false;
-          const gCont = [];
-          gCont.push(isDefined(this.playingStart) === true);
-          gCont.push(isNumber(this.continuity?.minPlaySec) === true);
-          const contCtxOk = allTrue(gCont);
-          if (contCtxOk === true) {
-            const elapsed = (Date.now() - this.playingStart) / 1000;
-            if (elapsed >= this.continuity.minPlaySec) {
-              continuityOk = true;
-            }
-          }
-
-          // Τελική πύλη trigger
-          const fireGates = [];
-          fireGates.push(this._isPlaying(this.player) === true);
-          fireGates.push(recentSeek !== true);
-          fireGates.push(recentPause !== true);
-          fireGates.push(continuityOk === true);
-          fireGates.push(isNumber(required) === true);
-          fireGates.push(played >= required);
-          const shouldFire = allTrue(fireGates);
-
-          if (shouldFire === true) {
-            if (this.watchtimeFired !== true) {
-              this.watchtimeFired = true;
-
-              // Καθαρισμός για να αποτραπεί διπλό scheduling
-              try {
-                this.clearTimers();
-              } catch (_) {}
-
-              // Σήμανση ότι έχει προγραμματιστεί AutoNext
-              this.autoNextScheduled = true;
-
-              // Προγραμματισμός AutoNext (χρησιμοποιούμε την ENDED ροή για κοινό pacing)
-              try {
-                autoNextAfterEnded(this);
-              } catch (_) {}
-
-              // Σταμάτημα του progress repeat
-              const tid = this.timers?.progressCheck;
-              if (typeof tid === 'number') {
-                try {
-                  cancel(tid);
-                } catch (_) {}
-                this.timers.progressCheck = null;
-              }
-
-              log(`✅ Player ${this.index + 1} Watch-time met → AutoNext scheduled`);
-            }
-          }
-        } catch (_) {}
-      };
-
-      const id = repeat(handler, intervalMs, group);
-      this.timers.progressCheck = id;
-    } catch (_) {
-      // no-op
-    }
-  }
 }
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+
 // --- End Of File ---

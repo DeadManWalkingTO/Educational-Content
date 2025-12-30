@@ -1,5 +1,5 @@
 // --- main.js ---
-const VERSION = 'v4.1.5';
+const VERSION = 'v4.1.6';
 /*
 Περιγραφή: Entry point με εκτεταμένη χρήση utils.js (domReady, safeAddEvent, once, log, retry, scheduleSafe).
 Start gate με user gesture & ασφαλές fallback, readiness του YouTube API με exponential backoff + jitter,
@@ -10,7 +10,6 @@ sequential init Human Mode, versions panel/fallback logging, και προαιρ
 export function getVersion() {
   return VERSION;
 }
-
 //Όνομα αρχείου για logging.
 const FILENAME = import.meta.url.split('/').pop();
 
@@ -26,10 +25,9 @@ import { createPlayerContainers, initPlayersSequentially } from './humanMode.js'
 import { reportAllVersions, renderVersionsPanel, renderVersionsText } from './versionReporter.js';
 import { bindUiEvents, setControlsEnabled } from './uiControls.js';
 import { youtubeReady } from './youtubeReady.js';
+import { startWatchdog } from './watchdog.js';
 
-/* -------------------------
-   Console filter (defensive)
-   ------------------------- */
+/* --------------- Console filter (defensive) --------------- */
 (function safeInstallConsoleFilter() {
   try {
     installConsoleFilter();
@@ -38,12 +36,9 @@ import { youtubeReady } from './youtubeReady.js';
   }
 })();
 
-/* -------------------------
-   Versions report (UI + fallback)
-   ------------------------- */
+/* --------------- Versions report (UI + fallback) --------------- */
 const versions = reportAllVersions();
 versions.Main = VERSION;
-
 const panel = document.getElementById('activityPanel');
 if (isDefined(panel)) {
   panel.innerHTML = renderVersionsPanel(versions);
@@ -52,35 +47,31 @@ if (isDefined(panel)) {
   log(`✅ Εκδόσεις: ${JSON.stringify(versions)}`);
 }
 
-/* -------------------------
-   Application start (once)
-   ------------------------- */
+/* --------------- Application start (once) --------------- */
 /**
  * Εκκίνηση εφαρμογής με ασφαλή ακολουθία:
  * 1) Αναφορά εκδόσεων σε log (multiline text fallback).
  * 2) Φόρτωση λιστών (main + alt).
  * 3) Readiness YouTube IFrame API με retry/backoff/jitter.
  * 4) Δημιουργία DOM containers για players.
- * 5) Human Mode: sequential init των players.
- * 6) Προαιρετικό watchdog μέσω scheduleSafe (μη μπλοκάρει το chain).
+ * 5) Εκκίνηση Watchdog ΠΡΙΝ το Human Mode sequential init (λόγω καθυστέρησης).
+ * 6) Human Mode: sequential init των players.
  */
 const startOnce = once(async function startApp() {
   try {
     log(`🚀 Εκκίνηση εφαρμογής -> main.js ${VERSION}`);
     log(`${renderVersionsText(versions)}`);
-
     // Φόρτωση λιστών
     const listPromises = [loadVideoList(), loadAltList()];
     const lists = await Promise.all(listPromises);
     const mainList = lists[0];
     const altList = lists[1];
     log(`📂 Lists Loaded -> Main:${mainList.length} Alt:${altList.length}`);
-
     // Readiness YouTube API με retry/backoff/jitter
     log(`⏳ YouTubeAPI -> Αναμονή (με retry/backoff/jitter)`);
     const readyResult = await retry(
       async () => {
-        await youtubeReady(20000); // 20s timeout ανά προσπάθεια
+        await youtubeReady(20000); // 20s timeout
         return true;
       },
       3, // attempts
@@ -94,9 +85,12 @@ const startOnce = once(async function startApp() {
     } else {
       log(`❌ YouTubeAPI -> Απέτυχε (προσπάθειες: ${readyResult.attempts})`);
     }
-
     // Δημιουργία containers πριν το init των players
     createPlayerContainers();
+
+    // 🔴 ΝΕΟ: Εκκίνηση Watchdog ΠΡΙΝ το Human Mode init
+    // Ο watchdog θα αγνοεί controllers που δεν έχουν plan/player/playing (gates στον ίδιο).
+    startWatchdog(10000);
 
     // Human Mode sequential init
     initPlayersSequentially(mainList, altList)
@@ -111,9 +105,7 @@ const startOnce = once(async function startApp() {
   }
 });
 
-/* -------------------------
-   DOM gate & UI binding
-   ------------------------- */
+/* --------------- DOM gate & UI binding --------------- */
 /**
  * Ρυθμίζει το start gate:
  * - Bind UI events μία φορά.
@@ -124,7 +116,6 @@ const startOnce = once(async function startApp() {
 function setupDomGate() {
   // Bind UI controls (μία φορά στην αρχή)
   bindUiEvents();
-
   const btnStart = document.getElementById('btnStartSession');
   if (isDefined(btnStart)) {
     // Click handler με safeAddEvent
@@ -136,12 +127,10 @@ function setupDomGate() {
     });
     return;
   }
-
-  // Fallback: δεν υπάρχει start button -> ενεργοποίηση controls & άμεση εκκίνηση
+  // Fallback: δεν υπάρχει start button -> ενεργοποιεί controls & άμεση εκκίνηση
   setControlsEnabled(true);
   startOnce();
 }
-
 // DOM readiness μέσω utils.domReady()
 domReady().then(function () {
   setupDomGate();
