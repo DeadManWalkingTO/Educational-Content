@@ -1,5 +1,5 @@
 // --- utils.js ---
-const VERSION = 'v2.3.1';
+const VERSION = 'v2.5.0';
 /*
  * Περιγραφή: Ενιαίο module βοηθητικών συναρτήσεων (λογική, τύποι, χρόνος, τυχαία, μορφοποίηση, JSON, DOM, γεγονότα, logging, scheduler).
  * Αλλαγές: Προσθήκη isDefined/isFiniteNumber, formatMs/fmtMs, deepClone, safeAddEvent/removeEvent/once, log, scheduler API.
@@ -141,6 +141,22 @@ export function formatMs(ms) {
 
 export function fmtMs(ms) {
   return formatMs(ms);
+}
+
+export function secToMs(sec) {
+  const s = Number(sec);
+  if (Number.isNaN(s)) {
+    return 0;
+  }
+  return s * 1000;
+}
+
+export function msToSec(ms) {
+  const s = Number(ms);
+  if (Number.isNaN(s)) {
+    return 0;
+  }
+  return s / 1000;
 }
 
 export function randomInt(min, max) {

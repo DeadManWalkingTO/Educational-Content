@@ -1,9 +1,9 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v2.4.3';
+const VERSION = 'v2.4.4';
 /*
- * - Μικρό gate στο onEnded(): αν έχει ήδη προγραμματιστεί AutoNext από watch-time,
- *   δεν γίνεται νέο scheduling (αποφυγή διπλού AutoNext).
- * - Κατά τα λοιπά διατηρείται η υπάρχουσα ροή ENDED/PAUSED/BUFFERING/CUED/UNKNOWN.
+ * - Μικρό gate στο onEnded(): αφαιρέθηκε ο fake-end guard (rewind).
+ * - Καθαρό finalize ENDED: clearTimers, watchdog-compatible autoNext, accumulators/markers.
+ * - Κατά τα λοιπά, παραμένει η ίδια διαχείριση για ENDED/PAUSED/BUFFERING/CUED/UNKNOWN.
  */
 
 // --- Export Version ---
@@ -126,16 +126,15 @@ function onUnstarted(ctrl) {
 }
 function onEnded(ctrl) {
   log(`🏁 Player ${ctrl.index + 1} State -> ENDED`);
-  const rewound = applyFakeEndGuard(ctrl);
-  if (rewound === true) {
-    return;
-  }
+
+  // ⚠️ ΑΦΑΙΡΕΘΗΚΕ: Fake-end guard (rewind 2–5s & retry). Δεν εκτελείται πλέον.
+
   try {
     ctrl.clearTimers();
   } catch (_) {}
   log(`🔚 Player ${ctrl.index + 1} Finalize -> ENDED`);
 
-  // ΝΕΟ gate: αν έχει ήδη προγραμματιστεί AutoNext από watch-time, μην ξαναπρογραμματίσεις
+  // ΝΕΟ gate: αν δεν έχει ήδη προγραμματιστεί AutoNext από watchdog (ή αλλού), προγραμμάτισε τώρα.
   let alreadyScheduled = false;
   const parts = [];
   parts.push(typeof ctrl !== 'undefined');
@@ -146,13 +145,11 @@ function onEnded(ctrl) {
       alreadyScheduled = true;
     }
   }
-
   if (alreadyScheduled !== true) {
     autoNextAfterEnded(ctrl);
   } else {
     log(`⏭️ Player ${ctrl.index + 1} ENDED — AutoNext already scheduled (watch-time); skip reschedule`);
   }
-
   try {
     window.dispatchEvent(new CustomEvent('videoEnded', { detail: { index: ctrl.index } }));
   } catch (_) {}
@@ -162,7 +159,7 @@ function onPlaying(ctrl) {
     ctrl.isPlayingActive = true;
   }
   log(`▶️ Player ${ctrl.index + 1} State -> PLAYING`);
-  // NEO: Προγραμματισμός unmute από το autoUnmute module
+  // NEO: προγραμματισμός unmute από το autoUnmute module
   scheduleUnmute(ctrl, true);
 }
 function onPaused(ctrl) {
@@ -176,31 +173,6 @@ function onCued(ctrl) {
 }
 function onUnknown(ctrl, s) {
   log(`🟡 Player ${ctrl.index + 1} State -> UNKNOWN (${String(s)})`);
-}
-
-/* -------- Fake-End Guard (όπως πριν) -------- */
-function applyFakeEndGuard(ctrl) {
-  const minRealPlaySec = 3;
-  const p = ctrl.player;
-  let dur = 0;
-  if (isFunction(p?.getDuration) === true) {
-    try {
-      dur = p.getDuration();
-    } catch (_) {}
-  }
-  const tooShort = (isNumber(ctrl.totalPlayTime) === true ? ctrl.totalPlayTime : 0) < minRealPlaySec;
-  if (tooShort === true) {
-    let back = Math.floor(dur * 0.05);
-    back = clamp(back, 2, 5);
-    const target = Math.max(0, dur - back);
-    try {
-      ctrl._safeSeek(target);
-      ctrl.guardPlay(p);
-    } catch (_) {}
-    log(`↩️ Player ${ctrl.index + 1} Fake-end guard -> rewind ${back}s & retry play`);
-    return true;
-  }
-  return false;
 }
 
 /* -------- Dispatcher -------- */
@@ -266,7 +238,6 @@ export function onStateChangeExternal(ctrl, e) {
     } catch (_) {}
     ctrl.lastKnownState = s;
   } catch (_) {}
-
   // Dispatcher (switch)
   try {
     if (isDefined(s) === true) {
@@ -300,7 +271,6 @@ export function onStateChangeExternal(ctrl, e) {
       onUnknown(ctrl, s);
     }
   } catch (_) {}
-
   // Accumulators & pause guard
   if (isDefined(s) === true) {
     updateAccumulators(ctrl, s);
@@ -308,8 +278,7 @@ export function onStateChangeExternal(ctrl, e) {
   }
   // ΣΗΜΑΝΤΙΚΟ: Το scheduling του unmute γίνεται ΜΟΝΟ στο onPlaying().
 }
-
-// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

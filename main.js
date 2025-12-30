@@ -1,5 +1,5 @@
 // --- main.js ---
-const VERSION = 'v4.1.6';
+const VERSION = 'v4.1.8';
 /*
 Περιγραφή: Entry point με εκτεταμένη χρήση utils.js (domReady, safeAddEvent, once, log, retry, scheduleSafe).
 Start gate με user gesture & ασφαλές fallback, readiness του YouTube API με exponential backoff + jitter,
@@ -19,7 +19,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 /* ========================= Imports ========================= */
 import { installConsoleFilter } from './consoleFilter.js';
 import { log, domReady, safeAddEvent, once, isDefined, retry } from './utils.js';
-import { setUserGesture } from './globals.js';
+import { setUserGesture, WATCHDOG_RATE } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions, renderVersionsPanel, renderVersionsText } from './versionReporter.js';
@@ -88,9 +88,9 @@ const startOnce = once(async function startApp() {
     // Δημιουργία containers πριν το init των players
     createPlayerContainers();
 
-    // 🔴 ΝΕΟ: Εκκίνηση Watchdog ΠΡΙΝ το Human Mode init
+    // 🔴 Εκκίνηση Watchdog ΠΡΙΝ το Human Mode init
     // Ο watchdog θα αγνοεί controllers που δεν έχουν plan/player/playing (gates στον ίδιο).
-    startWatchdog(10000);
+    startWatchdog(WATCHDOG_RATE);
 
     // Human Mode sequential init
     initPlayersSequentially(mainList, altList)

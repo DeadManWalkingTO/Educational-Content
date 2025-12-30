@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v4.21.9';
+const VERSION = 'v4.22.4';
 /*
 Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
 Αναθεώρηση: Αφαίρεση τοπικού scheduler και χρήση των APIs από utils.js (delay/cancel/scheduleSafe/rndInt).
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { log, ts, isDefined, isNonEmptyArray, deepClone, cancel } from './utils.js';
+import { log, ts, isDefined, isNonEmptyArray, deepClone, cancel, secToMs } from './utils.js';
 
 /** --- Console Filter (external) Early Install - Start --- */
 /*
@@ -87,6 +87,9 @@ export const MAIN_PROBABILITY = 0.5; // Πιθανότητα επιλογής κ
 
 /* Global μετρητής AutoNext και rolling reset ανά 1 ώρα */
 export const AUTO_NEXT_LIMIT_PER_PLAYER = 50;
+
+/** Ρυθμός watchdog σε ms (πηγή αλήθειας για όλη την εφαρμογή) */
+export const WATCHDOG_RATE = secToMs(300); // 300 sec (5 λεπτά)
 
 /* Πίνακας controllers: γεμίζει από main.js */
 export const controllers = [];

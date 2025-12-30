@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v1.0.1';
+const VERSION = 'v1.1.2';
 /*
  * Περιγραφή: Εξωτερικός watchdog για τον έλεγχο "required watch time" ανά PlayerController.
  * Τρέχει περιοδικά, εφαρμόζει gates/cooldowns και πυροδοτεί AutoNext με pacing σαν ENDED.
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { repeat, cancel, log, allTrue, isDefined, isNumber } from './utils.js';
+import { repeat, cancel, log, allTrue, isDefined, isNumber, msToSec } from './utils.js';
 import { controllers, stats } from './globals.js';
 import { autoNextAfterEnded } from './autoNext.js';
 
@@ -176,7 +176,7 @@ export function startWatchdog(intervalMs = 10000) {
   };
 
   watchdogTimerId = repeat(handler, intervalMs, 'wd:global');
-  log(`🛡️ Watchdog started — interval=${intervalMs}ms`);
+  log(`🛡️ Watchdog started — interval=${msToSec(intervalMs)}s`);
 }
 
 export function stopWatchdog() {
