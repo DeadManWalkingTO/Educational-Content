@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v4.22.4';
+const VERSION = 'v4.22.6';
 /*
 Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
 Αναθεώρηση: Αφαίρεση τοπικού scheduler και χρήση των APIs από utils.js (delay/cancel/scheduleSafe/rndInt).
@@ -194,7 +194,7 @@ export let hasUserGesture = false;
 /** Θέτει hasUserGesture = true και το καταγράφει. */
 export function setUserGesture() {
   hasUserGesture = true;
-  log(`[${ts()}] 💻 Αλληλεπίδραση Χρήστη`);
+  log(`💻 Αλληλεπίδραση Χρήστη`);
 }
 /** --- User gesture flag - End --- */
 

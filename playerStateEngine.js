@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v2.4.4';
+const VERSION = 'v2.4.5';
 /*
  * - Μικρό gate στο onEnded(): αφαιρέθηκε ο fake-end guard (rewind).
  * - Καθαρό finalize ENDED: clearTimers, watchdog-compatible autoNext, accumulators/markers.
@@ -231,10 +231,6 @@ export function onStateChangeExternal(ctrl, e) {
           scheduled = true;
         }
       }
-    } catch (_) {}
-    const msg = `State: ${stateName(s)} (prev: ${stateName(prevState)}) — ${scheduled === true ? 'scheduled' : 'random'} — t=${String(Math.round(tSec))}s`;
-    try {
-      log(`Player ${String(ctrl.index + 1)} ${String(msg)}`);
     } catch (_) {}
     ctrl.lastKnownState = s;
   } catch (_) {}
