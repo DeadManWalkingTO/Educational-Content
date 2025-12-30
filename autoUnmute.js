@@ -1,9 +1,9 @@
 // --- autoUnmute.js ---
-const VERSION = 'v2.4.0';
+const VERSION = 'v2.5.0';
 /*
- * Περιγραφή: Καθαρή πράξη unmute + setVolume, χωρίς δικό της scheduling/pacing.
- * Διαβάζει volumeRangePct από το plan και εφαρμόζει προαιρετικό micro-adjust (±3).
- * Το scheduling/pace γίνεται αποκλειστικά στο playerStateEngine.js.
+ * scheduleUnmute(ctrl, stateIsPlaying): parsing plan.unmute (base/extra/grace), debounce, flags, scheduling.
+ * applyUnmute(player, plan, ctrl): unMute + setVolume + micro-adjust (υφιστάμενη λογική).
+ * ensureUnmuteMeta(ctrl): init meta { lastMs, minGapMs }.
  */
 
 // --- Export Version ---
@@ -18,10 +18,10 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { allTrue, isFunction, isNumber, clamp, log, rndInt } from './utils.js';
+import { allTrue, isFunction, isNumber, clamp, log, rndInt, scheduleSafe } from './utils.js';
 import { stats } from './globals.js';
 
-// Εσωτερικός βοηθός για index εμφανίσιμο (1-based)
+// Εσωτερικό helper: 1-based index για logging.
 function _shownIndex(ctrl) {
   try {
     const base = Number(ctrl?.index);
@@ -34,8 +34,145 @@ function _shownIndex(ctrl) {
   return '#';
 }
 
+// Meta για debounce
+function ensureUnmuteMeta(ctrl) {
+  const needsInit = typeof ctrl?.unmuteMeta === 'undefined' ? true : ctrl.unmuteMeta === null ? true : false;
+  if (needsInit === true) {
+    ctrl.unmuteMeta = { lastMs: 0, minGapMs: 800 };
+  }
+}
+
 /**
- * Καθαρή πράξη unmute + setVolume.
+ * Προγραμματισμός καθυστερημένου unmute (PLAYING-triggered).
+ * @param {any} ctrl - PlayerController instance
+ * @param {boolean} stateIsPlaying - αν είμαστε σε PLAYING
+ */
+export function scheduleUnmute(ctrl, stateIsPlaying) {
+  try {
+    ensureUnmuteMeta(ctrl);
+
+    // Μη διπλό scheduling
+    let alreadyScheduled = false;
+    if (typeof ctrl?.unmuteScheduled !== 'undefined') {
+      if (ctrl.unmuteScheduled === true) {
+        alreadyScheduled = true;
+      }
+    }
+    if (alreadyScheduled === true) {
+      return;
+    }
+
+    // Μόνο αν είμαστε σε PLAYING και εκκρεμεί unmute
+    const guards = [];
+    guards.push(stateIsPlaying === true);
+    guards.push(ctrl?.pendingUnmute === true);
+    const readyToPlan = allTrue(guards);
+    if (readyToPlan !== true) {
+      return;
+    }
+
+    // Parse από το behavior plan
+    let baseSec = 5;
+    let extraMin = 0;
+    let extraMax = 0;
+    let gMin = 0;
+    let gMax = 0;
+    try {
+      const u = ctrl?.plan?.unmute;
+      const hasU = typeof u !== 'undefined' ? u !== null : false;
+      if (hasU === true) {
+        const b = Number(u.baseDelaySec);
+        if (isNumber(b) === true) {
+          baseSec = Math.floor(b);
+        }
+        const arr = u.extraDelaySecRange;
+        const isArr = Array.isArray(arr) === true;
+        if (isArr === true) {
+          const a = Number(arr[0]);
+          const b2 = Number(arr[1]);
+          const okA = isNumber(a) === true;
+          const okB = isNumber(b2) === true;
+          const arrOk = allTrue([okA === true, okB === true]);
+          if (arrOk === true) {
+            extraMin = Math.floor(a);
+            extraMax = Math.floor(b2);
+          }
+        }
+        const gr = u.playingGraceMsRange;
+        const isArrG = Array.isArray(gr) === true;
+        if (isArrG === true) {
+          const ga = Number(gr[0]);
+          const gb = Number(gr[1]);
+          const gaOk = isNumber(ga) === true;
+          const gbOk = isNumber(gb) === true;
+          const grOk = allTrue([gaOk === true, gbOk === true]);
+          if (grOk === true) {
+            gMin = Math.max(0, Math.floor(ga));
+            gMax = Math.max(0, Math.floor(gb));
+            if (gMax < gMin) {
+              gMax = gMin;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Τυχαίες συνιστώσες
+    let extraSec = 0;
+    if (extraMax >= extraMin) {
+      try {
+        extraSec = rndInt(extraMin, extraMax);
+      } catch (_) {}
+    }
+    let graceMs = 0;
+    if (gMax >= gMin) {
+      try {
+        graceMs = rndInt(gMin, gMax);
+      } catch (_) {}
+    }
+    const totalDelayMs = Math.max(0, (baseSec + extraSec) * 1000);
+    const finalDelayMs = totalDelayMs + graceMs;
+
+    // Debounce
+    const now = Date.now();
+    const sinceLast = now - (ctrl.unmuteMeta.lastMs ?? 0);
+    const haveLast = (ctrl.unmuteMeta.lastMs ?? 0) > 0;
+    const tooSoon = haveLast === true ? sinceLast < ctrl.unmuteMeta.minGapMs : false;
+    if (tooSoon === true) {
+      const retryDelay = ctrl.unmuteMeta.minGapMs - sinceLast;
+      scheduleSafe(
+        function () {
+          scheduleUnmute(ctrl, stateIsPlaying);
+        },
+        retryDelay,
+        ctrl._group('unmute'),
+        'delayed-unmute-retry-gap'
+      );
+      return;
+    }
+
+    // Schedule
+    ctrl.unmuteScheduled = true;
+    const totalSecShown = Math.round(finalDelayMs / 1000);
+    log(`🔕 Player ${String(ctrl.index + 1)} Unmute scheduled after ${String(totalSecShown)}s`);
+    scheduleSafe(
+      function () {
+        try {
+          applyUnmute(ctrl.player, ctrl.plan, ctrl);
+          ctrl.pendingUnmute = false;
+          ctrl.unmuteScheduled = false;
+          ctrl.unmuteMeta.lastMs = Date.now();
+        } catch (_) {}
+      },
+      finalDelayMs,
+      ctrl._group('unmute'),
+      'delayed-unmute'
+    );
+  } catch (_) {}
+}
+
+/**
+ * Καθαρή πράξη unmute + setVolume (με micro-adjust).
  * @param {any} player - YouTube Iframe API player
  * @param {any} plan - behavior plan (διαβάζει unmute.volumeRangePct)
  * @param {any} ctrl - controller (για logging μόνο)

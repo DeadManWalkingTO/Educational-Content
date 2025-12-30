@@ -2,6 +2,12 @@
 
 ---
 
+## 2025-12-30
+
+- autoUnmute.js: v2.4.0 → v2.5.0 — Μεταφορά και κεντρικοποίηση της λογικής scheduling/debounce του unmute (νέα `scheduleUnmute()` + `ensureUnmuteMeta()`), διατήρηση `applyUnmute()` με micro-adjust. Groups: 'unmute'. Notes: Debounce 800 ms, plan-driven base/extra/grace.
+- playerStateEngine.js: v2.2.0 → v2.3.0 — Αφαίρεση του εσωτερικού `scheduleDelayedUnmute` και ανακατεύθυνση σε `autoUnmute.scheduleUnmute()` μέσα από `onPlaying()`. Καθαρισμός imports.
+
+
 ## 2025-12-28
 
 - playerController.js: v6.48.2 → v6.50.0 — Moved onStateChange to external engine stub; added import; maintained behavior via external function.
