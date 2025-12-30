@@ -1,5 +1,5 @@
 // --- policies.js ---
-const VERSION = 'v1.13.8';
+const VERSION = 'v1.13.10';
 /*
  * Περιγραφή: Module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
  * Τροποποίηση: Συνεπές στυλ 'else if' σε όλες τις διακλαδώσεις + τυχαιότητα στο capSec με profile tuning.
@@ -11,9 +11,10 @@ export function getVersion() {
   return VERSION;
 }
 
-// Όνομα αρχείου για logging.
+/* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
-// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+
+/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
@@ -434,6 +435,7 @@ function _defaultPlan() {
   };
 }
 
-// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+
 // --- End Of File ---

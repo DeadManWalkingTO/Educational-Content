@@ -1,24 +1,26 @@
 // --- autoNext.js ---
-const VERSION = 'v1.9.5';
+const VERSION = 'v1.9.8';
 /*
- * Περιγραφή: Ενοποίηση λογικής AutoNext για ENDED/ERROR + scheduler.
- * Τροποποίηση: reset του ctrl.autoNextScheduled = false στο finalizeAutoNext(),
- * ώστε ο νέος κύκλος να ξεκινά καθαρός (καμία κληρονομημένη σήμανση).
+ * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR + scheduler.
+ * Τροποποίηση: Η επιλογή videoId γίνεται μέσω του κοινoύ videoPicker.js.
+ * Διατηρούνται τα limits, counters, delays και το finalize.
  */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
-// Όνομα αρχείου για logging.
+
+/* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
-// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
 import { scheduleSafe, log, rndInt, randomFloat, isDefined, isNumber, allTrue, isFunction, isNonEmptyArray } from './utils.js';
 import { AUTO_NEXT_LIMIT_PER_PLAYER, stats, MAIN_PROBABILITY } from './globals.js';
+import { pickVideoId } from './videoPicker.js';
 
 /* ========================= AutoNext counters ========================= */
 let autoNextCounter = 0;
@@ -93,7 +95,6 @@ function buildCtx(ctrl, trigger) {
     hasLists,
     mainList: Array.isArray(ctrl?.mainList) === true ? ctrl.mainList : [],
     altList: Array.isArray(ctrl?.altList) === true ? ctrl.altList : [],
-    // ΣΩΣΤΗ σημασιολογία: πιθανότητα επιλογής main vs alt (ΟΧΙ gate για ENDED)
     mainProbability: isNumber(MAIN_PROBABILITY) === true ? MAIN_PROBABILITY : 0.5,
     trigger,
   };
@@ -101,7 +102,6 @@ function buildCtx(ctrl, trigger) {
 
 /* ========================= Gates & Decisions ========================= */
 function shouldAutoNext(ctx) {
-  // Basic validation
   let valid = true;
   if (isNumber(ctx?.index) !== true) {
     valid = false;
@@ -118,12 +118,10 @@ function shouldAutoNext(ctx) {
   if (valid !== true) {
     return { allow: false, reason: 'invalid-ctx' };
   }
-  // Limit gate (ανά player / ώρα)
   const limitOk = canAutoNext(ctx.index) === true;
   if (limitOk !== true) {
     return { allow: false, reason: `limit-${AUTO_NEXT_LIMIT_PER_PLAYER}/h` };
   }
-  // Έλεγχος ύπαρξης διαθέσιμων λιστών
   if (isDefined(ctx?.hasLists) === true) {
     if (ctx.hasLists !== true) {
       return { allow: false, reason: 'no-list' };
@@ -138,49 +136,7 @@ function computeAutoNextDelay(ctx) {
   if (trig === 'error') {
     return rndInt(250, 1000);
   }
-  // Προεπιλογή ENDED (ή watchtime που χρησιμοποιεί την ίδια ροή)
   return rndInt(15000, 60000);
-}
-
-/* ========================= Selection ========================= */
-function pickNextVideoId(ctx) {
-  // MAIN_PROBABILITY: ΜΟΝΟ για επιλογή main vs alt
-  const hasProb = isNumber(ctx?.mainProbability) === true;
-  const rand = hasProb === true ? randomFloat(0, 1) : 0;
-  const useMain = hasProb === true ? (rand < ctx.mainProbability ? true : false) : true;
-  // Προαιρετικό ενισχυτικό logging
-  try {
-    const pStr = hasProb === true ? `${(ctx.mainProbability * 100).toFixed(0)}%` : '-';
-    log(`🎲 List selection: ${useMain === true ? 'main' : 'alt'} p=${pStr}`);
-  } catch (_) {}
-  let list = null;
-  const mainOk = Array.isArray(ctx?.mainList) === true ? (ctx.mainList.length > 0 ? true : false) : false;
-  if (useMain === true) {
-    if (mainOk === true) {
-      list = ctx.mainList;
-    }
-  }
-  if (isDefined(list) !== true) {
-    const altOk = Array.isArray(ctx?.altList) === true ? (ctx.altList.length > 0 ? true : false) : false;
-    if (altOk === true) {
-      list = ctx.altList;
-    }
-  }
-  if (isDefined(list) !== true) {
-    if (mainOk === true) {
-      list = ctx.mainList;
-    } else {
-      list = Array.isArray(ctx?.altList) === true ? ctx.altList : [];
-    }
-  }
-  const len = Array.isArray(list) === true ? list.length : 0;
-  if (len === 0) {
-    return { id: null, source: 'none', size: 0 };
-  }
-  const pickIndex = Math.floor(Math.random() * len);
-  const id = list[pickIndex];
-  const source = list === ctx.mainList ? 'main' : 'alt';
-  return { id, source, size: len };
 }
 
 /* ========================= Finalize ========================= */
@@ -189,12 +145,9 @@ function finalizeAutoNext(ctrl, picked) {
   stats.autoNext = isNumber(stats?.autoNext) === true ? stats.autoNext + 1 : 1;
   ctrl.totalPlayTime = 0;
   ctrl.playingStart = null;
-
-  // ΝΕΟ: reset του flag ώστε ο επόμενος κύκλος να μπορεί να ξαναπρογραμματίσει AutoNext
   try {
     ctrl.autoNextScheduled = false;
   } catch (_) {}
-
   try {
     log(
       `⏭️ Player ${ctrl.index + 1} AutoNext -> ${String(isDefined(picked?.id) === true ? picked.id : '-')}` +
@@ -211,7 +164,7 @@ function finalizeAutoNext(ctrl, picked) {
 
 /* ========================= Runner ========================= */
 function runAutoNext(ctrl, ctx, label) {
-  const picked = pickNextVideoId(ctx);
+  const picked = pickVideoId(ctx.mainList, ctx.altList, ctx.mainProbability);
   const canLoad = isDefined(ctrl?.player) === true ? (isDefined(ctrl?.player?.loadVideoById) === true ? (typeof ctrl.player.loadVideoById === 'function' ? true : false) : false) : false;
   if (canLoad !== true) {
     stats.errors = isNumber(stats?.errors) === true ? stats.errors + 1 : 1;
