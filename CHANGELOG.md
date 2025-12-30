@@ -1,9 +1,13 @@
-# CHANGELOG.md - v216
+# CHANGELOG.md - v218
 
 ---
 
 ## 2025-12-30
 
+- autoPause.js, - → v1.0.0: ΝΕΟ module. Μεταφορά schedulePauses() και restartPauseGuard() στο autoPause.js.
+- playerController.js, v7.3.0 → v7.4.0: Αφαίρεση εσωτερικής schedulePauses(), import & χρήση από autoPause.js.
+- playerStateEngine.js, v2.3.0 → v2.4.0: Αφαίρεση restartPauseGuard(), import & χρήση από autoPause.js.
+  Notes: Behavior-preserving refactor. Έλεγχος logs/guards/stats OK. Tests: smoke run σε 3 profiles (Explorer/Casual/Focused).
 - autoSeek.js: new v1.0.0 — Extracted seek logic (safeSeek, init-seek, mid-seek scheduler).
 - playerController.js: v7.2.2 → v7.3.0 — Delegated seek to autoSeek.js; applyInitSeek; scheduleMidSeek wrapper; imports updated.
 - autoVolume.js: - → v1.0.0 — Νέο module που μεταφέρει τη λογική αυτόματων αλλαγών έντασης (volume-change & micro-adjust) με guards/retries.

@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v3.20.14';
+const VERSION = 'v3.20.18';
 /*
  * Περιγραφή:
  * Συγκεντρώνει εκδόσεις όλων των modules και του HTML. Ελαφρύς renderer για panel/κείμενο,
@@ -33,6 +33,7 @@ import { getVersion as getAutoNextVersion } from './autoNext.js';
 import { getVersion as getAutoUnmuteVersion } from './autoUnmute.js';
 import { getVersion as getAutoVolumeVersion } from './autoVolume.js';
 import { getVersion as getAutoSeekVersion } from './autoSeek.js';
+import { getVersion as getAutoPauseVersion } from './autoPause.js';
 /* ------------------------ Version Retrieval ------------------------ */
 
 /**
@@ -72,6 +73,7 @@ export function reportAllVersions() {
     AutoUnmute: getAutoUnmuteVersion(),
     AutoVolume: getAutoVolumeVersion(),
     AutoSeek: getAutoSeekVersion(),
+    AutoPause: getAutoPauseVersion(),
     VersionReporter: VERSION,
   };
 
@@ -182,6 +184,9 @@ function iconFor(name) {
   }
   if (name === 'AutoSeek') {
     return '⏩';
+  }
+  if (name === 'AutoPause') {
+    return '⏸️';
   }
   if (name === 'Main') {
     return '🚀';

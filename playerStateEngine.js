@@ -1,9 +1,9 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v2.3.0';
+const VERSION = 'v2.4.0';
 /*
- * - Μικρά helpers: hasYT(), stateName(), readPlayerState(), restartPauseGuard(), applyFakeEndGuard().
- * - Ενιαίο scheduling/debounce για unmute ΜΕΤΑΦΕΡΘΗΚΕ στο autoUnmute.js (scheduleUnmute).
- * - Κατάργηση early/duplicate scheduling από dispatcher: τρέχει ΜΟΝΟ σε onPlaying().
+ * - Μικρά helpers: hasYT(), stateName(), readPlayerState(), updateAccumulators().
+ * - Scheduling/debounce για unmute (ΜΕΤΑΦΕΡΘΗΚΕ στο autoUnmute.js μέσω scheduleUnmute).
+ * - Αποφυγή early/duplicate scheduling από dispatcher: τρέχει ΜΟΝΟ σε onPlaying().
  */
 
 // --- Export Version ---
@@ -22,8 +22,10 @@ import { scheduleSafe, cancel, log, rndInt, anyTrue, allTrue, isDefined, isFunct
 import { stats } from './globals.js';
 import { autoNextAfterEnded } from './autoNext.js';
 import { scheduleUnmute } from './autoUnmute.js';
+// ΝΕΟ: restartPauseGuard από autoPause.js
+import { restartPauseGuard } from './autoPause.js';
 
-/* ---------- Helpers ---------- */
+/* -------- Helpers -------- */
 function hasYT() {
   let ok = false;
   if (typeof YT !== 'undefined') {
@@ -118,84 +120,8 @@ function updateAccumulators(ctrl, s) {
     }
   }
 }
-function restartPauseGuard(ctrl) {
-  // Στόχος: όσο ο player μένει "PAUSED" πέρα από το αναμενόμενο, δοκιμάζουμε play.
-  try {
-    if (isDefined(ctrl.pauseGuardTimer) === true) {
-      cancel(ctrl.pauseGuardTimer);
-    }
-  } catch (_) {}
-  (function (self) {
-    let basePause = 2000;
-    if (isNumber(self.expectedPauseMs) === true) {
-      if (self.expectedPauseMs > 0) {
-        basePause = self.expectedPauseMs;
-      }
-    }
-    const slack = 250;
-    const doGuard = function () {
-      try {
-        const p2 = self.player;
-        let canCheck = false;
-        if (isDefined(p2) === true) {
-          if (p2 !== null) {
-            if (isFunction(p2.getPlayerState) === true) {
-              canCheck = true;
-            }
-          }
-        }
-        if (canCheck === true) {
-          const st = p2.getPlayerState();
-          if (hasYT() === true) {
-            if (st === YT.PlayerState.PAUSED) {
-              try {
-                if (isFunction(self.guardPlay) === true) {
-                  self.guardPlay(p2);
-                } else {
-                  if (isFunction(p2.playVideo) === true) {
-                    p2.playVideo();
-                  }
-                }
-              } catch (_) {}
-              self.pauseGuardTimer = scheduleSafe(doGuard, basePause + slack, self._group('pause-guard'), 'pause-guard');
-              return;
-            } else {
-              try {
-                self.pauseRechecks = 0;
-              } catch (_) {}
-            }
-          }
-        }
-      } catch (_) {}
-    };
-    self.pauseGuardTimer = scheduleSafe(doGuard, basePause + slack, self._group('pause-guard'), 'pause-guard');
-  })(ctrl);
-}
-function applyFakeEndGuard(ctrl) {
-  const minRealPlaySec = 3;
-  const p = ctrl.player;
-  let dur = 0;
-  if (isFunction(p?.getDuration) === true) {
-    try {
-      dur = p.getDuration();
-    } catch (_) {}
-  }
-  const tooShort = (isNumber(ctrl.totalPlayTime) === true ? ctrl.totalPlayTime : 0) < minRealPlaySec;
-  if (tooShort === true) {
-    let back = Math.floor(dur * 0.05);
-    back = clamp(back, 2, 5);
-    const target = Math.max(0, dur - back);
-    try {
-      ctrl._safeSeek(target);
-      ctrl.guardPlay(p);
-    } catch (_) {}
-    log(`↩️ Player ${ctrl.index + 1} Fake-end guard -> rewind ${back}s & retry play`);
-    return true;
-  }
-  return false;
-}
 
-/* ---------- Handlers ---------- */
+/* -------- Handlers -------- */
 function onUnstarted(ctrl) {
   log(`🎬 Player ${ctrl.index + 1} State -> UNSTARTED`);
 }
@@ -235,7 +161,32 @@ function onUnknown(ctrl, s) {
   log(`🟡 Player ${ctrl.index + 1} State -> UNKNOWN (${String(s)})`);
 }
 
-/* ---------- Dispatcher ---------- */
+/* -------- Fake-End Guard (όπως πριν) -------- */
+function applyFakeEndGuard(ctrl) {
+  const minRealPlaySec = 3;
+  const p = ctrl.player;
+  let dur = 0;
+  if (isFunction(p?.getDuration) === true) {
+    try {
+      dur = p.getDuration();
+    } catch (_) {}
+  }
+  const tooShort = (isNumber(ctrl.totalPlayTime) === true ? ctrl.totalPlayTime : 0) < minRealPlaySec;
+  if (tooShort === true) {
+    let back = Math.floor(dur * 0.05);
+    back = clamp(back, 2, 5);
+    const target = Math.max(0, dur - back);
+    try {
+      ctrl._safeSeek(target);
+      ctrl.guardPlay(p);
+    } catch (_) {}
+    log(`↩️ Player ${ctrl.index + 1} Fake-end guard -> rewind ${back}s & retry play`);
+    return true;
+  }
+  return false;
+}
+
+/* -------- Dispatcher -------- */
 export function onStateChangeExternal(ctrl, e) {
   // Ανάγνωση τρέχοντος state
   let s;
@@ -262,6 +213,7 @@ export function onStateChangeExternal(ctrl, e) {
         tSec = pLocal.getCurrentTime();
       }
     } catch (_) {}
+
     let scheduled = false;
     try {
       const hasTimersObj = isDefined(ctrl.timers) === true ? typeof ctrl.timers === 'object' : false;
