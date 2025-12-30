@@ -1,10 +1,9 @@
 // --- playerController.js ---
-const VERSION = 'v7.1.9';
+const VERSION = 'v7.1.10';
 /*
- * Περιγραφή: Ελεγκτής αναπαραγωγής για YouTube IFrame API με ανθρώπινη συμπεριφορά.
  * Χρήση utils API: scheduleSafe, delay, repeat, cancel, groupCancel, retry, debounce, throttle, clamp, log.
  * Πολιτικές: unmute, pauses, mid-seeks, duration-aware start, ENCODED ενσωμάτωση AutoNext μέσω autoNext.js.
- * ΝΕΟ v7.1.5: Το unmute προγραμματίζεται με totalDelay = baseDelaySec + extraDelaySecRange (+ προαιρετικό playingGraceMsRange).
+ * ΝΕΟ v7.1.10: Το onStateChange είναι λεπτό και προωθεί το event στο playerStateEngine (handlers).
  */
 
 // --- Export Version ---
@@ -24,7 +23,7 @@ import { MAIN_PROBABILITY, controllers, getOrigin, getYouTubeEmbedHost, hasUserG
 import { getBehaviorPlan } from './policies.js';
 import { onStateChangeExternal } from './playerStateEngine.js';
 import { autoNextAfterError } from './autoNext.js';
-import { initUnmute, handlePendingUnmute } from './autoUnmute.js';
+import { initUnmute } from './autoUnmute.js';
 
 /* ===== Helpers ===== */
 function getState(p) {
@@ -198,14 +197,12 @@ export class PlayerController {
     const p = e.target;
     this.startTime = Date.now();
     p.mute();
-
     let durationNow = 0;
     const canGetDuration = allTrue([!!p, isFunction(p.getDuration)]);
     if (canGetDuration === true) {
       const dtmp = p.getDuration();
       durationNow = isNumber(dtmp) === true ? dtmp : 0;
     }
-
     const ctx = {
       durationSec: durationNow,
       profileName: this.profileName,
@@ -217,7 +214,6 @@ export class PlayerController {
     try {
       this.plan = getBehaviorPlan(ctx);
     } catch (_) {}
-
     let targetSec = 0;
     const planOk = allTrue([!!this.plan]);
     if (planOk === true) {
@@ -235,16 +231,12 @@ export class PlayerController {
         }
       }
     }
-
-    // Λύση Α: μπλοκάρισμα scheduled volume έως το auto-unmute
+    // Λύση Α: μπλοκάρισμα scheduled volume έως ότου ολοκληρωθεί το auto-unmute
     this.pendingUnmute = true;
     this.unmuteScheduled = false;
-
     initUnmute(this.player, this.plan);
-
     this._safeSeek(targetSec);
     scheduleSafe(() => this._safeSeek(targetSec), 800, this._group('init-seek'), 'init-seek-repeat');
-
     if (isFunction(e.target.playVideo)) {
       scheduleSafe(
         () => {
@@ -259,145 +251,15 @@ export class PlayerController {
         'guardPlay-initial'
       );
     }
-
     const seekInfo = isNumber(targetSec) ? targetSec : '-';
     log(`⏩ Player ${this.index + 1} Behavior Plan Start Seek -> Seek=${seekInfo}s`);
-
     this.schedulePauses();
     this.scheduleMidSeek();
     this.scheduleVolumeChanges();
   }
   onStateChange(e) {
-    try {
-      onStateChangeExternal(this, e);
-      let state;
-      try {
-        state = e?.data;
-      } catch (_) {}
-
-      // Καθυστερημένο auto-unmute: totalDelay = baseDelaySec + extraDelaySecRange (+ προαιρετικό grace)
-      if (typeof YT !== 'undefined') {
-        if (typeof YT?.PlayerState !== 'undefined') {
-          if (state === YT.PlayerState.PLAYING) {
-            let shouldSchedule = true;
-            if (this.unmuteScheduled === true) {
-              shouldSchedule = false;
-            }
-            if (shouldSchedule === true) {
-              // 1) Ανάγνωση βάσης & επιπλέον καθυστέρησης από το plan.unmute
-              let baseSec = 5;
-              let extraMin = 0;
-              let extraMax = 0;
-              try {
-                const u = this.plan?.unmute;
-                let hasU = false;
-                if (typeof u !== 'undefined') {
-                  if (u !== null) {
-                    hasU = true;
-                  }
-                }
-                if (hasU === true) {
-                  let b = Number(u.baseDelaySec);
-                  let okB = isNumber(b);
-                  if (okB === true) {
-                    baseSec = Math.floor(b);
-                  }
-                  const arr = u.extraDelaySecRange;
-                  let isArr = false;
-                  if (Array.isArray(arr)) {
-                    isArr = true;
-                  }
-                  if (isArr === true) {
-                    let a = Number(arr[0]);
-                    let b2 = Number(arr[1]);
-                    let aOk = isNumber(a);
-                    let bOk = isNumber(b2);
-                    if (allTrue([aOk === true, bOk === true]) === true) {
-                      extraMin = Math.floor(a);
-                      extraMax = Math.floor(b2);
-                    }
-                  }
-                }
-              } catch (_) {}
-
-              // 2) Υπολογισμός extraDelay (sec) και totalDelayMs
-              let extraSec = 0;
-              try {
-                if (extraMax >= extraMin) {
-                  extraSec = rndInt(extraMin, extraMax);
-                }
-              } catch (_) {}
-              const totalDelayMs = Math.max(0, (baseSec + extraSec) * 1000);
-
-              // 3) Προαιρετικό grace μετά το PLAYING (από πολιτική, αν υπάρχει)
-              let gMin = 0;
-              let gMax = 0;
-              try {
-                const u = this.plan?.unmute;
-                let hasU = false;
-                if (typeof u !== 'undefined') {
-                  if (u !== null) {
-                    hasU = true;
-                  }
-                }
-                if (hasU === true) {
-                  const gr = u.playingGraceMsRange;
-                  let isArr = false;
-                  if (Array.isArray(gr)) {
-                    isArr = true;
-                  }
-                  if (isArr === true) {
-                    let a = Number(gr[0]);
-                    let b = Number(gr[1]);
-                    let aOk = isNumber(a);
-                    let bOk = isNumber(b);
-                    if (allTrue([aOk === true, bOk === true]) === true) {
-                      gMin = Math.max(0, Math.floor(a));
-                      gMax = Math.max(0, Math.floor(b));
-                      if (gMax < gMin) {
-                        gMax = gMin;
-                      }
-                    }
-                  }
-                }
-              } catch (_) {}
-              let graceMs = 0;
-              try {
-                if (gMax >= gMin) {
-                  graceMs = rndInt(gMin, gMax);
-                }
-              } catch (_) {}
-
-              // 4) Τελική καθυστέρηση
-              const finalDelayMs = totalDelayMs + graceMs;
-
-              this.unmuteScheduled = true;
-              scheduleSafe(
-                () => {
-                  try {
-                    handlePendingUnmute(this.player, this.plan, this);
-                    this.pendingUnmute = false; // επιτρέπουμε τις scheduled αλλαγές έντασης
-                  } catch (_) {}
-                },
-                finalDelayMs,
-                this._group('unmute'),
-                'delayed-unmute'
-              );
-
-              const totalSecShown = Math.round(finalDelayMs / 1000);
-              const parts = [];
-              parts.push(`base=${String(baseSec)}s`);
-              parts.push(`extra=${String(extraSec)}s`);
-              if (graceMs > 0) {
-                parts.push(`grace=${String(Math.round(graceMs / 1000))}s`);
-              }
-              const detail = parts.join(' + ');
-              log(`🔕 Player ${this.index + 1} Unmute scheduled after ${String(totalSecShown)}s (${detail})`);
-            }
-          }
-        }
-      }
-    } catch (_) {}
+    // Thin dispatcher: Η λογική state-dependent ζει στο playerStateEngine (handlers).
+    onStateChangeExternal(this, e);
   }
   onError() {
     try {
@@ -586,7 +448,6 @@ export class PlayerController {
       this.seekMeta.count = (this.seekMeta.count ?? 0) + 1;
     } catch (_) {}
   }
-
   /* Προγραμματισμένες αλλαγές έντασης με guards (Λύση Α) */
   scheduleVolumeChanges() {
     const p = this.player;
@@ -599,7 +460,6 @@ export class PlayerController {
     if (canVolume !== true) {
       return;
     }
-
     let duration = 0;
     if (isFunction(p.getDuration)) {
       const d = p.getDuration();
@@ -607,11 +467,9 @@ export class PlayerController {
         duration = d;
       }
     }
-
     const hasChance = isNumber(this.config?.volumeChangeChance);
     const chance = hasChance ? this.config.volumeChangeChance : 0.2;
     const rangeArr = Array.isArray(this.config?.volumeRange) ? this.config.volumeRange : [10, 50];
-
     let baseCount = 1;
     if (duration >= 300) {
       baseCount = 2;
@@ -622,7 +480,6 @@ export class PlayerController {
     const chanceClamped = Math.min(1, Math.max(0, chance));
     const planned = Math.max(0, Math.floor(baseCount * chanceClamped));
     this.volumeMeta.changesPlanned = planned;
-
     const applyVolume = () => {
       try {
         let vmin = Number(rangeArr[0] ?? 10);
@@ -643,12 +500,10 @@ export class PlayerController {
         }
       } catch (_) {}
     };
-
     for (let i = 0; i < planned; i = i + 1) {
       const fromMs = duration > 0 ? Math.floor(duration * 0.1) * 1000 : 20000;
       const toMs = duration > 0 ? Math.floor(duration * 0.8) * 1000 : 120000;
       const delayMs = rndInt(Math.floor(fromMs / 1000), Math.floor(toMs / 1000)) * 1000;
-
       const id = scheduleSafe(
         () => {
           try {
@@ -668,7 +523,6 @@ export class PlayerController {
               );
               return;
             }
-
             let isMutedNow = false;
             if (isFunction(p?.isMuted)) {
               try {
@@ -701,7 +555,6 @@ export class PlayerController {
               );
               return;
             }
-
             let isPlay = false;
             if (isFunction(p.getPlayerState)) {
               if (typeof YT !== 'undefined') {
@@ -734,7 +587,6 @@ export class PlayerController {
               );
               return;
             }
-
             applyVolume();
           } catch (_) {}
         },
@@ -744,7 +596,6 @@ export class PlayerController {
       );
       this.volumeMeta.scheduledIds.push(id);
     }
-
     if (duration >= 600) {
       const microFrom = Math.floor(duration * 0.85);
       const microTo = Math.floor(duration * 0.95);
@@ -830,7 +681,6 @@ export class PlayerController {
               );
               return;
             }
-
             const canGetVol = isFunction(p?.getVolume);
             const canSetVol = isFunction(p?.setVolume);
             const canBoth = allTrue([canGetVol === true, canSetVol === true]);
@@ -856,7 +706,6 @@ export class PlayerController {
       this.volumeMeta.scheduledIds.push(id2);
     }
   }
-
   stopAllTimers() {
     try {
       groupCancel(this._group());
@@ -911,5 +760,4 @@ export class PlayerController {
 
 // Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
-
 // --- End Of File ---
