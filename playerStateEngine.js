@@ -1,9 +1,9 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v2.4.2';
+const VERSION = 'v2.4.3';
 /*
- * - Μικρά helpers: hasYT(), stateName(), readPlayerState(), updateAccumulators().
- * - Scheduling/debounce για unmute (ΜΕΤΑΦΕΡΘΗΚΕ στο autoUnmute.js μέσω scheduleUnmute).
- * - Αποφυγή early/duplicate scheduling από dispatcher: τρέχει ΜΟΝΟ σε onPlaying().
+ * - Μικρό gate στο onEnded(): αν έχει ήδη προγραμματιστεί AutoNext από watch-time,
+ *   δεν γίνεται νέο scheduling (αποφυγή διπλού AutoNext).
+ * - Κατά τα λοιπά διατηρείται η υπάρχουσα ροή ENDED/PAUSED/BUFFERING/CUED/UNKNOWN.
  */
 
 // --- Export Version ---
@@ -134,7 +134,25 @@ function onEnded(ctrl) {
     ctrl.clearTimers();
   } catch (_) {}
   log(`🔚 Player ${ctrl.index + 1} Finalize -> ENDED`);
-  autoNextAfterEnded(ctrl);
+
+  // ΝΕΟ gate: αν έχει ήδη προγραμματιστεί AutoNext από watch-time, μην ξαναπρογραμματίσεις
+  let alreadyScheduled = false;
+  const parts = [];
+  parts.push(typeof ctrl !== 'undefined');
+  parts.push(ctrl !== null);
+  const okBase = allTrue(parts);
+  if (okBase === true) {
+    if (ctrl.autoNextScheduled === true) {
+      alreadyScheduled = true;
+    }
+  }
+
+  if (alreadyScheduled !== true) {
+    autoNextAfterEnded(ctrl);
+  } else {
+    log(`⏭️ Player ${ctrl.index + 1} ENDED — AutoNext already scheduled (watch-time); skip reschedule`);
+  }
+
   try {
     window.dispatchEvent(new CustomEvent('videoEnded', { detail: { index: ctrl.index } }));
   } catch (_) {}
@@ -144,7 +162,7 @@ function onPlaying(ctrl) {
     ctrl.isPlayingActive = true;
   }
   log(`▶️ Player ${ctrl.index + 1} State -> PLAYING`);
-  // ΝΕΟ: Προγραμματισμός unmute από το autoUnmute module
+  // NEO: Προγραμματισμός unmute από το autoUnmute module
   scheduleUnmute(ctrl, true);
 }
 function onPaused(ctrl) {
@@ -212,7 +230,6 @@ export function onStateChangeExternal(ctrl, e) {
         tSec = pLocal.getCurrentTime();
       }
     } catch (_) {}
-
     let scheduled = false;
     try {
       const hasTimersObj = isDefined(ctrl.timers) === true ? typeof ctrl.timers === 'object' : false;
@@ -292,7 +309,7 @@ export function onStateChangeExternal(ctrl, e) {
   // ΣΗΜΑΝΤΙΚΟ: Το scheduling του unmute γίνεται ΜΟΝΟ στο onPlaying().
 }
 
-/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---
