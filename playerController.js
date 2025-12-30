@@ -1,9 +1,9 @@
 // --- playerController.js ---
-const VERSION = 'v7.5.3';
+const VERSION = 'v7.6.0';
 /*
- * - Μικρό helper API μέσα στο class (can/ytDefined/isPlaying/isMuted/group).
- * - Ενιαίο scheduleVolumes() με retry όταν είναι muted.
- * - Ασφαλές _safeSeek() (delegation) & mid-seek μέσω external autoSeek.js.
+ * Ενιαίο scheduleVolumes() με retry όταν είναι muted.
+ * Ασφαλές _safeSeek() (delegation) & mid-seek μέσω external autoSeek.js.
+ * Deprecated: loadNextVideo() έγινε wrapper προς autoNextAfterEnded(this) για ενοποίηση picking/gates.
  */
 
 // --- Export Version ---
@@ -22,7 +22,7 @@ import { scheduleSafe, cancel, groupCancel, jitter, log, rndInt, allTrue, isNumb
 import { MAIN_PROBABILITY, getOrigin, getYouTubeEmbedHost, stats } from './globals.js';
 import { getBehaviorPlan } from './policies.js';
 import { onStateChangeExternal } from './playerStateEngine.js';
-import { autoNextAfterError } from './autoNext.js';
+import { autoNextAfterError, autoNextAfterEnded } from './autoNext.js';
 import { scheduleVolumeChanges, scheduleMicroAdjust } from './autoVolume.js';
 import { schedulePauses } from './autoPause.js';
 import { safeSeek as safeSeekExternal, scheduleMidSeek as scheduleMidSeekExternal, applyInitSeek } from './autoSeek.js';
@@ -50,7 +50,7 @@ export class PlayerController {
     this.plan = null;
     // Volume meta
     this.volumeMeta = { scheduledIds: [], changesPlanned: 0 };
-    // Unmute flags (συνεργάζονται με playerStateEngine)
+    // Unmute flags (συνενεργάζονται με playerStateEngine)
     this.pendingUnmute = false;
     this.unmuteScheduled = false;
   }
@@ -157,6 +157,7 @@ export class PlayerController {
     };
     attempt();
   }
+
   guardPlay(p) {
     try {
       const parts = [];
@@ -193,6 +194,7 @@ export class PlayerController {
     log(`ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
     log(`👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
   }
+
   onReady(e) {
     const p = e.target;
     // Initial mute
@@ -233,7 +235,6 @@ export class PlayerController {
     try {
       this.plan = getBehaviorPlan(ctx);
     } catch (_) {}
-
     let targetSec = 0;
     const hasPlan = typeof this.plan !== 'undefined' ? this.plan !== null : false;
     if (hasPlan === true) {
@@ -267,14 +268,12 @@ export class PlayerController {
       this._group('play'),
       'guardPlay-initial'
     );
-
     const seekInfo = isNumber(targetSec) === true ? targetSec : '-';
     log(`⏩ Player ${this.index + 1} Behavior Plan Start Seek -> Seek=${seekInfo}s`);
 
-    // Schedulers (NΕΟ: pauses από autoPause)
+    // Schedulers (NEO: pauses από autoPause)
     schedulePauses(this);
     this.scheduleMidSeek();
-
     try {
       const p2 = this.player;
       let duration = 0;
@@ -291,10 +290,12 @@ export class PlayerController {
       scheduleMicroAdjust(this.player, duration, this._group('volume'));
     } catch (_) {}
   }
+
   onStateChange(e) {
     // Λεπτός dispatcher: όλη η state-εξαρτώμενη λογική στο playerStateEngine.
     onStateChangeExternal(this, e);
   }
+
   onError() {
     try {
       this.clearTimers();
@@ -342,50 +343,13 @@ export class PlayerController {
     this.expectedPauseMs = 0;
   }
 
+  // -------- Deprecated wrapper: ενιαίο AutoNext από autoNext.js --------
   loadNextVideo(player) {
-    const canLoad = [];
-    canLoad.push(typeof player !== 'undefined');
-    canLoad.push(player !== null);
-    canLoad.push(this._can(player, 'loadVideoById') === true);
-    const ok = allTrue(canLoad);
-    if (ok !== true) {
-      stats.errors = (stats.errors ?? 0) + 1;
-      log('❌ AutoNext skipped -> player/loadVideoById unavailable');
-      return;
+    try {
+      autoNextAfterEnded(this);
+    } catch (_) {
+      // no-op
     }
-    const useMain = Math.random() < MAIN_PROBABILITY;
-    const hasMain = Array.isArray(this.mainList) === true ? this.mainList.length > 0 : false;
-    const hasAlt = Array.isArray(this.altList) === true ? this.altList.length > 0 : false;
-    let list = null;
-    if (useMain === true) {
-      if (hasMain === true) {
-        list = this.mainList;
-      } else {
-        if (hasAlt === true) {
-          list = this.altList;
-        }
-      }
-    } else {
-      if (hasAlt === true) {
-        list = this.altList;
-      } else {
-        if (hasMain === true) {
-          list = this.mainList;
-        }
-      }
-    }
-    const listLen = Array.isArray(list) === true ? list.length : 0;
-    if (listLen === 0) {
-      stats.errors = (stats.errors ?? 0) + 1;
-      log('❌ AutoNext aborted -> no available list');
-      return;
-    }
-    const idx = Math.floor(Math.random() * list.length);
-    const newId = list[idx];
-    log(`[DBG] AutoNext picking -> source=${useMain ? 'main' : 'alt'} size=${String(listLen)} id=${String(newId)}`);
-    player.loadVideoById(newId);
-    this.guardPlay(player);
-    log(`⏭️ Player ${this.index + 1} AutoNext -> ${newId} (Source:${useMain ? 'main' : 'alt'})`);
   }
 }
 
