@@ -1,9 +1,8 @@
 // --- lists.js ---
-const VERSION = 'v4.13.2';
+const VERSION = 'v4.13.5';
 /*
-Περιγραφή: Φόρτωση λιστών video IDs από local/remote πηγές, με ασφαλή parsing,
-log/μετρικές και εφεδρικές λύσεις. Αναθεώρηση: αξιοποίηση utils.js (guards, retry, logging, format), με βελτιωμένο έλεγχο εγκυρότητας.
-Fallback chain: local -> GitHub raw (με retry) -> internal fallback.
+Περιγραφή: Φόρτωση λιστών video IDs από local/remote πηγές, με parsing, sanitization,
+logging και fallback. Επιστρέφει arrays για συμβατότητα, ενώ το reload() παρέχει meta.
 */
 
 // --- Export Version ---
@@ -22,9 +21,8 @@ import { stats } from './globals.js';
 import { log, isDefined, isString, isNonEmptyArray, formatMs, retry } from './utils.js';
 
 /**
- * Ασφαλής μετατροπή σε γραμμές (split + trim + non-empty).
- * Χρήση guards από utils.js αντί για απλούς truthy ελέγχους.
- * @param {string} text - Είσοδος κειμένου
+ * Ασφαλής μετατροπή σε γραμμές (split+trim+non-empty).
+ * @param {string} text
  * @returns {string[]} Μη-κενές γραμμές
  */
 function parseNonEmptyLines(text) {
@@ -32,11 +30,9 @@ function parseNonEmptyLines(text) {
   if (isStr === false) {
     return [];
   }
-
   const rawLines = text.split('\n');
   const out = [];
   let i = 0;
-
   while (i < rawLines.length) {
     const t = rawLines[i].trim();
     if (t) {
@@ -44,7 +40,50 @@ function parseNonEmptyLines(text) {
     }
     i = i + 1;
   }
+  return out;
+}
 
+/* ====== Νέο: Καθαρισμός/Έλεγχος IDs (sanitize) ====== */
+const YT_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+
+/**
+ * Sanitize λίστας: dedup + regex φίλτρο + logs (πλήθος πριν/μετά).
+ * @param {string[]} arr
+ * @param {string} tag - περιγραφή (main|alt|remote|local|internal)
+ * @returns {string[]} καθαρισμένη λίστα
+ */
+function sanitizeList(arr, tag) {
+  const before = Array.isArray(arr) ? arr.length : 0;
+  let tmp = Array.isArray(arr) ? arr.slice() : [];
+  // Dedup
+  const set = new Set();
+  let i = 0;
+  while (i < tmp.length) {
+    const v = tmp[i];
+    set.add(v);
+    i = i + 1;
+  }
+  const deduped = Array.from(set.values());
+  // Regex filter
+  const out = [];
+  let j = 0;
+  while (j < deduped.length) {
+    const v = deduped[j];
+    if (YT_ID_RE.test(v) === true) {
+      out.push(v);
+    }
+    j = j + 1;
+  }
+  const after = out.length;
+  log(`🧹 Sanitize (${tag}) — πριν:${before} → μετά:${after}`);
+  if (after < 1) {
+    try {
+      stats.errors = (stats.errors ?? 0) + 1;
+    } catch (_e) {
+      // no-op
+    }
+    log('⚠️ Sanitize αποτέλεσμα κενό — πιθανό πρόβλημα πηγής/μορφής IDs');
+  }
   return out;
 }
 
@@ -58,7 +97,6 @@ function parseNonEmptyLines(text) {
 async function fetchText(url, timeoutMs) {
   let ctrl = null;
   let timeoutId = null;
-
   try {
     if (isDefined(timeoutMs) === true) {
       ctrl = new AbortController();
@@ -66,15 +104,12 @@ async function fetchText(url, timeoutMs) {
         ctrl.abort();
       }, Number(timeoutMs));
     }
-
     const options = isDefined(ctrl) === true ? { signal: ctrl.signal } : undefined;
     const res = await fetch(url, options);
-
     if (res.ok === true) {
       const text = await res.text();
       return text;
     }
-
     return null;
   } finally {
     if (isDefined(timeoutId) === true) {
@@ -85,7 +120,6 @@ async function fetchText(url, timeoutMs) {
 
 /**
  * Προσπάθεια φόρτωσης από URL -> μετατροπή σε λίστα.
- * Επιστρέφει null σε (α) fetch non-OK, (β) κενό parsing.
  * @param {string} url
  * @param {number|undefined} timeoutMs
  * @returns {Promise<string[]|null>}
@@ -95,12 +129,10 @@ async function tryLoadListFromUrl(url, timeoutMs) {
   if (isDefined(text) === false) {
     return null;
   }
-
   const list = parseNonEmptyLines(text);
   if (isNonEmptyArray(list) === false) {
     return null;
   }
-
   return list;
 }
 
@@ -126,44 +158,39 @@ const internalList = [
   'YsdWYiPlEsE',
 ];
 
+/* ====== Νέο: wrappers με meta (source) ====== */
+
 /**
- * Κύρια λίστα video IDs.
- * Αλυσίδα:
- * 1) Local 'list.txt'
- * 2) Remote GitHub raw (με retry/backoff, συνολικό όριο ~4s)
- * 3) Internal fallback
- * Metrics: stats.errors++ όταν απαιτείται internal fallback.
- * @returns {Promise<string[]>}
+ * Main list load με meta (source).
+ * @returns {Promise<{list:string[], source:string}>}
  */
-export async function loadVideoList() {
-  // 1) Local source
+async function loadVideoListWithMeta() {
+  // 1) Local
   try {
     const listLocal = await tryLoadListFromUrl('list.txt');
     if (isDefined(listLocal) === true) {
-      log(`✅ Main list loaded from local file -> ${listLocal.length} items`);
-      return listLocal;
+      const clean = sanitizeList(listLocal, 'main:local');
+      log(`✅ Main list loaded [source:local] → ${clean.length} items`);
+      return { list: clean, source: 'local' };
     }
   } catch (err) {
     log(`⚠️ Local list load failed -> ${err}`);
   }
 
-  // 2) Remote source (GitHub raw) με retry/backoff
+  // 2) Remote GitHub
   try {
     const githubUrl = 'https://raw.githubusercontent.com/DeadManWalkingTO/Educational-Content/main/list.txt';
-
-    // 3 προσπάθειες, backoff base=500ms, factor=2, max=2000ms, jitterRatio=0.15
     const ret = await retry(
       async function () {
         const t0 = Date.now();
         const listRemote = await tryLoadListFromUrl(githubUrl, 4000);
         const dt = Date.now() - t0;
-
         if (isDefined(listRemote) === false) {
           throw new Error('Empty or non-OK GitHub response');
         }
-
-        log(`🌐 GitHub fetch ok in ${formatMs(dt)} -> ${listRemote.length} items`);
-        return listRemote;
+        const clean = sanitizeList(listRemote, 'main:github');
+        log(`🌐 GitHub fetch ok in ${formatMs(dt)} -> ${clean.length} items`);
+        return clean;
       },
       3,
       500,
@@ -171,55 +198,76 @@ export async function loadVideoList() {
       2000,
       0.15
     );
-
     if (ret.ok === true) {
-      log(`✅ Main list loaded from GitHub -> ${ret.value.length} items`);
-      return ret.value;
+      log(`✅ Main list loaded [source:github] → ${ret.value.length} items`);
+      return { list: ret.value, source: 'github' };
     }
-
     log(`⚠️ GitHub list load failed after ${ret.attempts} attempts -> ${ret.error}`);
   } catch (err) {
     log(`⚠️ GitHub list load error -> ${err}`);
   }
 
-  // 3) Last-resort internal fallback
-  stats.errors = stats.errors + 1;
-  log(`❌ Using internal fallback list -> ${internalList.length} items`);
-  return internalList;
+  // 3) Internal fallback
+  try {
+    stats.errors = stats.errors + 1;
+  } catch (_e) {}
+  const clean = sanitizeList(internalList, 'main:internal');
+  log(`❌ Using internal fallback [source:internal] → ${clean.length} items`);
+  return { list: clean, source: 'internal' };
 }
 
 /**
- * Εναλλακτική λίστα (alt list) από local 'random.txt'.
- * Σε αποτυχία/κενό -> επιστρέφει [] και μετράμε stats.errors++.
- * @returns {Promise<string[]>}
+ * Alt list load με meta (source).
+ * @returns {Promise<{list:string[], source:string}>}
  */
-export async function loadAltList() {
+async function loadAltListWithMeta() {
   try {
     const listAlt = await tryLoadListFromUrl('random.txt');
     if (isDefined(listAlt) === true) {
-      log(`✅ Alt List Loaded from Local File -> ${listAlt.length} items`);
-      return listAlt;
+      const clean = sanitizeList(listAlt, 'alt:local');
+      log(`✅ Alt list loaded [source:local] → ${clean.length} items`);
+      return { list: clean, source: 'local' };
     }
   } catch (err) {
     log(`⚠️ Alt List Load Failed -> ${err}`);
   }
-
-  stats.errors = stats.errors + 1;
-  log(`❌ Alt List Empty -> Using []`);
-  return [];
+  try {
+    stats.errors = stats.errors + 1;
+  } catch (_e) {}
+  log('❌ Alt list empty -> Using [] [source:none]');
+  return { list: [], source: 'none' };
 }
 
 /**
- * Reload των λιστών (main + alt) παράλληλα.
- * @returns {Promise<{mainList: string[], altList: string[]}>}
+ * (Διατήρηση συμβατότητας) Παλιά API: επιστρέφει μόνο array (χωρίς meta).
+ * @returns {Promise<string[]>}
+ */
+export async function loadVideoList() {
+  const ret = await loadVideoListWithMeta();
+  return ret.list;
+}
+
+/**
+ * (Διατήρηση συμβατότητας) Παλιά API: επιστρέφει μόνο array (χωρίς meta).
+ * @returns {Promise<string[]>}
+ */
+export async function loadAltList() {
+  const ret = await loadAltListWithMeta();
+  return ret.list;
+}
+
+/**
+ * Reload δύο λιστών παράλληλα — τώρα επιστρέφει και meta (source).
+ * @returns {Promise<{mainList:string[], altList:string[], meta:{mainSource:string, altSource:string}}>}
  */
 export async function reloadList() {
-  const lists = await Promise.all([loadVideoList(), loadAltList()]);
-  const mainList = lists[0];
-  const altList = lists[1];
-
-  log(`🔄 Lists Reloaded -> Main:${mainList.length} Alt:${altList.length}`);
-  return { mainList, altList };
+  const both = await Promise.all([loadVideoListWithMeta(), loadAltListWithMeta()]);
+  const mainMeta = both[0];
+  const altMeta = both[1];
+  const mainList = mainMeta.list;
+  const altList = altMeta.list;
+  log(`🔄 Lists Reloaded -> Main:${mainList.length} (source:${mainMeta.source}) Alt:${altList.length} (source:${altMeta.source})`);
+  return { mainList, altList, meta: { mainSource: mainMeta.source, altSource: altMeta.source } };
 }
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */

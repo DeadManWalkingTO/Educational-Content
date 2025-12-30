@@ -1,19 +1,20 @@
 // --- uiControls.js ---
-const VERSION = 'v3.18.38';
+const VERSION = 'v3.18.40';
 /*
  * Κεντρικό χειριστήριο UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
- * Αναθεώρηση: χρήση guards/events/logging από utils.js (domReady, safeAddEvent, log, rndInt, allTrue, debounce).
- * Σκοπός: πιο ασφαλές binding, καθαρές καταγραφές, αποφυγή λογικών τελεστών && και ||, και μικρότερη πιθανότητα σφαλμάτων.
+ * - Μετά από επιτυχές reload λιστών γίνεται broadcast του event 'lists:updated'
+ *   με λεπτομέρειες (mainCount, altCount, mainSource, altSource) για συγχρονισμό controllers.
  */
+
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
 
-//Όνομα αρχείου για logging.
+/* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
-// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
@@ -21,13 +22,12 @@ import { controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStop
 import { rndInt, log, allTrue, isDefined, isNonEmptyArray, safeAddEvent, domReady, debounce } from './utils.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
 
-/* --------------------------------------------- */
-/* Helpers (τοπικά)                              */
-/* --------------------------------------------- */
+/* ----------------------------------------------------------- */
+/* Helpers (τοπικά)                                            */
+/* ----------------------------------------------------------- */
 
 /**
- * Ανάκτηση DOM element με βάση id.
- * Επιστρέφει null αν δεν υπάρχει.
+ * Ανάκτηση DOM element με βάση id. Επιστρέφει null αν δεν υπάρχει.
  */
 function byId(id) {
   try {
@@ -59,19 +59,18 @@ function isReadyController(c) {
 
 /**
  * Μέτρηση σφαλμάτων και καταγραφή στο activity log.
- * (Το log θα προσθέσει [hh:mm:ss] αυτόματα.)
  */
 function noteError(message) {
   try {
     stats.errors += 1;
   } catch (_e) {
-    // no-op για περίπτωση που δεν έχει αρχικοποιηθεί το stats
+    // no-op
   }
-  log(message); // Το log θα προσθέσει [hh:mm:ss] αυτόματα.
+  log(message); // θα αποτυπωθεί με [hh:mm:ss] αυτόματα
 }
 
 /**
- * Έλεγχος συμβατότητας για native Clipboard API, χωρίς χρήση || και &&.
+ * Έλεγχος για native Clipboard API, χωρίς χρήση || και &&.
  */
 function canClipboardNative() {
   try {
@@ -115,7 +114,7 @@ function unsecuredCopyToClipboard(text) {
 }
 
 /**
- * Fisher–Yates shuffle σε copy του input (για τυχαία σειρά Stop All).
+ * Fisher–Yates shuffle (copy του input) — για τυχαία σειρά στο Stop All.
  */
 function shuffleControllers(list) {
   const a = Array.isArray(list) ? list.slice() : [];
@@ -155,18 +154,17 @@ function buildLogsText(panel) {
  * Τελικό format για αντιγραφή (logs + stats).
  */
 function buildFinalText(logsText, statsText) {
-  return `=== LOGS ===
-${logsText}
-=== STATS ===
+  return `=== LOGS === 
+${logsText} 
+=== STATS === 
 ${statsText}`;
 }
 
-/* --------------------------------------------- */
-/* Δημόσιο API                                   */
-/* --------------------------------------------- */
-
+/* ----------------------------------------------------------- */
+/* Δημόσιο API                                                 */
+/* ----------------------------------------------------------- */
 /**
- * Ενεργοποίηση/απενεργοποίηση κουμπιών UI.
+ * Ενεργοποίηση/απενεργοποίηση controls.
  */
 export function setControlsEnabled(enabled) {
   const ids = ['btnStopAll', 'btnRestartAll', 'btnToggleTheme', 'btnCopyLogs', 'btnClearLogs', 'btnReloadList'];
@@ -180,7 +178,7 @@ export function setControlsEnabled(enabled) {
     }
     i = i + 1;
   }
-  log(`✅ Controls ${enabled ? 'enabled' : 'disabled'} (${touched} στοιχεία)`);
+  log(`✅ Controls ${enabled ? 'enabled' : 'disabled'} (${touched} στοιχεία)`);
   return touched;
 }
 
@@ -219,17 +217,15 @@ function stopAll() {
 
 /*
 Restart All:
-- Αν controller έχει ήδη player: loadNextVideo.
-- Αλλιώς: init με τυχαίο video id από main/alt σύμφωνα με MAIN_PROBABILITY.
+- Αν controller έχει έγκυρο player: loadNextVideo (delegation).
+- Αλλιώς: init με νέο id από main/alt ανά MAIN_PROBABILITY.
 */
 function restartAll() {
   const mainList = getMainList();
   const altList = getAltList();
-
   let i = 0;
   while (i < controllers.length) {
     const c = controllers[i];
-
     if (isReadyController(c)) {
       try {
         c.loadNextVideo(c.player);
@@ -240,16 +236,14 @@ function restartAll() {
       i = i + 1;
       continue;
     }
-
     const useMain = Math.random() < MAIN_PROBABILITY;
     const hasMain = isNonEmptyArray(mainList);
     const hasAlt = isNonEmptyArray(altList);
-
     let source = null;
-    if (allTrue([useMain, hasMain])) {
+    if (allTrue([useMain === true, hasMain === true])) {
       source = mainList;
     } else {
-      if (allTrue([!useMain, hasAlt])) {
+      if (allTrue([useMain === false, hasAlt === true])) {
         source = altList;
       } else {
         if (hasMain) {
@@ -259,29 +253,25 @@ function restartAll() {
         }
       }
     }
-
     const newId = pickRandomId(source);
     if (!isDefined(newId)) {
       noteError(`❌ Player ${c ? c.index + 1 : '?'} Restart Skipped -> No Videos Available`);
       i = i + 1;
       continue;
     }
-
     try {
       c.init(newId);
       log(`🔁 Player ${c.index + 1} Restart (init) -> ${newId} (Source:${useMain ? 'main' : 'alt'})`);
     } catch (e) {
       noteError(`❌ Player ${c.index + 1} Restart Error -> ${e}`);
     }
-
     i = i + 1;
   }
-
   log(`🔁 Restart All -> Completed`);
 }
 
 /**
- * Εναλλαγή θέματος (Light/Dark) με ασφαλείς καταγραφές.
+ * Εναλλαγή θέματος (Light/Dark).
  */
 function toggleTheme() {
   try {
@@ -302,7 +292,7 @@ function toggleTheme() {
  */
 function clearLogs() {
   const panel = byId('activityPanel');
-  if (allTrue([isDefined(panel), hasEntries(panel)])) {
+  if (allTrue([isDefined(panel), hasEntries(panel)]) === true) {
     panel.innerHTML = '';
     log(`🧹 Logs Cleared -> All Entries Removed`);
     return true;
@@ -317,16 +307,13 @@ function clearLogs() {
 export async function copyLogs() {
   const panel = byId('activityPanel');
   const statsPanel = byId('statsPanel');
-
   if (!hasEntries(panel)) {
     log(`⚠️ Copy Logs -> No entries`);
     return false;
   }
-
   const logsText = buildLogsText(panel);
   const statsText = isDefined(statsPanel) ? statsPanel.textContent : '📊 Stats Not Available';
   const finalText = buildFinalText(logsText, statsText);
-
   if (canClipboardNative()) {
     try {
       await navigator.clipboard.writeText(finalText);
@@ -337,26 +324,21 @@ export async function copyLogs() {
       noteError(`❌ Clipboard API Failed -> Fallback (${err})`);
     }
   }
-
   const ok = unsecuredCopyToClipboard(finalText);
   if (ok) {
     log(`📋 (Fallback) Logs Copied -> ${panel.children.length} entries + stats`);
     return true;
   }
-
   noteError(`❌ Copy Logs Failed (Fallback)`);
   return false;
 }
 
-/* --------------------------------------------- */
-/* Event Bindings                                */
-/* --------------------------------------------- */
-
+/* ----------------------------------------------------------- */
+/* Event Bindings                                              */
+/* ----------------------------------------------------------- */
 let __uiBound = false;
-
 /**
  * Δέσμευση click handlers στα κουμπιά UI (ασφαλής προσθήκη listeners).
- * - Χρήση safeAddEvent για αποφυγή σφαλμάτων.
  * - Binding εκτελείται μετά το domReady.
  * - Το Reload είναι debounced ώστε να αποφευχθούν αλλεπάλληλες κλήσεις.
  */
@@ -364,7 +346,6 @@ export async function bindUiEvents() {
   if (__uiBound === true) {
     return 0;
   }
-
   await domReady();
 
   // Debounced handler για reload
@@ -378,50 +359,72 @@ export async function bindUiEvents() {
     ['btnClearLogs', clearLogs],
     ['btnReloadList', debouncedReload],
   ];
-
   let bound = 0;
   let i = 0;
   while (i < pairs.length) {
     const id = pairs[i][0];
     const handler = pairs[i][1];
     const el = byId(id);
-
     if (isDefined(el)) {
-      // Ασφαλής προσθήκη listener (χρήση addEventListener εσωτερικά)
+      // Ασφαλής προσθήκη listener
       safeAddEvent(el, 'click', handler);
       bound = bound + 1;
     } else {
       log(`⚠️ UI Bind Skipped -> Missing Element #${id}`);
     }
-
     i = i + 1;
   }
-
   __uiBound = true;
   log(`✅ UI Events Bound (uiControls.js ${VERSION}) -> ${bound} handlers`);
   return bound;
 }
 
-/* --------------------------------------------- */
-/* Lists Reloading                               */
-/* --------------------------------------------- */
-
+/* ----------------------------------------------------------- */
+/* Lists Reloading                                             */
+/* ----------------------------------------------------------- */
 /**
- * Επαναφόρτωση λιστών από τη πηγή και εφαρμογή στα globals.
+ * Επαναφόρτωση λιστών από πηγή και εφαρμογή στη globals.
+ * Μετά το apply -> dispatch 'lists:updated' με meta και counts.
  */
 export async function reloadList() {
   try {
-    const { mainList, altList } = await reloadListsFromSource();
+    const ret = await reloadListsFromSource();
+    const mainList = ret.mainList;
+    const altList = ret.altList;
+
     setMainList(mainList);
     setAltList(altList);
+
     log(`🗂️ Lists Applied -> Main: ${mainList.length} - Alt: ${altList.length}`);
+
+    // Broadcast event για συγχρονισμό controllers
+    try {
+      if (typeof document !== 'undefined') {
+        const detail = {
+          mainCount: Array.isArray(mainList) ? mainList.length : 0,
+          altCount: Array.isArray(altList) ? altList.length : 0,
+          mainSource: isDefined(ret?.meta?.mainSource) ? ret.meta.mainSource : 'unknown',
+          altSource: isDefined(ret?.meta?.altSource) ? ret.meta.altSource : 'unknown',
+        };
+        const ev = new CustomEvent('lists:updated', { detail });
+        document.dispatchEvent(ev);
+        log(`📣 Event 'lists:updated' dispatched -> main:${detail.mainCount} (src:${detail.mainSource}) alt:${detail.altCount} (src:${detail.altSource})`);
+      }
+    } catch (e) {
+      log(`⚠️ lists:updated dispatch error -> ${e}`);
+    }
+
     return true;
   } catch (err) {
-    noteError(`❌ Reload Failed -> ${err}`);
+    try {
+      stats.errors = (stats.errors ?? 0) + 1;
+    } catch (_e) {}
+    log(`❌ Reload Failed -> ${err}`);
     return false;
   }
 }
 
-/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+
 // --- End Of File ---
