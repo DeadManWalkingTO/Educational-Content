@@ -4,6 +4,8 @@
 
 ## 2025-12-30
 
+- autoSeek.js: new v1.0.0 — Extracted seek logic (safeSeek, init-seek, mid-seek scheduler).
+- playerController.js: v7.2.2 → v7.3.0 — Delegated seek to autoSeek.js; applyInitSeek; scheduleMidSeek wrapper; imports updated.
 - autoVolume.js: - → v1.0.0 — Νέο module που μεταφέρει τη λογική αυτόματων αλλαγών έντασης (volume-change & micro-adjust) με guards/retries.
 - playerController.js: v7.2.1 → v7.2.2 — Μεταφορά scheduling έντασης σε autoVolume.js, αφαίρεση scheduleVolumes(), προσθήκη imports & κλήσεων.
   Tests: Smoke test προτεινόμενο με 3 videos (2×<5', 1×~15'); logs OK, stats.volumeChanges αυξάνεται όπως πριν.
