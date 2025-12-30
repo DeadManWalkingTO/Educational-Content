@@ -1,9 +1,9 @@
 // --- autoNext.js ---
-const VERSION = 'v1.8.8';
+const VERSION = 'v1.9.4';
 /*
- * Περιγραφή: Ενοποίηση gates στο ENDED + σωστή χρήση MAIN_PROBABILITY
- * MAIN_PROBABILITY χρησιμοποιείται μόνο για main vs alt επιλογή.
- * Προστέθηκε οπτικό log της επιλογής λίστας.
+ * Περιγραφή: Ενοποίηση λογικής AutoNext για ENDED/ERROR σε κοινό scheduler + runner.
+ * Συμπεριφορά: Ίδια με πριν (delays, gates, επιλογές λιστών, counters).
+ * Βελτιώσεις: DRY, καθαρότερο buildCtx με utils.isFunction/isNonEmptyArray.
  */
 
 // --- Export Version ---
@@ -11,20 +11,20 @@ export function getVersion() {
   return VERSION;
 }
 
-// Όνομα αρχείου για logging.
 const FILENAME = import.meta.url.split('/').pop();
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, log, rndInt, randomFloat, isDefined, isNumber, allTrue } from './utils.js';
+import { scheduleSafe, log, rndInt, randomFloat, isDefined, isNumber, allTrue, isFunction, isNonEmptyArray } from './utils.js';
 import { AUTO_NEXT_LIMIT_PER_PLAYER, stats, MAIN_PROBABILITY } from './globals.js';
 
 /* ========================= AutoNext counters ========================= */
 let autoNextCounter = 0;
 let lastResetTime = Date.now();
 let autoNextPerPlayer = [];
+
 function ensureArraySize(idx) {
   const need = idx + 1;
   const has = autoNextPerPlayer.length;
@@ -36,6 +36,7 @@ function ensureArraySize(idx) {
     }
   }
 }
+
 function resetAutoNextCountersIfNeeded() {
   const now = Date.now();
   const diff = now - lastResetTime;
@@ -50,6 +51,7 @@ function resetAutoNextCountersIfNeeded() {
     log('🔄 AutoNext counters reset (hourly)');
   }
 }
+
 export function canAutoNext(playerIndex) {
   resetAutoNextCountersIfNeeded();
   ensureArraySize(Number(playerIndex));
@@ -57,6 +59,7 @@ export function canAutoNext(playerIndex) {
   const cur = autoNextPerPlayer[idx];
   return cur < AUTO_NEXT_LIMIT_PER_PLAYER;
 }
+
 export function incAutoNext(playerIndex) {
   ensureArraySize(Number(playerIndex));
   autoNextCounter = autoNextCounter + 1;
@@ -67,9 +70,10 @@ export function incAutoNext(playerIndex) {
 /* ========================= Context helpers ========================= */
 function buildCtx(ctrl, trigger) {
   const p = isDefined(ctrl?.player) === true ? ctrl.player : null;
+
   let durationSec = 0;
   if (p !== null) {
-    const canDur = isDefined(p.getDuration) === true ? (typeof p.getDuration === 'function' ? true : false) : false;
+    const canDur = isDefined(p.getDuration) === true ? (isFunction(p.getDuration) === true ? true : false) : false;
     if (canDur === true) {
       const d = p.getDuration();
       if (isNumber(d) === true) {
@@ -77,29 +81,19 @@ function buildCtx(ctrl, trigger) {
       }
     }
   }
-  // Έλεγχος λιστών
-  let hasMain = false;
-  const isArrMain = Array.isArray(ctrl?.mainList) === true ? true : false;
-  if (isArrMain === true) {
-    if (ctrl.mainList.length > 0) {
-      hasMain = true;
-    }
-  }
-  let hasAlt = false;
-  const isArrAlt = Array.isArray(ctrl?.altList) === true ? true : false;
-  if (isArrAlt === true) {
-    if (ctrl.altList.length > 0) {
-      hasAlt = true;
-    }
-  }
+
+  const hasMainList = isNonEmptyArray(ctrl?.mainList) === true ? true : false;
+  const hasAltList = isNonEmptyArray(ctrl?.altList) === true ? true : false;
+
   let hasLists = false;
-  if (hasMain === true) {
+  if (hasMainList === true) {
     hasLists = true;
   } else {
-    if (hasAlt === true) {
+    if (hasAltList === true) {
       hasLists = true;
     }
   }
+
   return {
     index: isNumber(ctrl?.index) === true ? ctrl.index : -1,
     durationSec,
@@ -168,13 +162,11 @@ function pickNextVideoId(ctx) {
   // Προαιρετικό ενισχυτικό logging για ορατότητα επιλογής
   try {
     const pStr = hasProb === true ? `${(ctx.mainProbability * 100).toFixed(0)}%` : '-';
-    const rStr = hasProb === true ? `${(rand * 100).toFixed(1)}` : '-';
-    log(`🎲 List selection: ${useMain === true ? 'main' : 'alt'} r=${rStr} / p=${pStr}`);
+    log(`🎲 List selection: ${useMain === true ? 'main' : 'alt'} p=${pStr}`);
   } catch (_) {}
 
   let list = null;
 
-  // Προτίμηση main αν useMain === true και υπάρχει
   const mainOk = Array.isArray(ctx?.mainList) === true ? (ctx.mainList.length > 0 ? true : false) : false;
   if (useMain === true) {
     if (mainOk === true) {
@@ -182,7 +174,6 @@ function pickNextVideoId(ctx) {
     }
   }
 
-  // Αν δεν επιλέχθηκε ή δεν υπάρχει main, δοκίμασε alt (αν ζητήθηκε alt ή σαν fallback)
   if (isDefined(list) !== true) {
     const altOk = Array.isArray(ctx?.altList) === true ? (ctx.altList.length > 0 ? true : false) : false;
     if (altOk === true) {
@@ -190,7 +181,6 @@ function pickNextVideoId(ctx) {
     }
   }
 
-  // Τελικό fallback: αν ακόμη null, βάλε την άλλη λίστα που υπάρχει
   if (isDefined(list) !== true) {
     if (mainOk === true) {
       list = ctx.mainList;
@@ -214,14 +204,17 @@ function pickNextVideoId(ctx) {
 function finalizeAutoNext(ctrl, picked) {
   incAutoNext(ctrl.index);
   stats.autoNext = isNumber(stats?.autoNext) === true ? stats.autoNext + 1 : 1;
+
   ctrl.totalPlayTime = 0;
   ctrl.playingStart = null;
+
   try {
     log(
       `⏭️ Player ${ctrl.index + 1} AutoNext -> ${String(isDefined(picked?.id) === true ? picked.id : '-')}` +
         ` (Source:${String(isDefined(picked?.source) === true ? picked.source : '-')}, size:${String(isNumber(picked?.size) === true ? picked.size : 0)})`
     );
   } catch (_) {}
+
   try {
     ctrl.schedulePauses();
   } catch (_) {}
@@ -230,79 +223,69 @@ function finalizeAutoNext(ctrl, picked) {
   } catch (_) {}
 }
 
-/* ========================= Public API ========================= */
-export function autoNextAfterEnded(ctrl) {
-  const ctx = buildCtx(ctrl, 'ended');
-  // Gates στο ENDED (χωρίς probability)
-  const decision = shouldAutoNext(ctx);
-  if (decision.allow !== true) {
-    log(`⛔ Player ${ctrl.index + 1} AutoNext blocked (ENDED) — ${String(decision.reason)}`);
+/* ========================= Runner ========================= */
+function runAutoNext(ctrl, ctx, label) {
+  const picked = pickNextVideoId(ctx);
+
+  const canLoad = isDefined(ctrl?.player) === true ? (isDefined(ctrl?.player?.loadVideoById) === true ? (typeof ctrl.player.loadVideoById === 'function' ? true : false) : false) : false;
+
+  if (canLoad !== true) {
+    stats.errors = isNumber(stats?.errors) === true ? stats.errors + 1 : 1;
+    log('❌ AutoNext aborted -> player/loadVideoById unavailable');
     return;
   }
+
+  if (picked.id === null) {
+    stats.errors = isNumber(stats?.errors) === true ? stats.errors + 1 : 1;
+    log('❌ AutoNext aborted -> no available list');
+    return;
+  }
+
+  ctrl.player.loadVideoById(picked.id);
+  try {
+    ctrl.guardPlay(ctrl.player);
+  } catch (_) {}
+
+  finalizeAutoNext(ctrl, picked);
+}
+
+/* ========================= Scheduler (Generic) ========================= */
+function scheduleAutoNext(ctrl, trigger) {
+  const ctx = buildCtx(ctrl, trigger);
+
+  const decision = shouldAutoNext(ctx);
+  if (decision.allow !== true) {
+    const why = String(decision.reason);
+    const kind = trigger === 'ended' ? 'ENDED' : 'ERROR';
+    log(`⛔ Player ${ctrl.index + 1} AutoNext blocked (${kind}) — ${why}`);
+    return;
+  }
+
   const delayMs = computeAutoNextDelay(ctx);
-  log(`⏳ Player ${ctrl.index + 1} AutoNext scheduled (ENDED) — start after ${Math.round(delayMs / 1000)}s`);
+  const kind = trigger === 'ended' ? 'ENDED' : 'ERROR';
+  const label = String(trigger) + '-autonext';
+
+  log(`⏳ Player ${ctrl.index + 1} AutoNext scheduled (${kind}) — start after ${trigger === 'error' ? delayMs : Math.round(delayMs / 1000) + 's'}`);
+
   scheduleSafe(
-    () => {
-      const picked = pickNextVideoId(ctx);
-      const canLoad = isDefined(ctrl?.player) === true ? (isDefined(ctrl?.player?.loadVideoById) === true ? (typeof ctrl.player.loadVideoById === 'function' ? true : false) : false) : false;
-      if (canLoad !== true) {
-        stats.errors = isNumber(stats?.errors) === true ? stats.errors + 1 : 1;
-        log('❌ AutoNext aborted -> player/loadVideoById unavailable');
-        return;
-      }
-      if (picked.id === null) {
-        stats.errors = isNumber(stats?.errors) === true ? stats.errors + 1 : 1;
-        log('❌ AutoNext aborted -> no available list');
-        return;
-      }
-      ctrl.player.loadVideoById(picked.id);
-      try {
-        ctrl.guardPlay(ctrl.player);
-      } catch (_) {}
-      finalizeAutoNext(ctrl, picked);
+    function () {
+      runAutoNext(ctrl, ctx, label);
     },
     delayMs,
     ctrl._group('autonext'),
-    'ended-autonext'
+    label
   );
 }
 
+/* ========================= Public API ========================= */
+export function autoNextAfterEnded(ctrl) {
+  scheduleAutoNext(ctrl, 'ended');
+}
+
 export function autoNextAfterError(ctrl) {
-  const ctx = buildCtx(ctrl, 'error');
-  const decision = shouldAutoNext(ctx);
-  if (decision.allow !== true) {
-    log(`⛔ Player ${ctrl.index + 1} AutoNext blocked (ERROR) — ${String(decision.reason)}`);
-    return;
-  }
-  const delayMs = computeAutoNextDelay(ctx);
-  log(`⏳ Player ${ctrl.index + 1} AutoNext scheduled (ERROR) — start after ${delayMs}ms`);
-  scheduleSafe(
-    () => {
-      const picked = pickNextVideoId(ctx);
-      const canLoad = isDefined(ctrl?.player) === true ? (isDefined(ctrl?.player?.loadVideoById) === true ? (typeof ctrl.player.loadVideoById === 'function' ? true : false) : false) : false;
-      if (canLoad !== true) {
-        stats.errors = isNumber(stats?.errors) === true ? stats.errors + 1 : 1;
-        log('❌ AutoNext aborted -> player/loadVideoById unavailable');
-        return;
-      }
-      if (picked.id === null) {
-        stats.errors = isNumber(stats?.errors) === true ? stats.errors + 1 : 1;
-        log('❌ AutoNext aborted -> no available list');
-        return;
-      }
-      ctrl.player.loadVideoById(picked.id);
-      try {
-        ctrl.guardPlay(ctrl.player);
-      } catch (_) {}
-      finalizeAutoNext(ctrl, picked);
-    },
-    delayMs,
-    ctrl._group('autonext'),
-    'error-autonext'
-  );
+  scheduleAutoNext(ctrl, 'error');
 }
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
-
 // --- End Of File ---
