@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-const VERSION = 'v4.17.3';
+const VERSION = 'v4.17.6';
 /*
  * Περιγραφή: Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς playback.
  * Στόχος: duration-aware start, ρεαλιστικές παύσεις/seek/ένταση.
@@ -18,7 +18,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, stats, hasUserGesture } from './globals.js';
-import { rndInt, randomFloat, sleep, anyTrue, allTrue, isDefined, isNonEmptyArray, log, scheduleSafe } from './utils.js';
+import { rndInt, randomFloat, sleep, allTrue, isDefined, isNonEmptyArray, log, scheduleSafe } from './utils.js';
 import { PlayerController } from './playerController.js';
 
 /* Προφίλ συμπεριφοράς */

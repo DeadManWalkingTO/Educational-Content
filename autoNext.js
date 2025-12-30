@@ -1,5 +1,5 @@
 // --- autoNext.js ---
-const VERSION = 'v1.7.3';
+const VERSION = 'v1.7.9';
 /*
  * Περιγραφή: Συνολική πολιτική AutoNext + counters & gates (limit/hour, per-player).
  * Λειτουργίες: canAutoNext, incAutoNext, autoNextAfterEnded, autoNextAfterError.
@@ -18,9 +18,8 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, log, rndInt, randomFloat, anyTrue, allTrue, isDefined, isNumber } from './utils.js';
+import { scheduleSafe, log, rndInt, randomFloat, isDefined, isNumber } from './utils.js';
 import { AUTO_NEXT_LIMIT_PER_PLAYER, stats, MAIN_PROBABILITY } from './globals.js';
-import { getRequiredWatchTime } from './policies.js';
 
 /* ========================= AutoNext counters ========================= */
 let autoNextCounter = 0;
@@ -208,9 +207,6 @@ function finalizeAutoNext(ctrl, picked) {
 export function autoNextAfterEnded(ctrl) {
   // Δημιουργία context
   const ctx = buildCtx(ctrl, 'ended');
-
-  // Force AutoNext χωρίς κανένα gate
-  const decision = { allow: true, reason: 'force-ended' };
 
   // Logging για διαφάνεια
   log(`⏳ Player ${ctrl.index + 1} AutoNext scheduled (ENDED) — start after ${Math.round(computeAutoNextDelay(ctx) / 1000)}s`);

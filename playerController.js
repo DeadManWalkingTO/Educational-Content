@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v7.4.0';
+const VERSION = 'v7.5.3';
 /*
  * - Μικρό helper API μέσα στο class (can/ytDefined/isPlaying/isMuted/group).
  * - Ενιαίο scheduleVolumes() με retry όταν είναι muted.
@@ -18,15 +18,13 @@ const FILENAME = import.meta.url.split('/')?.pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, cancel, groupCancel, jitter, log, rndInt, anyTrue, allTrue, isFunction, isNumber, clamp } from './utils.js';
+import { scheduleSafe, cancel, groupCancel, jitter, log, rndInt, allTrue, isNumber } from './utils.js';
 import { MAIN_PROBABILITY, getOrigin, getYouTubeEmbedHost, stats } from './globals.js';
 import { getBehaviorPlan } from './policies.js';
 import { onStateChangeExternal } from './playerStateEngine.js';
 import { autoNextAfterError } from './autoNext.js';
 import { scheduleVolumeChanges, scheduleMicroAdjust } from './autoVolume.js';
-// ΝΕΟ import: λογική παύσεων σε ξεχωριστό αρχείο
 import { schedulePauses } from './autoPause.js';
-// ΝΕΟ: εξωτερικός χειρισμός seek
 import { safeSeek as safeSeekExternal, scheduleMidSeek as scheduleMidSeekExternal, applyInitSeek } from './autoSeek.js';
 
 export class PlayerController {
@@ -311,122 +309,6 @@ export class PlayerController {
       scheduleMidSeekExternal(this);
     } catch (_) {
       // no-op
-    }
-  }
-
-  // -------- Volumes / Clear / AutoNext --------
-  scheduleVolumes() {
-    const p = this.player;
-    const canVolumeParts = [];
-    canVolumeParts.push(typeof p !== 'undefined');
-    canVolumeParts.push(p !== null);
-    canVolumeParts.push(this._can(p, 'setVolume') === true);
-    const canVolume = allTrue(canVolumeParts);
-    if (canVolume !== true) {
-      return;
-    }
-    let duration = 0;
-    if (this._can(p, 'getDuration') === true) {
-      const d = p.getDuration();
-      if (isNumber(d) === true) {
-        duration = d;
-      }
-    }
-    const hasChance = isNumber(this.config?.volumeChangeChance) === true;
-    const chance = hasChance === true ? this.config.volumeChangeChance : 0.2;
-    const rangeArrIsArr = Array.isArray(this.config?.volumeRange) === true;
-    const rangeArr = rangeArrIsArr === true ? this.config.volumeRange : [10, 50];
-    let baseCount = 1;
-    if (duration >= 300) {
-      baseCount = 2;
-    }
-    if (duration >= 900) {
-      baseCount = 3;
-    }
-    const chanceClamped = Math.min(1, Math.max(0, chance));
-    const planned = Math.max(0, Math.floor(baseCount * chanceClamped));
-    this.volumeMeta.changesPlanned = planned;
-
-    const applyVolume = () => {
-      try {
-        let vmin = Number(rangeArr[0] ?? 10);
-        let vmax = Number(rangeArr[1] ?? 50);
-        if (vmin < 0) {
-          vmin = 0;
-        }
-        if (vmin > 100) {
-          vmin = 100;
-        }
-        if (vmax < 0) {
-          vmax = 0;
-        }
-        if (vmax > 100) {
-          vmax = 100;
-        }
-        const lo = Math.min(vmin, vmax);
-        const hi = Math.max(vmin, vmax);
-        const target = rndInt(lo, hi);
-        if (this._can(p, 'setVolume') === true) {
-          p.setVolume(target);
-          stats.volumeChanges = (stats.volumeChanges ?? 0) + 1;
-          log(`🔊 Player ${this.index + 1} Volume → ${target}%`);
-        }
-      } catch (_) {}
-    };
-
-    let i = 0;
-    while (i < planned) {
-      const fromMs = duration > 0 ? Math.floor(duration * 0.1) * 1000 : 20000;
-      const toMs = duration > 0 ? Math.floor(duration * 0.8) * 1000 : 120000;
-      const delayMs = rndInt(Math.floor(fromMs / 1000), Math.floor(toMs / 1000)) * 1000;
-      const id = scheduleSafe(
-        () => {
-          this._scheduleWhenPlayingAndUnmuted(applyVolume, 800, 2000, 'volume', 'volume-change');
-        },
-        delayMs,
-        this._group('volume'),
-        'volume-change'
-      );
-      this.volumeMeta.scheduledIds.push(id);
-      i = i + 1;
-    }
-
-    if (duration >= 600) {
-      const microFrom = Math.floor(duration * 0.85);
-      const microTo = Math.floor(duration * 0.95);
-      const microDelayMs = rndInt(microFrom, microTo) * 1000;
-      const microTask = () => {
-        try {
-          const guards = [];
-          guards.push(this._can(p, 'getVolume') === true);
-          guards.push(this._can(p, 'setVolume') === true);
-          const canBoth = allTrue(guards);
-          if (canBoth !== true) {
-            return;
-          }
-          const cur = p.getVolume();
-          const delta = rndInt(-6, 6);
-          let tgt = cur + delta;
-          if (tgt < 0) {
-            tgt = 0;
-          }
-          if (tgt > 100) {
-            tgt = 100;
-          }
-          p.setVolume(tgt);
-          stats.volumeChanges = (stats.volumeChanges ?? 0) + 1;
-          log(`🔉 Player ${this.index + 1} Micro-volume adjust → ${tgt}% (Δ=${delta})`);
-        } catch (_) {}
-      };
-      const id2 = scheduleSafe(
-        () => {
-          this._scheduleWhenPlayingAndUnmuted(microTask, 800, 2000, 'volume', 'volume-micro');
-        },
-        microDelayMs,
-        this._group('volume'),
-        'volume-micro'
-      );
-      this.volumeMeta.scheduledIds.push(id2);
     }
   }
 

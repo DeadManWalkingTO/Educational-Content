@@ -1,5 +1,5 @@
 // --- lists.js ---
-const VERSION = 'v4.13.0';
+const VERSION = 'v4.13.2';
 /*
 Περιγραφή: Φόρτωση λιστών video IDs από local/remote πηγές, με ασφαλή parsing,
 log/μετρικές και εφεδρικές λύσεις. Αναθεώρηση: αξιοποίηση utils.js (guards, retry, logging, format), με βελτιωμένο έλεγχο εγκυρότητας.
@@ -19,7 +19,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { stats } from './globals.js';
-import { log, isDefined, isString, isNonEmptyArray, ensure, formatMs, retry } from './utils.js';
+import { log, isDefined, isString, isNonEmptyArray, formatMs, retry } from './utils.js';
 
 /**
  * Ασφαλής μετατροπή σε γραμμές (split + trim + non-empty).

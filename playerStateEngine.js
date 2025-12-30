@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v2.4.0';
+const VERSION = 'v2.4.2';
 /*
  * - Μικρά helpers: hasYT(), stateName(), readPlayerState(), updateAccumulators().
  * - Scheduling/debounce για unmute (ΜΕΤΑΦΕΡΘΗΚΕ στο autoUnmute.js μέσω scheduleUnmute).
@@ -18,8 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, cancel, log, rndInt, anyTrue, allTrue, isDefined, isFunction, isNumber, clamp } from './utils.js';
-import { stats } from './globals.js';
+import { log, allTrue, isDefined, isFunction, isNumber, clamp } from './utils.js';
 import { autoNextAfterEnded } from './autoNext.js';
 import { scheduleUnmute } from './autoUnmute.js';
 // ΝΕΟ: restartPauseGuard από autoPause.js

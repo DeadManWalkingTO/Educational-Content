@@ -1,5 +1,5 @@
 // --- autoVolume.js ---
-const VERSION = 'v1.0.6';
+const VERSION = 'v1.0.8';
 /*
  * Περιγραφή: Εξωτερικό module για αυτόματες αλλαγές έντασης ήχου.
  *  - scheduleVolumeChanges(player, cfg, durationSec, group): προγραμματίζει αλλαγές έντασης
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, rndInt, allTrue, isFunction, isNumber, clamp, log } from './utils.js';
+import { scheduleSafe, rndInt, allTrue, isNumber, clamp, log } from './utils.js';
 import { stats } from './globals.js';
 
 // Εσωτερικοί guards για YT player

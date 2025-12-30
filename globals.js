@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v4.21.4';
+const VERSION = 'v4.21.9';
 /*
 Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
 Αναθεώρηση: Αφαίρεση τοπικού scheduler και χρήση των APIs από utils.js (delay/cancel/scheduleSafe/rndInt).
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { log, ts, anyTrue, allTrue, rndInt, isDefined, isNonEmptyArray, deepClone, delay, cancel, scheduleSafe } from './utils.js';
+import { log, ts, isDefined, isNonEmptyArray, deepClone, cancel } from './utils.js';
 
 /** --- Console Filter (external) Early Install - Start --- */
 /*
