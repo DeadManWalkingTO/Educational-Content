@@ -1,9 +1,9 @@
 // --- playerController.js ---
-const VERSION = 'v7.2.0';
+const VERSION = 'v7.2.1';
 /*
  * - Μικρό helper API μέσα στο class (can/ytDefined/isPlaying/isMuted/group).
- * - Ενιαίο scheduleVolumes() με κοινό μηχανισμό retry (_scheduleWhenPlayingAndUnmuted).
- * - Ενοποιημένο _safeSeek() με guards (duration, seekTo).
+ * - Ενιαίο scheduleVolumes() με retry όταν δεν παίζει ή είναι muted.
+ * - Ασφαλές _safeSeek().
  */
 
 // --- Export Version ---
@@ -17,26 +17,22 @@ const FILENAME = import.meta.url.split('/').pop();
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
-// Imports (ESM, relative paths)
+/* ========================= Imports ========================= */
 import { scheduleSafe, cancel, groupCancel, jitter, log, rndInt, anyTrue, allTrue, isFunction, isNumber, clamp } from './utils.js';
 import { MAIN_PROBABILITY, getOrigin, getYouTubeEmbedHost, stats } from './globals.js';
 import { getBehaviorPlan } from './policies.js';
 import { onStateChangeExternal } from './playerStateEngine.js';
 import { autoNextAfterError } from './autoNext.js';
-import { initUnmute } from './autoUnmute.js';
 
 export class PlayerController {
   constructor(index, mainList, altList, config = null) {
     this.index = index;
     this.mainList = Array.isArray(mainList) ? mainList : [];
     this.altList = Array.isArray(altList) ? altList : [];
-
     this.player = null;
     this.timers = { midSeek: null, pauseTimers: [], progressCheck: null };
-
     this.config = config;
     this.profileName = typeof config?.profileName === 'string' ? config.profileName : 'Unknown';
-
     // Accumulators / meta
     this.playingStart = null;
     this.currentRate = 1.0;
@@ -44,23 +40,19 @@ export class PlayerController {
     this.lastBufferingStart = null;
     this.lastPausedStart = null;
     this.expectedPauseMs = 0;
-
     // Seek defaults & meta
     this.seekDefaults = { minGapSec: 90, maxSeeks: 3, nearEndPct: 0.05, fromPct: 0.2, toPct: 0.6 };
     this.seekMeta = { lastMs: 0, count: 0 };
-
     // Behavior plan
     this.plan = null;
-
     // Volume meta
     this.volumeMeta = { scheduledIds: [], changesPlanned: 0 };
-
-    // Unmute flags (συνεργάζονται με autoUnmute & playerStateEngine)
+    // Unmute flags (συνενεργάζονται με playerStateEngine)
     this.pendingUnmute = false;
     this.unmuteScheduled = false;
   }
 
-  // ---------- Helper μικρο-API (εντός class) ----------
+  // -------- Helper μικρο-API (εντός class) --------
   _group(suffix = '') {
     const base = `pc:${this.index}`;
     if (suffix === '') {
@@ -68,7 +60,6 @@ export class PlayerController {
     }
     return `${base}:${suffix}`;
   }
-
   _can(obj, methodName) {
     if (typeof obj === 'undefined') {
       return false;
@@ -82,7 +73,6 @@ export class PlayerController {
     }
     return false;
   }
-
   _ytDefined() {
     let ok = false;
     if (typeof YT !== 'undefined') {
@@ -92,7 +82,6 @@ export class PlayerController {
     }
     return ok;
   }
-
   _isPlaying(p) {
     let playing = false;
     const parts = [];
@@ -108,7 +97,6 @@ export class PlayerController {
     }
     return playing;
   }
-
   _isMuted(p) {
     let muted = false;
     const parts = [];
@@ -123,7 +111,6 @@ export class PlayerController {
     }
     return muted;
   }
-
   _safeSeek(seconds) {
     try {
       const p = this.player;
@@ -142,14 +129,12 @@ export class PlayerController {
       if (stable !== true) {
         return;
       }
-
       const raw = isNumber(seconds) === true ? seconds : 0;
       let pad = Math.floor(d * 0.05);
       if (pad < 3) {
         pad = 3;
       }
       const s = clamp(raw, 0, Math.max(0, d - pad));
-
       try {
         p.seekTo(s, true);
       } catch (e1) {
@@ -157,7 +142,6 @@ export class PlayerController {
           p.seekTo(raw, true);
         } catch (e2) {}
       }
-
       if (isNumber(stats.seeksDone) !== true) {
         stats.seeksDone = 0;
       }
@@ -169,7 +153,6 @@ export class PlayerController {
       stats.errors = stats.errors + 1;
     }
   }
-
   _scheduleWhenPlayingAndUnmuted(taskFn, retryMinMs, retryMaxMs, groupSuffix, tag) {
     const attempt = () => {
       try {
@@ -180,38 +163,32 @@ export class PlayerController {
         if (p === null) {
           return;
         }
-
         // Pending unmute -> retry
         if (this.pendingUnmute === true) {
           const delay = rndInt(retryMinMs, retryMaxMs);
           scheduleSafe(attempt, delay, this._group(groupSuffix), `${tag}-retry-pending`);
           return;
         }
-
         // Muted -> retry
         if (this._isMuted(p) === true) {
           const delay = rndInt(retryMinMs, retryMaxMs);
           scheduleSafe(attempt, delay, this._group(groupSuffix), `${tag}-retry-muted`);
           return;
         }
-
         // Not playing -> retry
         if (this._isPlaying(p) !== true) {
           const delay = rndInt(retryMinMs, retryMaxMs);
           scheduleSafe(attempt, delay, this._group(groupSuffix), `${tag}-retry-not-playing`);
           return;
         }
-
         // Όλα ΟΚ -> εκτέλεση
         try {
           taskFn();
         } catch (_) {}
       } catch (_) {}
     };
-
     attempt();
   }
-
   guardPlay(p) {
     try {
       const parts = [];
@@ -227,7 +204,7 @@ export class PlayerController {
     }
   }
 
-  // ---------- Lifecycle ----------
+  // -------- Lifecycle --------
   init(videoId) {
     const containerId = `player${this.index + 1}`;
     this.player = new YT.Player(containerId, {
@@ -244,7 +221,6 @@ export class PlayerController {
         onError: () => this.onError(),
       },
     });
-
     log(`ℹ️ YT PlayerVars origin→ ${getOrigin()} host→ ${getYouTubeEmbedHost()}`);
     log(`ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
     log(`👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
@@ -252,14 +228,12 @@ export class PlayerController {
 
   onReady(e) {
     const p = e.target;
-
     // Initial mute
     if (this._can(p, 'mute') === true) {
       try {
         p.mute();
       } catch (_) {}
     }
-
     // Duration & plan context
     let durationNow = 0;
     const durParts = [];
@@ -272,7 +246,6 @@ export class PlayerController {
         durationNow = dtmp;
       }
     }
-
     let videoIdFromAPI = '';
     if (this._can(p, 'getVideoData') === true) {
       try {
@@ -282,7 +255,6 @@ export class PlayerController {
         }
       } catch (_) {}
     }
-
     const ctx = {
       durationSec: durationNow,
       profileName: this.profileName,
@@ -291,7 +263,6 @@ export class PlayerController {
       playerIndex: this.index,
       baseStartDelaySec: this.config?.startDelay,
     };
-
     try {
       this.plan = getBehaviorPlan(ctx);
     } catch (_) {}
@@ -309,10 +280,10 @@ export class PlayerController {
       }
     }
 
-    // Auto-unmute integration (Λύση Α: pendingUnmute true, θα λυθεί από playerStateEngine / autoUnmute)
+    // Auto-unmute integration: μόνο flags (το scheduling γίνεται στο playerStateEngine)
     this.pendingUnmute = true;
     this.unmuteScheduled = false;
-    initUnmute(p, this.plan);
+    // initUnmute(p, this.plan); // <-- ΑΦΑΙΡΕΘΗΚΕ
 
     // Initial seek (και επανάληψη)
     this._safeSeek(targetSec);
@@ -355,7 +326,7 @@ export class PlayerController {
     stats.errors = (stats.errors ?? 0) + 1;
   }
 
-  // ---------- Pauses ----------
+  // -------- Pauses --------
   schedulePauses() {
     const p = this.player;
     const guards = [];
@@ -365,7 +336,6 @@ export class PlayerController {
     if (canDur !== true) {
       return;
     }
-
     const duration = p.getDuration();
     if (duration <= 0) {
       return;
@@ -389,7 +359,6 @@ export class PlayerController {
           const canPlay = [];
           canPlay.push(this._can(p, 'getPlayerState') === true);
           const stOK = allTrue(canPlay) === true ? p.getPlayerState() === YT.PlayerState.PLAYING : false;
-
           if (stOK === true) {
             try {
               if (this._can(p, 'pauseVideo') === true) {
@@ -399,7 +368,6 @@ export class PlayerController {
             stats.pauses = (stats.pauses ?? 0) + 1;
             this.expectedPauseMs = pauseLen;
             log(`⏸️ Player ${this.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
-
             scheduleSafe(
               () => {
                 this.guardPlay(p);
@@ -415,12 +383,11 @@ export class PlayerController {
         this._group('pause'),
         'pause-schedule'
       );
-
       this.timers.pauseTimers.push(id);
     }
   }
 
-  // ---------- Mid-seek ----------
+  // -------- Mid-seek --------
   scheduleMidSeek() {
     const mid = this.plan?.midSeek;
     const parts = [];
@@ -432,7 +399,6 @@ export class PlayerController {
       log(`ℹ️ Player ${this.index + 1} scheduleMidSeek skipped (short or disabled)`);
       return;
     }
-
     this.seekDefaults = {
       minGapSec: Number(mid.minGapSec),
       maxSeeks: Number(mid.maxSeeks),
@@ -440,13 +406,10 @@ export class PlayerController {
       fromPct: Number(mid.fromPct),
       toPct: Number(mid.toPct),
     };
-
     const interval = Number(mid.intervalMs);
-
     this.timers.midSeek = scheduleSafe(
       () => {
         const p = this.player;
-
         let dNow = 0;
         const playerOkParts = [];
         playerOkParts.push(typeof p !== 'undefined');
@@ -461,7 +424,6 @@ export class PlayerController {
         canPlayNowParts.push(dNow > 0);
         canPlayNowParts.push(this._isPlaying(p) === true);
         const canPlayNow = allTrue(canPlayNowParts);
-
         if (canPlayNow === true) {
           const now = Date.now();
           let blockByGap = false;
@@ -472,13 +434,11 @@ export class PlayerController {
               blockByGap = true;
             }
           }
-
           const reachedMax = (this.seekMeta.count ?? 0) >= Number(this.seekDefaults.maxSeeks);
           const allowSeekParts = [];
           allowSeekParts.push(blockByGap === false);
           allowSeekParts.push(reachedMax === false);
           const allowSeek = allTrue(allowSeekParts);
-
           if (allowSeek === true) {
             this._doMidSeekOnce();
           }
@@ -503,37 +463,31 @@ export class PlayerController {
       if (exists !== true) {
         return;
       }
-
       const dur = this._can(p, 'getDuration') === true ? p.getDuration() : 0;
       if (dur < 300) {
         return;
       }
-
       const cur = this._can(p, 'getCurrentTime') === true ? p.getCurrentTime() : 0;
       const nearEndPct = isNumber(this.seekDefaults?.nearEndPct) === true ? this.seekDefaults.nearEndPct : 0.05;
       const fromPct = isNumber(this.seekDefaults?.fromPct) === true ? this.seekDefaults.fromPct : 0.2;
       const toPct = isNumber(this.seekDefaults?.toPct) === true ? this.seekDefaults.toPct : 0.6;
-
       const nearEndSec = dur * (1 - nearEndPct);
       if (cur > nearEndSec) {
         return;
       }
-
       const from = Math.floor(dur * fromPct);
       const to = Math.floor(dur * toPct);
       const target = rndInt(from, to);
-
       this._safeSeek(target);
       stats.midSeeks = (stats.midSeeks ?? 0) + 1;
       log(`🔁 Player ${this.index + 1} Mid-seek -> ${target}s`);
-
       const now = Date.now();
       this.seekMeta.lastMs = now;
       this.seekMeta.count = (this.seekMeta.count ?? 0) + 1;
     } catch (_) {}
   }
 
-  // ---------- Volumes (ΕΝΟΠΟΙΗΜΕΝΟ) ----------
+  // -------- Volumes --------
   scheduleVolumes() {
     const p = this.player;
     const canVolumeParts = [];
@@ -552,10 +506,8 @@ export class PlayerController {
         duration = d;
       }
     }
-
     const hasChance = isNumber(this.config?.volumeChangeChance) === true;
     const chance = hasChance === true ? this.config.volumeChangeChance : 0.2;
-
     const rangeArrIsArr = Array.isArray(this.config?.volumeRange);
     const rangeArr = rangeArrIsArr === true ? this.config.volumeRange : [10, 50];
 
@@ -566,7 +518,6 @@ export class PlayerController {
     if (duration >= 900) {
       baseCount = 3;
     }
-
     const chanceClamped = Math.min(1, Math.max(0, chance));
     const planned = Math.max(0, Math.floor(baseCount * chanceClamped));
     this.volumeMeta.changesPlanned = planned;
@@ -590,7 +541,6 @@ export class PlayerController {
         const lo = Math.min(vmin, vmax);
         const hi = Math.max(vmin, vmax);
         const target = rndInt(lo, hi);
-
         if (this._can(p, 'setVolume') === true) {
           p.setVolume(target);
           stats.volumeChanges = (stats.volumeChanges ?? 0) + 1;
@@ -599,12 +549,11 @@ export class PlayerController {
       } catch (_) {}
     };
 
-    // Κύριες αλλαγές έντασης
+    // Κυρίως αλλαγές έντασης
     for (let i = 0; i < planned; i = i + 1) {
       const fromMs = duration > 0 ? Math.floor(duration * 0.1) * 1000 : 20000;
       const toMs = duration > 0 ? Math.floor(duration * 0.8) * 1000 : 120000;
       const delayMs = rndInt(Math.floor(fromMs / 1000), Math.floor(toMs / 1000)) * 1000;
-
       const id = scheduleSafe(
         () => {
           this._scheduleWhenPlayingAndUnmuted(applyVolume, 800, 2000, 'volume', 'volume-change');
@@ -616,12 +565,11 @@ export class PlayerController {
       this.volumeMeta.scheduledIds.push(id);
     }
 
-    // Micro adjust (μόνο για μεγάλα videos)
+    // Micro adjust (για μεγάλα videos)
     if (duration >= 600) {
       const microFrom = Math.floor(duration * 0.85);
       const microTo = Math.floor(duration * 0.95);
       const microDelayMs = rndInt(microFrom, microTo) * 1000;
-
       const microTask = () => {
         try {
           const guards = [];
@@ -631,7 +579,6 @@ export class PlayerController {
           if (canBoth !== true) {
             return;
           }
-
           const cur = p.getVolume();
           const delta = rndInt(-6, 6);
           let tgt = cur + delta;
@@ -646,7 +593,6 @@ export class PlayerController {
           log(`🔉 Player ${this.index + 1} Micro-volume adjust → ${tgt}% (Δ=${delta})`);
         } catch (_) {}
       };
-
       const id2 = scheduleSafe(
         () => {
           this._scheduleWhenPlayingAndUnmuted(microTask, 800, 2000, 'volume', 'volume-micro');
@@ -659,29 +605,25 @@ export class PlayerController {
     }
   }
 
-  // ---------- Clear / Cancel ----------
+  // -------- Clear / Cancel --------
   clearTimers() {
     try {
       groupCancel(this._group());
     } catch (_) {}
-
     try {
       for (const id of this.timers.pauseTimers) {
         cancel(id);
       }
     } catch (_) {}
     this.timers.pauseTimers = [];
-
     if (typeof this.timers.midSeek === 'number') {
       cancel(this.timers.midSeek);
       this.timers.midSeek = null;
     }
-
     if (typeof this.timers.progressCheck === 'number') {
       cancel(this.timers.progressCheck);
       this.timers.progressCheck = null;
     }
-
     try {
       const hasArr = Array.isArray(this.volumeMeta?.scheduledIds);
       if (hasArr === true) {
@@ -691,11 +633,10 @@ export class PlayerController {
         this.volumeMeta.scheduledIds = [];
       }
     } catch (_) {}
-
     this.expectedPauseMs = 0;
   }
 
-  // ---------- AutoNext ----------
+  // -------- AutoNext --------
   loadNextVideo(player) {
     const canLoad = [];
     canLoad.push(typeof player !== 'undefined');
@@ -707,11 +648,9 @@ export class PlayerController {
       log(`❌ AutoNext skipped -> player/loadVideoById unavailable`);
       return;
     }
-
     const useMain = Math.random() < MAIN_PROBABILITY;
-    const hasMain = Array.isArray(this.mainList) && this.mainList.length > 0;
-    const hasAlt = Array.isArray(this.altList) && this.altList.length > 0;
-
+    const hasMain = Array.isArray(this.mainList) === true ? this.mainList.length > 0 : false;
+    const hasAlt = Array.isArray(this.altList) === true ? this.altList.length > 0 : false;
     let list = null;
     if (useMain === true) {
       if (hasMain === true) {
@@ -730,26 +669,22 @@ export class PlayerController {
         }
       }
     }
-
     const listLen = Array.isArray(list) === true ? list.length : 0;
     if (listLen === 0) {
       stats.errors = (stats.errors ?? 0) + 1;
       log(`❌ AutoNext aborted -> no available list`);
       return;
     }
-
     const idx = Math.floor(Math.random() * list.length);
     const newId = list[idx];
     log(`[DBG] AutoNext picking -> source=${useMain ? 'main' : 'alt'} size=${String(listLen)} id=${String(newId)}`);
-
     player.loadVideoById(newId);
     this.guardPlay(player);
-
     log(`⏭️ Player ${this.index + 1} AutoNext -> ${newId} (Source:${useMain ? 'main' : 'alt'})`);
   }
 }
 
-// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---

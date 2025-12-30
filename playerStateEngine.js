@@ -1,9 +1,9 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v2.1.0';
+const VERSION = 'v2.2.0';
 /*
- * - Μικρά helpers: hasYT(), stateName(), readState(), restartPauseGuard(), applyFakeEndGuard(), scheduleDelayedUnmute().
- * - Ενοποιημένη λογική delayed-unmute με plan παραμέτρους.
- * - Καθαρός dispatcher (switch) για UNSTARTED/PLAYING/PAUSED/BUFFERING/CUED/ENDED.
+ * - Μικρά helpers: hasYT(), stateName(), readPlayerState(), restartPauseGuard(), applyFakeEndGuard().
+ * - Ενιαίο scheduling/debounce για unmute (scheduleDelayedUnmute), διαβάζει το plan (policies.js).
+ * - Κατάργηση early/duplicate scheduling από το dispatcher (τρέχει ΜΟΝΟ σε onPlaying()).
  */
 
 // --- Export Version ---
@@ -17,11 +17,11 @@ const FILENAME = import.meta.url.split('/').pop();
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
-// Imports (ESM, relative paths)
+/* ========================= Imports ========================= */
 import { scheduleSafe, cancel, log, rndInt, anyTrue, allTrue, isDefined, isFunction, isNumber, clamp } from './utils.js';
 import { stats } from './globals.js';
 import { autoNextAfterEnded } from './autoNext.js';
-import { handlePendingUnmute } from './autoUnmute.js';
+import { applyUnmute } from './autoUnmute.js';
 
 /* ---------- Helpers ---------- */
 function hasYT() {
@@ -68,7 +68,7 @@ function readPlayerState(ctrl, e) {
       return s;
     }
   }
-  // 2) Αλλιώς, από το player.getPlayerState με guards
+  // 2) Αλλιώς, από player.getPlayerState με guards
   const parts = [];
   parts.push(isDefined(ctrl?.player) === true);
   parts.push(isFunction(ctrl?.player?.getPlayerState) === true);
@@ -130,7 +130,6 @@ function restartPauseGuard(ctrl) {
       cancel(ctrl.pauseGuardTimer);
     }
   } catch (_) {}
-
   (function (self) {
     // Βάση: αναμενόμενη παύση (αν υπάρχει) αλλιώς 2000ms, +slack
     let basePause = 2000;
@@ -140,8 +139,7 @@ function restartPauseGuard(ctrl) {
       }
     }
     const slack = 250;
-
-    const doGuard = () => {
+    const doGuard = function () {
       try {
         const p2 = self.player;
         let canCheck = false;
@@ -176,7 +174,6 @@ function restartPauseGuard(ctrl) {
         }
       } catch (_) {}
     };
-
     self.pauseGuardTimer = scheduleSafe(doGuard, basePause + slack, self._group('pause-guard'), 'pause-guard');
   })(ctrl);
 }
@@ -185,35 +182,45 @@ function applyFakeEndGuard(ctrl) {
   // Guard: αν ο πραγματικός χρόνος αναπαραγωγής < minRealPlaySec, κάνε μικρό rewind & play
   const minRealPlaySec = 3;
   const p = ctrl.player;
-
   let dur = 0;
   if (isFunction(p?.getDuration) === true) {
     try {
       dur = p.getDuration();
     } catch (_) {}
   }
-
   const tooShort = (isNumber(ctrl.totalPlayTime) === true ? ctrl.totalPlayTime : 0) < minRealPlaySec;
   if (tooShort === true) {
     // 5% του τέλους, με clamp 2..5 s
     let back = Math.floor(dur * 0.05);
     back = clamp(back, 2, 5);
     const target = Math.max(0, dur - back);
-
     try {
       ctrl._safeSeek(target);
       ctrl.guardPlay(p);
     } catch (_) {}
-
     log(`↩️ Player ${ctrl.index + 1} Fake-end guard -> rewind ${back}s & retry play`);
     return true;
   }
   return false;
 }
 
+/* ---------- Ενιαίο Unmute Scheduling + Debounce ---------- */
+function ensureUnmuteMeta(ctrl) {
+  const needsInit = isDefined(ctrl?.unmuteMeta) !== true ? true : ctrl.unmuteMeta === null ? true : false;
+  if (needsInit === true) {
+    ctrl.unmuteMeta = { lastMs: 0, minGapMs: 800 };
+  }
+}
+
+/**
+ * Προγραμματίζει το delayed-unmute ΜΟΝΟ όταν είμαστε σε PLAYING και υπάρχει pendingUnmute.
+ * Διαβάζει base/extra/grace από plan.unmute και εφαρμόζει debounce με ctrl.unmuteMeta.
+ */
 function scheduleDelayedUnmute(ctrl, stateIsPlaying) {
-  // Εξαρτάται από ctrl.plan.unmute (base/extras/grace). Προγραμματίζει handlePendingUnmute.
   try {
+    ensureUnmuteMeta(ctrl);
+
+    // Μην ξανα-προγραμματίσεις αν υπάρχει ήδη
     let alreadyScheduled = false;
     if (isDefined(ctrl?.unmuteScheduled) === true) {
       if (ctrl.unmuteScheduled === true) {
@@ -224,27 +231,27 @@ function scheduleDelayedUnmute(ctrl, stateIsPlaying) {
       return;
     }
 
-    // Αν δεν είμαστε σε PLAYING, το onPlaying θα φροντίσει. Προχωράμε μόνο όταν γίνει PLAYING.
+    // Μόνο αν είμαστε PLAYING και εκκρεμεί unmute
     const guards = [];
     guards.push(stateIsPlaying === true);
+    guards.push(ctrl.pendingUnmute === true);
     const readyToPlan = allTrue(guards);
     if (readyToPlan !== true) {
       return;
     }
 
-    // Defaults και ανάγνωση plan
+    // Parse από plan.unmute
     let baseSec = 5;
     let extraMin = 0;
     let extraMax = 0;
     let gMin = 0;
     let gMax = 0;
-
     try {
       const u = ctrl?.plan?.unmute;
       const hasU = isDefined(u) === true ? u !== null : false;
       if (hasU === true) {
         // base
-        let b = Number(u.baseDelaySec);
+        const b = Number(u.baseDelaySec);
         if (isNumber(b) === true) {
           baseSec = Math.floor(b);
         }
@@ -252,8 +259,8 @@ function scheduleDelayedUnmute(ctrl, stateIsPlaying) {
         const arr = u.extraDelaySecRange;
         const isArr = Array.isArray(arr) === true;
         if (isArr === true) {
-          let a = Number(arr[0]);
-          let b2 = Number(arr[1]);
+          const a = Number(arr[0]);
+          const b2 = Number(arr[1]);
           const okA = isNumber(a) === true;
           const okB = isNumber(b2) === true;
           const arrOk = allTrue([okA === true, okB === true]);
@@ -266,8 +273,8 @@ function scheduleDelayedUnmute(ctrl, stateIsPlaying) {
         const gr = u.playingGraceMsRange;
         const isArrG = Array.isArray(gr) === true;
         if (isArrG === true) {
-          let ga = Number(gr[0]);
-          let gb = Number(gr[1]);
+          const ga = Number(gr[0]);
+          const gb = Number(gr[1]);
           const gaOk = isNumber(ga) === true;
           const gbOk = isNumber(gb) === true;
           const grOk = allTrue([gaOk === true, gbOk === true]);
@@ -295,24 +302,29 @@ function scheduleDelayedUnmute(ctrl, stateIsPlaying) {
         graceMs = rndInt(gMin, gMax);
       } catch (_) {}
     }
-
     const totalDelayMs = Math.max(0, (baseSec + extraSec) * 1000);
     const finalDelayMs = totalDelayMs + graceMs;
 
+    // Debounce
+    const now = Date.now();
+    const sinceLast = now - (ctrl.unmuteMeta.lastMs ?? 0);
+    const haveLast = ctrl.unmuteMeta.lastMs > 0;
+    const tooSoon = haveLast === true ? sinceLast < ctrl.unmuteMeta.minGapMs : false;
+    if (tooSoon === true) {
+      const retryDelay = ctrl.unmuteMeta.minGapMs - sinceLast;
+      scheduleSafe(
+        function () {
+          scheduleDelayedUnmute(ctrl, stateIsPlaying);
+        },
+        retryDelay,
+        ctrl._group('unmute'),
+        'delayed-unmute-retry-gap'
+      );
+      return;
+    }
+
+    // Schedule
     ctrl.unmuteScheduled = true;
-
-    scheduleSafe(
-      () => {
-        try {
-          handlePendingUnmute(ctrl.player, ctrl.plan, ctrl);
-          ctrl.pendingUnmute = false;
-        } catch (_) {}
-      },
-      finalDelayMs,
-      ctrl._group('unmute'),
-      'delayed-unmute'
-    );
-
     const totalSecShown = Math.round(finalDelayMs / 1000);
     const parts = [];
     parts.push(`base=${String(baseSec)}s`);
@@ -322,6 +334,20 @@ function scheduleDelayedUnmute(ctrl, stateIsPlaying) {
     }
     const detail = parts.join(' + ');
     log(`🔕 Player ${ctrl.index + 1} Unmute scheduled after ${String(totalSecShown)}s (${detail})`);
+
+    scheduleSafe(
+      function () {
+        try {
+          applyUnmute(ctrl.player, ctrl.plan, ctrl);
+          ctrl.pendingUnmute = false;
+          ctrl.unmuteScheduled = false;
+          ctrl.unmuteMeta.lastMs = Date.now();
+        } catch (_) {}
+      },
+      finalDelayMs,
+      ctrl._group('unmute'),
+      'delayed-unmute'
+    );
   } catch (_) {}
 }
 
@@ -332,19 +358,15 @@ function onUnstarted(ctrl) {
 
 function onEnded(ctrl) {
   log(`🏁 Player ${ctrl.index + 1} State -> ENDED`);
-
   const rewound = applyFakeEndGuard(ctrl);
   if (rewound === true) {
     return;
   }
-
   try {
     ctrl.clearTimers();
   } catch (_) {}
-
   log(`🔚 Player ${ctrl.index + 1} Finalize -> ENDED`);
   autoNextAfterEnded(ctrl);
-
   try {
     window.dispatchEvent(new CustomEvent('videoEnded', { detail: { index: ctrl.index } }));
   } catch (_) {}
@@ -355,8 +377,7 @@ function onPlaying(ctrl) {
     ctrl.isPlayingActive = true;
   }
   log(`▶️ Player ${ctrl.index + 1} State -> PLAYING`);
-
-  // Προγραμματισμός delayed-unmute (αν δεν έχει γίνει)
+  // Προγραμματισμός delayed-unmute (μοναδικό σημείο)
   scheduleDelayedUnmute(ctrl, true);
 }
 
@@ -378,18 +399,6 @@ function onUnknown(ctrl, s) {
 
 /* ---------- Dispatcher ---------- */
 export function onStateChangeExternal(ctrl, e) {
-  // Early flag για unmute scheduling: ενεργοποιούμε μόνο όταν η κατάσταση είναι PLAYING.
-  let isPlayingNow = false;
-  try {
-    const st = e?.data;
-    const ytOk = hasYT() === true;
-    if (ytOk === true) {
-      if (st === YT.PlayerState.PLAYING) {
-        isPlayingNow = true;
-      }
-    }
-  } catch (_) {}
-
   // Ανάγνωση τρέχοντος state
   let s;
   try {
@@ -398,7 +407,7 @@ export function onStateChangeExternal(ctrl, e) {
     log(`❌ Player ${ctrl.index + 1} StateChange Error ${String(err?.message ?? err)}`);
   }
 
-  // Μήνυμα κατάστασης (prev, scheduling hints, current time)
+  // Μήνυμα κατάστασης (prev, scheduled hints, current time)
   try {
     let prevState = ctrl.lastKnownState;
     if (isDefined(prevState) !== true) {
@@ -408,7 +417,6 @@ export function onStateChangeExternal(ctrl, e) {
         prevState = -1;
       }
     }
-
     let tSec = 0;
     try {
       const pLocal = ctrl.player;
@@ -453,7 +461,6 @@ export function onStateChangeExternal(ctrl, e) {
     try {
       log(`Player ${String(ctrl.index + 1)} ${String(msg)}`);
     } catch (_) {}
-
     ctrl.lastKnownState = s;
   } catch (_) {}
 
@@ -497,13 +504,11 @@ export function onStateChangeExternal(ctrl, e) {
     restartPauseGuard(ctrl);
   }
 
-  // delayed-unmute μπορεί να κληθεί και από εδώ αν το PLAYING εντοπιστεί νωρίτερα
-  if (isPlayingNow === true) {
-    scheduleDelayedUnmute(ctrl, true);
-  }
+  // ΣΗΜΑΝΤΙΚΟ: Καταργήθηκε το early/duplicate scheduling του unmute από εδώ.
+  // Το scheduling γίνεται ΜΟΝΟ στο onPlaying().
 }
 
-// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---
