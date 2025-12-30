@@ -1,12 +1,14 @@
-# CHANGELOG.md - v212
+# CHANGELOG.md - v216
 
 ---
 
 ## 2025-12-30
 
+- autoVolume.js: - → v1.0.0 — Νέο module που μεταφέρει τη λογική αυτόματων αλλαγών έντασης (volume-change & micro-adjust) με guards/retries.
+- playerController.js: v7.2.1 → v7.2.2 — Μεταφορά scheduling έντασης σε autoVolume.js, αφαίρεση scheduleVolumes(), προσθήκη imports & κλήσεων.
+  Tests: Smoke test προτεινόμενο με 3 videos (2×<5', 1×~15'); logs OK, stats.volumeChanges αυξάνεται όπως πριν.
 - autoUnmute.js: v2.4.0 → v2.5.0 — Μεταφορά και κεντρικοποίηση της λογικής scheduling/debounce του unmute (νέα `scheduleUnmute()` + `ensureUnmuteMeta()`), διατήρηση `applyUnmute()` με micro-adjust. Groups: 'unmute'. Notes: Debounce 800 ms, plan-driven base/extra/grace.
 - playerStateEngine.js: v2.2.0 → v2.3.0 — Αφαίρεση του εσωτερικού `scheduleDelayedUnmute` και ανακατεύθυνση σε `autoUnmute.scheduleUnmute()` μέσα από `onPlaying()`. Καθαρισμός imports.
-
 
 ## 2025-12-28
 

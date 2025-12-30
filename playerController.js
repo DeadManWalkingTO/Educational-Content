@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v7.2.1';
+const VERSION = 'v7.2.2';
 /*
  * - Μικρό helper API μέσα στο class (can/ytDefined/isPlaying/isMuted/group).
  * - Ενιαίο scheduleVolumes() με retry όταν δεν παίζει ή είναι muted.
@@ -23,6 +23,7 @@ import { MAIN_PROBABILITY, getOrigin, getYouTubeEmbedHost, stats } from './globa
 import { getBehaviorPlan } from './policies.js';
 import { onStateChangeExternal } from './playerStateEngine.js';
 import { autoNextAfterError } from './autoNext.js';
+import { scheduleVolumeChanges, scheduleMicroAdjust } from './autoVolume.js';
 
 export class PlayerController {
   constructor(index, mainList, altList, config = null) {
@@ -310,7 +311,21 @@ export class PlayerController {
     // Schedulers
     this.schedulePauses();
     this.scheduleMidSeek();
-    this.scheduleVolumes();
+    try {
+      const p = this.player;
+      let duration = 0;
+      const parts = [];
+      parts.push(this._can(p, 'getDuration') === true);
+      const canDur = allTrue(parts);
+      if (canDur === true) {
+        const d = p.getDuration();
+        if (isNumber(d) === true) {
+          duration = d;
+        }
+      }
+      scheduleVolumeChanges(this.player, this.config, duration, this._group('volume'));
+      scheduleMicroAdjust(this.player, duration, this._group('volume'));
+    } catch (_) {}
   }
 
   onStateChange(e) {

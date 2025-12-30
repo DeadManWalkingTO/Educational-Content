@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v3.20.1';
+const VERSION = 'v3.20.12';
 /*
  * Περιγραφή:
  * Συγκεντρώνει εκδόσεις όλων των modules και του HTML. Ελαφρύς renderer για panel/κείμενο,
@@ -18,6 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
+/* ========================= Imports ========================= */
 import { getVersion as getGlobalsVersion } from './globals.js';
 import { getVersion as getListsVersion } from './lists.js';
 import { getVersion as getHumanModeVersion } from './humanMode.js';
@@ -29,6 +30,9 @@ import { getVersion as getUtilitiesVersion, log, isDefined, domReady, deepClone,
 import { getVersion as getPoliciesVersion } from './policies.js';
 import { getVersion as getPlayerStateEngineVersion } from './playerStateEngine.js';
 import { getVersion as getAutoNextVersion } from './autoNext.js';
+import { getVersion as getAutoUnmuteVersion } from './autoUnmute.js';
+import { getVersion as getAutoVolumeVersion } from './autoVolume.js';
+/* ------------------------ Version Retrieval ------------------------ */
 
 /**
  * Ανάκτηση HTML έκδοσης από <meta name="html-version" content="vX.Y.Z">.
@@ -64,6 +68,8 @@ export function reportAllVersions() {
     Policies: getPoliciesVersion(),
     PlayerStateEngine: getPlayerStateEngineVersion(),
     AutoNext: getAutoNextVersion(),
+    AutoUnmute: getAutoUnmuteVersion(),
+    AutoVolume: getAutoVolumeVersion(),
     VersionReporter: VERSION,
   };
 
@@ -165,6 +171,12 @@ function iconFor(name) {
   }
   if (name === 'AutoNext') {
     return '⏭️';
+  }
+  if (name === 'AutoUnmute') {
+    return '🎵';
+  }
+  if (name === 'AutoVolume') {
+    return '🔊';
   }
   if (name === 'Main') {
     return '🚀';
