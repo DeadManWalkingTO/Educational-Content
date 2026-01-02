@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v3.21.4';
+const VERSION = 'v3.22.4';
 /*
  * Περιγραφή:
  * Συγκεντρώνει εκδόσεις όλων των modules και του HTML. Ελαφρύς renderer για panel/κείμενο,
@@ -22,6 +22,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 import { getVersion as getAutoNextVersion } from './autoNext.js';
 import { getVersion as getAutoPauseVersion } from './autoPause.js';
 import { getVersion as getAutoQualityVersion } from './autoQuality.js';
+import { getVersion as getAutoRateVersion } from './autoRate.js';
 import { getVersion as getAutoSeekVersion } from './autoSeek.js';
 import { getVersion as getAutoUnmuteVersion } from './autoUnmute.js';
 import { getVersion as getAutoVolumeVersion } from './autoVolume.js';
@@ -81,6 +82,7 @@ export function reportAllVersions() {
     Watchdog: getWatchdogVersion(),
     VideoPicker: getVideoPickerVersion(),
     AutoQuality: getAutoQualityVersion(),
+    AutoRate: getAutoRateVersion(),
     VersionReporter: VERSION,
   };
 
@@ -183,6 +185,8 @@ function iconFor(name) {
       return '📹';
     case 'AutoQuality':
       return '🎚️';
+    case 'AutoRate':
+      return '⚡';
     case 'Main':
       return '🚀';
     default:
@@ -201,7 +205,7 @@ export function renderVersionsPanel(versionsObj) {
 
   const wrapStyle = 'font-family: system-ui,Segoe UI,Roboto,Ubuntu; background:#0f172a; color:#e2e8f0; border-radius:8px; padding:8px 10px; line-height:1.35;';
   const titleStyle = 'font-weight:600; margin:0 0 6px 0; color:#a7f3d0;';
-  const gridStyle = 'display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:6px;';
+  const gridStyle = 'display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:6px;';
   const itemStyle = 'background:#1e293b; border-radius:6px; padding:4px 6px;';
   const textStyle = 'display:flex; align-items:center; gap:6px; font-weight:600; color:#f1f5f9;';
 
@@ -242,6 +246,19 @@ export function renderVersionsText(versionsObj) {
   return parts.join('\n');
 }
 
+/**
+ * Μετράει τα module.
+ */
+function totalModules(versionsObj) {
+  const ordered = buildOrderedEntries(versionsObj);
+  let i = 0;
+  while (i < ordered.length) {
+    i = i + 1;
+  }
+  i = i + 1; // Για το main.js
+  return 'Σύνολο Modules: ' + i;
+}
+
 /* ------------------------ Convenience: auto-log after DOM ready ------------------------ */
 
 // Μετά το DOM ready, κάνε ένα ήπιο delayed log (ώστε να προηγηθούν άλλα early logs)
@@ -252,7 +269,7 @@ domReady().then(function () {
       const versions = reportAllVersions();
       const txt = renderVersionsText(versions);
       const dt = performance.now() - t0;
-      log('📦 VersionReporter ready (' + fmtMs(dt) + ')');
+      log('📦 VersionReporter ready (' + fmtMs(dt) + ') / ' + totalModules(versions));
       //log(txt);
     },
     50,

@@ -1,22 +1,20 @@
 // --- playerController.js ---
-const VERSION = 'v7.7.18';
+const VERSION = 'v7.8.2';
 /*
- * - Όταν ο controller είναι active: συνεχίζει ομαλά, τα επόμενα picks χρησιμοποιούν τις νέες λίστες.
+ * - Όταν ο controller είναι active: συγχίζει ομαλά, τα επόμενα picks χρησιμοποιούν τις νέες λίστες.
  * - Όταν είναι idle: clearTimers() + light re-plan με getBehaviorPlan (isFirstVideo:false).
- * - ΝΕΟ: Ενσωματώθηκε quality scheduling (autoQuality.js) με παράθυρο required watch time.
+ * - ΝΕΟ: Ενσωματώθηκε scheduling σπάνιων αλλαγών ταχύτητας (autoRate.js) και reset x1.
  */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
-
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
-
 /* ========================= Imports ========================= */
 import { scheduleSafe, cancel, groupCancel, jitter, log, rndInt, allTrue, isNumber, isDefined, safeAddEvent, deepClone } from './utils.js';
 import { MAIN_PROBABILITY, getOrigin, getYouTubeEmbedHost, stats, getMainList, getAltList } from './globals.js';
@@ -27,6 +25,7 @@ import { scheduleVolumeChanges, scheduleMicroAdjust } from './autoVolume.js';
 import { schedulePauses } from './autoPause.js';
 import { safeSeek as safeSeekExternal, scheduleMidSeek as scheduleMidSeekExternal, applyInitSeek } from './autoSeek.js';
 import { scheduleQualityChanges } from './autoQuality.js';
+import { scheduleRateChanges, resetPlaybackRate } from './autoRate.js';
 
 /* ========================= class PlayerController ========================= */
 export class PlayerController {
@@ -62,7 +61,6 @@ export class PlayerController {
     this.autoNextScheduled = false;
     this.cooldowns = { seekMs: 1500, pauseMs: 800 };
     this.continuity = { minPlaySec: 4 };
-
     // ---- Listener για 'lists:updated' (συγχρονισμός λιστών / ελαφρύ re-plan) ----
     try {
       if (typeof document !== 'undefined') {
@@ -117,8 +115,7 @@ export class PlayerController {
       }
     } catch (_e) {}
   }
-
-  // --- Helper μικρο-API (εντός class) ---
+  // ---- Helper μικρο-API (εντός class) ----
   _group(suffix = '') {
     const base = `pc:${this.index}`;
     if (suffix === '') {
@@ -126,7 +123,6 @@ export class PlayerController {
     }
     return `${base}:${suffix}`;
   }
-
   _can(obj, methodName) {
     if (typeof obj === 'undefined') {
       return false;
@@ -140,7 +136,6 @@ export class PlayerController {
     }
     return false;
   }
-
   _ytDefined() {
     let ok = false;
     if (typeof YT !== 'undefined') {
@@ -150,7 +145,6 @@ export class PlayerController {
     }
     return ok;
   }
-
   _isPlaying(p) {
     let playing = false;
     const parts = [];
@@ -166,7 +160,6 @@ export class PlayerController {
     }
     return playing;
   }
-
   _isMuted(p) {
     let muted = false;
     const parts = [];
@@ -181,7 +174,6 @@ export class PlayerController {
     }
     return muted;
   }
-
   _safeSeek(seconds) {
     try {
       // Σήμανση seek πριν από delegation στο autoSeek
@@ -191,7 +183,6 @@ export class PlayerController {
       // no-op
     }
   }
-
   _scheduleWhenPlayingAndUnmuted(taskFn, retryMinMs, retryMaxMs, groupSuffix, tag) {
     const attempt = () => {
       try {
@@ -220,7 +211,7 @@ export class PlayerController {
           scheduleSafe(attempt, delay, this._group(groupSuffix), `${tag}-retry-not-playing`);
           return;
         }
-        // Όλα ΟΚ -> εκτέλεση
+        // Όλα OK -> εκτέλεση
         try {
           taskFn();
         } catch (_e) {}
@@ -228,8 +219,7 @@ export class PlayerController {
     };
     attempt();
   }
-
-  // --- Lifecycle ---
+  // ---- Lifecycle ----
   init(videoId) {
     const containerId = `player${this.index + 1}`;
     this.player = new YT.Player(containerId, {
@@ -250,7 +240,6 @@ export class PlayerController {
     log(`ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
     log(`👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
   }
-
   onReady(e) {
     const p = e.target;
     // Initial mute
@@ -259,7 +248,6 @@ export class PlayerController {
         p.mute();
       } catch (_e) {}
     }
-
     // Duration & plan context
     let durationNow = 0;
     const durParts = [];
@@ -272,7 +260,6 @@ export class PlayerController {
         durationNow = dtmp;
       }
     }
-
     let videoIdFromAPI = '';
     if (this._can(p, 'getVideoData') === true) {
       try {
@@ -282,7 +269,6 @@ export class PlayerController {
         }
       } catch (_e) {}
     }
-
     const ctx = {
       durationSec: durationNow,
       profileName: this.profileName,
@@ -315,6 +301,11 @@ export class PlayerController {
     // Αρχικό seek μέσω autoSeek
     applyInitSeek(this, targetSec);
 
+    // ΝΕΟ: Reset playback rate σε x1 στην αρχή του video
+    try {
+      resetPlaybackRate(this);
+    } catch (_) {}
+
     // Guard play (jitter)
     const jitterMs = jitter(240, 0.5);
     scheduleSafe(
@@ -329,14 +320,12 @@ export class PlayerController {
       this._group('play'),
       'guardPlay-initial'
     );
-
     const seekInfo = isNumber(targetSec) === true ? targetSec : '-';
     log(`⏩ Player ${this.index + 1} Behavior Plan Start Seek -> Seek=${seekInfo}s`);
 
     // Schedulers (pauses, mid-seek, volume)
     schedulePauses(this);
     this.scheduleMidSeek();
-
     try {
       const p2 = this.player;
       let duration = 0;
@@ -353,7 +342,12 @@ export class PlayerController {
       scheduleMicroAdjust(this.player, duration, this._group('volume'));
     } catch (_e) {}
 
-    // --- ΝΕΟ: Προγραμματισμός τυχαίων αλλαγών ποιότητας μέσα στο required watch time ---
+    // ΝΕΟ: Προγραμματισμός σπάνιων αλλαγών ταχύτητας (rate)
+    try {
+      scheduleRateChanges(this);
+    } catch (_) {}
+
+    // NEO: προγραμματισμός αλλαγών ποιότητας (quality) με required watch time
     try {
       const pQ = this.player;
       let durationQ = 0;
@@ -366,7 +360,6 @@ export class PlayerController {
           durationQ = dQ;
         }
       }
-
       // Ανάκτηση required watch time από το plan
       let requiredWatchSec = 0;
       try {
@@ -378,17 +371,14 @@ export class PlayerController {
           }
         }
       } catch (_ePlan) {}
-
       const qcfg = { qualityChangeChance: this.config?.qualityChangeChance };
       scheduleQualityChanges(this.player, durationQ, qcfg, this._group('quality'), requiredWatchSec, this);
     } catch (_e) {}
   }
-
   onStateChange(e) {
-    // Λεπτός dispatcher: state-εξαρτώμενη λογική στο playerStateEngine.
+    // Λεπτής dispatcher: state-εξαρτώμενη λογική στο playerStateEngine.
     onStateChangeExternal(this, e);
   }
-
   onError() {
     try {
       this.clearTimers();
@@ -396,8 +386,7 @@ export class PlayerController {
     autoNextAfterError(this);
     stats.errors = (stats.errors ?? 0) + 1;
   }
-
-  // --- Mid-seek (wrapper προς autoSeek) ---
+  // ---- Mid-seek (wrapper προς autoSeek) ----
   scheduleMidSeek() {
     try {
       scheduleMidSeekExternal(this);
@@ -405,7 +394,6 @@ export class PlayerController {
       // no-op
     }
   }
-
   clearTimers() {
     try {
       groupCancel(this._group());
@@ -421,7 +409,7 @@ export class PlayerController {
       this.timers.midSeek = null;
     }
     if (typeof this.timers.progressCheck === 'number') {
-      // Δεν χρησιμοποιούμε πλέον progressCheck (watchdog αναλαμβάνει).
+      // Δεν χρησιμοποιούμε πλέον plain progressCheck (watchdog αναλαμβάνει).
       cancel(this.timers.progressCheck);
       this.timers.progressCheck = null;
     }
@@ -436,8 +424,7 @@ export class PlayerController {
     } catch (_e) {}
     this.expectedPauseMs = 0;
   }
-
-  // --- Deprecated wrapper: ένδειξη AutoNext από autoNext.js ---
+  // ---- Deprecated wrapper: ένδειξη AutoNext από autoNext.js ----
   loadNextVideo(_player) {
     try {
       autoNextAfterEnded(this);
@@ -445,8 +432,7 @@ export class PlayerController {
       // no-op
     }
   }
-
-  // --- NEO: ανίχνευση external/user seek (jump στο currentTime) ---
+  // ---- NEO: ανίχνευση external/user seek (jump στο currentTime) ----
   _detectExternalSeekAndMark() {
     try {
       const p = this.player;
@@ -465,7 +451,6 @@ export class PlayerController {
       this.lastKnownCT = ct;
     } catch (_e) {}
   }
-
   guardPlay(p) {
     try {
       const parts = [];
@@ -481,7 +466,6 @@ export class PlayerController {
     }
   }
 }
-
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 
