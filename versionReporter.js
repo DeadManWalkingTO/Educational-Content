@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v3.22.4';
+const VERSION = 'v3.24.0';
 /*
  * Περιγραφή:
  * Συγκεντρώνει εκδόσεις όλων των modules και του HTML. Ελαφρύς renderer για panel/κείμενο,
@@ -269,7 +269,7 @@ domReady().then(function () {
       const versions = reportAllVersions();
       const txt = renderVersionsText(versions);
       const dt = performance.now() - t0;
-      log('📦 VersionReporter ready (' + fmtMs(dt) + ') / ' + totalModules(versions));
+      log('📦 [VR] VersionReporter → Ready (' + fmtMs(dt) + ') / ' + totalModules(versions));
       //log(txt);
     },
     50,

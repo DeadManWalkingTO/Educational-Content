@@ -1,5 +1,5 @@
 // --- youtubeReady.js ---
-const VERSION = 'v1.7.0';
+const VERSION = 'v1.9.0';
 /*
  * Σκοπός: Ready gate για το YouTube IFrame Player API με timeout,
  * ασφαλές injection του script, global callback (once) και polling fallback.
@@ -86,22 +86,22 @@ function ensureIframeApiScriptInjected() {
         const hasParent = isDefined(firstScriptTag.parentNode);
         if (hasParent === true) {
           firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-          log('📎 YouTube IFrame API script injected before first <script>');
+          log('📎[YT] YouTube IFrame API Script Injected Before First <script>');
         } else {
           document.head.appendChild(tag);
-          log('📎 YouTube IFrame API script injected into <head>');
+          log('📎 [YT] YouTube IFrame API Script Injected Into <head>');
         }
       } else {
         document.head.appendChild(tag);
-        log('📎 YouTube IFrame API script injected into <head> (no existing <script>)');
+        log('📎 [YT] YouTube IFrame API Script Injected Into <head> (No Existing <script>)');
       }
     } else {
-      log('ℹ️ YouTube IFrame API script already present; no injection');
+      log('ℹ️ [YT] YouTube IFrame API Script Already Present → No Injection');
     }
   } catch (err) {
     try {
       const msg = err instanceof Error ? err.message : String(err);
-      log('❌ ensureIframeApiScriptInjected Error ' + msg);
+      log('❌ [YT] ensureIframeApiScriptInjected Error ' + msg);
     } catch (_) {
       // no-op
     }
@@ -122,7 +122,7 @@ function setupGlobalReady(onReadyCb) {
   const existing = window.onYouTubeIframeAPIReady;
   if (isDefined(existing) === true) {
     if (isFunction(existing) === true) {
-      log('ℹ️ window.onYouTubeIframeAPIReady already defined');
+      log('ℹ️ [YT] window.onYouTubeIframeAPIReady Already Defined');
       return function () {};
     }
   }
@@ -135,7 +135,7 @@ function setupGlobalReady(onReadyCb) {
     } catch (err) {
       try {
         const msg = err instanceof Error ? err.message : String(err);
-        log('❌ onYouTubeIframeAPIReady wrapper Error ' + msg);
+        log('❌ [YT] onYouTubeIframeAPIReady Wrapper Error ' + msg);
       } catch (_) {
         // no-op
       }
@@ -146,7 +146,7 @@ function setupGlobalReady(onReadyCb) {
     safeOnceCb();
   };
 
-  log('🧩 window.onYouTubeIframeAPIReady installed');
+  log('🧩 [YT] window.onYouTubeIframeAPIReady → Installed');
   return function () {};
 }
 
@@ -160,7 +160,7 @@ function setupGlobalReady(onReadyCb) {
  */
 export function youtubeReady(timeoutMs) {
   const maxWait = Math.max(1, Math.floor(Number(timeoutMs)));
-  const waitLabel = 'youtubeReady(' + fmtMs(maxWait) + ')';
+  const waitLabel = 'YoutubeReady(' + fmtMs(maxWait) + ')';
 
   return new Promise(async function (resolve, reject) {
     // 1) DOM ready
@@ -173,7 +173,7 @@ export function youtubeReady(timeoutMs) {
     // 2) Already ready?
     const readyNow = isApiReady();
     if (readyNow === true) {
-      log('✅ YT API is already ready');
+      log('✅ [YT] YouTube API Is Already Ready');
       resolve();
       return;
     }
@@ -185,10 +185,10 @@ export function youtubeReady(timeoutMs) {
     setupGlobalReady(function () {
       const ok = isApiReady();
       if (ok === true) {
-        log('✅ YT API ready (global callback)');
+        log('✅ [YT] YouTube API Ready (Global Callback)');
         resolve();
       } else {
-        log('⚠️ Global callback fired but API not fully ready yet');
+        log('⚠️ [YT] Global Callback Fired But API Not Fully Ready Yet');
       }
     });
 
@@ -213,12 +213,12 @@ export function youtubeReady(timeoutMs) {
       function () {
         const ok = isApiReady();
         if (ok === true) {
-          log('✅ YT API ready (just before timeout)');
+          log('✅ [YT] YouTube API Ready (Just Before Timeout)');
           clearAll();
           resolve();
           return;
         }
-        log('⏱️ Timeout waiting for YT API after ' + fmtMs(maxWait));
+        log('⏱️ [YT] Timeout Waiting For YT API After ' + fmtMs(maxWait));
         clearAll();
         reject(new Error('Timeout ' + fmtMs(maxWait)));
       },
@@ -231,7 +231,7 @@ export function youtubeReady(timeoutMs) {
     function pollTick() {
       const ok = isApiReady();
       if (ok === true) {
-        log('✅ YT API ready (poll)');
+        log('✅ [YT] YouTube API Ready (Poll)');
         clearAll();
         resolve();
         return;

@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-const VERSION = 'v3.19.0';
+const VERSION = 'v3.20.0';
 /*
  * Κεντρικό χειριστήριο UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
  * - Μετά από επιτυχές reload λιστών γίνεται broadcast του event 'lists:updated'
@@ -85,7 +85,7 @@ export function setControlsEnabled(enabled) {
       touched++;
     }
   }
-  log(`✅ Controls ${enabled ? 'enabled' : 'disabled'} (${touched} στοιχεία)`);
+  log(`✅ [UI] Controls ${enabled ? 'Enabled' : 'Disabled'} (${touched} Στοιχεία)`);
   return touched;
 }
 
@@ -110,19 +110,19 @@ function stopAll() {
       if (isReadyController(c)) {
         try {
           c.player.stopVideo();
-          log(`⏹️ [StopAll] Player ${c.index + 1} Stopped (Step ${step}/${shuffled.length})`);
+          log(`⏹️ [UI] [StopAll] Player ${c.index + 1} Stopped (Step ${step}/${shuffled.length})`);
         } catch {
-          noteError(`❌ Player ${c.index + 1} Stop Error`);
+          noteError(`❌ [UI] Player ${c.index + 1} Stop Error`);
         }
       } else {
-        noteError(`❌ Player ${c ? c.index + 1 : '?'} Stop Skipped -> Not Initialized`);
+        noteError(`❌ [UI] Player ${c ? c.index + 1 : '?'} Stop Skipped → Not Initialized`);
       }
     }, totalDelay);
 
     pushStopTimer(timer);
   }
 
-  log(`⏹️ [StopAll] Scheduled ${shuffled.length} players; συνολική εκτίμηση ~${Math.round(totalDelay / 1000)}s`);
+  log(`⏹️ [UI] [StopAll] Scheduled ${shuffled.length} Players → Συνολική Εκτίμηση ~${Math.round(totalDelay / 1000)}s`);
 }
 
 /**
@@ -139,9 +139,9 @@ function restartAll() {
     if (isReadyController(c)) {
       try {
         c.loadNextVideo(c.player);
-        log(`🔄 [RestartAll] Player ${c.index + 1} LoadNext`);
+        log(`🔄 [UI] [RestartAll] Player ${c.index + 1} LoadNext`);
       } catch (e) {
-        noteError(`❌ Player ${c.index + 1} LoadNext Error -> ${e}`);
+        noteError(`❌ [UI] Player ${c.index + 1} LoadNext Error → ${e}`);
       }
       continue;
     }
@@ -151,19 +151,19 @@ function restartAll() {
     const newId = pickRandomId(source);
 
     if (!isDefined(newId)) {
-      noteError(`❌ Player ${c ? c.index + 1 : '?'} Restart Skipped -> No Videos Available`);
+      noteError(`❌ [UI] Player ${c ? c.index + 1 : '?'} Restart Skipped → No Videos Available`);
       continue;
     }
 
     try {
       c.init(newId);
-      log(`🔄 [RestartAll] Player ${c.index + 1} Restart -> ${newId} (Source:${useMain ? 'main' : 'alt'})`);
+      log(`🔄 [UI] [RestartAll] Player ${c.index + 1} Restart -> ${newId} (Source:${useMain ? 'Main' : 'Alt'})`);
     } catch (e) {
-      noteError(`❌ Player ${c.index + 1} Restart Error -> ${e}`);
+      noteError(`❌ Player ${c.index + 1} Restart Error → ${e}`);
     }
   }
 
-  log(`🔄 [RestartAll] Completed`);
+  log(`🔄 [UI] RestartAll → Completed`);
 }
 
 /**
@@ -172,14 +172,14 @@ function restartAll() {
 function toggleTheme() {
   try {
     if (!isDefined(document?.body)) {
-      noteError(`❌ Theme Toggle Error -> Body not available`);
+      noteError(`❌ [UI] Theme Toggle Error → Body Not Available`);
       return;
     }
     document.body.classList.toggle('light');
     const mode = document.body.classList.contains('light') ? 'Light' : 'Dark';
-    log(`🌙 [UI] Theme -> ${mode} Mode`);
+    log(`🌙 [UI] Theme → ${mode} Mode`);
   } catch (e) {
-    noteError(`❌ Theme Toggle Error -> ${e}`);
+    noteError(`❌ [UI] Theme Toggle Error → ${e}`);
   }
 }
 
@@ -190,10 +190,10 @@ function clearLogs() {
   const panel = byId('activityPanel');
   if (allTrue([isDefined(panel), hasEntries(panel)])) {
     panel.innerHTML = '';
-    log(`🧹 [UI] Logs Cleared -> All Entries Removed`);
+    log(`🧹 [UI] Logs Cleared → All Entries Removed`);
     return true;
   }
-  log(`⚠️ [UI] Clear Logs -> Nothing to remove`);
+  log(`⚠️ [UI] Clear Logs → Nothing To Remove`);
   return false;
 }
 
@@ -204,7 +204,7 @@ export async function copyLogs() {
   const panel = byId('activityPanel');
   const statsPanel = byId('statsPanel');
   if (!hasEntries(panel)) {
-    log(`⚠️ [UI] Copy Logs -> No entries`);
+    log(`⚠️ [UI] Copy Logs → No Entries`);
     return false;
   }
   const logsText = buildLogsText(panel);
@@ -213,15 +213,15 @@ export async function copyLogs() {
 
   try {
     await navigator.clipboard.writeText(finalText);
-    log(`✅ [UI] Logs copied via Clipboard API -> ${panel.children.length} entries + stats`);
+    log(`✅ [UI] Logs Copied Via Clipboard API → ${panel.children.length} Entries + Stats`);
     return true;
   } catch {
     const ok = unsecuredCopyToClipboard(finalText);
     if (ok) {
-      log(`📋 [UI] (Fallback) Logs Copied -> ${panel.children.length} entries + stats`);
+      log(`📋 [UI] (Fallback) Logs Copied → ${panel.children.length} Entries + Stats`);
       return true;
     }
-    noteError(`❌ Copy Logs Failed (Fallback)`);
+    noteError(`❌ [UI] Copy Logs Failed (Fallback)`);
     return false;
   }
 }
@@ -268,7 +268,7 @@ export async function reloadList() {
     const altList = ret.altList;
     setMainList(mainList);
     setAltList(altList);
-    log(`📂 Lists Applied -> Main: ${mainList.length} - Alt: ${altList.length}`);
+    log(`📂 [UI] Lists Applied -> Main: ${mainList.length} - Alt: ${altList.length}`);
 
     if (typeof document !== 'undefined') {
       const detail = {
@@ -278,12 +278,12 @@ export async function reloadList() {
         altSource: ret?.meta?.altSource ?? 'unknown',
       };
       document.dispatchEvent(new CustomEvent('lists:updated', { detail }));
-      log(`📣 Event 'lists:updated' dispatched -> main:${detail.mainCount} alt:${detail.altCount}`);
+      log(`📣 [UI] Event 'Lists:Updated' Dispatched → Main:${detail.mainCount} Alt:${detail.altCount}`);
     }
     return true;
   } catch (err) {
     stats.errors = (stats.errors ?? 0) + 1;
-    log(`❌ Reload Failed -> ${err}`);
+    log(`❌ [UI] Reload Failed → ${err}`);
     return false;
   }
 }

@@ -1,5 +1,5 @@
 // --- lists.js ---
-const VERSION = 'v4.13.5';
+const VERSION = 'v4.14.0';
 /*
 Περιγραφή: Φόρτωση λιστών video IDs από local/remote πηγές, με parsing, sanitization,
 logging και fallback. Επιστρέφει arrays για συμβατότητα, ενώ το reload() παρέχει meta.
@@ -75,14 +75,14 @@ function sanitizeList(arr, tag) {
     j = j + 1;
   }
   const after = out.length;
-  log(`🧹 Sanitize (${tag}) — πριν:${before} → μετά:${after}`);
+  log(`🧹 [LS] Sanitize (${tag}) — Πριν:${before} → Μετά:${after}`);
   if (after < 1) {
     try {
       stats.errors = (stats.errors ?? 0) + 1;
     } catch (_e) {
       // no-op
     }
-    log('⚠️ Sanitize αποτέλεσμα κενό — πιθανό πρόβλημα πηγής/μορφής IDs');
+    log('⚠️ [LS] Sanitize Αποτέλεσμα Κενό → Πιθανό Πρόβλημα Πηγής/Μορφής IDs');
   }
   return out;
 }
@@ -170,11 +170,11 @@ async function loadVideoListWithMeta() {
     const listLocal = await tryLoadListFromUrl('list.txt');
     if (isDefined(listLocal) === true) {
       const clean = sanitizeList(listLocal, 'main:local');
-      log(`✅ Main list loaded [source:local] → ${clean.length} items`);
+      log(`✅ [LS] Main List Loaded [Source:Local] → ${clean.length} Items`);
       return { list: clean, source: 'local' };
     }
   } catch (err) {
-    log(`⚠️ Local list load failed -> ${err}`);
+    log(`⚠️ [LS] Local List Load Failed -> ${err}`);
   }
 
   // 2) Remote GitHub
@@ -186,10 +186,10 @@ async function loadVideoListWithMeta() {
         const listRemote = await tryLoadListFromUrl(githubUrl, 4000);
         const dt = Date.now() - t0;
         if (isDefined(listRemote) === false) {
-          throw new Error('Empty or non-OK GitHub response');
+          throw new Error('[LS] Empty Or Non-OK GitHub Response');
         }
-        const clean = sanitizeList(listRemote, 'main:github');
-        log(`🌐 GitHub fetch ok in ${formatMs(dt)} -> ${clean.length} items`);
+        const clean = sanitizeList(listRemote, 'Main:Github');
+        log(`🌐 [LS] GitHub Fetch Ok In ${formatMs(dt)} → ${clean.length} Items`);
         return clean;
       },
       3,
@@ -199,12 +199,12 @@ async function loadVideoListWithMeta() {
       0.15
     );
     if (ret.ok === true) {
-      log(`✅ Main list loaded [source:github] → ${ret.value.length} items`);
+      log(`✅ [LS] Main List Loaded [Source:GitHub] → ${ret.value.length} Items`);
       return { list: ret.value, source: 'github' };
     }
-    log(`⚠️ GitHub list load failed after ${ret.attempts} attempts -> ${ret.error}`);
+    log(`⚠️ [LS] GitHub List Load Failed After ${ret.attempts} Attempts → ${ret.error}`);
   } catch (err) {
-    log(`⚠️ GitHub list load error -> ${err}`);
+    log(`⚠️ [LS] GitHub List Load Error → ${err}`);
   }
 
   // 3) Internal fallback
@@ -212,7 +212,7 @@ async function loadVideoListWithMeta() {
     stats.errors = stats.errors + 1;
   } catch (_e) {}
   const clean = sanitizeList(internalList, 'main:internal');
-  log(`❌ Using internal fallback [source:internal] → ${clean.length} items`);
+  log(`❌ [LS] Using Internal Fallback [Source:Internal] → ${clean.length} Items`);
   return { list: clean, source: 'internal' };
 }
 
@@ -225,16 +225,16 @@ async function loadAltListWithMeta() {
     const listAlt = await tryLoadListFromUrl('random.txt');
     if (isDefined(listAlt) === true) {
       const clean = sanitizeList(listAlt, 'alt:local');
-      log(`✅ Alt list loaded [source:local] → ${clean.length} items`);
+      log(`✅ [LS] Alt List Loaded [Source:Local] → ${clean.length} Items`);
       return { list: clean, source: 'local' };
     }
   } catch (err) {
-    log(`⚠️ Alt List Load Failed -> ${err}`);
+    log(`⚠️ [LS] Alt List Load Failed -> ${err}`);
   }
   try {
     stats.errors = stats.errors + 1;
   } catch (_e) {}
-  log('❌ Alt list empty -> Using [] [source:none]');
+  log('❌ [LS] Alt List Empty → Using [] [Source:None]');
   return { list: [], source: 'none' };
 }
 
@@ -266,7 +266,7 @@ export async function reloadList() {
   const altMeta = both[1];
   const mainList = mainMeta.list;
   const altList = altMeta.list;
-  log(`🔄 Lists Reloaded -> Main:${mainList.length} (source:${mainMeta.source}) Alt:${altList.length} (source:${altMeta.source})`);
+  log(`🔄 [LS] Lists Reloaded -> Main:${mainList.length} (Source:${mainMeta.source}) Alt:${altList.length} (Source:${altMeta.source})`);
   return { mainList, altList, meta: { mainSource: mainMeta.source, altSource: altMeta.source } };
 }
 

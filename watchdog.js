@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v1.2.2';
+const VERSION = 'v1.3.2';
 /*
  * Περιγραφή: Εξωτερικός watchdog για τον έλεγχο "required watch time" ανά PlayerController.
  * Τρέχει περιοδικά, εφαρμόζει gates/cooldowns και προωθεί AutoNext με pacing σαν ENDED.
@@ -157,7 +157,7 @@ function checkController(ctrl) {
     const required = ctrl.plan.watch.requiredWatchTimeSec;
     const played = computePlayedSoFarSec(ctrl);
 
-    log(`⏱️ WD Player ${ctrl.index + 1} Progress — played=${played}s / required=${required}s`);
+    log(`⏱️ WD Player ${ctrl.index + 1} Progress → Played=${played}s / Required=${required}s`);
 
     const canFire = canFireAutoNext(ctrl, required, played);
     if (canFire === true) {
@@ -179,7 +179,7 @@ function checkController(ctrl) {
         // Stats
         stats.autoNext = isNumber(stats?.autoNext) === true ? stats.autoNext + 1 : 1;
 
-        log(`✅ WD Player ${ctrl.index + 1} Watch-time met → AutoNext scheduled`);
+        log(`✅ WD Player ${ctrl.index + 1} Watch-Time Met → AutoNext Scheduled`);
       }
     }
   } catch (_) {}
@@ -212,14 +212,14 @@ export function startWatchdog(intervalMs = 10000) {
   };
 
   watchdogTimerId = repeat(handler, intervalMs, 'wd:global');
-  log(`🛡️ Watchdog started — interval=${msToSec(intervalMs)}s (${fmtMs(intervalMs)})`);
+  log(`🛡️ Watchdog Started → Interval=${msToSec(intervalMs)}s (${fmtMs(intervalMs)})`);
 }
 
 export function stopWatchdog() {
   if (isNumber(watchdogTimerId) === true) {
     cancel(watchdogTimerId);
     watchdogTimerId = null;
-    log('🛡️ Watchdog stopped');
+    log('🛡️ Watchdog Stopped');
   }
 }
 
