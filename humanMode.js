@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-const VERSION = 'v4.18.5';
+const VERSION = 'v4.19.2';
 /*
  * Περιγραφή: Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς playback.
  * Στόχος: duration-aware start, ρεαλιστικές παύσεις/seek/ένταση.
@@ -11,10 +11,10 @@ export function getVersion() {
   return VERSION;
 }
 
-/* Όνομα αρχείου για logging */
+// Όνομα αρχείου για logging
 const FILENAME = import.meta.url.split('/').pop();
 
-/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
+// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
@@ -25,9 +25,9 @@ import { pickVideoId } from './videoPicker.js';
 
 /* Προφίλ συμπεριφοράς */
 const BEHAVIOR_PROFILES = [
-  { name: 'Explorer', pauseChance: 0.5, seekChance: 0.6, volumeChangeChance: 0.4 },
-  { name: 'Casual', pauseChance: 0.3, seekChance: 0.1, volumeChangeChance: 0.2 },
-  { name: 'Focused', pauseChance: 0.2, seekChance: 0.05, volumeChangeChance: 0.1 },
+  { name: 'Explorer', pauseChance: 0.5, seekChance: 0.6 },
+  { name: 'Casual', pauseChance: 0.3, seekChance: 0.1 },
+  { name: 'Focused', pauseChance: 0.2, seekChance: 0.05 },
 ];
 
 /* Βοηθητικό για έλεγχο controller/player */
@@ -63,7 +63,6 @@ function createRandomPlayerConfig(profile) {
   const volumeRange = [v1, v2];
   const pauseChance = isDefined(profile) ? profile.pauseChance : 0.3;
   const seekChance = isDefined(profile) ? profile.seekChance : 0.1;
-  const volumeChangeChance = isDefined(profile) ? profile.volumeChangeChance : 0.2;
   const replayChance = randomFloat(0, 1) < 0.15;
   return {
     profileName,
@@ -72,7 +71,6 @@ function createRandomPlayerConfig(profile) {
     volumeRange,
     pauseChance,
     seekChance,
-    volumeChangeChance,
     replayChance,
   };
 }
@@ -101,51 +99,40 @@ export async function initPlayersSequentially(mainList, altList) {
   } catch (err) {
     log(`⚠️ hasUserGesture check Error ${err}`);
   }
-
   if (allTrue([Array.isArray(mainList), Array.isArray(altList)])) {
     setMainList(mainList);
     setAltList(altList);
   }
-
   if ((mainList?.length ?? 0) === 0 && (altList?.length ?? 0) === 0) {
     stats.errors++;
     log('❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκκίνηση σταματά.');
     return;
   }
-
   for (let i = 0; i < PLAYER_COUNT; i++) {
     const playbackDelay = i === 0 ? 0 : rndInt(30, 180) * 1000;
     log(`⏳ Player ${i + 1} HumanMode Scheduled -> Start after ${Math.round(playbackDelay / 1000)}s`);
-
     scheduleSafe(() => log(`🛠 Player ${i + 1} Safe -> Pre-warm`), rndInt(100, 300), 'humanInit', `P${i + 1} prewarm`);
-
     await sleep(rndInt(400, 600));
     await sleep(playbackDelay);
-
     if (isStopping) {
       log(`👤 HumanMode: παράκαμψη init για Player ${i + 1} λόγω Stop All`);
       continue;
     }
-
     const pick = pickVideoId(mainList, altList, MAIN_PROBABILITY);
     if (!isDefined(pick?.id)) {
       stats.errors++;
       log(`❌ HumanMode: skip Player ${i + 1} -> no videos available`);
       continue;
     }
-
     const videoId = pick.id;
     let controller = controllers.find((c) => c.index === i) ?? null;
-
     if (hasCtrlAndPlayer(controller)) {
       log(`⚠️ Player ${i + 1} ήδη αρχικοποιημένος, γίνεται skip re-init`);
       continue;
     }
-
     const profileIndex = rndInt(0, BEHAVIOR_PROFILES.length - 1);
     const profile = BEHAVIOR_PROFILES[profileIndex];
     const config = createRandomPlayerConfig(profile);
-
     if (!isDefined(controller)) {
       controller = new PlayerController(i, mainList, altList, config);
       controllers.push(controller);
@@ -153,24 +140,18 @@ export async function initPlayersSequentially(mainList, altList) {
       controller.config = config;
       controller.profileName = config.profileName;
     }
-
     logProfile(profile);
-
     await sleep(rndInt(150, 300));
     controller.init(videoId);
-
-    // Logging για pause plan (baseline από πολιτική + προσαρμογή)
     const baselinePauses = controller.plan?.pauses?.count ?? '-';
     log(`📋 Player ${i + 1} Pause Plan -> baseline=${baselinePauses}, profileChance=${config.pauseChance}`);
-
-    const session = { pauseChance: config.pauseChance, seekChance: config.seekChance, volumeChangeChance: config.volumeChangeChance };
+    const session = { pauseChance: config.pauseChance, seekChance: config.seekChance };
     log(`👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
   }
-
   log('✅ HumanMode sequential initialization completed');
 }
 
-/* Ολοκλήρωση φόρτωσης αρχείου */
+/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---
