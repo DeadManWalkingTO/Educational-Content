@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v3.21.2';
+const VERSION = 'v3.21.4';
 /*
  * Περιγραφή:
  * Συγκεντρώνει εκδόσεις όλων των modules και του HTML. Ελαφρύς renderer για panel/κείμενο,
@@ -21,6 +21,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 /* ========================= Imports ========================= */
 import { getVersion as getAutoNextVersion } from './autoNext.js';
 import { getVersion as getAutoPauseVersion } from './autoPause.js';
+import { getVersion as getAutoQualityVersion } from './autoQuality.js';
 import { getVersion as getAutoSeekVersion } from './autoSeek.js';
 import { getVersion as getAutoUnmuteVersion } from './autoUnmute.js';
 import { getVersion as getAutoVolumeVersion } from './autoVolume.js';
@@ -79,6 +80,7 @@ export function reportAllVersions() {
     AutoPause: getAutoPauseVersion(),
     Watchdog: getWatchdogVersion(),
     VideoPicker: getVideoPickerVersion(),
+    AutoQuality: getAutoQualityVersion(),
     VersionReporter: VERSION,
   };
 
@@ -179,6 +181,8 @@ function iconFor(name) {
       return '⏸️';
     case 'VideoPicker':
       return '📹';
+    case 'AutoQuality':
+      return '🎚️';
     case 'Main':
       return '🚀';
     default:

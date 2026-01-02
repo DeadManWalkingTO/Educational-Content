@@ -1,10 +1,9 @@
 // --- playerController.js ---
-const VERSION = 'v7.7.10';
+const VERSION = 'v7.7.18';
 /*
- * - Προστέθηκε listener για 'lists:updated' ώστε κάθε controller να συγχρονίζει this.mainList/altList.
  * - Όταν ο controller είναι active: συνεχίζει ομαλά, τα επόμενα picks χρησιμοποιούν τις νέες λίστες.
  * - Όταν είναι idle: clearTimers() + light re-plan με getBehaviorPlan (isFirstVideo:false).
- * - Διατηρήθηκε το υπόλοιπο public API/ροή χωρίς αλλαγές.
+ * - ΝΕΟ: Ενσωματώθηκε quality scheduling (autoQuality.js) με παράθυρο required watch time.
  */
 
 // --- Export Version ---
@@ -27,6 +26,7 @@ import { autoNextAfterError, autoNextAfterEnded } from './autoNext.js';
 import { scheduleVolumeChanges, scheduleMicroAdjust } from './autoVolume.js';
 import { schedulePauses } from './autoPause.js';
 import { safeSeek as safeSeekExternal, scheduleMidSeek as scheduleMidSeekExternal, applyInitSeek } from './autoSeek.js';
+import { scheduleQualityChanges } from './autoQuality.js';
 
 /* ========================= class PlayerController ========================= */
 export class PlayerController {
@@ -53,7 +53,7 @@ export class PlayerController {
     // Volume meta
     this.volumeMeta = { scheduledIds: [], changesPlanned: 0 };
     // Unmute flags (συνεργάζονται με playerStateEngine)
-    this.pendingUnmute = false;
+    this.pendingUnmute = true;
     this.unmuteScheduled = false;
     // Watch-time & autonext state
     this.lastSeekAt = null;
@@ -63,7 +63,7 @@ export class PlayerController {
     this.cooldowns = { seekMs: 1500, pauseMs: 800 };
     this.continuity = { minPlaySec: 4 };
 
-    // ---- Νέο: Listener για 'lists:updated' (συγχρονισμός λιστών / ελαφρύ re-plan) ----
+    // ---- Listener για 'lists:updated' (συγχρονισμός λιστών / ελαφρύ re-plan) ----
     try {
       if (typeof document !== 'undefined') {
         const handler = (_e) => {
@@ -78,7 +78,6 @@ export class PlayerController {
             if (hasAlt === true) {
               this.altList = deepClone(altGlobal);
             }
-
             // Active ή Idle;
             const active = this.isPlayingActive === true;
             if (active === true) {
@@ -127,6 +126,7 @@ export class PlayerController {
     }
     return `${base}:${suffix}`;
   }
+
   _can(obj, methodName) {
     if (typeof obj === 'undefined') {
       return false;
@@ -140,6 +140,7 @@ export class PlayerController {
     }
     return false;
   }
+
   _ytDefined() {
     let ok = false;
     if (typeof YT !== 'undefined') {
@@ -149,6 +150,7 @@ export class PlayerController {
     }
     return ok;
   }
+
   _isPlaying(p) {
     let playing = false;
     const parts = [];
@@ -164,6 +166,7 @@ export class PlayerController {
     }
     return playing;
   }
+
   _isMuted(p) {
     let muted = false;
     const parts = [];
@@ -178,6 +181,7 @@ export class PlayerController {
     }
     return muted;
   }
+
   _safeSeek(seconds) {
     try {
       // Σήμανση seek πριν από delegation στο autoSeek
@@ -187,6 +191,7 @@ export class PlayerController {
       // no-op
     }
   }
+
   _scheduleWhenPlayingAndUnmuted(taskFn, retryMinMs, retryMaxMs, groupSuffix, tag) {
     const attempt = () => {
       try {
@@ -248,7 +253,6 @@ export class PlayerController {
 
   onReady(e) {
     const p = e.target;
-
     // Initial mute
     if (this._can(p, 'mute') === true) {
       try {
@@ -287,7 +291,6 @@ export class PlayerController {
       playerIndex: this.index,
       baseStartDelaySec: this.config?.startDelay,
     };
-
     try {
       this.plan = getBehaviorPlan(ctx);
     } catch (_e) {}
@@ -333,6 +336,7 @@ export class PlayerController {
     // Schedulers (pauses, mid-seek, volume)
     schedulePauses(this);
     this.scheduleMidSeek();
+
     try {
       const p2 = this.player;
       let duration = 0;
@@ -347,6 +351,36 @@ export class PlayerController {
       }
       scheduleVolumeChanges(this.player, this.config, duration, this._group('volume'));
       scheduleMicroAdjust(this.player, duration, this._group('volume'));
+    } catch (_e) {}
+
+    // --- ΝΕΟ: Προγραμματισμός τυχαίων αλλαγών ποιότητας μέσα στο required watch time ---
+    try {
+      const pQ = this.player;
+      let durationQ = 0;
+      const partsQ = [];
+      partsQ.push(this._can(pQ, 'getDuration') === true);
+      const canDurQ = allTrue(partsQ);
+      if (canDurQ === true) {
+        const dQ = pQ.getDuration();
+        if (isNumber(dQ) === true) {
+          durationQ = dQ;
+        }
+      }
+
+      // Ανάκτηση required watch time από το plan
+      let requiredWatchSec = 0;
+      try {
+        const hasWatch = typeof this.plan?.watch !== 'undefined' ? this.plan.watch !== null : false;
+        if (hasWatch === true) {
+          const req = this.plan.watch.requiredWatchTimeSec;
+          if (isNumber(req) === true) {
+            requiredWatchSec = req;
+          }
+        }
+      } catch (_ePlan) {}
+
+      const qcfg = { qualityChangeChance: this.config?.qualityChangeChance };
+      scheduleQualityChanges(this.player, durationQ, qcfg, this._group('quality'), requiredWatchSec, this);
     } catch (_e) {}
   }
 
@@ -448,7 +482,7 @@ export class PlayerController {
   }
 }
 
-// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
 
 // --- End Of File ---
