@@ -1,5 +1,5 @@
 // --- videoPicker.js ---
-const VERSION = 'v1.1.0';
+const VERSION = 'v1.2.0';
 /*
  * Επιλογή videoId από λίστες main/alt με χρήση βοηθητικών συναρτήσεων utils.js.
  * Καθαρή (pure) συνάρτηση: δεν αλλάζει είσοδο, δεν κάνει scheduling, δεν γράφει σε global state.
@@ -84,7 +84,7 @@ export function pickVideoId(mainList, altList, mainProbability = 0.5) {
   // Logging (safe)
   try {
     const pStr = `${Math.round(pMain * 100)}%`;
-    log(`🎲 Επιλογή λίστας: ${source} p=${pStr}`);
+    log(`🎲 [VP] Επιλογή Λίστας: ${source} p=${pStr}`);
   } catch (_) {}
 
   return { id, source, size: len };

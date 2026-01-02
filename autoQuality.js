@@ -1,5 +1,5 @@
 // --- autoQuality.js ---
-const VERSION = 'v1.0.20';
+const VERSION = 'v1.2.0';
 /*
  * Περιγραφή: Τυχαίες αλλαγές ποιότητας (YouTube Iframe API) με guards:
  *            εκτέλεση μόνο όταν ο player είναι PLAYING και unmuted.
@@ -156,7 +156,7 @@ function _resolvePlayerTag(ctrlOrIndex) {
     const isObj = typeof ctrlOrIndex === 'object';
     if (isObj === true) {
       const idxStr = _shownIndexFromCtrl(ctrlOrIndex);
-      return `P${idxStr}`;
+      return `Player ${idxStr}`;
     } else {
       const idxStr2 = _shownIndexFromIndex(ctrlOrIndex);
       return `P${idxStr2}`;
@@ -209,7 +209,7 @@ function _applyQuality(player, quality, tag) {
       return;
     }
     player.setPlaybackQuality(quality);
-    log(`📺 ${String(tag)} Quality → ${String(quality)}`);
+    log(`📺 [AQ] ${String(tag)} Quality → ${String(quality)}`);
   } catch (_) {}
 }
 
@@ -292,13 +292,13 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
 
   // 🧪 Debug Log #1: planned & window & dur (με tag παίκτη)
   try {
-    const msg = `🧪 ${String(tag)} QualityScheduler: planned=${String(planned)} window=${String(windowSec)}s dur=${String(d)}s`;
+    const msg = `🧪 [AQ] ${String(tag)} QualityScheduler → Planned=${String(planned)} Window=${String(windowSec)}s Dur=${String(d)}s`;
     log(msg);
   } catch (_) {}
 
   if (planned === 0) {
     try {
-      log(`🧪 ${String(tag)} QualityScheduler: no tasks scheduled (baseCount or chance too low)`);
+      log(`🧪 [AQ] ${String(tag)} QualityScheduler → No Tasks Scheduled (BaseCount Or Chance Too Low)`);
     } catch (_) {}
     return;
   }
@@ -334,7 +334,7 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
     // 🧪 Debug Log #2: scheduling info με σειρά προτίμησης (με tag παίκτη)
     try {
       const ord = Array.isArray(preferredOrder) === true ? preferredOrder.join('>') : '-';
-      const msg2 = `🧪 ${String(tag)} QualityScheduler: scheduling in ${String(Math.round(delayMs / 1000))}s (order=${ord})`;
+      const msg2 = `🧪 [AQ] ${String(tag)} QualityScheduler → Scheduling in ${String(Math.round(delayMs / 1000))}s (Order=${ord})`;
       log(msg2);
     } catch (_) {}
 

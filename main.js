@@ -1,5 +1,5 @@
 // --- main.js ---
-const VERSION = 'v4.4.0';
+const VERSION = 'v4.5.0';
 /*
 Περιγραφή: Entry point με εκτεταμένη χρήση utils.js (domReady, safeAddEvent, once, log, retry, scheduleSafe).
 Start gate με user gesture & ασφαλές fallback, readiness του YouTube API με exponential backoff + jitter,
@@ -59,16 +59,16 @@ if (isDefined(panel)) {
  */
 const startOnce = once(async function startApp() {
   try {
-    log(`🚀 [Main] Εκκίνηση Εφαρμογής → main.js ${VERSION}`);
+    log(`🚀 [MN] Εκκίνηση Εφαρμογής → main.js ${VERSION}`);
     log(`${renderVersionsText(versions)}`);
     // Φόρτωση λιστών
     const listPromises = [loadVideoList(), loadAltList()];
     const lists = await Promise.all(listPromises);
     const mainList = lists[0];
     const altList = lists[1];
-    log(`📂 [Main] Lists Loaded → Main:${mainList.length} Alt:${altList.length}`);
+    log(`📂 [MN] Lists Loaded → Main:${mainList.length} Alt:${altList.length}`);
     // Readiness YouTube API με retry/backoff/jitter
-    log(`⏳ [Main] YouTubeAPI → Αναμονή (με Retry/Backoff/Jitter)`);
+    log(`⏳ [MN] YouTubeAPI → Αναμονή (με Retry/Backoff/Jitter)`);
     const readyResult = await retry(
       async () => {
         await youtubeReady(20000); // 20s timeout
@@ -81,9 +81,9 @@ const startOnce = once(async function startApp() {
       0.2 // jitterRatio
     );
     if (readyResult.ok === true) {
-      log(`✅ [Main] YouTubeAPI → Έτοιμο (Προσπάθειες: ${readyResult.attempts})`);
+      log(`✅ [MN] YouTubeAPI → Έτοιμο (Προσπάθειες: ${readyResult.attempts})`);
     } else {
-      log(`❌ [Main] YouTubeAPI → Απέτυχε (Προσπάθειες: ${readyResult.attempts})`);
+      log(`❌ [MN] YouTubeAPI → Απέτυχε (Προσπάθειες: ${readyResult.attempts})`);
     }
     // Δημιουργία containers πριν το init των players
     createPlayerContainers();
@@ -95,13 +95,13 @@ const startOnce = once(async function startApp() {
     // Human Mode sequential init
     initPlayersSequentially(mainList, altList)
       .then(() => {
-        log(`✅ [Main] HumanMode → Ολοκληρώθηκε Sequential Init`);
+        log(`✅ [MN] HumanMode → Ολοκληρώθηκε Sequential Init`);
       })
       .catch((err) => {
-        log(`❌ [Main] HumanMode Init Error → ${err}`);
+        log(`❌ [MN] HumanMode Init Error → ${err}`);
       });
   } catch (err) {
-    log(`❌ [Main] Σφάλμα Κατά Την Εκκίνηση → ${err}`);
+    log(`❌ [MN] Σφάλμα Κατά Την Εκκίνηση → ${err}`);
   }
 });
 

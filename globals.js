@@ -117,7 +117,7 @@ export function getAltList() {
 export function setMainList(list) {
   const next = Array.isArray(list) ? deepClone(list) : [];
   _mainList = next;
-  log(`📂 Main list applied -> ${_mainList.length} videos`);
+  log(`📂 [GL] Main list applied → ${_mainList.length} videos`);
 }
 
 /**
@@ -127,7 +127,7 @@ export function setMainList(list) {
 export function setAltList(list) {
   const next = Array.isArray(list) ? deepClone(list) : [];
   _altList = next;
-  log(`📂 Alt list applied -> ${_altList.length} videos`);
+  log(`📂 [GL] Alt List Applied → ${_altList.length} Videos`);
 }
 
 /**
@@ -155,7 +155,7 @@ const stopTimers = [];
  */
 export function setIsStopping(flag) {
   isStopping = !!flag;
-  log(`⏹ isStopping = ${isStopping}`);
+  log(`⏹ [GL] isStopping → ${isStopping}`);
 }
 
 /**
@@ -180,7 +180,7 @@ export function clearStopTimers() {
       // no-op
     }
   }
-  log('🧹 Stop timers cleared');
+  log('🧹 [GL] Stop Timers → cleared');
 }
 /** --- Stop All state & helpers - End --- */
 
@@ -194,7 +194,7 @@ export let hasUserGesture = false;
 /** Θέτει hasUserGesture = true και το καταγράφει. */
 export function setUserGesture() {
   hasUserGesture = true;
-  log(`💻 Αλληλεπίδραση Χρήστη`);
+  log(`💻 [GL] Αλληλεπίδραση Χρήστη`);
 }
 /** --- User gesture flag - End --- */
 

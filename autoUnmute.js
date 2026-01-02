@@ -1,5 +1,5 @@
 // --- autoUnmute.js ---
-const VERSION = 'v2.5.0';
+const VERSION = 'v2.6.0';
 /*
  * scheduleUnmute(ctrl, stateIsPlaying): parsing plan.unmute (base/extra/grace), debounce, flags, scheduling.
  * applyUnmute(player, plan, ctrl): unMute + setVolume + micro-adjust (υφιστάμενη λογική).
@@ -154,7 +154,7 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
     // Schedule
     ctrl.unmuteScheduled = true;
     const totalSecShown = Math.round(finalDelayMs / 1000);
-    log(`🔕 Player ${String(ctrl.index + 1)} Unmute scheduled after ${String(totalSecShown)}s`);
+    log(`🔕 [AU] Player ${String(ctrl.index + 1)} Unmute Scheduled After ${String(totalSecShown)}s`);
     scheduleSafe(
       function () {
         try {
@@ -236,7 +236,7 @@ export function applyUnmute(player, plan, ctrl = null) {
     try {
       stats.volumeChanges = (stats.volumeChanges ?? 0) + 1;
     } catch (_) {}
-    log(`🔊 Player ${idxShown} Auto Unmute -> ${String(target)}%`);
+    log(`🔊 [AU] Player ${idxShown} Auto Unmute -> ${String(target)}%`);
   } catch (_) {}
 }
 

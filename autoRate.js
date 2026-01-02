@@ -1,5 +1,5 @@
 // --- autoRate.js ---
-const VERSION = 'v1.0.0';
+const VERSION = 'v1.2.0';
 /*
  * Περιγραφή: Σπάνιες, τυχαίες αλλαγές ταχύτητας αναπαραγωγής (rate).
  *
@@ -140,7 +140,7 @@ function _applyRateChange(ctrl, targetRate) {
     // 3) Άνοιγμα νέου PLAYING παραθύρου με νέο ρυθμό
     ctrl.currentRate = desired;
     ctrl.playingStart = Date.now();
-    log(`⏩ Player ${ctrl.index + 1} Rate → x${String(desired)}`);
+    log(`⏩ [AR] Player ${ctrl.index + 1} Rate → x${String(desired)}`);
   } catch (_) {}
 }
 
@@ -161,7 +161,7 @@ export function resetPlaybackRate(ctrl) {
       } catch (_) {}
     }
     ctrl.currentRate = 1.0;
-    log(`⏮️ Player ${ctrl.index + 1} Rate reset → x1`);
+    log(`⏮️ [AR] Player ${ctrl.index + 1} Rate reset → x1`);
   } catch (_) {}
 }
 
@@ -237,7 +237,7 @@ export function scheduleRateChanges(ctrl) {
     }
     if (planned === 0) {
       const pct = Math.floor(chance * 100);
-      log(`ℹ️ Player ${ctrl.index + 1} RateScheduler: no changes planned (chance=${pct}%)`);
+      log(`ℹ️ [AR] Player ${ctrl.index + 1} → RateScheduler (No Changes Planned (chance=${pct}%))`);
       return;
     }
 
@@ -254,7 +254,7 @@ export function scheduleRateChanges(ctrl) {
       'rate-change'
     );
 
-    log(`🗓️ Player ${ctrl.index + 1} RateScheduler: x${String(targetRate)} in ~${delaySec}s (win ${fromSec}-${toSec}s)`);
+    log(`🗓️ [AR] Player ${ctrl.index + 1} RateScheduler: x${String(targetRate)} in ~${delaySec}s (win ${fromSec}-${toSec}s)`);
   } catch (_) {}
 }
 

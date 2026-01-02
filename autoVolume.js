@@ -137,7 +137,7 @@ function _applyVolume(player, range) {
           stats.volumeChanges = 1;
         }
       } catch (_) {}
-      log(`🔊 Volume → ${target}%`);
+      log(`🔊 [AV] Volume → ${target}%`);
     }
   } catch (_) {}
 }
@@ -247,7 +247,7 @@ export function scheduleMicroAdjust(player, durationSec, group = 'pc:volume') {
           stats.volumeChanges = 1;
         }
       } catch (_) {}
-      log(`🔉 Micro-volume adjust → ${tgt}% (Δ=${delta})`);
+      log(`🔉[AV] Micro-Volume Adjust → ${tgt}% (Δ=${delta})`);
     } catch (_) {}
   };
 

@@ -1,5 +1,5 @@
 // --- consoleFilter.js ---
-const VERSION = 'v3.5.7';
+const VERSION = 'v3.6.0';
 /*
  * Τυποποιημένο wrapping της global console με state-machine και tagging.
  * Προωθεί non-critical logs (error/warn/info/log) σε επιλεγμένο level με prefix tag,
@@ -98,7 +98,7 @@ function matchAnyArg(args, regexList) {
       i = i + 1;
     }
   } catch (err) {
-    log(`⚠️ ConsoleFilter Error ${err}`);
+    log(`❌ [CF] ConsoleFilter → Error ${err}`);
   }
   return false;
 }
@@ -132,7 +132,7 @@ function matchSourceHints(args, sources) {
       i = i + 1;
     }
   } catch (err) {
-    log(`⚠️ ConsoleFilter Error ${err}`);
+    log(`❌ [CF] ConsoleFilter → Error ${err}`);
   }
   return false;
 }

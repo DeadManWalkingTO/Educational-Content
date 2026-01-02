@@ -1,5 +1,5 @@
 // --- policies.js ---
-const VERSION = 'v1.13.10';
+const VERSION = 'v1.14.0';
 /*
  * Περιγραφή: Module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
  * Τροποποίηση: Συνεπές στυλ 'else if' σε όλες τις διακλαδώσεις + τυχαιότητα στο capSec με profile tuning.
@@ -54,7 +54,7 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown') {
   }
   if (valid !== true) {
     try {
-      log(`🧮 Required=15s (fallback), Duration=${String(durationSec)} (invalid)`);
+      log(`🧮 [PL] Required=15s (Fallback), Duration=${String(durationSec)} (Invalid)`);
     } catch (_) {}
     return 15;
   }
@@ -98,7 +98,7 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown') {
 
   try {
     const pctStr = (pct * 100).toFixed(1);
-    log(`🧮 Required=${required}s (D=${d} - Pct=${pctStr}% - CapSec=${capSec}s - Raw=${requiredRaw}s - Profile=${String(profileName)})`);
+    log(`🧮 [PL] Required=${required}s (D=${d} - Pct=${pctStr}% - CapSec=${capSec}s - Raw=${requiredRaw}s - Profile=${String(profileName)})`);
   } catch (_) {}
 
   return required;

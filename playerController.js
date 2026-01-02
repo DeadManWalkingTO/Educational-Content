@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v7.8.2';
+const VERSION = 'v7.9.0';
 /*
  * - Όταν ο controller είναι active: συγχίζει ομαλά, τα επόμενα picks χρησιμοποιούν τις νέες λίστες.
  * - Όταν είναι idle: clearTimers() + light re-plan με getBehaviorPlan (isFirstVideo:false).
@@ -79,7 +79,7 @@ export class PlayerController {
             // Active ή Idle;
             const active = this.isPlayingActive === true;
             if (active === true) {
-              log(`🎞️ Player ${this.index + 1} Lists Updated -> active; future picks use new lists`);
+              log(`🎞️ [PC] Player ${this.index + 1} Lists Updated → Active (Future Picks Use New Lists)`);
               // Καμία παρέμβαση στο τρέχον playback/plan.
             } else {
               // Idle: ασφαλής ανανέωση πλάνου (light re-plan)
@@ -104,10 +104,10 @@ export class PlayerController {
                 };
                 this.plan = getBehaviorPlan(ctx);
               } catch (_ee) {}
-              log(`🧭 Player ${this.index + 1} Lists Updated -> idle; plan refreshed`);
+              log(`🧭 [PC] Player ${this.index + 1} Lists Updated → Idle (Plan Refreshed)`);
             }
           } catch (err) {
-            log(`⚠️ Player ${this.index + 1} Lists Update Error -> ${err}`);
+            log(`⚠️ [PC] Player ${this.index + 1} Lists Update Error -> ${err}`);
           }
         };
         // Ασφαλές binding μέσω safeAddEvent
@@ -236,9 +236,9 @@ export class PlayerController {
         onError: () => this.onError(),
       },
     });
-    log(`ℹ️ YT PlayerVars origin→ ${getOrigin()} host→ ${getYouTubeEmbedHost()}`);
-    log(`ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
-    log(`👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
+    log(`ℹ️ [PC] YT PlayerVars → Origin: ${getOrigin()} / Host: ${getYouTubeEmbedHost()}`);
+    log(`ℹ️ [PC] Player ${this.index + 1} Initialized -> ID=${videoId}`);
+    log(`👤 [PC] Player ${this.index + 1} Profile -> ${this.profileName}`);
   }
   onReady(e) {
     const p = e.target;
@@ -313,7 +313,7 @@ export class PlayerController {
         try {
           this.guardPlay(p);
         } catch (err) {
-          log(`❌ Player ${this.index + 1} guardPlay Error ${String(err?.message ?? err)}`);
+          log(`❌ [PC] Player ${this.index + 1} GuardPlay Error ${String(err?.message ?? err)}`);
         }
       },
       jitterMs,
@@ -321,7 +321,7 @@ export class PlayerController {
       'guardPlay-initial'
     );
     const seekInfo = isNumber(targetSec) === true ? targetSec : '-';
-    log(`⏩ Player ${this.index + 1} Behavior Plan Start Seek -> Seek=${seekInfo}s`);
+    log(`⏩ [PC] Player ${this.index + 1} Behavior Plan Start Seek -> Seek=${seekInfo}s`);
 
     // Schedulers (pauses, mid-seek, volume)
     schedulePauses(this);
@@ -462,7 +462,7 @@ export class PlayerController {
         p.playVideo();
       }
     } catch (err) {
-      log(`❌ Player ${this.index + 1} LogPlayer Error ${String(err?.message ?? err)}`);
+      log(`❌ [PC] Player ${this.index + 1} → LogPlayer Error ${String(err?.message ?? err)}`);
     }
   }
 }

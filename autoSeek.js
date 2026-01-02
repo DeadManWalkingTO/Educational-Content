@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v1.1.2';
+const VERSION = 'v1.2.0';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, mid-seek scheduler, init-seek).
  * Στόχος: Επαναχρησιμοποίηση/απομόνωση λογικής, συμβατότητα με PlayerController & state engine.
@@ -57,7 +57,7 @@ export function safeSeek(ctrl, seconds) {
     stats.seeks = (stats.seeks ?? 0) + 1;
   } catch (err) {
     stats.errors = (stats.errors ?? 0) + 1;
-    log(`❌ SafeSeek Error: ${err?.message ?? err}`);
+    log(`❌ [AS] SafeSeek Error: ${err?.message ?? err}`);
   }
 }
 
@@ -134,7 +134,7 @@ function _doMidSeekOnce(ctrl) {
     safeSeek(ctrl, target);
 
     stats.seeks = (stats.seeks ?? 0) + 1;
-    log(`🔄 Player ${ctrl.index + 1} Mid-seek -> ${target}s`);
+    log(`🔄 [AS] Player ${ctrl.index + 1} Mid-Seek -> ${target}s`);
 
     const now = Date.now();
     ctrl.seekMeta.lastMs = now;
@@ -155,7 +155,7 @@ export function scheduleMidSeek(ctrl) {
   const canMid = allTrue(parts);
 
   if (canMid !== true) {
-    log(`ℹ️ Player ${ctrl.index + 1} scheduleMidSeek skipped (short or disabled)`);
+    log(`ℹ️ [AS] Player ${ctrl.index + 1} ScheduleMidSeek Skipped (Short Or Disabled)`);
     return;
   }
 

@@ -1,5 +1,5 @@
 // --- autoNext.js ---
-const VERSION = 'v1.9.8';
+const VERSION = 'v1.10.0';
 /*
  * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR + scheduler.
  * Τροποποίηση: Η επιλογή videoId γίνεται μέσω του κοινoύ videoPicker.js.
@@ -48,7 +48,7 @@ function resetAutoNextCountersIfNeeded() {
       autoNextPerPlayer[i] = 0;
       i = i + 1;
     }
-    log('🔄 AutoNext counters reset (hourly)');
+    log('🔄 [AN] AutoNext Counters Reset (Hourly)');
   }
 }
 export function canAutoNext(playerIndex) {
@@ -150,7 +150,7 @@ function finalizeAutoNext(ctrl, picked) {
   } catch (_) {}
   try {
     log(
-      `⏭️ Player ${ctrl.index + 1} AutoNext -> ${String(isDefined(picked?.id) === true ? picked.id : '-')}` +
+      `⏭️ [AN] Player ${ctrl.index + 1} AutoNext -> ${String(isDefined(picked?.id) === true ? picked.id : '-')}` +
         ` (Source:${String(isDefined(picked?.source) === true ? picked.source : '-')}, size:${String(isNumber(picked?.size) === true ? picked.size : 0)})`
     );
   } catch (_) {}
@@ -168,12 +168,12 @@ function runAutoNext(ctrl, ctx, label) {
   const canLoad = isDefined(ctrl?.player) === true ? (isDefined(ctrl?.player?.loadVideoById) === true ? (typeof ctrl.player.loadVideoById === 'function' ? true : false) : false) : false;
   if (canLoad !== true) {
     stats.errors = isNumber(stats?.errors) === true ? stats.errors + 1 : 1;
-    log('❌ AutoNext aborted -> player/loadVideoById unavailable');
+    log('❌ [AN] AutoNext Aborted → Player/LoadVideoById Unavailable');
     return;
   }
   if (picked.id === null) {
     stats.errors = isNumber(stats?.errors) === true ? stats.errors + 1 : 1;
-    log('❌ AutoNext aborted -> no available list');
+    log('❌ [AN] AutoNext Aborted → No Available List');
     return;
   }
   ctrl.player.loadVideoById(picked.id);
@@ -190,13 +190,13 @@ function scheduleAutoNext(ctrl, trigger) {
   if (decision.allow !== true) {
     const why = String(decision.reason);
     const kind = trigger === 'ended' ? 'ENDED' : trigger === 'error' ? 'ERROR' : 'ENDED';
-    log(`⛔ Player ${ctrl.index + 1} AutoNext blocked (${kind}) — ${why}`);
+    log(`⛔ [AN] Player ${ctrl.index + 1} AutoNext Blocked (${kind}) — ${why}`);
     return;
   }
   const delayMs = computeAutoNextDelay(ctx);
   const kind = trigger === 'error' ? 'ERROR' : 'ENDED';
   const label = String(trigger) + '-autonext';
-  log(`⏳ Player ${ctrl.index + 1} AutoNext scheduled (${kind}) — start after ${trigger === 'error' ? delayMs : Math.round(delayMs / 1000) + 's'}`);
+  log(`⏳ [AN] Player ${ctrl.index + 1} AutoNext Scheduled (${kind}) — start After ${trigger === 'error' ? delayMs : Math.round(delayMs / 1000) + 's'}`);
   scheduleSafe(
     function () {
       runAutoNext(ctrl, ctx, label);

@@ -1,5 +1,5 @@
 // --- autoPause.js ---
-const VERSION = 'v1.1.5';
+const VERSION = 'v1.2.0';
 /*
  * Περιγραφή: Κεντρικοποίηση λογικής παύσεων.
  * - schedulePauses(controller): Προγραμματίζει παύσεις βάσει plan/config.
@@ -56,7 +56,7 @@ export function schedulePauses(controller) {
   }
 
   // Logging για διαφάνεια
-  log(`⏸️ Pause Plan: baseline=${planFromPolicy?.count ?? '-'}, final=${count}, profile=${controller.profileName}`);
+  log(`⏸️ [AP] Pause Plan: Baseline=${planFromPolicy?.count ?? '-'}, Final=${count}, Profile=${controller.profileName}`);
 
   let i = 0;
   while (i < count) {
@@ -83,7 +83,7 @@ export function schedulePauses(controller) {
 
           stats.pauses = (stats.pauses ?? 0) + 1;
           controller.expectedPauseMs = pauseLen;
-          log(`⏸️ Player ${controller.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
+          log(`⏸️ [AP] Player ${controller.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
 
           scheduleSafe(
             function () {

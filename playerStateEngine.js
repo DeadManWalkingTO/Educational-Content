@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v2.4.5';
+const VERSION = 'v2.5.2';
 /*
  * - Μικρό gate στο onEnded(): αφαιρέθηκε ο fake-end guard (rewind).
  * - Καθαρό finalize ENDED: clearTimers, watchdog-compatible autoNext, accumulators/markers.
@@ -122,17 +122,17 @@ function updateAccumulators(ctrl, s) {
 
 /* -------- Handlers -------- */
 function onUnstarted(ctrl) {
-  log(`🎬 Player ${ctrl.index + 1} State -> UNSTARTED`);
+  log(`🎬 [PS] Player ${ctrl.index + 1} State → UNSTARTED`);
 }
 function onEnded(ctrl) {
-  log(`🏁 Player ${ctrl.index + 1} State -> ENDED`);
+  log(`🏁 [PS] Player ${ctrl.index + 1} State → ENDED`);
 
   // ⚠️ ΑΦΑΙΡΕΘΗΚΕ: Fake-end guard (rewind 2–5s & retry). Δεν εκτελείται πλέον.
 
   try {
     ctrl.clearTimers();
   } catch (_) {}
-  log(`🔚 Player ${ctrl.index + 1} Finalize -> ENDED`);
+  log(`🔚 [PS] Player ${ctrl.index + 1} Finalize → ENDED`);
 
   // ΝΕΟ gate: αν δεν έχει ήδη προγραμματιστεί AutoNext από watchdog (ή αλλού), προγραμμάτισε τώρα.
   let alreadyScheduled = false;
@@ -148,7 +148,7 @@ function onEnded(ctrl) {
   if (alreadyScheduled !== true) {
     autoNextAfterEnded(ctrl);
   } else {
-    log(`⏭️ Player ${ctrl.index + 1} ENDED — AutoNext already scheduled (watch-time); skip reschedule`);
+    log(`⏭️ [PS] Player ${ctrl.index + 1} ENDED — AutoNext Already Scheduled (Watch-Time) → Skip Reschedule`);
   }
   try {
     window.dispatchEvent(new CustomEvent('videoEnded', { detail: { index: ctrl.index } }));
@@ -158,21 +158,21 @@ function onPlaying(ctrl) {
   if (ctrl.isPlayingActive !== true) {
     ctrl.isPlayingActive = true;
   }
-  log(`▶️ Player ${ctrl.index + 1} State -> PLAYING`);
+  log(`▶️ [PS] Player ${ctrl.index + 1} State → PLAYING`);
   // NEO: προγραμματισμός unmute από το autoUnmute module
   scheduleUnmute(ctrl, true);
 }
 function onPaused(ctrl) {
-  log(`⏸️ Player ${ctrl.index + 1} State -> PAUSED`);
+  log(`⏸️ [PS] Player ${ctrl.index + 1} State → PAUSED`);
 }
 function onBuffering(ctrl) {
-  log(`⏳ Player ${ctrl.index + 1} State -> BUFFERING`);
+  log(`⏳ [PS] Player ${ctrl.index + 1} State → BUFFERING`);
 }
 function onCued(ctrl) {
-  log(`🎯 Player ${ctrl.index + 1} State -> CUED`);
+  log(`🎯 [PS] Player ${ctrl.index + 1} State → CUED`);
 }
 function onUnknown(ctrl, s) {
-  log(`🟡 Player ${ctrl.index + 1} State -> UNKNOWN (${String(s)})`);
+  log(`🟡 [PS] Player ${ctrl.index + 1} State → UNKNOWN (${String(s)})`);
 }
 
 /* -------- Dispatcher -------- */
@@ -182,7 +182,7 @@ export function onStateChangeExternal(ctrl, e) {
   try {
     s = readPlayerState(ctrl, e);
   } catch (err) {
-    log(`❌ Player ${ctrl.index + 1} StateChange Error ${String(err?.message ?? err)}`);
+    log(`❌ [PS] Player ${ctrl.index + 1} StateChange Error ${String(err?.message ?? err)}`);
   }
   // Μήνυμα κατάστασης
   try {
