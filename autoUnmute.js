@@ -1,5 +1,5 @@
 // --- autoUnmute.js ---
-const VERSION = 'v2.6.0';
+const VERSION = 'v2.6.2';
 /*
  * scheduleUnmute(ctrl, stateIsPlaying): parsing plan.unmute (base/extra/grace), debounce, flags, scheduling.
  * applyUnmute(player, plan, ctrl): unMute + setVolume + micro-adjust (υφιστάμενη λογική).
@@ -15,7 +15,7 @@ export function getVersion() {
 const FILENAME = import.meta.url.split('/').pop();
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
 import { allTrue, isFunction, isNumber, clamp, log, rndInt, scheduleSafe } from './utils.js';
@@ -241,6 +241,6 @@ export function applyUnmute(player, plan, ctrl = null) {
 }
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---

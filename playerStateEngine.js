@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v2.5.2';
+const VERSION = 'v2.6.2';
 /*
  * - Μικρό gate στο onEnded(): αφαιρέθηκε ο fake-end guard (rewind).
  * - Καθαρό finalize ENDED: clearTimers, watchdog-compatible autoNext, accumulators/markers.
@@ -15,7 +15,7 @@ export function getVersion() {
 const FILENAME = import.meta.url.split('/').pop();
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
 import { log, allTrue, isDefined, isFunction, isNumber, clamp } from './utils.js';
@@ -275,6 +275,6 @@ export function onStateChangeExternal(ctrl, e) {
   // ΣΗΜΑΝΤΙΚΟ: Το scheduling του unmute γίνεται ΜΟΝΟ στο onPlaying().
 }
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---

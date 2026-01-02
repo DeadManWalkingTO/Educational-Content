@@ -1,5 +1,5 @@
 // --- autoRate.js ---
-const VERSION = 'v1.2.0';
+const VERSION = 'v1.2.4';
 /*
  * Περιγραφή: Σπάνιες, τυχαίες αλλαγές ταχύτητας αναπαραγωγής (rate).
  *
@@ -15,10 +15,11 @@ export function getVersion() {
 const FILENAME = import.meta.url.split('/').pop();
 
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
 import { scheduleSafe, rndInt, randomFloat, allTrue, isNumber, isFunction, clamp, log } from './utils.js';
+import { stats } from './globals.js';
 
 /**
  * Πολιτική:
@@ -135,6 +136,9 @@ function _applyRateChange(ctrl, targetRate) {
 
     try {
       p.setPlaybackRate(desired);
+      try {
+        stats.rateChanges = (Number(stats.rateChanges) || 0) + 1;
+      } catch (_) {}
     } catch (_) {}
 
     // 3) Άνοιγμα νέου PLAYING παραθύρου με νέο ρυθμό
@@ -259,6 +263,6 @@ export function scheduleRateChanges(ctrl) {
 }
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---

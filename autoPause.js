@@ -1,5 +1,5 @@
 // --- autoPause.js ---
-const VERSION = 'v1.2.0';
+const VERSION = 'v1.2.2';
 /*
  * Περιγραφή: Κεντρικοποίηση λογικής παύσεων.
  * - schedulePauses(controller): Προγραμματίζει παύσεις βάσει plan/config.
@@ -15,7 +15,7 @@ export function getVersion() {
 const FILENAME = import.meta.url.split('/').pop();
 
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
 import { scheduleSafe, cancel, rndInt, allTrue, isNumber, isDefined, isFunction, log } from './utils.js';
@@ -83,7 +83,7 @@ export function schedulePauses(controller) {
 
           stats.pauses = (stats.pauses ?? 0) + 1;
           controller.expectedPauseMs = pauseLen;
-          log(`⏸️ [AP] Player ${controller.index + 1} Pause -> ${Math.round(pauseLen / 1000)}s`);
+          log(`⏸️ [AP] Player ${controller.index + 1} Pause → ${Math.round(pauseLen / 1000)}s`);
 
           scheduleSafe(
             function () {
@@ -159,6 +159,6 @@ export function restartPauseGuard(ctrl) {
 }
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---

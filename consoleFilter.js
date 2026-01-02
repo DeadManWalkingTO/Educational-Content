@@ -1,5 +1,5 @@
 // --- consoleFilter.js ---
-const VERSION = 'v3.6.0';
+const VERSION = 'v3.6.2';
 /*
  * Τυποποιημένο wrapping της global console με state-machine και tagging.
  * Προωθεί non-critical logs (error/warn/info/log) σε επιλεγμένο level με prefix tag,
@@ -15,7 +15,7 @@ export function getVersion() {
 const FILENAME = import.meta.url.split('/').pop();
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
 import { isDefined, isNonEmptyArray, isString, anyTrue, allTrue, safeJsonStringify, log } from './utils.js';
@@ -380,6 +380,6 @@ export function restoreConsole() {
 /* --- Exports - End --- */
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---

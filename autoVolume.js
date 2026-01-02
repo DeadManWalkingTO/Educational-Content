@@ -1,5 +1,5 @@
 // --- autoVolume.js ---
-const VERSION = 'v1.0.8';
+const VERSION = 'v1.1.2';
 /*
  * Περιγραφή: Εξωτερικό module για αυτόματες αλλαγές έντασης ήχου.
  *  - scheduleVolumeChanges(player, cfg, durationSec, group): προγραμματίζει αλλαγές έντασης
@@ -15,7 +15,7 @@ export function getVersion() {
 const FILENAME = import.meta.url.split('/').pop();
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
 import { scheduleSafe, rndInt, allTrue, isNumber, clamp, log } from './utils.js';
@@ -262,6 +262,6 @@ export function scheduleMicroAdjust(player, durationSec, group = 'pc:volume') {
 }
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---

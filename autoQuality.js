@@ -1,5 +1,5 @@
 // --- autoQuality.js ---
-const VERSION = 'v1.2.0';
+const VERSION = 'v1.2.4';
 /*
  * Περιγραφή: Τυχαίες αλλαγές ποιότητας (YouTube Iframe API) με guards:
  *            εκτέλεση μόνο όταν ο player είναι PLAYING και unmuted.
@@ -15,10 +15,11 @@ export function getVersion() {
 const FILENAME = import.meta.url.split('/').pop();
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
 import { scheduleSafe, rndInt, allTrue, isNumber, isDefined, log } from './utils.js';
+import { stats } from './globals.js';
 
 /**
  * Πολιτική:  Προτιμώμενη σειρά βάσει διάρκειας (<300s ή ≥300s) με αυστηρό bias:
@@ -209,6 +210,11 @@ function _applyQuality(player, quality, tag) {
       return;
     }
     player.setPlaybackQuality(quality);
+
+    try {
+      stats.qualityChanges = (Number(stats.qualityChanges) || 0) + 1;
+    } catch (_) {}
+
     log(`📺 [AQ] ${String(tag)} Quality → ${String(quality)}`);
   } catch (_) {}
 }
@@ -359,6 +365,6 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
 }
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---

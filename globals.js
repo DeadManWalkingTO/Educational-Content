@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v4.23.0';
+const VERSION = 'v4.23.6';
 /*
 Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
 Αναθεώρηση: Αφαίρεση τοπικού scheduler και χρήση των APIs από utils.js (delay/cancel/scheduleSafe/rndInt).
@@ -15,7 +15,7 @@ export function getVersion() {
 const FILENAME = import.meta.url.split('/').pop();
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
 import { log, ts, isDefined, isNonEmptyArray, deepClone, cancel, secToMs } from './utils.js';
@@ -72,11 +72,12 @@ export function getYouTubeEmbedHost() {
  */
 export const stats = {
   autoNext: 0,
-  replay: 0,
   pauses: 0,
   seeks: 0,
-  errors: 0,
   volumeChanges: 0,
+  qualityChanges: 0,
+  rateChanges: 0,
+  errors: 0,
 };
 /** --- Στατιστικά για την εφαρμογή - End --- */
 
@@ -213,7 +214,7 @@ function updateStats() {
     el.className = 'stats';
     document.body.appendChild(el);
   }
-  el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Replay:${stats.replay} - Pauses:${stats.pauses} - Seeks:${stats.seeks} - Errors:${stats.errors} - VolumeChanges:${stats.volumeChanges}`;
+  el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Pauses:${stats.pauses} - Seeks:${stats.seeks} - VolumeChanges:${stats.volumeChanges} - QualityChanges:${stats.qualityChanges} - RateChanges:${stats.rateChanges} - Errors:${stats.errors}`;
 }
 
 // Listener για app:log (γράφει Activity Panel + updateStats)
@@ -242,6 +243,6 @@ if (typeof document !== 'undefined') {
 /** --- UI Utilities - End --- */
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---

@@ -1,5 +1,5 @@
 // --- lists.js ---
-const VERSION = 'v4.14.0';
+const VERSION = 'v4.14.2';
 /*
 Περιγραφή: Φόρτωση λιστών video IDs από local/remote πηγές, με parsing, sanitization,
 logging και fallback. Επιστρέφει arrays για συμβατότητα, ενώ το reload() παρέχει meta.
@@ -14,7 +14,7 @@ export function getVersion() {
 const FILENAME = import.meta.url.split('/').pop();
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
-console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
 import { stats } from './globals.js';
@@ -271,6 +271,6 @@ export async function reloadList() {
 }
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---
