@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v3.20.18';
+const VERSION = 'v3.21.2';
 /*
  * Περιγραφή:
  * Συγκεντρώνει εκδόσεις όλων των modules και του HTML. Ελαφρύς renderer για panel/κείμενο,
@@ -19,21 +19,24 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} -> Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { getVersion as getGlobalsVersion } from './globals.js';
-import { getVersion as getListsVersion } from './lists.js';
-import { getVersion as getHumanModeVersion } from './humanMode.js';
-import { getVersion as getPlayerControllerVersion } from './playerController.js';
-import { getVersion as getUiControlsVersion } from './uiControls.js';
-import { getVersion as getConsoleFilterVersion } from './consoleFilter.js';
-import { getVersion as getYoutubeReadyVersion } from './youtubeReady.js';
-import { getVersion as getUtilitiesVersion, log, isDefined, domReady, deepClone, fmtMs, scheduleSafe } from './utils.js';
-import { getVersion as getPoliciesVersion } from './policies.js';
-import { getVersion as getPlayerStateEngineVersion } from './playerStateEngine.js';
 import { getVersion as getAutoNextVersion } from './autoNext.js';
+import { getVersion as getAutoPauseVersion } from './autoPause.js';
+import { getVersion as getAutoSeekVersion } from './autoSeek.js';
 import { getVersion as getAutoUnmuteVersion } from './autoUnmute.js';
 import { getVersion as getAutoVolumeVersion } from './autoVolume.js';
-import { getVersion as getAutoSeekVersion } from './autoSeek.js';
-import { getVersion as getAutoPauseVersion } from './autoPause.js';
+import { getVersion as getConsoleFilterVersion } from './consoleFilter.js';
+import { getVersion as getGlobalsVersion } from './globals.js';
+import { getVersion as getHumanModeVersion } from './humanMode.js';
+import { getVersion as getListsVersion } from './lists.js';
+import { getVersion as getPlayerControllerVersion } from './playerController.js';
+import { getVersion as getPlayerStateEngineVersion } from './playerStateEngine.js';
+import { getVersion as getPoliciesVersion } from './policies.js';
+import { getVersion as getUiControlsVersion } from './uiControls.js';
+import { getVersion as getUtilitiesVersion, log, isDefined, domReady, deepClone, fmtMs, scheduleSafe } from './utils.js';
+import { getVersion as getVideoPickerVersion } from './videoPicker.js';
+import { getVersion as getWatchdogVersion } from './watchdog.js';
+import { getVersion as getYoutubeReadyVersion } from './youtubeReady.js';
+
 /* ------------------------ Version Retrieval ------------------------ */
 
 /**
@@ -74,6 +77,8 @@ export function reportAllVersions() {
     AutoVolume: getAutoVolumeVersion(),
     AutoSeek: getAutoSeekVersion(),
     AutoPause: getAutoPauseVersion(),
+    Watchdog: getWatchdogVersion(),
+    VideoPicker: getVideoPickerVersion(),
     VersionReporter: VERSION,
   };
 
@@ -133,65 +138,52 @@ function buildOrderedEntries(versionsObj) {
 /**
  * Εικονίδιο/emoji ανά module για πιο γρήγορη οπτική σάρωση.
  */
+
 function iconFor(name) {
-  if (name === 'HTML') {
-    return '📄';
+  switch (name) {
+    case 'HTML':
+      return '📄';
+    case 'Globals':
+      return '🌐';
+    case 'Lists':
+      return '🧾';
+    case 'HumanMode':
+      return '👤';
+    case 'PlayerController':
+      return '🎬';
+    case 'UiControls':
+      return '🛠️';
+    case 'Watchdog':
+      return '🐶';
+    case 'ConsoleFilter':
+      return '🧐';
+    case 'YoutubeReady':
+      return '🎥';
+    case 'Utilities':
+      return '🧰';
+    case 'VersionReporter':
+      return '🧩';
+    case 'Policies':
+      return '📜';
+    case 'PlayerStateEngine':
+      return '🎛️';
+    case 'AutoNext':
+      return '⏭️';
+    case 'AutoUnmute':
+      return '🎵';
+    case 'AutoVolume':
+      return '🔊';
+    case 'AutoSeek':
+      return '⏩';
+    case 'AutoPause':
+      return '⏸️';
+    case 'VideoPicker':
+      return '📹';
+    case 'Main':
+      return '🚀';
+    default:
+      return '✅';
   }
-  if (name === 'Globals') {
-    return '🌐';
-  }
-  if (name === 'Lists') {
-    return '🧾';
-  }
-  if (name === 'HumanMode') {
-    return '👤';
-  }
-  if (name === 'PlayerController') {
-    return '🎬';
-  }
-  if (name === 'UiControls') {
-    return '🛠️';
-  }
-  if (name === 'Watchdog') {
-    return '🐶';
-  }
-  if (name === 'ConsoleFilter') {
-    return '🧐';
-  }
-  if (name === 'YoutubeReady') {
-    return '🎥';
-  }
-  if (name === 'Utilities') {
-    return '🧰';
-  }
-  if (name === 'VersionReporter') {
-    return '🧩';
-  }
-  if (name === 'Policies') {
-    return '📜';
-  }
-  if (name === 'PlayerStateEngine') {
-    return '🎛️';
-  }
-  if (name === 'AutoNext') {
-    return '⏭️';
-  }
-  if (name === 'AutoUnmute') {
-    return '🎵';
-  }
-  if (name === 'AutoVolume') {
-    return '🔊';
-  }
-  if (name === 'AutoSeek') {
-    return '⏩';
-  }
-  if (name === 'AutoPause') {
-    return '⏸️';
-  }
-  if (name === 'Main') {
-    return '🚀';
-  }
-  return '✅';
 }
 
 /* ------------------------ Renderers ------------------------ */
