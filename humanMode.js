@@ -1,9 +1,9 @@
 // --- humanMode.js ---
-const VERSION = 'v4.17.8';
+const VERSION = 'v4.18.5';
 /*
  * Περιγραφή: Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς playback.
  * Στόχος: duration-aware start, ρεαλιστικές παύσεις/seek/ένταση.
- * Χρήση: Ανεξάρτητοι players με παραμετρικά profiles. (ΑΦΑΙΡΕΘΗΚΕ τοπική επιλογή λίστας)
+ * Χρήση: Ανεξάρτητοι players με παραμετρικά profiles.
  */
 
 // --- Export Version ---
@@ -11,7 +11,7 @@ export function getVersion() {
   return VERSION;
 }
 
-/* Όνομα αρχείου για logging.*/
+/* Όνομα αρχείου για logging */
 const FILENAME = import.meta.url.split('/').pop();
 
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
@@ -19,7 +19,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, stats, hasUserGesture } from './globals.js';
-import { rndInt, randomFloat, sleep, allTrue, isDefined, isNonEmptyArray, log, scheduleSafe } from './utils.js';
+import { rndInt, randomFloat, sleep, allTrue, isDefined, log, scheduleSafe } from './utils.js';
 import { PlayerController } from './playerController.js';
 import { pickVideoId } from './videoPicker.js';
 
@@ -30,38 +30,30 @@ const BEHAVIOR_PROFILES = [
   { name: 'Focused', pauseChance: 0.2, seekChance: 0.05, volumeChangeChance: 0.1 },
 ];
 
-/* Βοηθητικά */
+/* Βοηθητικό για έλεγχο controller/player */
 function hasCtrlAndPlayer(ctrl) {
-  if (isDefined(ctrl) !== true) {
-    return false;
-  }
-  if (isDefined(ctrl.player) !== true) {
-    return false;
-  }
-  return true;
+  return isDefined(ctrl) && isDefined(ctrl.player);
 }
 
-/* Δημιουργία containers για τους players */
+/* Δημιουργία containers για players */
 export function createPlayerContainers() {
   const container = document.getElementById('playersContainer');
-  if (isDefined(container) !== true) {
+  if (!isDefined(container)) {
     stats.errors = stats.errors + 1;
     log('❌ Δεν βρέθηκε το στοιχείο playersContainer στο HTML');
     return;
   }
   container.innerHTML = '';
-  let i = 0;
-  while (i < PLAYER_COUNT) {
+  for (let i = 0; i < PLAYER_COUNT; i++) {
     const div = document.createElement('div');
     div.id = `player${i + 1}`;
     div.className = 'player-box';
     container.appendChild(div);
-    i = i + 1;
   }
   log(`✅ Δημιουργήθηκαν ${PLAYER_COUNT} Player Containers`);
 }
 
-/* Δημιουργία τυχαίου config ανά προφίλ (χωρίς unmuteDelayExtra) */
+/* Δημιουργία τυχαίου config ανά προφίλ */
 function createRandomPlayerConfig(profile) {
   const profileName = isDefined(profile) ? profile.name : 'Casual';
   const startDelay = rndInt(5, 240); // sec
@@ -85,20 +77,24 @@ function createRandomPlayerConfig(profile) {
   };
 }
 
-/* Πρόχειρος σχεδιασμός session (για logs/telemetry) */
-function createSessionPlan() {
-  const pauseChance = rndInt(1, 3);
-  const seekChance = randomFloat(0, 1) < 0.5;
-  const volumeChangeChance = randomFloat(0, 1) < 0.5;
-  const replayChance = randomFloat(0, 1) < 0.15;
-  return { pauseChance, seekChance, volumeChangeChance, replayChance };
+/* Προσθήκη logging για profile */
+function logProfile(profile) {
+  switch (profile.name.toLowerCase()) {
+    case 'explorer':
+      log(`🧭 Προφίλ: Explorer (περισσότερες παύσεις, περισσότερα seek)`);
+      break;
+    case 'focused':
+      log(`🎯 Προφίλ: Focused (λιγότερες παύσεις, πιο σταθερό playback)`);
+      break;
+    default:
+      log(`🙂 Προφίλ: Casual (μέτρια συμπεριφορά)`);
+  }
 }
 
 /* Αρχικοποίηση players με ρεαλιστικές καθυστερήσεις */
 export async function initPlayersSequentially(mainList, altList) {
   try {
-    const noGesture = !hasUserGesture;
-    if (noGesture) {
+    if (!hasUserGesture) {
       log('HumanMode: αναβολή init (no user gesture)');
       return;
     }
@@ -106,56 +102,43 @@ export async function initPlayersSequentially(mainList, altList) {
     log(`⚠️ hasUserGesture check Error ${err}`);
   }
 
-  const bothArrays = allTrue([Array.isArray(mainList) === true, Array.isArray(altList) === true]);
-  if (bothArrays === true) {
+  if (allTrue([Array.isArray(mainList), Array.isArray(altList)])) {
     setMainList(mainList);
     setAltList(altList);
   }
-  const mainEmpty = (isDefined(mainList) ? mainList.length : 0) === 0;
-  const altEmpty = (isDefined(altList) ? altList.length : 0) === 0;
-  if (allTrue([mainEmpty === true, altEmpty === true]) === true) {
-    stats.errors = stats.errors + 1;
+
+  if ((mainList?.length ?? 0) === 0 && (altList?.length ?? 0) === 0) {
+    stats.errors++;
     log('❌ Δεν υπάρχουν διαθέσιμα βίντεο σε καμία λίστα. Η εκκίνηση σταματά.');
     return;
   }
 
-  let i = 0;
-  while (i < PLAYER_COUNT) {
+  for (let i = 0; i < PLAYER_COUNT; i++) {
     const playbackDelay = i === 0 ? 0 : rndInt(30, 180) * 1000;
     log(`⏳ Player ${i + 1} HumanMode Scheduled -> Start after ${Math.round(playbackDelay / 1000)}s`);
 
-    scheduleSafe(
-      function () {
-        log(`🧪 Player ${i + 1} Safe -> Pre-warm`);
-      },
-      rndInt(100, 300),
-      'humanInit',
-      `P${i + 1} prewarm`
-    );
+    scheduleSafe(() => log(`🛠 Player ${i + 1} Safe -> Pre-warm`), rndInt(100, 300), 'humanInit', `P${i + 1} prewarm`);
 
     await sleep(rndInt(400, 600));
     await sleep(playbackDelay);
 
-    if (isStopping === true) {
+    if (isStopping) {
       log(`👤 HumanMode: παράκαμψη init για Player ${i + 1} λόγω Stop All`);
-      i = i + 1;
       continue;
     }
 
-    // Ενιαία επιλογή μέσω videoPicker (common policy)
     const pick = pickVideoId(mainList, altList, MAIN_PROBABILITY);
-    if (isDefined(pick?.id) !== true) {
-      stats.errors = stats.errors + 1;
+    if (!isDefined(pick?.id)) {
+      stats.errors++;
       log(`❌ HumanMode: skip Player ${i + 1} -> no videos available`);
-      i = i + 1;
       continue;
     }
-    const videoId = pick.id;
 
+    const videoId = pick.id;
     let controller = controllers.find((c) => c.index === i) ?? null;
-    if (hasCtrlAndPlayer(controller) === true) {
+
+    if (hasCtrlAndPlayer(controller)) {
       log(`⚠️ Player ${i + 1} ήδη αρχικοποιημένος, γίνεται skip re-init`);
-      i = i + 1;
       continue;
     }
 
@@ -163,7 +146,7 @@ export async function initPlayersSequentially(mainList, altList) {
     const profile = BEHAVIOR_PROFILES[profileIndex];
     const config = createRandomPlayerConfig(profile);
 
-    if (isDefined(controller) !== true) {
+    if (!isDefined(controller)) {
       controller = new PlayerController(i, mainList, altList, config);
       controllers.push(controller);
     } else {
@@ -171,22 +154,23 @@ export async function initPlayersSequentially(mainList, altList) {
       controller.profileName = config.profileName;
     }
 
+    logProfile(profile);
+
     await sleep(rndInt(150, 300));
     controller.init(videoId);
 
-    const session = createSessionPlan();
-    try {
-      const sessionTxt = JSON.stringify(session);
-      log(`👤 Player ${i + 1} HumanMode Init -> Session=${sessionTxt}`);
-    } catch (_e) {
-      log(`👤 Player ${i + 1} HumanMode Init -> Session=[unavailable]`);
-    }
+    // Logging για pause plan (baseline από πολιτική + προσαρμογή)
+    const baselinePauses = controller.plan?.pauses?.count ?? '-';
+    log(`📋 Player ${i + 1} Pause Plan -> baseline=${baselinePauses}, profileChance=${config.pauseChance}`);
 
-    i = i + 1;
+    const session = { pauseChance: config.pauseChance, seekChance: config.seekChance, volumeChangeChance: config.volumeChangeChance };
+    log(`👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
   }
+
   log('✅ HumanMode sequential initialization completed');
 }
 
-// Ενημέρωση για Ολοκληρωμένη Φόρτωση Αρχείου
+/* Ολοκλήρωση φόρτωσης αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} -> Ολοκληρώθηκε`);
+
 // --- End Of File ---

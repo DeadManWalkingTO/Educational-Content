@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v1.0.8';
+const VERSION = 'v1.1.2';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, mid-seek scheduler, init-seek).
  * Στόχος: Επαναχρησιμοποίηση/απομόνωση λογικής, συμβατότητα με PlayerController & state engine.
@@ -22,59 +22,42 @@ import { scheduleSafe, log, rndInt, anyTrue, allTrue, isFunction, isNumber, clam
 import { stats } from './globals.js';
 
 /** Ασφαλές seek με bounds-check & pad κοντά στο τέλος. */
+
 export function safeSeek(ctrl, seconds) {
   try {
     const p = ctrl.player;
-
     const guards = [];
     guards.push(isFunction(p?.seekTo) === true);
     guards.push(isFunction(p?.getDuration) === true);
     const canSeek = allTrue(guards);
-
     if (canSeek !== true) {
       return;
     }
-
     let d = p.getDuration();
-    if (isNumber(d) !== true) {
+    if (!isNumber(d)) {
       d = 0;
     }
-
-    const stableParts = [];
-    stableParts.push(d > 1);
-    const stable = allTrue(stableParts);
-    if (stable !== true) {
+    if (d <= 1) {
       return;
     }
-
-    const raw = isNumber(seconds) === true ? seconds : 0;
-
+    const raw = isNumber(seconds) ? seconds : 0;
     let pad = Math.floor(d * 0.05);
     if (pad < 3) {
       pad = 3;
     }
-
     const s = clamp(raw, 0, Math.max(0, d - pad));
-
     try {
       p.seekTo(s, true);
     } catch (e1) {
       try {
         p.seekTo(raw, true);
-      } catch (_e2) {
-        // no-op
-      }
+      } catch (_) {}
     }
-
-    if (isNumber(stats.seeksDone) !== true) {
-      stats.seeksDone = 0;
-    }
-    stats.seeksDone = stats.seeksDone + 1;
+    // Ενημέρωση στατιστικών για κάθε seek
+    stats.seeks = (stats.seeks ?? 0) + 1;
   } catch (err) {
-    if (isNumber(stats.errors) !== true) {
-      stats.errors = 0;
-    }
-    stats.errors = stats.errors + 1;
+    stats.errors = (stats.errors ?? 0) + 1;
+    log(`❌ SafeSeek Error: ${err?.message ?? err}`);
   }
 }
 
@@ -150,8 +133,8 @@ function _doMidSeekOnce(ctrl) {
 
     safeSeek(ctrl, target);
 
-    stats.midSeeks = (stats.midSeeks ?? 0) + 1;
-    log(`🔁 Player ${ctrl.index + 1} Mid-seek -> ${target}s`);
+    stats.seeks = (stats.seeks ?? 0) + 1;
+    log(`🔄 Player ${ctrl.index + 1} Mid-seek -> ${target}s`);
 
     const now = Date.now();
     ctrl.seekMeta.lastMs = now;
