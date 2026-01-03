@@ -1,5 +1,5 @@
 // --- utils.js ---
-const VERSION = 'v3.2.0';
+const VERSION = 'v3.2.1';
 /*
  * Περιγραφή: Ενιαίο module βοηθητικών συναρτήσεων (λογική, τύποι, χρόνος, μορφοποίηση, JSON, DOM, γεγονότα, logging, scheduler).
  * Αλλαγές: Προσθήκη κοινού helper whenPlayingAndUnmuted(player, ctrl, attemptTask, retryMinMs, retryMaxMs, group, tag)
@@ -358,7 +358,9 @@ const __SUBSYS_DATA = [
   { file: 'autoQuality.js', icon: '🏅', tag: 'AQ' },
   { file: 'autoRate.js', icon: '⚡', tag: 'AR' },
   { file: 'main.js', icon: '🏛️', tag: 'MN' },
+  { file: 'wtBus.js', icon: '🕰️', tag: 'MN' },
 ];
+
 /** Κατασκευάζουμε ΜΙΑ φορά λεξικά byFilename/byPascal */
 const __BY_FILENAME = Object.create(null);
 const __BY_PASCAL = Object.create(null);

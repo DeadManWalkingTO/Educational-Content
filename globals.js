@@ -1,20 +1,20 @@
 // --- globals.js ---
-const VERSION = 'v5.1.0';
+const VERSION = 'v5.2.2';
 /*
-Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
-Αναθεώρηση: Αφαίρεση τοπικού scheduler και χρήση των APIs από utils.js (delay/cancel/scheduleSafe/rndInt).
-Ενοποίηση helpers (hasArrayWithItems -> isNonEmptyArray, ασφαλέστερα logs, ήπια κλωνοποίηση λιστών).
-*/
+ * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
+ * - Νέα counters: stats.wtSignals (WTBus emits) και stats.softBackpressureHits (soft-task gate reschedules).
+ * - Εμφάνιση των counters στο statsPanel (UI).
+ */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
 
-// Όνομα αρχείου για logging.
+/* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
-// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+/* Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
@@ -25,7 +25,7 @@ const log = makeLogger(FILENAME);
 
 /** --- Console Filter (external) Early Install - Start --- */
 /*
- Configuration αντικειμένου για εξωτερικό console-filter.
+ Configuration για εξωτερικό console-filter.
  Σκοπός: μείωση θορύβου, μη-κρίσιμων μηνυμάτων (κυρίως από YouTube API/ads).
  Σημείωση: Το παρόν είναι static config. Η πραγματική ενεργοποίηση γίνεται από άλλο module.
 */
@@ -42,15 +42,10 @@ export const consoleFilterConfig = {
   ],
   sources: [/www\-widgetapi\.js/i, /googleads\.g\.doubleclick\.net/i, /pagead\/viewthroughconversion/i],
   tag: '[YouTubeAPI][non-critical]',
-  // καμία λογική εδώ που να απαιτεί αλλοίωση
 };
 /** --- Console Filter (external) Early Install - End --- */
 
-/** --- YouTube API Helpers - Start --- */
-/**
- * Επιστρέφει έγκυρο origin (fallback σε localhost για ασφαλή περιβάλλοντα).
- * @returns {string}
- */
+/** --- YouTube API Helpers --- */
 export function getOrigin() {
   try {
     return window.location.origin;
@@ -58,21 +53,11 @@ export function getOrigin() {
     return 'https://localhost';
   }
 }
-
-/**
- * Host του YouTube Iframe API (μονό youtube.com).
- * @returns {string}
- */
 export function getYouTubeEmbedHost() {
   return 'https://www.youtube.com';
 }
-/** --- YouTube API Helpers - End --- */
 
-/** --- Στατιστικά για την εφαρμογή - Start --- */
-/**
- * Global counters για tracking συμβάντων.
- * Ενημερώνουν UI μέσω updateStats().
- */
+/** --- Στατιστικά για την εφαρμογή --- */
 export const stats = {
   autoNext: 0,
   pauses: 0,
@@ -81,131 +66,75 @@ export const stats = {
   qualityChanges: 0,
   rateChanges: 0,
   errors: 0,
+  // ΝΕΑ counters:
+  wtSignals: 0, // αριθμός WTBus emits
+  softBackpressureHits: 0, // πόσες φορές gate-άραμε soft task λόγω freeze/min-gap
 };
-/** --- Στατιστικά για την εφαρμογή - End --- */
 
-/** --- Σταθερές εφαρμογής - Start --- */
-/* Βασικές Ρυθμίσεις */
-export const PLAYER_COUNT = 8; // Αριθμός Players.
-export const MAIN_PROBABILITY = 0.5; // Πιθανότητα επιλογής κύριας λίστας έναντι εναλλακτικής.
-
-/* Global μετρητής AutoNext και rolling reset ανά 1 ώρα */
+/** --- Σταθερές εφαρμογής --- */
+export const PLAYER_COUNT = 8;
+export const MAIN_PROBABILITY = 0.5;
 export const AUTO_NEXT_LIMIT_PER_PLAYER = 50;
+export const WATCHDOG_RATE = secToMs(300);
 
-/** Ρυθμός watchdog σε ms (πηγή αλήθειας για όλη την εφαρμογή) */
-export const WATCHDOG_RATE = secToMs(300); // 300 sec (5 λεπτά)
-
-/* Πίνακας controllers: γεμίζει από main.js */
+/** Controllers registry (γεμίζει από main.js) */
 export const controllers = [];
-/** --- Σταθερές εφαρμογής - End --- */
 
-/** --- Lists state - Start --- */
-/* Κύρια και εναλλακτική λίστα video IDs */
+/** --- Lists state --- */
 let _mainList = [];
 let _altList = [];
-
-/** Getter κύριας λίστας */
 export function getMainList() {
   return _mainList;
 }
-
-/** Getter εναλλακτικής λίστας */
 export function getAltList() {
   return _altList;
 }
-
-/**
- * Εφαρμογή κύριας λίστας (ασφαλής κλωνοποίηση).
- * @param {any} list
- */
 export function setMainList(list) {
   const next = Array.isArray(list) ? deepClone(list) : [];
   _mainList = next;
   log(`📂 Main list applied → ${_mainList.length} videos`);
 }
-
-/**
- * Εφαρμογή εναλλακτικής λίστας (ασφαλής κλωνοποίηση).
- * @param {any} list
- */
 export function setAltList(list) {
   const next = Array.isArray(list) ? deepClone(list) : [];
   _altList = next;
   log(`📂 Alt List Applied → ${_altList.length} Videos`);
 }
-
-/**
- * Ενοποιημένος helper: έχει η είσοδος array με στοιχεία;
- * @param {any} arr
- * @returns {boolean}
- */
 export function hasArrayWithItems(arr) {
   return isNonEmptyArray(arr);
 }
-/** --- Lists state - End --- */
 
-/** --- Stop All state & helpers - Start --- */
-/**
- * Σημαία stop-all. Χρησιμοποιείται από modules ώστε να σταματούν/παγώνουν νέες ενέργειες.
- */
+/** --- Stop All state & helpers --- */
 export let isStopping = false;
-
-/** Καταχωρημένοι χρονοπρογραμματισμοί που σχετίζονται με stop-all. */
 const stopTimers = [];
-
-/**
- * Θέτει το isStopping και το καταγράφει.
- * @param {any} flag
- */
 export function setIsStopping(flag) {
   isStopping = !!flag;
-  log(`⏹ isStopping → ${isStopping}`);
+  log(`⏹️ isStopping → ${isStopping}`);
 }
-
-/**
- * Καταχώριση id (από utils.delay/scheduleSafe) στο registry, για μαζική ακύρωση.
- * @param {any} timerId
- */
 export function pushStopTimer(timerId) {
   if (isDefined(timerId)) {
     stopTimers.push(timerId);
   }
 }
-
-/**
- * Ακύρωση όλων των καταχωρημένων χρονοπρογραμματισμών stop-all (με utils.cancel).
- */
 export function clearStopTimers() {
   while (stopTimers.length > 0) {
     const id = stopTimers.pop();
     try {
       cancel(id);
     } catch (e) {
-      // no-op
+      /* no-op */
     }
   }
-  log('🧹 Stop Timers → cleared');
+  log('🧯 Stop Timers → cleared');
 }
-/** --- Stop All state & helpers - End --- */
 
-/** --- User gesture flag - Start --- */
-/**
- * Flag που δηλώνει ότι υπήρξε αλληλεπίδραση χρήστη (click/keyboard).
- * Χρήσιμο για media policies των browsers.
- */
+/** --- User gesture flag --- */
 export let hasUserGesture = false;
-
-/** Θέτει hasUserGesture = true και το καταγράφει. */
 export function setUserGesture() {
   hasUserGesture = true;
-  log(`💻 Αλληλεπίδραση Χρήστη`);
+  log(`💻 Αλλληλεπίδραση Χρήστη`);
 }
-/** --- User gesture flag - End --- */
 
-/** --- UI Utilities (stats & activity panel bindings) - Start --- */
-/**
- * Ενημέρωση του panel στατιστικών. Δημιουργεί το στοιχείο εάν δεν υπάρχει.
- */
+/** --- UI Utilities (stats panel binding) --- */
 function updateStats() {
   if (typeof document === 'undefined') {
     return;
@@ -217,10 +146,9 @@ function updateStats() {
     el.className = 'stats';
     document.body.appendChild(el);
   }
-  el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Pauses:${stats.pauses} - Seeks:${stats.seeks} - VolumeChanges:${stats.volumeChanges} - QualityChanges:${stats.qualityChanges} - RateChanges:${stats.rateChanges} - Errors:${stats.errors}`;
+  el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Pauses:${stats.pauses} - Seeks:${stats.seeks} - VolumeChanges:${stats.volumeChanges} - QualityChanges:${stats.qualityChanges} - RateChanges:${stats.rateChanges} - Errors:${stats.errors} - WTSignals:${stats.wtSignals} - SoftBP:${stats.softBackpressureHits}`;
 }
-
-// Listener για app:log (γράφει Activity Panel + updateStats)
+// Listener για app:log (Activity Panel + updateStats)
 if (typeof document !== 'undefined') {
   document.addEventListener('app:log', (ev) => {
     const { full } = ev.detail;
@@ -235,17 +163,13 @@ if (typeof document !== 'undefined') {
       }
       panel.scrollTop = panel.scrollHeight;
     }
-    // Ενημέρωση stats
     try {
       updateStats();
-    } catch (e) {
-      // no-op
-    }
+    } catch (e) {}
   });
 }
-/** --- UI Utilities - End --- */
 
-/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
+/* Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---

@@ -1,5 +1,5 @@
 // --- main.js ---
-const VERSION = 'v4.7.0';
+const VERSION = 'v4.7.1';
 /*
 Περιγραφή: Entry point με εκτεταμένη χρήση utils.js (domReady, safeAddEvent, once, log, retry, scheduleSafe).
 Start gate με user gesture & ασφαλές fallback, readiness του YouTube API με exponential backoff + jitter,
@@ -10,10 +10,10 @@ sequential init Human Mode, versions panel/fallback logging, και προαιρ
 export function getVersion() {
   return VERSION;
 }
-//Όνομα αρχείου για logging.
+/* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
-// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */

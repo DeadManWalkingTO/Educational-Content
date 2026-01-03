@@ -1,9 +1,9 @@
 // --- autoRate.js ---
-const VERSION = 'v1.4.0';
+const VERSION = 'v1.5.1';
 /*
- * Περιγραφή: Σπάνιες, τυχαίες αλλαγές ταχύτητας αναπαραγωγής (rate).
- *
- *
+ * Περιγραφή: Σπάνιες αλλαγές ταχύτητας αναπαραγωγής (rate).
+ * - Back-pressure gate: σέβεται softFreezeUntilMs και softTaskMinGapMs ανά controller.
+ * - Καταμέτρηση stats.softBackpressureHits σε κάθε reschedule λόγω back-pressure.
  */
 
 // --- Export Version ---
@@ -11,53 +11,38 @@ export function getVersion() {
   return VERSION;
 }
 
-/* Ονόματα αρχείων για logging. */
+/* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, rndInt, randomFloat, allTrue, isNumber, isFunction, clamp, makeLogger } from './utils.js';
+import { scheduleSafe, rndInt, randomFloat, allTrue, isNumber, isFunction, clamp, makeLogger, isDefined } from './utils.js';
 import { stats } from './globals.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
 
-/**
- * Πολιτική:
- *   - < 5 λεπτά: baseline x1, σπάνια αλλαγή σε x0.5
- *   - ≥ 5 λεπτά: baseline x1, σπάνια αλλαγή σε x2
- *   - Reset σε x1 στην αρχή κάθε video (onReady)
- * Παράθυρο εκτέλεσης:
- *   - Αν υπάρχει required watch time: 10–80% του required
- *   - Αλλιώς: 10–80% της συνολικής διάρκειας
- *
- */
-
 /* ========================= Helpers ========================= */
-
-/** Επιστρέφει διαθέσιμους ρυθμούς αναπαραγωγής (fallback σε κοινές τιμές) */
 function _getAvailableRates(p) {
   try {
     const canAPI = isFunction(p?.getAvailablePlaybackRates) === true;
     if (canAPI === true) {
       const arr = p.getAvailablePlaybackRates();
       const isArr = Array.isArray(arr) === true;
-      if (isArr === true) {
-        return arr.slice();
-      }
+      if (isArr === true) return arr.slice();
     }
   } catch (_) {}
-  // Συνήθεις διαθέσιμες τιμές στο YouTube player
+  // fallback set
   return [0.25, 0.5, 1, 1.25, 1.5, 2];
 }
 
-/** Εκτέλεση task όταν ο player είναι PLAYING (με retry) */
 function _whenPlaying(ctrl, task, retryMinMs, retryMaxMs, group, tag) {
   const attempt = () => {
     try {
       const p = ctrl?.player;
+
       const guards = [];
       guards.push(typeof p !== 'undefined');
       guards.push(p !== null);
@@ -68,20 +53,40 @@ function _whenPlaying(ctrl, task, retryMinMs, retryMaxMs, group, tag) {
         scheduleSafe(attempt, d1, group, `${tag}-retry-player`);
         return;
       }
+
+      // Respect soft freeze + min gap
+      try {
+        const now = Date.now();
+        const partsBP = [];
+        partsBP.push(now >= (ctrl?.softFreezeUntilMs ?? 0));
+        partsBP.push(now - (ctrl?.lastSoftTaskMs ?? 0) >= (ctrl?.softTaskMinGapMs ?? 0));
+        const okBP = allTrue(partsBP);
+        if (okBP !== true) {
+          const dBP = rndInt(retryMinMs, retryMaxMs);
+          if (isNumber(stats.softBackpressureHits) === true) {
+            stats.softBackpressureHits = stats.softBackpressureHits + 1;
+          } else {
+            stats.softBackpressureHits = 1;
+          }
+          scheduleSafe(attempt, dBP, group, `${tag}-retry-softgap`);
+          return;
+        }
+      } catch (_) {}
+
       let playing = false;
       try {
         if (isFunction(ctrl?._isPlaying) === true) {
           const res = ctrl._isPlaying(p);
-          if (res === true) {
-            playing = true;
-          }
+          if (res === true) playing = true;
         }
       } catch (_) {}
+
       if (playing !== true) {
         const d2 = rndInt(retryMinMs, retryMaxMs);
         scheduleSafe(attempt, d2, group, `${tag}-retry-not-playing`);
         return;
       }
+
       try {
         task();
       } catch (_) {}
@@ -90,23 +95,18 @@ function _whenPlaying(ctrl, task, retryMinMs, retryMaxMs, group, tag) {
   attempt();
 }
 
-/**
- * Κλείνει το τρέχον PLAYING παράθυρο (προσθέτει Δt×rate στο totalPlayTime),
- * αλλάζει playbackRate και ανοίγει νέο PLAYING παράθυρο με τον νέο ρυθμό.
- */
 function _applyRateChange(ctrl, targetRate) {
   try {
     const p = ctrl?.player;
+
     const guards = [];
     guards.push(typeof p !== 'undefined');
     guards.push(p !== null);
     guards.push(isFunction(p?.setPlaybackRate) === true);
     const ok = allTrue(guards);
-    if (ok !== true) {
-      return;
-    }
+    if (ok !== true) return;
 
-    // 1) Κλείσιμο τρέχοντος PLAYING παραθύρου με ΠΡΟΗΓΟΥΜΕΝΟ ρυθμό
+    // 1) Κλείσιμο τρέχοντος PLAYING παραθύρου με παλιό rate
     const canClose = [];
     canClose.push(isNumber(ctrl?.playingStart) === true);
     const shouldClose = allTrue(canClose);
@@ -120,40 +120,44 @@ function _applyRateChange(ctrl, targetRate) {
       } catch (_) {}
     }
 
-    // 2) Εφαρμογή νέου ρυθμού (αν υποστηρίζεται)
+    // 2) Εφαρμογή νέου ρυθμού (αν επιτρέπεται)
     let desired = Number(targetRate);
-    if (Number.isNaN(desired) === true) {
-      desired = 1.0;
-    }
+    if (Number.isNaN(desired) === true) desired = 1.0;
+
     const rates = _getAvailableRates(p);
     let allowed = false;
-    for (const r of rates) {
-      if (Number(r) === desired) {
+    let i = 0;
+    while (i < rates.length) {
+      if (Number(rates[i]) === desired) {
         allowed = true;
         break;
       }
+      i = i + 1;
     }
-    if (allowed !== true) {
-      desired = 1.0;
-    }
+    if (allowed !== true) desired = 1.0;
 
     try {
       p.setPlaybackRate(desired);
-      try {
-        stats.rateChanges = (Number(stats.rateChanges) || 0) + 1;
-      } catch (_) {}
+      if (isNumber(stats.rateChanges) === true) {
+        stats.rateChanges = stats.rateChanges + 1;
+      } else {
+        stats.rateChanges = 1;
+      }
     } catch (_) {}
 
     // 3) Άνοιγμα νέου PLAYING παραθύρου με νέο ρυθμό
     ctrl.currentRate = desired;
     ctrl.playingStart = Date.now();
+
+    try {
+      if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
+    } catch (_) {}
+
     log(`🏃‍♂️ Player ${ctrl.index + 1} Rate → x${String(desired)}`);
   } catch (_) {}
 }
 
 /* ========================= Public API ========================= */
-
-/** Reset σε x1 στην αρχή κάθε video */
 export function resetPlaybackRate(ctrl) {
   try {
     const p = ctrl?.player;
@@ -172,37 +176,32 @@ export function resetPlaybackRate(ctrl) {
   } catch (_) {}
 }
 
-/** Προγραμματισμός σπάνιων (0 ή 1) αλλαγών ταχύτητας ανά video */
+/**
+ * Προγραμματισμός μίας αλλαγής rate (0 ή 1) ανά βίντεο, με πιθανότητα.
+ */
 export function scheduleRateChanges(ctrl) {
   try {
     const p = ctrl?.player;
+
     const guards = [];
     guards.push(typeof p !== 'undefined');
     guards.push(p !== null);
     guards.push(isFunction(p?.getDuration) === true);
     const ok = allTrue(guards);
-    if (ok !== true) {
-      return;
-    }
+    if (ok !== true) return;
 
     let durationSec = 0;
     try {
       const d = p.getDuration();
-      if (isNumber(d) === true) {
-        durationSec = d;
-      }
+      if (isNumber(d) === true) durationSec = d;
     } catch (_) {}
-    if (durationSec <= 0) {
-      return;
-    }
+    if (durationSec <= 0) return;
 
-    // Παράθυρο εκτέλεσης: required watch time (αν υπάρχει), αλλιώς διάρκεια
+    // Παράθυρο βάσει required watch time (αν υπάρχει) ή duration
     let windowSec = 0;
     try {
       const req = ctrl?.plan?.watch?.requiredWatchTimeSec;
-      if (isNumber(req) === true) {
-        windowSec = req;
-      }
+      if (isNumber(req) === true) windowSec = req;
     } catch (_) {}
 
     let fromSec = 0;
@@ -219,29 +218,24 @@ export function scheduleRateChanges(ctrl) {
       toSec = Math.max(fromSec + 2, hi2);
     }
 
-    // Καθορισμός «σπανιότητας» (έως 1 αλλαγή)
-    const isShort = durationSec < 300; // 5 λεπτά
-    let chance = isShort === true ? 0.12 : 0.15; // default
+    // Πιθανότητες
+    const isShort = durationSec < 300;
+    let chance = isShort === true ? 0.12 : 0.15;
     try {
       const cfg = ctrl?.config;
       const hasShort = isNumber(cfg?.rateChangeChanceShort) === true;
       if (isShort === true) {
-        if (hasShort === true) {
-          chance = clamp(cfg.rateChangeChanceShort, 0, 1);
-        }
+        if (hasShort === true) chance = clamp(cfg.rateChangeChanceShort, 0, 1);
       } else {
         const hasLong = isNumber(cfg?.rateChangeChanceLong) === true;
-        if (hasLong === true) {
-          chance = clamp(cfg.rateChangeChanceLong, 0, 1);
-        }
+        if (hasLong === true) chance = clamp(cfg.rateChangeChanceLong, 0, 1);
       }
     } catch (_) {}
 
     const roll = randomFloat(0, 1);
     let planned = 0;
-    if (roll < chance) {
-      planned = 1;
-    }
+    if (roll < chance) planned = 1;
+
     if (planned === 0) {
       const pct = Math.floor(chance * 100);
       log(`🏃‍♂️ Player ${ctrl.index + 1} → RateScheduler (No Changes Planned (chance=${pct}%))`);
@@ -252,14 +246,7 @@ export function scheduleRateChanges(ctrl) {
     const delayMs = delaySec * 1000;
     const targetRate = isShort === true ? 0.5 : 2.0;
 
-    scheduleSafe(
-      () => {
-        _whenPlaying(ctrl, () => _applyRateChange(ctrl, targetRate), 800, 2000, ctrl._group?.('rate'), 'rate-change');
-      },
-      delayMs,
-      ctrl._group?.('rate'),
-      'rate-change'
-    );
+    scheduleSafe(() => _whenPlaying(ctrl, () => _applyRateChange(ctrl, targetRate), 800, 2000, ctrl._group?.('rate'), 'rate-change'), delayMs, ctrl._group?.('rate'), 'rate-change');
 
     log(`🏃‍♂️ Player ${ctrl.index + 1} RateScheduler: x${String(targetRate)} in ~${delaySec}s (win ${fromSec}-${toSec}s)`);
   } catch (_) {}

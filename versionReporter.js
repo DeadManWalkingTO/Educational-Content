@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v4.2.0';
+const VERSION = 'v4.2.2';
 /*
  * Περιγραφή:
  * Συγκεντρώνει εκδόσεις όλων των modules και του HTML. Ελαφρύς renderer για panel/κείμενο,
@@ -36,6 +36,7 @@ import { getVersion as getUiControlsVersion } from './uiControls.js';
 import { getVersion as getUtilitiesVersion, iconForPascal, makeLogger, isDefined, domReady, deepClone, fmtMs, scheduleSafe } from './utils.js';
 import { getVersion as getVideoPickerVersion } from './videoPicker.js';
 import { getVersion as getWatchdogVersion } from './watchdog.js';
+import { getVersion as getWtBusVersion } from './wtBus.js';
 import { getVersion as getYoutubeReadyVersion } from './youtubeReady.js';
 
 /* ========================= Logger ========================= */
@@ -87,6 +88,7 @@ export function reportAllVersions() {
     VideoPicker: getVideoPickerVersion(),
     AutoQuality: getAutoQualityVersion(),
     AutoRate: getAutoRateVersion(),
+    WtBus: getWtBusVersion(),
     VersionReporter: VERSION,
   };
 

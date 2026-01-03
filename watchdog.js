@@ -1,9 +1,9 @@
 // --- watchdog.js ---
-const VERSION = 'v1.6.1';
+const VERSION = 'v1.7.0';
 /*
- * Περιγραφή: Εξωτερικός watchdog για τον έλεγχο "required watch time" ανά PlayerController.
- * Τρέχει περιοδικά, εφαρμόζει gates/cooldowns και προωθεί AutoNext με pacing σαν ENDED.
- * Βελτιώσεις: Χρήση guards/time/log/scheduler από utils.js (ομοιομορφία, ασφάλεια, καθαρότητα).
+ * Περιγραφή: Εξωτερικός watchdog για "required watch time" ανά PlayerController.
+ * - WTBus subscribe: cache στους indices που έλαβαν 'wt:reached'.
+ * - Fallback grace: αν ελήφθη event πρόσφατα, δεν προγραμματίζουμε WT pacing.
  */
 
 // --- Export Version ---
@@ -21,24 +21,19 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 import { repeat, cancel, makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, nowMs, msToSec, fmtMs, scheduleSafe } from './utils.js';
 import { controllers, stats } from './globals.js';
 import { autoNextAfterEnded, autoNextAfterWatchtime } from './autoNext.js';
+import { onWatchtimeReached } from './wtBus.js';
 
-/* ========================= Logger ========================= */
+// ========================= Logger =========================
 const log = makeLogger(FILENAME);
-
-/**
- * ΝΕΟ:
- *  - Ασφαλής υπολογισμός played (extra μόνο όταν ο player είναι PLAYING) μέσω getters αν υπάρχουν.
- *  - Νέο trigger AutoNext στο threshold: autoNextAfterWatchtime(ctrl) με γρήγορο pacing (2–5 s).
- *  - Near-threshold soft-freeze: μπλοκάρει quality/volume λίγο πριν την πυροδότηση.
- */
-
-/* ========================= Module Code ========================= */
 
 // ========================= State =========================
 let watchdogTimerId = null;
+// Cache για WTBus events (index -> lastMs)
+const wtSeen = {};
+const WT_FALLBACK_GRACE_MS = 8000;
+let wtBusDisposer = null;
 
 // ========================= Helpers =========================
-/** Fallback υπολογισμός played με extra μόνο όταν είμαστε PLAYING */
 function computePlayedSoFarSec(ctrl) {
   let base = 0;
   if (isNumber(ctrl?.totalPlayTime) === true) {
@@ -50,7 +45,6 @@ function computePlayedSoFarSec(ctrl) {
   parts.push(isDefined(ctrl?.playingStart) === true);
   const canExtra = allTrue(parts);
   if (canExtra === true) {
-    // ΝΕΟ: extra μόνο εάν ο player είναι όντως PLAYING
     let playingOk = false;
     try {
       if (typeof ctrl._isPlaying === 'function') {
@@ -73,23 +67,14 @@ function computePlayedSoFarSec(ctrl) {
   return out;
 }
 
-/**
- * Ελέγχει αν πληρούνται όλα τα gates για πυροδότηση AutoNext:
- * - Playing gate (υπάρχει και είναι true η ctrl._isPlaying)
- * - Seek cooldown
- * - Pause cooldown
- * - Continuity gate (elapsed >= continuity.minPlaySec)
- * - Threshold gate (played >= required)
- */
 function canFireAutoNext(ctrl, required, played) {
-  // Playing gate
   let playingOk = false;
   try {
     if (typeof ctrl._isPlaying === 'function') {
       playingOk = ctrl._isPlaying(ctrl.player) === true;
     }
   } catch (_) {}
-  // Seek cooldown
+
   let recentSeek = false;
   try {
     const parts = [];
@@ -103,7 +88,7 @@ function canFireAutoNext(ctrl, required, played) {
       }
     }
   } catch (_) {}
-  // Pause cooldown
+
   let recentPause = false;
   try {
     const parts = [];
@@ -117,7 +102,7 @@ function canFireAutoNext(ctrl, required, played) {
       }
     }
   } catch (_) {}
-  // Continuity gate
+
   let continuityOk = false;
   try {
     const parts = [];
@@ -131,7 +116,7 @@ function canFireAutoNext(ctrl, required, played) {
       }
     }
   } catch (_) {}
-  // Threshold gate
+
   let thresholdOk = false;
   const tParts = [];
   tParts.push(isNumber(required) === true);
@@ -139,6 +124,7 @@ function canFireAutoNext(ctrl, required, played) {
   if (allTrue(tParts) === true) {
     thresholdOk = true;
   }
+
   const gates = [];
   gates.push(playingOk === true);
   gates.push(recentSeek !== true);
@@ -148,16 +134,13 @@ function canFireAutoNext(ctrl, required, played) {
   return allTrue(gates);
 }
 
-/** ΝΕΟ: Gates για fire strictly-on-threshold (χαλαρότερο ως προς cooldowns) */
 function canFireOnWatchtime(ctrl, required, played) {
-  // 1) Threshold
   const tParts = [];
   tParts.push(isNumber(required) === true);
   tParts.push(played >= required);
   if (allTrue(tParts) !== true) {
     return false;
   }
-  // 2) Playing gate
   let playingOk = false;
   try {
     if (typeof ctrl._isPlaying === 'function') {
@@ -167,7 +150,6 @@ function canFireOnWatchtime(ctrl, required, played) {
   if (playingOk !== true) {
     return false;
   }
-  // 3) Continuity (πιο χαλαρή: 2s)
   try {
     const parts = [];
     parts.push(isDefined(ctrl?.playingStart) === true);
@@ -179,14 +161,34 @@ function canFireOnWatchtime(ctrl, required, played) {
       }
     }
   } catch (_) {}
-  // 4) Αγνοούμε seek/pause cooldowns για το ειδικό WT-trigger
   return true;
 }
 
-/** Ελέγχει κάθε controller, ενημερώνει log και αν πληρούνται τα κριτήρια προγραμματίζει AutoNext. */
+// WTBus-aware: αν πρόσφατα ελήφθη 'wt:reached' για τον controller, παραλείπουμε fallback.
+function skipByWtBus(ctrl) {
+  try {
+    const idx = Number(ctrl?.index);
+    const okIdx = Number.isNaN(idx) === false;
+    if (okIdx !== true) {
+      return false;
+    }
+    const last = wtSeen[idx];
+    const parts = [];
+    parts.push(isNumber(last) === true);
+    const seen = allTrue(parts);
+    if (seen !== true) {
+      return false;
+    }
+    const diff = nowMs() - last;
+    return diff < WT_FALLBACK_GRACE_MS;
+  } catch (_) {}
+  return false;
+}
+
+// ========================= Core =========================
 function checkController(ctrl) {
   try {
-    // Απαιτεί plan με requiredWatchTimeSec (ή getter)
+    // Base plan/required
     let hasPlan = false;
     const p1 = [];
     p1.push(isDefined(ctrl?.plan) === true);
@@ -196,7 +198,6 @@ function checkController(ctrl) {
     if (basePlanOk === true) {
       hasPlan = true;
     }
-    // ΝΕΟ: προτιμούμε getters αν υπάρχουν
     let required = 0;
     if (isFunction(ctrl?.getRequiredWatchSec) === true) {
       required = ctrl.getRequiredWatchSec();
@@ -208,6 +209,8 @@ function checkController(ctrl) {
         return;
       }
     }
+
+    // Played
     let played = 0;
     if (isFunction(ctrl?.getPlayedSec) === true) {
       played = ctrl.getPlayedSec();
@@ -217,7 +220,7 @@ function checkController(ctrl) {
 
     log(`⏱️ Player ${ctrl.index + 1} Progress → Played=${played}s / Required=${required}s`);
 
-    // ΝΕΟ: Near-threshold soft freeze για soft tasks (quality/volume)
+    // Near-threshold soft-freeze (υπάρχει ήδη σε state engine, απλώς ενισχύουμε το μήνυμα εδώ)
     try {
       const nearParts = [];
       nearParts.push(isNumber(required) === true);
@@ -235,10 +238,16 @@ function checkController(ctrl) {
       }
     } catch (_) {}
 
-    // 1) Watch-time trigger (προηγείται, χαλαρότερο ως προς cooldowns)
+    // 1) Watch-time trigger (primary) → WTBus aware
     if (ctrl.watchtimeFired !== true) {
       const canWT = canFireOnWatchtime(ctrl, required, played);
       if (canWT === true) {
+        // Αν ο WTBus μας έχει ενημερώσει πρόσφατα, αποφεύγουμε διπλό scheduling.
+        const skip = skipByWtBus(ctrl);
+        if (skip === true) {
+          log(`⏳ Player ${ctrl.index + 1} WTBus-skip → Already signaled recently`);
+          return;
+        }
         ctrl.watchtimeFired = true;
         try {
           if (isFunction(ctrl?.clearTimers)) {
@@ -253,10 +262,16 @@ function checkController(ctrl) {
       }
     }
 
-    // 2) Fallback: κλασική λογική (με cooldowns/continuity)
+    // 2) Fallback: κλασική λογική (ENDED pacing)
     const canFire = canFireAutoNext(ctrl, required, played);
     if (canFire === true) {
       if (ctrl.watchtimeFired !== true) {
+        // Αν ο WTBus μας έχει ενημερώσει πρόσφατα, δεν κάνουμε fallback.
+        const skip = skipByWtBus(ctrl);
+        if (skip === true) {
+          log(`⏳ Player ${ctrl.index + 1} Fallback-skip → WTBus signaled recently`);
+          return;
+        }
         ctrl.watchtimeFired = true;
         try {
           if (isFunction(ctrl?.clearTimers)) {
@@ -274,16 +289,34 @@ function checkController(ctrl) {
 
 // ========================= Public API =========================
 export function startWatchdog(intervalMs = 10000) {
+  // WTBus subscribe
+  try {
+    if (isFunction(wtBusDisposer) === true) {
+      wtBusDisposer();
+      wtBusDisposer = null;
+    }
+    wtBusDisposer = onWatchtimeReached((ev) => {
+      try {
+        const idx = Number(ev?.detail?.index);
+        const okIdx = Number.isNaN(idx) === false;
+        if (okIdx === true) {
+          wtSeen[idx] = nowMs();
+          log(`📥 WTBus received → index=${idx}`);
+        }
+      } catch (_) {}
+    });
+  } catch (_) {}
+
   try {
     if (isNumber(watchdogTimerId) === true) {
       cancel(watchdogTimerId);
       watchdogTimerId = null;
     }
   } catch (_) {}
+
   const handler = function () {
     try {
       for (const ctrl of controllers) {
-        // Τύλιγμα ανά controller σε scheduleSafe (0 ms) για απομόνωση λαθών χωρίς να σπάσει ο κύκλος.
         scheduleSafe(
           function () {
             checkController(ctrl);
@@ -305,6 +338,10 @@ export function stopWatchdog() {
     watchdogTimerId = null;
     log('🛡️ Watchdog → Stopped');
   }
+  try {
+    if (isFunction(wtBusDisposer) === true) wtBusDisposer();
+    wtBusDisposer = null;
+  } catch (_) {}
 }
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */

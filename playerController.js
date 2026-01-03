@@ -1,14 +1,16 @@
 // --- playerController.js ---
-const VERSION = 'v7.14.0';
+const VERSION = 'v7.15.0';
 /*
- * Controller: λεπτό wrapper για YT events (onReady/onStateChange/onError) με delegation στο PlayerStateEngine.
- * Αλλαγή: clearTimers() ενισχύθηκε με συνεπές groupCancel για όλα τα γνωστά groups (play/pause/volume/quality/rate/wt/midseek/plan/autonext/init-seek/unmute).
+ * Controller: λεπτό wrapper για YT events με delegation στο PlayerStateEngine.
+ * - Soft-task back-pressure meta: softTaskMinGapMs, lastSoftTaskMs, softFreezeUntilMs.
+ * - (Παραμένει) clearTimers(): συνεπές groupCancel για όλα τα γνωστά groups.
  */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
+
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
@@ -36,6 +38,7 @@ export class PlayerController {
     this.timers = { midSeek: null, pauseTimers: [], progressCheck: null };
     this.config = config;
     this.profileName = typeof config?.profileName === 'string' ? config.profileName : 'Unknown';
+
     // Accumulators / meta
     this.playingStart = null;
     this.currentRate = 1.0;
@@ -43,16 +46,21 @@ export class PlayerController {
     this.lastBufferingStart = null;
     this.lastPausedStart = null;
     this.expectedPauseMs = 0;
+
     // Seek defaults & meta
     this.seekDefaults = { minGapSec: 90, maxSeeks: 3, nearEndPct: 0.05, fromPct: 0.2, toPct: 0.6 };
     this.seekMeta = { lastMs: 0, count: 0 };
+
     // Behavior plan
     this.plan = null;
+
     // Volume meta
     this.volumeMeta = { scheduledIds: [], changesPlanned: 0 };
+
     // Unmute flags
     this.pendingUnmute = true;
     this.unmuteScheduled = false;
+
     // Watch-time & autonext state
     this.lastSeekAt = null;
     this.lastKnownCT = 0;
@@ -60,8 +68,15 @@ export class PlayerController {
     this.autoNextScheduled = false;
     this.cooldowns = { seekMs: 1500, pauseMs: 800 };
     this.continuity = { minPlaySec: 4 };
+
     // Freeze soft tasks κοντά στο threshold
     this.freezeSoftTasks = false;
+
+    // Soft-task back-pressure (ΝΕΑ ΠΕΔΙΑ)
+    this.softTaskMinGapMs = 2500; // default min gap μεταξύ soft tasks
+    this.lastSoftTaskMs = 0; // timestamp τελευταίας soft-task
+    this.softFreezeUntilMs = 0; // freeze window μετά από AutoNext/READY
+
     // Public watch-time API (per-video)
     this.videoRequiredWatchTime = 0; // s
     this.videoTotalPlayTime = 0; // s (cache για UI/logs)
@@ -77,7 +92,9 @@ export class PlayerController {
             const hasAlt = Array.isArray(altGlobal);
             if (hasMain === true) this.mainList = deepClone(mainGlobal);
             if (hasAlt === true) this.altList = deepClone(altGlobal);
-            const active = this.isPlayingActive === true;
+            const parts = [];
+            parts.push(this.isPlayingActive === true);
+            const active = allTrue(parts);
             if (active === true) {
               log(`🧑‍🤝‍🧑 Player ${this.index + 1} Lists Updated → Active (Future Picks Use New Lists)`);
             } else {
@@ -85,10 +102,9 @@ export class PlayerController {
               try {
                 const p = this.player;
                 let durationNow = 0;
-                const parts = [];
-                parts.push(this._can(p, 'getDuration') === true);
-                const canDur = allTrue(parts);
-                if (canDur === true) {
+                const check = [];
+                check.push(this._can(p, 'getDuration') === true);
+                if (allTrue(check) === true) {
                   const dtmp = p.getDuration();
                   if (isNumber(dtmp) === true) durationNow = dtmp;
                 }
@@ -167,11 +183,27 @@ export class PlayerController {
       safeSeekExternal(this, seconds);
     } catch (err) {}
   }
+
   _scheduleWhenPlayingAndUnmuted(taskFn, retryMinMs, retryMaxMs, groupSuffix, tag) {
     const attempt = () => {
       try {
         const p = this.player;
         if (isDefined(p) !== true) return;
+
+        // Respect soft freeze + min gap για soft tasks
+        try {
+          const now = Date.now();
+          const guards = [];
+          guards.push(now >= this.softFreezeUntilMs);
+          guards.push(now - this.lastSoftTaskMs >= this.softTaskMinGapMs);
+          const canSoft = allTrue(guards);
+          if (canSoft !== true) {
+            const d = rndInt(retryMinMs, retryMaxMs);
+            scheduleSafe(attempt, d, this._group(groupSuffix), `${tag}-retry-softgap`);
+            return;
+          }
+        } catch (_) {}
+
         if (this.pendingUnmute === true) {
           const d = rndInt(retryMinMs, retryMaxMs);
           scheduleSafe(attempt, d, this._group(groupSuffix), `${tag}-retry-pending`);
@@ -192,6 +224,8 @@ export class PlayerController {
         }
         try {
           taskFn();
+          // Ενημέρωση soft-task timestamp
+          this.lastSoftTaskMs = Date.now();
         } catch (_e) {}
       } catch (_eOuter) {}
     };
@@ -226,9 +260,8 @@ export class PlayerController {
     } catch (_e) {}
   }
 
-  /** ΕΝΙΣΧΥΜΕΝΟ clearTimers: ακύρωση για όλα τα γνωστά groups + συγκεκριμένα timers. */
+  /** Συνεπές clearTimers: ακύρωση groups + συγκεκριμένα timers. */
   clearTimers() {
-    // Συνεπές groupCancel για suffix groups
     try {
       groupCancel(this._group());
     } catch (_) {}
@@ -269,25 +302,21 @@ export class PlayerController {
       groupCancel(this._group('unmute'));
     } catch (_) {}
 
-    // Pause timers
     try {
       for (const id of this.timers.pauseTimers) cancel(id);
     } catch (_) {}
     this.timers.pauseTimers = [];
 
-    // MidSeek
     if (typeof this.timers.midSeek === 'number') {
       cancel(this.timers.midSeek);
       this.timers.midSeek = null;
     }
 
-    // Progress check
     if (typeof this.timers.progressCheck === 'number') {
       cancel(this.timers.progressCheck);
       this.timers.progressCheck = null;
     }
 
-    // Volume scheduled IDs
     try {
       const hasArr = Array.isArray(this.volumeMeta?.scheduledIds);
       if (hasArr === true) {
@@ -312,7 +341,8 @@ export class PlayerController {
       parts.push(this._can(p, 'getCurrentTime') === true);
       if (allTrue(parts) !== true) return;
       const ct = p.getCurrentTime();
-      const prev = isNumber(this.lastKnownCT) === true ? this.lastKnownCT : 0;
+      const prevIsNum = isNumber(this.lastKnownCT) === true;
+      const prev = prevIsNum === true ? this.lastKnownCT : 0;
       const delta = Math.abs(ct - prev);
       const guards = [];
       guards.push(delta >= 3);
@@ -361,6 +391,7 @@ export class PlayerController {
     return total;
   }
 }
+
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
