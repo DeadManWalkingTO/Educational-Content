@@ -1,9 +1,9 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v3.1.0';
+const VERSION = 'v3.2.0';
 /*
- * Refactor: External handlers onReadyExternal/onErrorExternal + handler-first με hooks (beforeTransition/afterTransition).
- * ΝΕΟ: Soft-freeze reset στον handler PLAYING (ctrl.freezeSoftTasks = false όταν ήταν ενεργό).
- * Public API: onStateChangeExternal(ctrl, e) + onReadyExternal(ctrl, e) + onErrorExternal(ctrl, e).
+ * State-driven watch-time (Engine-centric):
+ * - Στον handler PLAYING προγραμματίζεται ραντεβού για το υπόλοιπο watch-time (one-shot).
+ * - Σε έξοδο από PLAYING ακυρώνεται η ομάδα 'wt'.
  */
 
 // --- Export Version ---
@@ -18,8 +18,8 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { makeLogger, allTrue, anyTrue, isDefined, isFunction, isNumber, jitter, scheduleSafe } from './utils.js';
-import { autoNextAfterEnded, autoNextAfterError } from './autoNext.js';
+import { makeLogger, allTrue, anyTrue, isDefined, isFunction, isNumber, jitter, scheduleSafe, cancel, groupCancel } from './utils.js';
+import { autoNextAfterEnded, autoNextAfterError, autoNextAfterWatchtime } from './autoNext.js';
 import { scheduleUnmute } from './autoUnmute.js';
 import { schedulePauses, restartPauseGuard } from './autoPause.js';
 import { scheduleVolumeChanges, scheduleMicroAdjust } from './autoVolume.js';
@@ -32,6 +32,16 @@ import { getBehaviorPlan } from './policies.js';
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
 
+/**
+ * - Όταν καλυφθεί το threshold:
+ *   • εκπέμπεται 'watchtime:reached'
+ *   • γίνεται clearTimers()
+ *   • τίθενται flags (watchtimeFired/autoNextScheduled)
+ *   • καλείται autoNextAfterWatchtime(ctrl) (όπως σήμερα)
+ * - Near-threshold (≤5 s) -> ενεργοποίηση soft-freeze (freezeSoftTasks = true).
+ * - Διατηρείται το soft-freeze reset στο PLAYING (εφόσον υπήρχε).
+ * /
+
 /* ========================= Helpers ========================= */
 function hasYT() {
   let ok = false;
@@ -41,6 +51,23 @@ function hasYT() {
     }
   }
   return ok;
+}
+
+function _isPlaying(ctrl) {
+  try {
+    const parts = [];
+    parts.push(hasYT() === true);
+    parts.push(isDefined(ctrl?.player) === true);
+    parts.push(isFunction(ctrl?.player?.getPlayerState) === true);
+    const ok = allTrue(parts);
+    if (ok === true) {
+      const st = ctrl.player.getPlayerState();
+      if (st === YT.PlayerState.PLAYING) {
+        return true;
+      }
+    }
+  } catch (_) {}
+  return false;
 }
 
 function readPlayerState(ctrl, e) {
@@ -80,6 +107,140 @@ function finalizePlayingWindow(ctrl, reason) {
   log(`🧮 Player ${ctrl.index + 1} Finalize[${tag}]`);
 }
 
+/* ========================= Watch-time helpers (Engine) ========================= */
+function _getRequiredWatchSec(ctrl) {
+  try {
+    if (isFunction(ctrl?.getRequiredWatchSec) === true) {
+      const v = ctrl.getRequiredWatchSec();
+      if (isNumber(v) === true) return v;
+    }
+  } catch (_) {}
+  try {
+    if (isNumber(ctrl?.videoRequiredWatchTime) === true) return ctrl.videoRequiredWatchTime;
+  } catch (_) {}
+  return 15;
+}
+
+function _getPlayedSec(ctrl) {
+  try {
+    if (isFunction(ctrl?.getPlayedSec) === true) {
+      const v = ctrl.getPlayedSec();
+      if (isNumber(v) === true) return v;
+    }
+  } catch (_) {}
+  // Fallback: base + (εφόσον είμαστε σε PLAYING) extra
+  let base = 0;
+  if (isNumber(ctrl?.totalPlayTime) === true) base = ctrl.totalPlayTime;
+  let extra = 0;
+  const canExtraParts = [];
+  canExtraParts.push(isNumber(ctrl?.currentRate) === true);
+  canExtraParts.push(isDefined(ctrl?.playingStart) === true);
+  canExtraParts.push(_isPlaying(ctrl) === true);
+  const canExtra = allTrue(canExtraParts);
+  if (canExtra === true) {
+    const ms = Date.now() - ctrl.playingStart;
+    const rate = isNumber(ctrl.currentRate) === true ? ctrl.currentRate : 1.0;
+    extra = (ms / 1000) * rate;
+  }
+  const out = Math.max(0, Math.floor(base + extra));
+  return out;
+}
+
+function _maybeEnableNearThresholdFreeze(ctrl, remainingSec) {
+  try {
+    const nearParts = [];
+    nearParts.push(isNumber(remainingSec) === true);
+    nearParts.push(remainingSec <= 5);
+    const near = allTrue(nearParts);
+    if (near === true) {
+      const fparts = [];
+      fparts.push(isDefined(ctrl?.freezeSoftTasks) === true);
+      fparts.push(ctrl.freezeSoftTasks !== true);
+      const canSet = allTrue(fparts);
+      if (canSet === true) {
+        ctrl.freezeSoftTasks = true;
+        log(`🧊 Player ${ctrl.index + 1} Soft-Freeze Enabled (≤5s to threshold)`);
+      }
+    }
+  } catch (_) {}
+}
+
+function _fireWatchtimeReached(ctrl) {
+  try {
+    const parts = [];
+    parts.push(ctrl?.watchtimeFired !== true);
+    const canFire = allTrue(parts);
+    if (canFire !== true) {
+      return;
+    }
+    ctrl.watchtimeFired = true;
+    ctrl.autoNextScheduled = true;
+    try {
+      ctrl.clearTimers();
+    } catch (_) {}
+    // Event προς UI/σύστημα
+    try {
+      if (typeof document !== 'undefined') {
+        document.dispatchEvent(new CustomEvent('watchtime:reached', { detail: { index: ctrl.index } }));
+      }
+    } catch (_) {}
+    // Χρονοδρομολόγηση AutoNext (WT pacing γίνεται μέσα στο autoNextAfterWatchtime)
+    autoNextAfterWatchtime(ctrl);
+    // Συμβατότητα με watchdog path (count κατά το schedule)
+    try {
+      stats.autoNext = isNumber(stats?.autoNext) === true ? stats.autoNext + 1 : 1;
+    } catch (_) {}
+    log(`✅ Player ${ctrl.index + 1} Watch‑Time Met → AutoNext Scheduled (WT)`);
+  } catch (_) {}
+}
+
+function _scheduleWatchtimeOneShot(ctrl) {
+  try {
+    // Μην προγραμματίζεις αν έχει ήδη πυροδοτηθεί ή έχει ήδη δρομολογηθεί AutoNext
+    const gates = [];
+    gates.push(ctrl?.watchtimeFired !== true);
+    gates.push(ctrl?.autoNextScheduled !== true);
+    const allow = allTrue(gates);
+    if (allow !== true) {
+      return;
+    }
+    const required = _getRequiredWatchSec(ctrl);
+    const played = _getPlayedSec(ctrl);
+    const partsPos = [];
+    partsPos.push(isNumber(required) === true);
+    partsPos.push(required > 0);
+    const reqOk = allTrue(partsPos);
+    if (reqOk !== true) {
+      return;
+    }
+    const remaining = required - played;
+    if (remaining <= 0) {
+      _fireWatchtimeReached(ctrl);
+      return;
+    }
+    _maybeEnableNearThresholdFreeze(ctrl, remaining);
+    const delayMs = Math.max(500, Math.floor(remaining * 1000));
+    scheduleSafe(
+      function () {
+        // Safety re-check
+        const req2 = _getRequiredWatchSec(ctrl);
+        const pl2 = _getPlayedSec(ctrl);
+        const rem2 = req2 - pl2;
+        if (rem2 <= 0) {
+          _fireWatchtimeReached(ctrl);
+        } else {
+          // Αν για οποιονδήποτε λόγο δεν πιάστηκε ακόμα (π.χ. rounding), κάνε ένα μικρό retry.
+          scheduleSafe(() => _scheduleWatchtimeOneShot(ctrl), Math.max(500, Math.floor(rem2 * 1000)), ctrl._group('wt'), 'wt-check-retry');
+        }
+      },
+      delayMs,
+      ctrl._group('wt'),
+      'wt-check'
+    );
+    log(`⏱️ Player ${ctrl.index + 1} WT One‑Shot Scheduled in ~${String(Math.round(delayMs / 1000))}s (played=${played}s / required=${required}s)`);
+  } catch (_) {}
+}
+
 /* ========================= Handlers ========================= */
 function handleUnstarted(ctrl) {
   log(`🎬 Player ${ctrl.index + 1} State → UNSTARTED`);
@@ -89,6 +250,10 @@ function handleEnded(ctrl) {
   log(`🏁 Player ${ctrl.index + 1} State → ENDED`);
   try {
     ctrl.clearTimers();
+  } catch (_) {}
+  // Ακύρωση WT timers (αν υπήρχαν)
+  try {
+    groupCancel(ctrl._group('wt'));
   } catch (_) {}
   let alreadyScheduled = false;
   const baseGuards = [];
@@ -103,7 +268,7 @@ function handleEnded(ctrl) {
   if (alreadyScheduled !== true) {
     autoNextAfterEnded(ctrl);
   } else {
-    log(`⏭️ Player ${ctrl.index + 1} ENDED — AutoNext Already Scheduled (Watch-Time) → Skip Reschedule`);
+    log(`⏭️ Player ${ctrl.index + 1} ENDED — AutoNext Already Scheduled (Watch‑Time) → Skip Reschedule`);
   }
   try {
     window.dispatchEvent(new CustomEvent('videoEnded', { detail: { index: ctrl.index } }));
@@ -116,7 +281,7 @@ function handlePlaying(ctrl) {
   }
   log(`▶️ Player ${ctrl.index + 1} State → PLAYING`);
 
-  /* ΝΕΟ: Soft-freeze reset (επαναφορά soft tasks) */
+  /* Soft‑freeze reset (επαναφορά soft tasks) */
   try {
     const parts = [];
     parts.push(isDefined(ctrl?.freezeSoftTasks) === true);
@@ -127,10 +292,16 @@ function handlePlaying(ctrl) {
       const needReset = allTrue(needResetParts);
       if (needReset === true) {
         ctrl.freezeSoftTasks = false;
-        log(`🧊 Player ${ctrl.index + 1} Soft-Freeze Reset → Resume soft tasks`);
+        log(`🧊 Player ${ctrl.index + 1} Soft‑Freeze Reset → Resume soft tasks`);
       }
     }
   } catch (_) {}
+
+  /* WT scheduling (one‑shot βάσει υπολοίπου) */
+  try {
+    groupCancel(ctrl._group('wt'));
+  } catch (_) {}
+  _scheduleWatchtimeOneShot(ctrl);
 
   /* Scheduling unmute ΜΟΝΟ εδώ */
   scheduleUnmute(ctrl, true);
@@ -166,6 +337,10 @@ function beforeTransition(ctrl, prev, next) {
       }
       if (notPlayingNow === true) {
         finalizePlayingWindow(ctrl, 'exit');
+        // Ακύρωση οποιουδήποτε pending WT ραντεβού
+        try {
+          groupCancel(ctrl._group('wt'));
+        } catch (_) {}
       }
     }
   }
@@ -278,7 +453,7 @@ export function onStateChangeExternal(ctrl, e) {
   } catch (_) {}
   // Hooks μετά τον handler
   afterTransition(ctrl, prevState, s);
-  // ΣΗΜΑΝΤΙΚΟ: Το scheduling του unmute βρίσκεται ΜΟΝΟ στο handlePlaying().
+  // ΣΗΜΑΝΤΙΚΟ: WT scheduling μπαίνει στο handlePlaying(), unmute επίσης.
 }
 
 /* ========================= External READY/ERROR ========================= */
