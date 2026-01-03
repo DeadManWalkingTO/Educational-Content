@@ -1,20 +1,19 @@
 // --- autoNext.js ---
-const VERSION = 'v1.15.1';
+const VERSION = 'v1.15.2';
 /*
- * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR + scheduler.
- * Τροποποίηση: Η επιλογή videoId γίνεται μέσω του κοινού videoPicker.js.
- * Διατηρούνται τα limits, counters, delays και το finalize.
+ * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR/Watchtime + scheduler.
+ * Διόρθωση: finalizeAutoNext() καλεί πλέον schedulePauses(ctrl) από autoPause.js.
+ * Αλλαγή: Απλοποίηση buildCtx() και shouldAutoNext().
  */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
-
-/* Όνομα αρχείου για logging. */
+/* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
-/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχεοίου */
+/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
@@ -22,6 +21,7 @@ import { scheduleSafe, makeLogger, rndInt, randomFloat, isDefined, isNumber, all
 import { AUTO_NEXT_LIMIT_PER_PLAYER, stats, MAIN_PROBABILITY } from './globals.js';
 import { pickVideoId } from './videoPicker.js';
 import { getBehaviorPlan } from './policies.js';
+import { schedulePauses } from './autoPause.js'; // ← ΔΙΟΡΘΩΣΗ: σωστό import
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -68,6 +68,7 @@ export function incAutoNext(playerIndex) {
   const idx = Number(playerIndex);
   autoNextPerPlayer[idx] = autoNextPerPlayer[idx] + 1;
 }
+
 /* ========================= Context helpers ========================= */
 function buildCtx(ctrl, trigger) {
   const p = isDefined(ctrl?.player) === true ? ctrl.player : null;
@@ -97,6 +98,7 @@ function buildCtx(ctrl, trigger) {
     trigger,
   };
 }
+
 /* ========================= Gates & Decisions ========================= */
 function shouldAutoNext(ctx) {
   let valid = true;
@@ -112,6 +114,7 @@ function shouldAutoNext(ctx) {
   }
   return { allow: true, reason: 'ok' };
 }
+
 /* ========================= Pacing ========================= */
 function computeAutoNextDelay(ctx) {
   const trig = String(isDefined(ctx?.trigger) === true ? ctx.trigger : '');
@@ -119,6 +122,7 @@ function computeAutoNextDelay(ctx) {
   if (trig === 'watchtime') return rndInt(2000, 5000);
   return rndInt(15000, 60000);
 }
+
 /* ========================= Finalize ========================= */
 function finalizeAutoNext(ctrl, picked) {
   incAutoNext(ctrl.index);
@@ -129,25 +133,33 @@ function finalizeAutoNext(ctrl, picked) {
     ctrl.freezeSoftTasks = false;
     ctrl.videoTotalPlayTime = 0;
   } catch (_) {}
+
   try {
     ctrl.watchtimeFired = false;
   } catch (_) {}
+
   try {
     ctrl.autoNextScheduled = false;
   } catch (_) {}
+
   try {
     log(
       `⏭️ Player ${ctrl.index + 1} AutoNext → ${String(isDefined(picked?.id) === true ? picked.id : '-')}` +
         ` (Source:${String(isDefined(picked?.source) === true ? picked.source : '-')}, size:${String(isNumber(picked?.size) === true ? picked.size : 0)})`
     );
   } catch (_) {}
+
+  // ΔΙΟΡΘΩΣΗ: Παύσεις μέσω του module autoPause (όχι ctrl.schedulePauses()).
   try {
-    ctrl.schedulePauses();
+    schedulePauses(ctrl);
   } catch (_) {}
+
+  // Mid-seek (υπάρχει wrapper μέθοδος στον controller)
   try {
     ctrl.scheduleMidSeek();
   } catch (_) {}
 }
+
 /* ========================= Runner ========================= */
 function runAutoNext(ctrl, ctx, label) {
   const picked = pickVideoId(ctx.mainList, ctx.altList, ctx.mainProbability);
@@ -166,6 +178,7 @@ function runAutoNext(ctrl, ctx, label) {
   try {
     ctrl.guardPlay(ctrl.player);
   } catch (_) {}
+
   // Re-plan (μικρή καθυστέρηση)
   const replan = function () {
     try {
@@ -196,12 +209,14 @@ function runAutoNext(ctrl, ctx, label) {
       } catch (_p) {
         ctrl.videoRequiredWatchTime = 15;
       }
-      log(`⚖️ Re-plan Applied (AutoNext) → Required=${ctrl.videoRequiredWatchTime}s (Dur=${durationNow}s, ID=${videoIdFromAPI || '-'})`);
+      log(`⚖️ Re-plan Applied (AutoNext) → Required=${ctrl.videoRequiredWatchTime}s (Dur=${durationNow}s, ID=${videoIdFromAPI ?? '-'})`);
     } catch (_eReplan) {}
   };
   scheduleSafe(replan, rndInt(500, 1500), ctrl._group('plan'), 'plan-refresh');
+
   finalizeAutoNext(ctrl, picked);
 }
+
 /* ========================= Scheduler (Generic) ========================= */
 function scheduleAutoNext(ctrl, trigger) {
   const ctx = buildCtx(ctrl, trigger);
@@ -225,6 +240,7 @@ function scheduleAutoNext(ctrl, trigger) {
     label
   );
 }
+
 /* ========================= Public API (Named Exports) ========================= */
 export function autoNextAfterEnded(ctrl) {
   scheduleAutoNext(ctrl, 'ended');
@@ -236,7 +252,7 @@ export function autoNextAfterWatchtime(ctrl) {
   scheduleAutoNext(ctrl, 'watchtime');
 }
 
-/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχεοίου */
+/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---

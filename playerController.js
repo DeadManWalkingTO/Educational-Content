@@ -1,17 +1,15 @@
 // --- playerController.js ---
-const VERSION = 'v7.13.1';
+const VERSION = 'v7.14.0';
 /*
  * Controller: λεπτό wrapper για YT events (onReady/onStateChange/onError) με delegation στο PlayerStateEngine.
- * Cleanup: Αφαίρεση αχρείαστων imports (volume/rate/quality/pauses/init-seek) μετά τη μεταφορά orchestration στο Engine.
- * Διατήρηση: fields/state, _group(), clearTimers(), scheduleMidSeek(), getters, listener 'lists:updated', guardPlay, loadNextVideo.
+ * Αλλαγή: clearTimers() ενισχύθηκε με συνεπές groupCancel για όλα τα γνωστά groups (play/pause/volume/quality/rate/wt/midseek/plan/autonext/init-seek/unmute).
  */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
-
-/* Όνομα αρχείου για logging. */
+/* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
@@ -67,6 +65,7 @@ export class PlayerController {
     // Public watch-time API (per-video)
     this.videoRequiredWatchTime = 0; // s
     this.videoTotalPlayTime = 0; // s (cache για UI/logs)
+
     // Listener για 'lists:updated'
     try {
       if (typeof document !== 'undefined') {
@@ -80,7 +79,7 @@ export class PlayerController {
             if (hasAlt === true) this.altList = deepClone(altGlobal);
             const active = this.isPlayingActive === true;
             if (active === true) {
-              log(`🧑‍🧞 Player ${this.index + 1} Lists Updated → Active (Future Picks Use New Lists)`);
+              log(`🧑‍🤝‍🧑 Player ${this.index + 1} Lists Updated → Active (Future Picks Use New Lists)`);
             } else {
               this.clearTimers();
               try {
@@ -103,7 +102,7 @@ export class PlayerController {
                 this.videoRequiredWatchTime = 15;
               }
               this.freezeSoftTasks = false;
-              log(`🧮 Player ${this.index + 1} Lists Updated → Idle (Plan Refreshed)`);
+              log(`🧭 Player ${this.index + 1} Lists Updated → Idle (Plan Refreshed)`);
             }
           } catch (err) {
             log(`⚠️ Player ${this.index + 1} Lists Update Error -> ${err}`);
@@ -124,7 +123,6 @@ export class PlayerController {
     }
     return `${base}:${suffix}`;
   }
-
   _can(obj, methodName) {
     if (isDefined(obj) !== true) return false;
     const fn = obj[methodName];
@@ -132,7 +130,6 @@ export class PlayerController {
     parts.push(typeof fn === 'function');
     return allTrue(parts);
   }
-
   _ytDefined() {
     let ok = false;
     if (typeof YT !== 'undefined') {
@@ -140,7 +137,6 @@ export class PlayerController {
     }
     return ok;
   }
-
   _isPlaying(p) {
     let playing = false;
     const parts = [];
@@ -154,7 +150,6 @@ export class PlayerController {
     }
     return playing;
   }
-
   _isMuted(p) {
     let muted = false;
     const parts = [];
@@ -166,14 +161,12 @@ export class PlayerController {
     }
     return muted;
   }
-
   _safeSeek(seconds) {
     try {
       this.lastSeekAt = Date.now();
       safeSeekExternal(this, seconds);
     } catch (err) {}
   }
-
   _scheduleWhenPlayingAndUnmuted(taskFn, retryMinMs, retryMaxMs, groupSuffix, tag) {
     const attempt = () => {
       try {
@@ -227,43 +220,89 @@ export class PlayerController {
   onError(e) {
     onErrorExternal(this, e);
   }
-
   scheduleMidSeek() {
     try {
       scheduleMidSeekExternal(this);
     } catch (_e) {}
   }
 
+  /** ΕΝΙΣΧΥΜΕΝΟ clearTimers: ακύρωση για όλα τα γνωστά groups + συγκεκριμένα timers. */
   clearTimers() {
+    // Συνεπές groupCancel για suffix groups
     try {
       groupCancel(this._group());
-    } catch (_e) {}
+    } catch (_) {}
+    try {
+      groupCancel(this._group('play'));
+    } catch (_) {}
+    try {
+      groupCancel(this._group('pause'));
+    } catch (_) {}
+    try {
+      groupCancel(this._group('pause-guard'));
+    } catch (_) {}
+    try {
+      groupCancel(this._group('volume'));
+    } catch (_) {}
+    try {
+      groupCancel(this._group('quality'));
+    } catch (_) {}
+    try {
+      groupCancel(this._group('rate'));
+    } catch (_) {}
+    try {
+      groupCancel(this._group('wt'));
+    } catch (_) {}
+    try {
+      groupCancel(this._group('midseek'));
+    } catch (_) {}
+    try {
+      groupCancel(this._group('plan'));
+    } catch (_) {}
+    try {
+      groupCancel(this._group('autonext'));
+    } catch (_) {}
+    try {
+      groupCancel(this._group('init-seek'));
+    } catch (_) {}
+    try {
+      groupCancel(this._group('unmute'));
+    } catch (_) {}
+
+    // Pause timers
     try {
       for (const id of this.timers.pauseTimers) cancel(id);
-    } catch (_e) {}
+    } catch (_) {}
     this.timers.pauseTimers = [];
+
+    // MidSeek
     if (typeof this.timers.midSeek === 'number') {
       cancel(this.timers.midSeek);
       this.timers.midSeek = null;
     }
+
+    // Progress check
     if (typeof this.timers.progressCheck === 'number') {
       cancel(this.timers.progressCheck);
       this.timers.progressCheck = null;
     }
+
+    // Volume scheduled IDs
     try {
       const hasArr = Array.isArray(this.volumeMeta?.scheduledIds);
       if (hasArr === true) {
         for (const id of this.volumeMeta.scheduledIds) cancel(id);
         this.volumeMeta.scheduledIds = [];
       }
-    } catch (_e) {}
+    } catch (_) {}
+
     this.expectedPauseMs = 0;
   }
 
   loadNextVideo(_player) {
     try {
       autoNextAfterEnded(this);
-    } catch (_e) {}
+    } catch (_) {}
   }
 
   _detectExternalSeekAndMark() {
@@ -297,7 +336,6 @@ export class PlayerController {
   getRequiredWatchSec() {
     return isNumber(this.videoRequiredWatchTime) === true ? this.videoRequiredWatchTime : 15;
   }
-
   getPlayedSec() {
     const base = isNumber(this.totalPlayTime) === true ? this.totalPlayTime : 0;
     let extra = 0;
@@ -323,7 +361,6 @@ export class PlayerController {
     return total;
   }
 }
-
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 

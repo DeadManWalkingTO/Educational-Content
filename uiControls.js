@@ -1,16 +1,15 @@
 // --- uiControls.js ---
-const VERSION = 'v4.1.0';
+const VERSION = 'v4.2.0';
 /*
  * Κεντρικό χειριστήριο UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
- * - Μετά από επιτυχές reload λιστών γίνεται broadcast του event 'lists:updated'
- *   με λεπτομέρειες (mainCount, altCount, mainSource, altSource) για συγχρονισμό controllers.
+ * - Stop All: χρήση utils.scheduleSafe αντί για native setTimeout (ενοποίηση timers).
+ * - Restart hygiene: προληπτικό stop/destroy παλιού player πριν από re-init, όπου χρειάζεται.
  */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
-
 // Όνομα αρχείου για logging.
 const FILENAME = import.meta.url.split('/').pop();
 
@@ -19,7 +18,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, stats } from './globals.js';
-import { rndInt, makeLogger, allTrue, isDefined, isNonEmptyArray, safeAddEvent, domReady, debounce } from './utils.js';
+import { rndInt, makeLogger, allTrue, isDefined, isNonEmptyArray, safeAddEvent, domReady, debounce, isFunction, scheduleSafe } from './utils.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
 
 /* ========================= Logger ========================= */
@@ -33,22 +32,18 @@ function byId(id) {
     return null;
   }
 }
-
 function hasEntries(panel) {
   return isDefined(panel?.children) && panel.children.length > 0;
 }
-
 function isReadyController(c) {
   return allTrue([!!c, !!(c ? c.player : false)]);
 }
-
 function noteError(message) {
   try {
     stats.errors += 1;
   } catch {}
   log(message);
 }
-
 function shuffleControllers(list) {
   const a = Array.isArray(list) ? list.slice() : [];
   for (let i = a.length - 1; i > 0; i--) {
@@ -57,27 +52,21 @@ function shuffleControllers(list) {
   }
   return a;
 }
-
 function pickRandomId(source) {
   if (!isNonEmptyArray(source)) return null;
   return source[rndInt(0, source.length - 1)];
 }
-
 function buildLogsText(panel) {
   return Array.from(panel.children)
     .map((div) => div.textContent)
     .join('\n');
 }
-
 function buildFinalText(logsText, statsText) {
   return `=== LOGS ===\n${logsText}\n=== STATS ===\n${statsText}`;
 }
 
 /* ========================= Δημόσιο API ========================= */
-
-/**
- * Ενεργοποίηση/απενεργοποίηση controls.
- */
+/** Ενεργοποίηση/απενεργοποίηση controls. */
 export function setControlsEnabled(enabled) {
   const ids = ['btnStopAll', 'btnRestartAll', 'btnToggleTheme', 'btnCopyLogs', 'btnClearLogs', 'btnReloadList'];
   let touched = 0;
@@ -85,97 +74,131 @@ export function setControlsEnabled(enabled) {
     const el = byId(id);
     if (isDefined(el)) {
       el.disabled = !enabled;
-      touched++;
+      touched = touched + 1;
     }
   }
   log(`✅ Controls ${enabled ? 'Enabled' : 'Disabled'} (${touched} Στοιχεία)`);
   return touched;
 }
 
-/**
- * Stop All:
- * - Σειριακή διακοπή player με τυχαίες καθυστερήσεις 30–60s ανά controller.
- * - Οι χρονιστές καταγράφονται μέσω pushStopTimer για μελλοντικό clear.
- */
+/** Stop All: ενοποιημένο scheduling με utils.scheduleSafe (και σωστή ακύρωση). */
 function stopAll() {
   setIsStopping(true);
   clearStopTimers();
+
   const shuffled = shuffleControllers(controllers);
   let totalDelay = 0;
-
-  for (let i = 0; i < shuffled.length; i++) {
+  let i = 0;
+  while (i < shuffled.length) {
     const c = shuffled[i];
     const randomDelay = rndInt(30000, 60000);
-    totalDelay += randomDelay;
+    totalDelay = totalDelay + randomDelay;
     const step = i + 1;
+    const delayMs = totalDelay;
 
-    const timer = setTimeout(() => {
-      if (isReadyController(c)) {
-        try {
-          c.player.stopVideo();
-          log(`⏹️ [StopAll] Player ${c.index + 1} Stopped (Step ${step}/${shuffled.length})`);
-        } catch {
-          noteError(`❌ Player ${c.index + 1} Stop Error`);
+    const id = scheduleSafe(
+      function () {
+        const guards = [];
+        guards.push(isDefined(c) === true);
+        guards.push(isDefined(c?.player) === true);
+        const ready = allTrue(guards);
+
+        if (ready === true) {
+          try {
+            if (isFunction(c.player?.stopVideo) === true) {
+              c.player.stopVideo();
+            }
+            log(`⏹️ [StopAll] Player ${c.index + 1} Stopped (Step ${step}/${shuffled.length})`);
+          } catch {
+            noteError(`❌ Player ${c.index + 1} Stop Error`);
+          }
+        } else {
+          noteError(`❌ Player ${c ? c.index + 1 : '?'} Stop Skipped → Not Initialized`);
         }
-      } else {
-        noteError(`❌ Player ${c ? c.index + 1 : '?'} Stop Skipped → Not Initialized`);
-      }
-    }, totalDelay);
+      },
+      delayMs,
+      'stopall',
+      `stopall-${step}`
+    );
 
-    pushStopTimer(timer);
+    // Αποθήκευση ID για μελλοντική ακύρωση μέσω clearStopTimers()
+    pushStopTimer(id);
+
+    i = i + 1;
   }
 
   log(`⏹️ [StopAll] Scheduled ${shuffled.length} Players → Συνολική Εκτίμηση ~${Math.round(totalDelay / 1000)}s`);
 }
 
-/**
- * Restart All:
- * - Αν controller έχει έγκυρο player: loadNextVideo (delegation).
- * - Αλλιώς: init με νέο id από main/alt ανά MAIN_PROBABILITY.
- */
+/** Restart All με hygiene: όπου απαιτείται, stop/destroy πριν από re-init. */
 function restartAll() {
   const mainList = getMainList();
   const altList = getAltList();
 
-  for (let i = 0; i < controllers.length; i++) {
+  let i = 0;
+  while (i < controllers.length) {
     const c = controllers[i];
-    if (isReadyController(c)) {
+
+    // Αν ο controller έχει ενεργό player: loadNextVideo (παραμένει ως έχει).
+    const ready = isReadyController(c);
+    if (ready === true) {
       try {
         c.loadNextVideo(c.player);
         log(`🔄 [RestartAll] Player ${c.index + 1} LoadNext`);
       } catch (e) {
         noteError(`❌ Player ${c.index + 1} LoadNext Error → ${e}`);
       }
+      i = i + 1;
       continue;
     }
 
+    // Επιλογή νέου id (main/alt)
     const useMain = Math.random() < MAIN_PROBABILITY;
     const source = useMain && isNonEmptyArray(mainList) ? mainList : isNonEmptyArray(altList) ? altList : mainList;
     const newId = pickRandomId(source);
-
     if (!isDefined(newId)) {
       noteError(`❌ Player ${c ? c.index + 1 : '?'} Restart Skipped → No Videos Available`);
+      i = i + 1;
       continue;
     }
 
+    // Hygiene: αν υπάρχει παλιό player ref, προσπάθησε stop/destroy πριν από init
+    try {
+      const p = c?.player;
+      const parts = [];
+      parts.push(isDefined(p) === true);
+      const hasP = allTrue(parts);
+      if (hasP === true) {
+        try {
+          if (isFunction(p?.stopVideo) === true) p.stopVideo();
+        } catch {}
+        try {
+          if (isFunction(p?.destroy) === true) p.destroy();
+        } catch {}
+        c.player = null;
+      }
+    } catch {}
+
+    // Init
     try {
       c.init(newId);
-      log(`🔄 [RestartAll] Player ${c.index + 1} Restart -> ${newId} (Source:${useMain ? 'Main' : 'Alt'})`);
+      log(`🔄 [RestartAll] Player ${c.index + 1} Restart → ${newId} (Source:${useMain ? 'Main' : 'Alt'})`);
     } catch (e) {
       noteError(`❌ Player ${c.index + 1} Restart Error → ${e}`);
     }
+
+    i = i + 1;
   }
 
-  log(`🔄 RestartAll → Completed`);
+  log('🔄 RestartAll → Completed');
 }
 
-/**
- * Εναλλαγή θέματος (Light/Dark).
- */
+/** Εναλλαγή θέματος (Light/Dark). */
 function toggleTheme() {
   try {
-    if (!isDefined(document?.body)) {
-      noteError(`❌ Theme Toggle Error → Body Not Available`);
+    const bodyOk = isDefined(document?.body) === true;
+    if (bodyOk !== true) {
+      noteError('❌ Theme Toggle Error → Body Not Available');
       return;
     }
     document.body.classList.toggle('light');
@@ -186,45 +209,44 @@ function toggleTheme() {
   }
 }
 
-/**
- * Καθαρισμός activity panel.
- */
+/** Καθαρισμός activity panel. */
 function clearLogs() {
   const panel = byId('activityPanel');
-  if (allTrue([isDefined(panel), hasEntries(panel)])) {
+  if (allTrue([isDefined(panel), hasEntries(panel)]) === true) {
     panel.innerHTML = '';
-    log(`🧹 Logs Cleared → All Entries Removed`);
+    log('🧹 Logs Cleared → All Entries Removed');
     return true;
   }
-  log(`⚠️ Clear Logs → Nothing To Remove`);
+  log('⚠️ Clear Logs → Nothing To Remove');
   return false;
 }
 
-/**
- * Αντιγραφή logs και stats στο clipboard.
- */
+/** Αντιγραφή logs + stats στο clipboard (με fallback). */
 export async function copyLogs() {
   const panel = byId('activityPanel');
   const statsPanel = byId('statsPanel');
   if (!hasEntries(panel)) {
-    log(`⚠️ Copy Logs → No Entries`);
+    log('⚠️ Copy Logs → No Entries');
     return false;
   }
   const logsText = buildLogsText(panel);
   const statsText = isDefined(statsPanel) ? statsPanel.textContent : '📊 Stats Not Available';
   const finalText = buildFinalText(logsText, statsText);
-
   try {
     await navigator.clipboard.writeText(finalText);
     log(`✅ Logs Copied Via Clipboard API → ${panel.children.length} Entries + Stats`);
     return true;
   } catch {
-    const ok = unsecuredCopyToClipboard(finalText);
-    if (ok) {
-      log(`📋 (Fallback) Logs Copied → ${panel.children.length} Entries + Stats`);
-      return true;
-    }
-    noteError(`❌ Copy Logs Failed (Fallback)`);
+    // Fallback τοπικού project (αν υπάρχει unsecuredCopyToClipboard)
+    try {
+      // eslint-disable-next-line no-undef
+      const ok = unsecuredCopyToClipboard(finalText);
+      if (ok) {
+        log(`📋 (Fallback) Logs Copied → ${panel.children.length} Entries + Stats`);
+        return true;
+      }
+    } catch {}
+    noteError('❌ Copy Logs Failed (Fallback)');
     return false;
   }
 }
@@ -250,20 +272,17 @@ export async function bindUiEvents() {
     const el = byId(id);
     if (isDefined(el)) {
       safeAddEvent(el, 'click', handler);
-      bound++;
+      bound = bound + 1;
     } else {
       log(`⚠️ Bind Skipped -> Missing Element #${id}`);
     }
   }
-
   __uiBound = true;
   log(`✅ Events Bound (uiControls.js ${VERSION}) -> ${bound} handlers`);
   return bound;
 }
 
-/**
- * Επαναφόρτωση λιστών από πηγή και εφαρμογή στη globals.
- */
+/** Reload λιστών από πηγή & broadcast event προς controllers. */
 export async function reloadList() {
   try {
     const ret = await reloadListsFromSource();
@@ -272,7 +291,6 @@ export async function reloadList() {
     setMainList(mainList);
     setAltList(altList);
     log(`📂 Lists Applied -> Main: ${mainList.length} - Alt: ${altList.length}`);
-
     if (typeof document !== 'undefined') {
       const detail = {
         mainCount: Array.isArray(mainList) ? mainList.length : 0,

@@ -1,16 +1,15 @@
 // --- autoSeek.js ---
-const VERSION = 'v1.4.0';
+const VERSION = 'v1.4.1';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, mid-seek scheduler, init-seek).
- * Στόχος: Επαναχρησιμοποίηση/απομόνωση λογικής, συμβατότητα με PlayerController & state engine.
- * Εξαρτήσεις: utils.js (guards/scheduler/logging), globals.js (stats).
+ * Αλλαγή: Προστέθηκε guard ώστε να μην γίνεται double-schedule του mid-seek.
+ *         Μηδενισμός του ctrl.timers.midSeek πριν το επαναπρογραμματισμένο schedule.
  */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
-
 // Όνομα αρχείου για logging.
 const FILENAME = import.meta.url.split('/').pop();
 
@@ -25,7 +24,6 @@ import { stats } from './globals.js';
 const log = makeLogger(FILENAME);
 
 /** Ασφαλές seek με bounds-check & pad κοντά στο τέλος. */
-
 export function safeSeek(ctrl, seconds) {
   try {
     const p = ctrl.player;
@@ -56,7 +54,6 @@ export function safeSeek(ctrl, seconds) {
         p.seekTo(raw, true);
       } catch (_) {}
     }
-    // Ενημέρωση στατιστικών για κάθε seek
     stats.seeks = (stats.seeks ?? 0) + 1;
   } catch (err) {
     stats.errors = (stats.errors ?? 0) + 1;
@@ -64,21 +61,16 @@ export function safeSeek(ctrl, seconds) {
   }
 }
 
-/** Εφαρμογή αρχικού seek: τώρα + επανάληψη στα 800 ms. */
+/** Αρχικό seek: τώρα + επανάληψη στα 800 ms. */
 export function applyInitSeek(ctrl, targetSec) {
   try {
     safeSeek(ctrl, targetSec);
-  } catch (_e) {
-    // no-op
-  }
-
+  } catch (_e) {}
   scheduleSafe(
     function () {
       try {
         safeSeek(ctrl, targetSec);
-      } catch (_e2) {
-        // no-op
-      }
+      } catch (_e2) {}
     },
     800,
     ctrl._group('init-seek'),
@@ -86,11 +78,10 @@ export function applyInitSeek(ctrl, targetSec) {
   );
 }
 
-/** Εσωτερικό: εκτέλεση ενός mid-seek βάσει defaults/plan. */
+/** Εσωτερικό: ένα mid-seek με βάση defaults/plan. */
 function _doMidSeekOnce(ctrl) {
   try {
     const p = ctrl.player;
-
     const existsParts = [];
     existsParts.push(typeof p !== 'undefined');
     existsParts.push(p !== null);
@@ -102,8 +93,8 @@ function _doMidSeekOnce(ctrl) {
     const canDurParts = [];
     canDurParts.push(isFunction(p?.getDuration) === true);
     const canDur = allTrue(canDurParts);
-
     const dur = canDur === true ? p.getDuration() : 0;
+
     const shortParts = [];
     shortParts.push(dur < 300);
     const isShort = anyTrue(shortParts);
@@ -114,13 +105,11 @@ function _doMidSeekOnce(ctrl) {
     const canCurParts = [];
     canCurParts.push(isFunction(p?.getCurrentTime) === true);
     const canCur = allTrue(canCurParts);
-
     const cur = canCur === true ? p.getCurrentTime() : 0;
 
     const nearEndPct = isNumber(ctrl?.seekDefaults?.nearEndPct) === true ? ctrl.seekDefaults.nearEndPct : 0.05;
     const fromPct = isNumber(ctrl?.seekDefaults?.fromPct) === true ? ctrl.seekDefaults.fromPct : 0.2;
     const toPct = isNumber(ctrl?.seekDefaults?.toPct) === true ? ctrl.seekDefaults.toPct : 0.6;
-
     const nearEndSec = dur * (1 - nearEndPct);
 
     const pastNearEndParts = [];
@@ -135,7 +124,6 @@ function _doMidSeekOnce(ctrl) {
     const target = rndInt(from, to);
 
     safeSeek(ctrl, target);
-
     stats.seeks = (stats.seeks ?? 0) + 1;
     log(`⏩ Player ${ctrl.index + 1} Mid-Seek -> ${target}s`);
 
@@ -147,20 +135,29 @@ function _doMidSeekOnce(ctrl) {
   }
 }
 
-/** Προγραμματισμός mid-seeks βάσει policy & runtime metas. */
+/** Προγραμματισμός mid-seeks βάσει policy & runtime metas (με guard). */
 export function scheduleMidSeek(ctrl) {
   const mid = ctrl.plan?.midSeek;
-
   const parts = [];
   parts.push(typeof mid !== 'undefined');
   parts.push(mid !== null);
   parts.push(mid?.enabled === true);
   const canMid = allTrue(parts);
-
   if (canMid !== true) {
     log(`⏩ Player ${ctrl.index + 1} ScheduleMidSeek Skipped (Short Or Disabled)`);
     return;
   }
+
+  // GUARD: Αν υπάρχει ήδη ενεργός timer, μην κάνεις δεύτερο schedule
+  try {
+    const guardParts = [];
+    guardParts.push(isNumber(ctrl?.timers?.midSeek) === true);
+    const alreadyScheduled = allTrue(guardParts);
+    if (alreadyScheduled === true) {
+      log(`🛡️ Player ${ctrl.index + 1} Mid-Seek Guard → Already scheduled`);
+      return;
+    }
+  } catch {}
 
   ctrl.seekDefaults = {
     minGapSec: Number(mid.minGapSec),
@@ -169,14 +166,13 @@ export function scheduleMidSeek(ctrl) {
     fromPct: Number(mid.fromPct),
     toPct: Number(mid.toPct),
   };
-
   const interval = Number(mid.intervalMs);
 
   ctrl.timers.midSeek = scheduleSafe(
     function () {
       const p = ctrl.player;
-
       let dNow = 0;
+
       const playerOkParts = [];
       playerOkParts.push(typeof p !== 'undefined');
       playerOkParts.push(p !== null);
@@ -194,7 +190,6 @@ export function scheduleMidSeek(ctrl) {
       if (canPlayNow === true) {
         const now = Date.now();
         let blockByGap = false;
-
         if (ctrl.seekMeta.lastMs > 0) {
           const diff = now - ctrl.seekMeta.lastMs;
           const minGapMs = Number(ctrl.seekDefaults.minGapSec) * 1000;
@@ -202,7 +197,6 @@ export function scheduleMidSeek(ctrl) {
             blockByGap = true;
           }
         }
-
         const reachedMaxParts = [];
         reachedMaxParts.push((ctrl.seekMeta.count ?? 0) >= Number(ctrl.seekDefaults.maxSeeks));
         const reachedMax = allTrue(reachedMaxParts);
@@ -217,7 +211,8 @@ export function scheduleMidSeek(ctrl) {
         }
       }
 
-      // Επαναπρογραμματισμός
+      // ΠΡΙΝ το re-schedule: μηδενίζουμε τον τρέχοντα timer για να δουλεύει ο guard
+      ctrl.timers.midSeek = null;
       scheduleMidSeek(ctrl);
     },
     interval,
