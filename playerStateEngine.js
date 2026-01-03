@@ -1,9 +1,9 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v3.0.1';
+const VERSION = 'v3.1.0';
 /*
- * Refactor: Προσθήκη external handlers onReadyExternal/onErrorExternal + handler-first με hooks (beforeTransition/afterTransition).
- * ΔΙΟΡΘΩΣΗ: Αφαίρεση dynamic import. Χρήση στατικού import getBehaviorPlan από './policies.js'.
- * Public API: onStateChangeExternal(ctrl, e) (υφιστάμενο) + onReadyExternal(ctrl, e), onErrorExternal(ctrl, e).
+ * Refactor: External handlers onReadyExternal/onErrorExternal + handler-first με hooks (beforeTransition/afterTransition).
+ * ΝΕΟ: Soft-freeze reset στον handler PLAYING (ctrl.freezeSoftTasks = false όταν ήταν ενεργό).
+ * Public API: onStateChangeExternal(ctrl, e) + onReadyExternal(ctrl, e) + onErrorExternal(ctrl, e).
  */
 
 // --- Export Version ---
@@ -115,6 +115,23 @@ function handlePlaying(ctrl) {
     ctrl.isPlayingActive = true;
   }
   log(`▶️ Player ${ctrl.index + 1} State → PLAYING`);
+
+  /* ΝΕΟ: Soft-freeze reset (επαναφορά soft tasks) */
+  try {
+    const parts = [];
+    parts.push(isDefined(ctrl?.freezeSoftTasks) === true);
+    const hasFlag = allTrue(parts);
+    if (hasFlag === true) {
+      const needResetParts = [];
+      needResetParts.push(ctrl.freezeSoftTasks === true);
+      const needReset = allTrue(needResetParts);
+      if (needReset === true) {
+        ctrl.freezeSoftTasks = false;
+        log(`🧊 Player ${ctrl.index + 1} Soft-Freeze Reset → Resume soft tasks`);
+      }
+    }
+  } catch (_) {}
+
   /* Scheduling unmute ΜΟΝΟ εδώ */
   scheduleUnmute(ctrl, true);
 }
