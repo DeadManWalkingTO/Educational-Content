@@ -1,9 +1,9 @@
 // --- autoVolume.js ---
-const VERSION = 'v1.3.0';
+const VERSION = 'v1.3.1';
 /*
  * Περιγραφή: Εξωτερικό module για αυτόματες αλλαγές έντασης ήχου.
- *  - scheduleVolumeChanges(player, cfg, durationSec, group): προγραμματίζει αλλαγές έντασης
- *    βάσει διάρκειας & chance, με παράθυρο 10–80% (fallback 20–120s), και guards/play+unmuted με retry.
+ * - scheduleVolumeChanges(player, cfg, durationSec, group, ctrl): προγραμματίζει αλλαγές έντασης
+ *   βάσει διάρκεια & chance, με παράθυρο 10–80% (fallback 20–120s), και guards (playing+unmuted) με retry.
  */
 
 // --- Export Version ---
@@ -11,7 +11,7 @@ export function getVersion() {
   return VERSION;
 }
 
-// Όνομα αρχείου για logging.
+/* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
 // Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
@@ -23,6 +23,13 @@ import { stats } from './globals.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
+
+/**
+ * - ΝΕΟ: freeze-aware: αν ctrl.freezeSoftTasks === true, παραλείπουμε την αλλαγή κοντά στο threshold.
+ * - scheduleMicroAdjust(player, durationSec, group, ctrl): micro-adjust προς το τέλος (≥600s), επίσης freeze-aware.
+ */
+
+/* ========================= Module Code ========================= */
 
 // Εσωτερικοί guards για YT player
 function _can(obj, methodName) {
@@ -78,16 +85,23 @@ function _isMuted(p) {
 }
 
 /** Wrapper: τρέξε task μόνο όταν παίζει & είναι unmuted, αλλιώς retry */
-function _whenPlayingAndUnmuted(player, attemptTask, retryMinMs, retryMaxMs, group, tag) {
+function _whenPlayingAndUnmuted(player, attemptTask, retryMinMs, retryMaxMs, group, tag, ctrl = null) {
   const attempt = () => {
     try {
       const p = player;
-      // undefined/null guard
       if (typeof p === 'undefined') {
         return;
       }
       if (p === null) {
         return;
+      }
+      // ΝΕΟ: Παράλειψη αν υπάρχει freeze κοντά στο threshold
+      if (ctrl !== null) {
+        if (typeof ctrl?.freezeSoftTasks !== 'undefined') {
+          if (ctrl.freezeSoftTasks === true) {
+            return;
+          }
+        }
       }
       // muted -> retry
       if (_isMuted(p) === true) {
@@ -146,13 +160,14 @@ function _applyVolume(player, range) {
 }
 
 /**
- * Προγραμμάτισε τις αλλαγές έντασης για ένα βίντεο.
+ * Προγραμματίσε τις αλλαγές έντασης για ένα βίντεο.
  * @param {any} player - YouTube Iframe API player
  * @param {{volumeChangeChance:number, volumeRange:number[]}} cfg - από HumanMode profile
- * @param {number} durationSec - διάρκεια βίντεο σε sec (0 αν άγνωστη)
+ * @param {number} durationSec - διάρκεια βίντεο
  * @param {string} group - group id για scheduleSafe
+ * @param {any} ctrl - ΝΕΟ: PlayerController για freeze-aware
  */
-export function scheduleVolumeChanges(player, cfg, durationSec, group = 'pc:volume') {
+export function scheduleVolumeChanges(player, cfg, durationSec, group = 'pc:volume', ctrl = null) {
   const canVol = allTrue([typeof player !== 'undefined', player !== null, _can(player, 'setVolume') === true]);
   if (canVol !== true) {
     return;
@@ -161,7 +176,6 @@ export function scheduleVolumeChanges(player, cfg, durationSec, group = 'pc:volu
   if (isNumber(durationSec) === true) {
     d = durationSec;
   }
-
   // Πλήθος αλλαγών (ίδια λογική με PlayerController)
   let baseCount = 1;
   if (d >= 300) {
@@ -184,27 +198,24 @@ export function scheduleVolumeChanges(player, cfg, durationSec, group = 'pc:volu
   if (planned < 0) {
     planned = 0;
   }
-
   let rangeArr = [10, 50];
   if (Array.isArray(cfg?.volumeRange) === true) {
     rangeArr = cfg.volumeRange;
   }
-
-  // Χρονικό παράθυρο (10–80% ή fallback 20–120s)
+  // Παράθυρο 10–80% (fallback 20–120s)
   let fromMs = 20000;
   let toMs = 120000;
   if (d > 0) {
     fromMs = Math.floor(d * 0.1) * 1000;
     toMs = Math.floor(d * 0.8) * 1000;
   }
-
   let i = 0;
   while (i < planned) {
     const delaySec = rndInt(Math.floor(fromMs / 1000), Math.floor(toMs / 1000));
     const delayMs = delaySec * 1000;
     scheduleSafe(
       () => {
-        _whenPlayingAndUnmuted(player, () => _applyVolume(player, rangeArr), 800, 2000, group, 'volume-change');
+        _whenPlayingAndUnmuted(player, () => _applyVolume(player, rangeArr), 800, 2000, group, 'volume-change', ctrl);
       },
       delayMs,
       group,
@@ -219,8 +230,9 @@ export function scheduleVolumeChanges(player, cfg, durationSec, group = 'pc:volu
  * @param {any} player
  * @param {number} durationSec
  * @param {string} group
+ * @param {any} ctrl - ΝΕΟ: PlayerController για freeze-aware
  */
-export function scheduleMicroAdjust(player, durationSec, group = 'pc:volume') {
+export function scheduleMicroAdjust(player, durationSec, group = 'pc:volume', ctrl = null) {
   let d = 0;
   if (isNumber(durationSec) === true) {
     d = durationSec;
@@ -235,7 +247,6 @@ export function scheduleMicroAdjust(player, durationSec, group = 'pc:volume') {
   const microFrom = Math.floor(d * 0.85);
   const microTo = Math.floor(d * 0.95);
   const microDelayMs = rndInt(microFrom, microTo) * 1000;
-
   const microTask = () => {
     try {
       const cur = player.getVolume();
@@ -253,10 +264,9 @@ export function scheduleMicroAdjust(player, durationSec, group = 'pc:volume') {
       log(`🔉 Micro-Volume Adjust → ${tgt}% (Δ=${delta})`);
     } catch (_) {}
   };
-
   scheduleSafe(
     () => {
-      _whenPlayingAndUnmuted(player, microTask, 800, 2000, group, 'volume-micro');
+      _whenPlayingAndUnmuted(player, microTask, 800, 2000, group, 'volume-micro', ctrl);
     },
     microDelayMs,
     group,

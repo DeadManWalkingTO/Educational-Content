@@ -1,5 +1,5 @@
 // --- utils.js ---
-const VERSION = 'v3.1.0';
+const VERSION = 'v3.1.1';
 /*
  * Περιγραφή: Ενιαίο module βοηθητικών συναρτήσεων (λογική, τύποι, χρόνος, τυχαία, μορφοποίηση, JSON, DOM, γεγονότα, logging, scheduler).
  * Αλλαγές: Προσθήκη isDefined/isFiniteNumber, formatMs/fmtMs, deepClone, safeAddEvent/removeEvent/once, log, scheduler API.
@@ -371,7 +371,7 @@ const __SUBSYS_DATA = [
   { file: 'humanMode.js', icon: '🤖', tag: 'HM' },
   { file: 'playerController.js', icon: '🎮', tag: 'PC' },
   { file: 'uiControls.js', icon: '🛠️', tag: 'UI' },
-  { file: 'watchdog.js', icon: '👁️', tag: 'WD' },
+  { file: 'watchdog.js', icon: '🐶', tag: 'WD' },
   { file: 'consoleFilter.js', icon: '🔍', tag: 'CF' },
   { file: 'youtubeReady.js', icon: '⭐', tag: 'YR' },
   { file: 'versionReporter.js', icon: '📦', tag: 'VR' },

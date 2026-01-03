@@ -42,6 +42,7 @@ import { getVersion as getYoutubeReadyVersion } from './youtubeReady.js';
 const log = makeLogger(FILENAME);
 
 /* ========================= Module Code ========================= */
+
 /* ------------------------ Version Retrieval ------------------------ */
 /**
  * Σημείωση: Η έκδοση του Main θα προστεθεί από το main.js (δεν ανήκει στο aggregation εδώ).
