@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v1.4.2';
+const VERSION = 'v1.6.0';
 /*
  * Περιγραφή: Εξωτερικός watchdog για τον έλεγχο "required watch time" ανά PlayerController.
  * Τρέχει περιοδικά, εφαρμόζει gates/cooldowns και προωθεί AutoNext με pacing σαν ENDED.
@@ -18,9 +18,12 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 // ========================= Imports =========================
-import { repeat, cancel, log, allTrue, anyTrue, isDefined, isNumber, isFunction, nowMs, msToSec, fmtMs, scheduleSafe } from './utils.js';
+import { repeat, cancel, makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, nowMs, msToSec, fmtMs, scheduleSafe } from './utils.js';
 import { controllers, stats } from './globals.js';
 import { autoNextAfterEnded } from './autoNext.js';
+
+/* ========================= Logger ========================= */
+const log = makeLogger(FILENAME);
 
 // ========================= State =========================
 let watchdogTimerId = null;
@@ -157,7 +160,7 @@ function checkController(ctrl) {
     const required = ctrl.plan.watch.requiredWatchTimeSec;
     const played = computePlayedSoFarSec(ctrl);
 
-    log(`⏱️ [WD] Player ${ctrl.index + 1} Progress → Played=${played}s / Required=${required}s`);
+    log(`⏱️ Player ${ctrl.index + 1} Progress → Played=${played}s / Required=${required}s`);
 
     const canFire = canFireAutoNext(ctrl, required, played);
     if (canFire === true) {
@@ -179,7 +182,7 @@ function checkController(ctrl) {
         // Stats
         stats.autoNext = isNumber(stats?.autoNext) === true ? stats.autoNext + 1 : 1;
 
-        log(`✅ [WD] Player ${ctrl.index + 1} Watch-Time Met → AutoNext Scheduled`);
+        log(`✅ Player ${ctrl.index + 1} Watch-Time Met → AutoNext Scheduled`);
       }
     }
   } catch (_) {}
@@ -212,14 +215,14 @@ export function startWatchdog(intervalMs = 10000) {
   };
 
   watchdogTimerId = repeat(handler, intervalMs, 'wd:global');
-  log(`🛡️ [WD] Watchdog Started → Interval=${msToSec(intervalMs)}s (${fmtMs(intervalMs)})`);
+  log(`🛡️ Watchdog Started → Interval=${msToSec(intervalMs)}s (${fmtMs(intervalMs)})`);
 }
 
 export function stopWatchdog() {
   if (isNumber(watchdogTimerId) === true) {
     cancel(watchdogTimerId);
     watchdogTimerId = null;
-    log('🛡️ [WD] Watchdog → Stopped');
+    log('🛡️ Watchdog → Stopped');
   }
 }
 

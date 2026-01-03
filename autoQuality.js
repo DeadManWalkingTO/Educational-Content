@@ -1,5 +1,5 @@
 // --- autoQuality.js ---
-const VERSION = 'v1.2.4';
+const VERSION = 'v1.4.0';
 /*
  * Περιγραφή: Τυχαίες αλλαγές ποιότητας (YouTube Iframe API) με guards:
  *            εκτέλεση μόνο όταν ο player είναι PLAYING και unmuted.
@@ -11,15 +11,18 @@ export function getVersion() {
   return VERSION;
 }
 
-// Όνομα αρχείου για logging.
+/* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
-// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, rndInt, allTrue, isNumber, isDefined, log } from './utils.js';
+import { scheduleSafe, rndInt, allTrue, isNumber, isDefined, makeLogger } from './utils.js';
 import { stats } from './globals.js';
+
+/* ========================= Logger ========================= */
+const log = makeLogger(FILENAME);
 
 /**
  * Πολιτική:  Προτιμώμενη σειρά βάσει διάρκειας (<300s ή ≥300s) με αυστηρό bias:
@@ -215,7 +218,7 @@ function _applyQuality(player, quality, tag) {
       stats.qualityChanges = (Number(stats.qualityChanges) || 0) + 1;
     } catch (_) {}
 
-    log(`📺 [AQ] ${String(tag)} Quality → ${String(quality)}`);
+    log(`📺 ${String(tag)} Quality → ${String(quality)}`);
   } catch (_) {}
 }
 
@@ -298,13 +301,13 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
 
   // 🧪 Debug Log #1: planned & window & dur (με tag παίκτη)
   try {
-    const msg = `🧪 [AQ] ${String(tag)} QualityScheduler → Planned=${String(planned)} Window=${String(windowSec)}s Dur=${String(d)}s`;
+    const msg = `🧪 ${String(tag)} QualityScheduler → Planned=${String(planned)} Window=${String(windowSec)}s Dur=${String(d)}s`;
     log(msg);
   } catch (_) {}
 
   if (planned === 0) {
     try {
-      log(`🧪 [AQ] ${String(tag)} QualityScheduler → No Tasks Scheduled (BaseCount Or Chance Too Low)`);
+      log(`🧪 ${String(tag)} QualityScheduler → No Tasks Scheduled (BaseCount Or Chance Too Low)`);
     } catch (_) {}
     return;
   }
@@ -340,7 +343,7 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
     // 🧪 Debug Log #2: scheduling info με σειρά προτίμησης (με tag παίκτη)
     try {
       const ord = Array.isArray(preferredOrder) === true ? preferredOrder.join('>') : '-';
-      const msg2 = `🧪 [AQ] ${String(tag)} QualityScheduler → Scheduling in ${String(Math.round(delayMs / 1000))}s (Order=${ord})`;
+      const msg2 = `🧪 ${String(tag)} QualityScheduler → Scheduling in ${String(Math.round(delayMs / 1000))}s (Order=${ord})`;
       log(msg2);
     } catch (_) {}
 

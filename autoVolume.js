@@ -1,5 +1,5 @@
 // --- autoVolume.js ---
-const VERSION = 'v1.1.2';
+const VERSION = 'v1.3.0';
 /*
  * Περιγραφή: Εξωτερικό module για αυτόματες αλλαγές έντασης ήχου.
  *  - scheduleVolumeChanges(player, cfg, durationSec, group): προγραμματίζει αλλαγές έντασης
@@ -18,8 +18,11 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, rndInt, allTrue, isNumber, clamp, log } from './utils.js';
+import { scheduleSafe, rndInt, allTrue, isNumber, clamp, makeLogger } from './utils.js';
 import { stats } from './globals.js';
+
+/* ========================= Logger ========================= */
+const log = makeLogger(FILENAME);
 
 // Εσωτερικοί guards για YT player
 function _can(obj, methodName) {
@@ -137,7 +140,7 @@ function _applyVolume(player, range) {
           stats.volumeChanges = 1;
         }
       } catch (_) {}
-      log(`🔊 [AV] Volume → ${target}%`);
+      log(`🔊 Volume → ${target}%`);
     }
   } catch (_) {}
 }
@@ -247,7 +250,7 @@ export function scheduleMicroAdjust(player, durationSec, group = 'pc:volume') {
           stats.volumeChanges = 1;
         }
       } catch (_) {}
-      log(`🔉[AV] Micro-Volume Adjust → ${tgt}% (Δ=${delta})`);
+      log(`🔉 Micro-Volume Adjust → ${tgt}% (Δ=${delta})`);
     } catch (_) {}
   };
 

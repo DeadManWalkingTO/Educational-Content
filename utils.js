@@ -1,5 +1,5 @@
 // --- utils.js ---
-const VERSION = 'v2.5.2';
+const VERSION = 'v3.1.0';
 /*
  * Περιγραφή: Ενιαίο module βοηθητικών συναρτήσεων (λογική, τύποι, χρόνος, τυχαία, μορφοποίηση, JSON, DOM, γεγονότα, logging, scheduler).
  * Αλλαγές: Προσθήκη isDefined/isFiniteNumber, formatMs/fmtMs, deepClone, safeAddEvent/removeEvent/once, log, scheduler API.
@@ -23,8 +23,8 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
   (B) Time/Random/Format (ts/nowMs/sleep/formatMs/randomInt/...)
   (C) JSON/Clone (safeJsonParse/safeJsonStringify/deepClone)
   (D) DOM/Events (domReady/safeAddEvent/removeEvent/once)
-  (D2) Logging (log)
-  (E) Scheduler API (delay/repeat/cancel/groupCancel/debounce/throttle/backoff/jitter/retry/pause/resume/flush/getStats)
+  (E) Logging (log)
+  (F) Scheduler API (delay/repeat/cancel/groupCancel/debounce/throttle/backoff/jitter/retry/pause/resume/flush/getStats)
   scheduleSafe(fn, ms, group, label)
 */
 
@@ -325,12 +325,125 @@ export function once(fn) {
   };
 }
 
-// ======================= (D2) Logging =======================
+// ======================= (E) Logging =======================
+
+/** Basename από URL ή path */
+export function basename(urlOrName) {
+  const s = String(urlOrName ?? '');
+  if (s.length === 0) return '';
+  const parts = s.split('/');
+  return parts.pop() || '';
+}
+
+/** Αφαίρεση επέκτασης */
+export function stripExt(fname) {
+  if (!fname) return '';
+  const i = fname.lastIndexOf('.');
+  return i > 0 ? fname.slice(0, i) : fname;
+}
+
+/** Μετατροπή σε PascalCase από camel/kebab/snake/τελείες */
+export function toPascalCase(raw) {
+  if (!raw) return '';
+  const primary = raw.split(/[._-]+/g).filter(Boolean);
+  const tokens = [];
+  for (const t of primary) tokens.push(...t.split(/(?=[A-Z])/).filter(Boolean));
+  return tokens
+    .map((x) => x.toLowerCase())
+    .map((x) => x.charAt(0).toUpperCase() + x.slice(1))
+    .join('');
+}
+
+/**
+ * SINGLE SOURCE OF TRUTH για υποσυστήματα:
+ * - file: basename αρχείου
+ * - icon: emoji υποσυστήματος
+ * - tag (προαιρετικό): 2-γράμματη ετικέτα
+ *
+ * Αν χρειαστεί, προσθέτεις εδώ νέα modules, ΜΙΑ φορά.
+ */
+const __SUBSYS_DATA = [
+  { file: 'HTML', icon: '🌐', tag: 'GL' },
+  { file: 'Utilities', icon: '🧩', tag: 'GL' },
+  /*{ file: 'utils.js', icon: '🧩', tag: 'UT' },*/
+  { file: 'globals.js', icon: '🌍', tag: 'GL' },
+  { file: 'lists.js', icon: '📋', tag: 'LS' },
+  { file: 'humanMode.js', icon: '🤖', tag: 'HM' },
+  { file: 'playerController.js', icon: '🎮', tag: 'PC' },
+  { file: 'uiControls.js', icon: '🛠️', tag: 'UI' },
+  { file: 'watchdog.js', icon: '👁️', tag: 'WD' },
+  { file: 'consoleFilter.js', icon: '🔍', tag: 'CF' },
+  { file: 'youtubeReady.js', icon: '⭐', tag: 'YR' },
+  { file: 'versionReporter.js', icon: '📦', tag: 'VR' },
+  { file: 'policies.js', icon: '⚖️', tag: 'PL' },
+  { file: 'playerStateEngine.js', icon: '💠', tag: 'PS' },
+  { file: 'autoNext.js', icon: '🔜', tag: 'AN' },
+  { file: 'autoUnmute.js', icon: '🔔', tag: 'AU' },
+  { file: 'autoVolume.js', icon: '📢', tag: 'AV' },
+  { file: 'autoSeek.js', icon: '🎯', tag: 'AS' },
+  { file: 'autoPause.js', icon: '✋', tag: 'AP' },
+  { file: 'videoPicker.js', icon: '🎦', tag: 'VP' },
+  { file: 'autoQuality.js', icon: '🏅', tag: 'AQ' },
+  { file: 'autoRate.js', icon: '⚡', tag: 'AR' },
+  { file: 'main.js', icon: '🏛️', tag: 'MN' },
+];
+
+/**
+ * Κατασκευάζουμε ΜΙΑ ΦΟΡΑ δύο λεξικά:
+ * - byFilename:    'autoNext.js' -> { file, icon, tag, pascalName }
+ * - byPascalName:  'AutoNext'    -> { file, icon, tag, pascalName }
+ */
+const __BY_FILENAME = Object.create(null);
+const __BY_PASCAL = Object.create(null);
+
+(function buildSubsystemIndexes() {
+  for (const row of __SUBSYS_DATA) {
+    if (!row || typeof row.file !== 'string') continue;
+    const file = row.file;
+    const icon = row.icon ?? '✅';
+    const tag = row.tag ?? 'UK';
+    const pascalName = toPascalCase(stripExt(file));
+    const rec = { file, icon, tag, pascalName };
+    __BY_FILENAME[file] = rec;
+    __BY_PASCAL[pascalName] = rec;
+  }
+})();
+
+/** API: από PascalName → icon */
+export function iconForPascal(pascalName) {
+  const rec = __BY_PASCAL[String(pascalName ?? '')];
+  return rec ? rec.icon : '✅';
+}
+
+/** API: από FILENAME/URL → icon */
+export function iconForFilename(urlOrFileName) {
+  const base = basename(urlOrFileName);
+  const rec = __BY_FILENAME[base];
+  return rec ? rec.icon : '✅';
+}
+
+/** API: από FILENAME/URL → πλήρη πληροφορία {icon, tag, pascalName} */
+export function subsystemIconInfo(urlOrFileName) {
+  const base = basename(urlOrFileName);
+  let rec = __BY_FILENAME[base];
+  if (!rec) {
+    // Fallback: παράγουμε pascalName και προσπαθούμε byPascal
+    const pascal = toPascalCase(stripExt(base));
+    rec = __BY_PASCAL[pascal];
+    if (!rec) {
+      // Άγνωστο αρχείο -> προσπαθούμε να επιστρέψουμε κάτι χρήσιμο
+      return { icon: '✅', tag: 'UK', pascalName: pascal || 'Unknown' };
+    }
+  }
+  return { icon: rec.icon, tag: rec.tag, pascalName: rec.pascalName };
+}
+
 // Απλό log: κονσόλα + app event (χωρίς imports)
 export function log(msg) {
   const s = String(msg);
   const time = typeof ts === 'function' ? ts() : new Date().toLocaleTimeString();
-  const full = `[${time}] ${s}`;
+  const icon = iconForFilename(import.meta.url.split('/').pop());
+  const full = `[${time}] ${icon} ${s}`;
   console.log(full);
   try {
     if (typeof document !== 'undefined') {
@@ -342,7 +455,27 @@ export function log(msg) {
   }
 }
 
-// ======================= (E) Scheduler API (χωρίς imports) =======================
+// Δεμένος logger για συγκεκριμένο αρχείο/URL
+export function makeLogger(urlOrFileName) {
+  const callerFile = basename(urlOrFileName);
+  return function boundLog(msg) {
+    const s = String(msg);
+    const time = ts();
+    const icon = iconForFilename(callerFile);
+    const full = `[${time}] ${icon} / ${s}`;
+
+    console.log(full);
+    try {
+      if (typeof document !== 'undefined') {
+        const ev = new CustomEvent('app:log', { detail: { msg: s, ts: time, full } });
+        document.dispatchEvent(ev);
+      }
+    } catch (_) {}
+    return full;
+  };
+}
+
+// ======================= (F) Scheduler API (χωρίς imports) =======================
 const _jobs = new Map();
 let _nextId = 1;
 const _stats = { created: 0, canceled: 0, paused: 0, resumed: 0, ran: 0 };

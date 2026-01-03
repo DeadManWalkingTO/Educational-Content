@@ -1,5 +1,5 @@
 // --- videoPicker.js ---
-const VERSION = 'v1.2.2';
+const VERSION = 'v1.4.0';
 /*
  * Επιλογή videoId από λίστες main/alt με χρήση βοηθητικών συναρτήσεων utils.js.
  * Καθαρή (pure) συνάρτηση: δεν αλλάζει είσοδο, δεν κάνει scheduling, δεν γράφει σε global state.
@@ -17,7 +17,11 @@ const FILENAME = import.meta.url.split('/').pop();
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
-import { isDefined, isNonEmptyArray, isFiniteNumber, clamp, randomFloat, rndInt, log } from './utils.js';
+/* ========================= Imports ========================= */
+import { isDefined, isNonEmptyArray, isFiniteNumber, clamp, randomFloat, rndInt, makeLogger } from './utils.js';
+
+/* ========================= Logger ========================= */
+const log = makeLogger(FILENAME);
 
 /**
  * Επιλέγει ένα videoId από τις δοθείσες λίστες, σύμφωνα με mainProbability.
@@ -84,7 +88,7 @@ export function pickVideoId(mainList, altList, mainProbability = 0.5) {
   // Logging (safe)
   try {
     const pStr = `${Math.round(pMain * 100)}%`;
-    log(`🎲 [VP] Επιλογή Λίστας: ${source} p=${pStr}`);
+    log(`🎲 Επιλογή Λίστας: ${source} p=${pStr}`);
   } catch (_) {}
 
   return { id, source, size: len };

@@ -1,5 +1,5 @@
 // --- consoleFilter.js ---
-const VERSION = 'v3.6.2';
+const VERSION = 'v3.8.0';
 /*
  * Τυποποιημένο wrapping της global console με state-machine και tagging.
  * Προωθεί non-critical logs (error/warn/info/log) σε επιλεγμένο level με prefix tag,
@@ -18,7 +18,10 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { isDefined, isNonEmptyArray, isString, anyTrue, allTrue, safeJsonStringify, log } from './utils.js';
+import { isDefined, isNonEmptyArray, isString, anyTrue, allTrue, safeJsonStringify, makeLogger } from './utils.js';
+
+/* ========================= Logger ========================= */
+const log = makeLogger(FILENAME);
 
 // Εσωτερική κατάσταση & original bindings
 let _installed = false;
@@ -98,7 +101,7 @@ function matchAnyArg(args, regexList) {
       i = i + 1;
     }
   } catch (err) {
-    log(`❌ [CF] ConsoleFilter → Error ${err}`);
+    log(`❌ ConsoleFilter → Error ${err}`);
   }
   return false;
 }
@@ -132,7 +135,7 @@ function matchSourceHints(args, sources) {
       i = i + 1;
     }
   } catch (err) {
-    log(`❌ [CF] ConsoleFilter → Error ${err}`);
+    log(`❌ ConsoleFilter → Error ${err}`);
   }
   return false;
 }

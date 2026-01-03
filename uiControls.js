@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-const VERSION = 'v3.20.2';
+const VERSION = 'v4.1.0';
 /*
  * Κεντρικό χειριστήριο UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
  * - Μετά από επιτυχές reload λιστών γίνεται broadcast του event 'lists:updated'
@@ -19,8 +19,11 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, stats } from './globals.js';
-import { rndInt, log, allTrue, isDefined, isNonEmptyArray, safeAddEvent, domReady, debounce } from './utils.js';
+import { rndInt, makeLogger, allTrue, isDefined, isNonEmptyArray, safeAddEvent, domReady, debounce } from './utils.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
+
+/* ========================= Logger ========================= */
+const log = makeLogger(FILENAME);
 
 /* ========================= Helpers ========================= */
 function byId(id) {
@@ -85,7 +88,7 @@ export function setControlsEnabled(enabled) {
       touched++;
     }
   }
-  log(`✅ [UI] Controls ${enabled ? 'Enabled' : 'Disabled'} (${touched} Στοιχεία)`);
+  log(`✅ Controls ${enabled ? 'Enabled' : 'Disabled'} (${touched} Στοιχεία)`);
   return touched;
 }
 
@@ -110,19 +113,19 @@ function stopAll() {
       if (isReadyController(c)) {
         try {
           c.player.stopVideo();
-          log(`⏹️ [UI] [StopAll] Player ${c.index + 1} Stopped (Step ${step}/${shuffled.length})`);
+          log(`⏹️ [StopAll] Player ${c.index + 1} Stopped (Step ${step}/${shuffled.length})`);
         } catch {
-          noteError(`❌ [UI] Player ${c.index + 1} Stop Error`);
+          noteError(`❌ Player ${c.index + 1} Stop Error`);
         }
       } else {
-        noteError(`❌ [UI] Player ${c ? c.index + 1 : '?'} Stop Skipped → Not Initialized`);
+        noteError(`❌ Player ${c ? c.index + 1 : '?'} Stop Skipped → Not Initialized`);
       }
     }, totalDelay);
 
     pushStopTimer(timer);
   }
 
-  log(`⏹️ [UI] [StopAll] Scheduled ${shuffled.length} Players → Συνολική Εκτίμηση ~${Math.round(totalDelay / 1000)}s`);
+  log(`⏹️ [StopAll] Scheduled ${shuffled.length} Players → Συνολική Εκτίμηση ~${Math.round(totalDelay / 1000)}s`);
 }
 
 /**
@@ -139,9 +142,9 @@ function restartAll() {
     if (isReadyController(c)) {
       try {
         c.loadNextVideo(c.player);
-        log(`🔄 [UI] [RestartAll] Player ${c.index + 1} LoadNext`);
+        log(`🔄 [RestartAll] Player ${c.index + 1} LoadNext`);
       } catch (e) {
-        noteError(`❌ [UI] Player ${c.index + 1} LoadNext Error → ${e}`);
+        noteError(`❌ Player ${c.index + 1} LoadNext Error → ${e}`);
       }
       continue;
     }
@@ -151,19 +154,19 @@ function restartAll() {
     const newId = pickRandomId(source);
 
     if (!isDefined(newId)) {
-      noteError(`❌ [UI] Player ${c ? c.index + 1 : '?'} Restart Skipped → No Videos Available`);
+      noteError(`❌ Player ${c ? c.index + 1 : '?'} Restart Skipped → No Videos Available`);
       continue;
     }
 
     try {
       c.init(newId);
-      log(`🔄 [UI] [RestartAll] Player ${c.index + 1} Restart -> ${newId} (Source:${useMain ? 'Main' : 'Alt'})`);
+      log(`🔄 [RestartAll] Player ${c.index + 1} Restart -> ${newId} (Source:${useMain ? 'Main' : 'Alt'})`);
     } catch (e) {
       noteError(`❌ Player ${c.index + 1} Restart Error → ${e}`);
     }
   }
 
-  log(`🔄 [UI] RestartAll → Completed`);
+  log(`🔄 RestartAll → Completed`);
 }
 
 /**
@@ -172,14 +175,14 @@ function restartAll() {
 function toggleTheme() {
   try {
     if (!isDefined(document?.body)) {
-      noteError(`❌ [UI] Theme Toggle Error → Body Not Available`);
+      noteError(`❌ Theme Toggle Error → Body Not Available`);
       return;
     }
     document.body.classList.toggle('light');
     const mode = document.body.classList.contains('light') ? 'Light' : 'Dark';
-    log(`🌙 [UI] Theme → ${mode} Mode`);
+    log(`🌙 Theme → ${mode} Mode`);
   } catch (e) {
-    noteError(`❌ [UI] Theme Toggle Error → ${e}`);
+    noteError(`❌ Theme Toggle Error → ${e}`);
   }
 }
 
@@ -190,10 +193,10 @@ function clearLogs() {
   const panel = byId('activityPanel');
   if (allTrue([isDefined(panel), hasEntries(panel)])) {
     panel.innerHTML = '';
-    log(`🧹 [UI] Logs Cleared → All Entries Removed`);
+    log(`🧹 Logs Cleared → All Entries Removed`);
     return true;
   }
-  log(`⚠️ [UI] Clear Logs → Nothing To Remove`);
+  log(`⚠️ Clear Logs → Nothing To Remove`);
   return false;
 }
 
@@ -204,7 +207,7 @@ export async function copyLogs() {
   const panel = byId('activityPanel');
   const statsPanel = byId('statsPanel');
   if (!hasEntries(panel)) {
-    log(`⚠️ [UI] Copy Logs → No Entries`);
+    log(`⚠️ Copy Logs → No Entries`);
     return false;
   }
   const logsText = buildLogsText(panel);
@@ -213,15 +216,15 @@ export async function copyLogs() {
 
   try {
     await navigator.clipboard.writeText(finalText);
-    log(`✅ [UI] Logs Copied Via Clipboard API → ${panel.children.length} Entries + Stats`);
+    log(`✅ Logs Copied Via Clipboard API → ${panel.children.length} Entries + Stats`);
     return true;
   } catch {
     const ok = unsecuredCopyToClipboard(finalText);
     if (ok) {
-      log(`📋 [UI] (Fallback) Logs Copied → ${panel.children.length} Entries + Stats`);
+      log(`📋 (Fallback) Logs Copied → ${panel.children.length} Entries + Stats`);
       return true;
     }
-    noteError(`❌ [UI] Copy Logs Failed (Fallback)`);
+    noteError(`❌ Copy Logs Failed (Fallback)`);
     return false;
   }
 }
@@ -249,12 +252,12 @@ export async function bindUiEvents() {
       safeAddEvent(el, 'click', handler);
       bound++;
     } else {
-      log(`⚠️ [UI] Bind Skipped -> Missing Element #${id}`);
+      log(`⚠️ Bind Skipped -> Missing Element #${id}`);
     }
   }
 
   __uiBound = true;
-  log(`✅ [UI] Events Bound (uiControls.js ${VERSION}) -> ${bound} handlers`);
+  log(`✅ Events Bound (uiControls.js ${VERSION}) -> ${bound} handlers`);
   return bound;
 }
 
@@ -268,7 +271,7 @@ export async function reloadList() {
     const altList = ret.altList;
     setMainList(mainList);
     setAltList(altList);
-    log(`📂 [UI] Lists Applied -> Main: ${mainList.length} - Alt: ${altList.length}`);
+    log(`📂 Lists Applied -> Main: ${mainList.length} - Alt: ${altList.length}`);
 
     if (typeof document !== 'undefined') {
       const detail = {
@@ -278,12 +281,12 @@ export async function reloadList() {
         altSource: ret?.meta?.altSource ?? 'unknown',
       };
       document.dispatchEvent(new CustomEvent('lists:updated', { detail }));
-      log(`📣 [UI] Event 'Lists:Updated' Dispatched → Main:${detail.mainCount} Alt:${detail.altCount}`);
+      log(`📣 Event 'Lists:Updated' Dispatched → Main:${detail.mainCount} Alt:${detail.altCount}`);
     }
     return true;
   } catch (err) {
     stats.errors = (stats.errors ?? 0) + 1;
-    log(`❌ [UI] Reload Failed → ${err}`);
+    log(`❌ Reload Failed → ${err}`);
     return false;
   }
 }

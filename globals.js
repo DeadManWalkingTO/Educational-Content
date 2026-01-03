@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v4.23.6';
+const VERSION = 'v5.1.0';
 /*
 Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
 Αναθεώρηση: Αφαίρεση τοπικού scheduler και χρήση των APIs από utils.js (delay/cancel/scheduleSafe/rndInt).
@@ -18,7 +18,10 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { log, ts, isDefined, isNonEmptyArray, deepClone, cancel, secToMs } from './utils.js';
+import { makeLogger, ts, isDefined, isNonEmptyArray, deepClone, cancel, secToMs } from './utils.js';
+
+/* ========================= Logger ========================= */
+const log = makeLogger(FILENAME);
 
 /** --- Console Filter (external) Early Install - Start --- */
 /*
@@ -118,7 +121,7 @@ export function getAltList() {
 export function setMainList(list) {
   const next = Array.isArray(list) ? deepClone(list) : [];
   _mainList = next;
-  log(`📂 [GL] Main list applied → ${_mainList.length} videos`);
+  log(`📂 Main list applied → ${_mainList.length} videos`);
 }
 
 /**
@@ -128,7 +131,7 @@ export function setMainList(list) {
 export function setAltList(list) {
   const next = Array.isArray(list) ? deepClone(list) : [];
   _altList = next;
-  log(`📂 [GL] Alt List Applied → ${_altList.length} Videos`);
+  log(`📂 Alt List Applied → ${_altList.length} Videos`);
 }
 
 /**
@@ -156,7 +159,7 @@ const stopTimers = [];
  */
 export function setIsStopping(flag) {
   isStopping = !!flag;
-  log(`⏹ [GL] isStopping → ${isStopping}`);
+  log(`⏹ isStopping → ${isStopping}`);
 }
 
 /**
@@ -181,7 +184,7 @@ export function clearStopTimers() {
       // no-op
     }
   }
-  log('🧹 [GL] Stop Timers → cleared');
+  log('🧹 Stop Timers → cleared');
 }
 /** --- Stop All state & helpers - End --- */
 
@@ -195,7 +198,7 @@ export let hasUserGesture = false;
 /** Θέτει hasUserGesture = true και το καταγράφει. */
 export function setUserGesture() {
   hasUserGesture = true;
-  log(`💻 [GL] Αλληλεπίδραση Χρήστη`);
+  log(`💻 Αλληλεπίδραση Χρήστη`);
 }
 /** --- User gesture flag - End --- */
 

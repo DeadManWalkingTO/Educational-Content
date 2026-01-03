@@ -1,5 +1,5 @@
 // --- policies.js ---
-const VERSION = 'v1.14.2';
+const VERSION = 'v1.16.0';
 /*
  * Περιγραφή: Module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
  * Τροποποίηση: Συνεπές στυλ 'else if' σε όλες τις διακλαδώσεις + τυχαιότητα στο capSec με profile tuning.
@@ -18,7 +18,10 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { rndInt, randomFloat, clamp, isFiniteNumber, isString, log } from './utils.js';
+import { rndInt, randomFloat, clamp, isFiniteNumber, isString, makeLogger } from './utils.js';
+
+/* ========================= Logger ========================= */
+const log = makeLogger(FILENAME);
 
 /* ========================= Helpers ========================= */
 /** Τυχαιότητα για capSec με προσαρμογή ανά profile */
@@ -54,7 +57,7 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown') {
   }
   if (valid !== true) {
     try {
-      log(`🧮 [PL] Required=15s (Fallback), Duration=${String(durationSec)} (Invalid)`);
+      log(`🧮 Required=15s (Fallback), Duration=${String(durationSec)} (Invalid)`);
     } catch (_) {}
     return 15;
   }
@@ -98,7 +101,7 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown') {
 
   try {
     const pctStr = (pct * 100).toFixed(1);
-    log(`🧮 [PL] Required=${required}s (D=${d} - Pct=${pctStr}% - CapSec=${capSec}s - Raw=${requiredRaw}s - Profile=${String(profileName)})`);
+    log(`🧮 Required=${required}s (D=${d} - Pct=${pctStr}% - CapSec=${capSec}s - Raw=${requiredRaw}s - Profile=${String(profileName)})`);
   } catch (_) {}
 
   return required;

@@ -1,5 +1,5 @@
 // --- autoUnmute.js ---
-const VERSION = 'v2.6.2';
+const VERSION = 'v2.8.0';
 /*
  * scheduleUnmute(ctrl, stateIsPlaying): parsing plan.unmute (base/extra/grace), debounce, flags, scheduling.
  * applyUnmute(player, plan, ctrl): unMute + setVolume + micro-adjust (υφιστάμενη λογική).
@@ -18,9 +18,11 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { allTrue, isFunction, isNumber, clamp, log, rndInt, scheduleSafe } from './utils.js';
+import { allTrue, isFunction, isNumber, clamp, makeLogger, rndInt, scheduleSafe } from './utils.js';
 import { stats } from './globals.js';
 
+/* ========================= Logger ========================= */
+const log = makeLogger(FILENAME);
 // Εσωτερικό helper: 1-based index για logging.
 function _shownIndex(ctrl) {
   try {
@@ -154,7 +156,7 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
     // Schedule
     ctrl.unmuteScheduled = true;
     const totalSecShown = Math.round(finalDelayMs / 1000);
-    log(`🔕 [AU] Player ${String(ctrl.index + 1)} Unmute Scheduled After ${String(totalSecShown)}s`);
+    log(`🔕 Player ${String(ctrl.index + 1)} Unmute Scheduled After ${String(totalSecShown)}s`);
     scheduleSafe(
       function () {
         try {
@@ -236,7 +238,7 @@ export function applyUnmute(player, plan, ctrl = null) {
     try {
       stats.volumeChanges = (stats.volumeChanges ?? 0) + 1;
     } catch (_) {}
-    log(`🔊 [AU] Player ${idxShown} Auto Unmute -> ${String(target)}%`);
+    log(`🔊 Player ${idxShown} Auto Unmute -> ${String(target)}%`);
   } catch (_) {}
 }
 

@@ -1,5 +1,5 @@
 // --- autoNext.js ---
-const VERSION = 'v1.10.2';
+const VERSION = 'v1.14.0';
 /*
  * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR + scheduler.
  * Τροποποίηση: Η επιλογή videoId γίνεται μέσω του κοινoύ videoPicker.js.
@@ -18,9 +18,12 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, log, rndInt, randomFloat, isDefined, isNumber, allTrue, isFunction, isNonEmptyArray } from './utils.js';
+import { scheduleSafe, makeLogger, rndInt, randomFloat, isDefined, isNumber, allTrue, isFunction, isNonEmptyArray } from './utils.js';
 import { AUTO_NEXT_LIMIT_PER_PLAYER, stats, MAIN_PROBABILITY } from './globals.js';
 import { pickVideoId } from './videoPicker.js';
+
+/* ========================= Logger ========================= */
+const log = makeLogger(FILENAME);
 
 /* ========================= AutoNext counters ========================= */
 let autoNextCounter = 0;
@@ -48,7 +51,7 @@ function resetAutoNextCountersIfNeeded() {
       autoNextPerPlayer[i] = 0;
       i = i + 1;
     }
-    log('🔄 [AN] AutoNext Counters Reset (Hourly)');
+    log('🔄 AutoNext Counters Reset (Hourly)');
   }
 }
 export function canAutoNext(playerIndex) {
@@ -150,7 +153,7 @@ function finalizeAutoNext(ctrl, picked) {
   } catch (_) {}
   try {
     log(
-      `⏭️ [AN] Player ${ctrl.index + 1} AutoNext → ${String(isDefined(picked?.id) === true ? picked.id : '-')}` +
+      `⏭️ Player ${ctrl.index + 1} AutoNext → ${String(isDefined(picked?.id) === true ? picked.id : '-')}` +
         ` (Source:${String(isDefined(picked?.source) === true ? picked.source : '-')}, size:${String(isNumber(picked?.size) === true ? picked.size : 0)})`
     );
   } catch (_) {}
@@ -168,12 +171,12 @@ function runAutoNext(ctrl, ctx, label) {
   const canLoad = isDefined(ctrl?.player) === true ? (isDefined(ctrl?.player?.loadVideoById) === true ? (typeof ctrl.player.loadVideoById === 'function' ? true : false) : false) : false;
   if (canLoad !== true) {
     stats.errors = isNumber(stats?.errors) === true ? stats.errors + 1 : 1;
-    log('❌ [AN] AutoNext Aborted → Player/LoadVideoById Unavailable');
+    log('❌ AutoNext Aborted → Player/LoadVideoById Unavailable');
     return;
   }
   if (picked.id === null) {
     stats.errors = isNumber(stats?.errors) === true ? stats.errors + 1 : 1;
-    log('❌ [AN] AutoNext Aborted → No Available List');
+    log('❌ AutoNext Aborted → No Available List');
     return;
   }
   ctrl.player.loadVideoById(picked.id);
@@ -190,13 +193,13 @@ function scheduleAutoNext(ctrl, trigger) {
   if (decision.allow !== true) {
     const why = String(decision.reason);
     const kind = trigger === 'ended' ? 'ENDED' : trigger === 'error' ? 'ERROR' : 'ENDED';
-    log(`⛔ [AN] Player ${ctrl.index + 1} AutoNext Blocked (${kind}) — ${why}`);
+    log(`⛔ Player ${ctrl.index + 1} AutoNext Blocked (${kind}) — ${why}`);
     return;
   }
   const delayMs = computeAutoNextDelay(ctx);
   const kind = trigger === 'error' ? 'ERROR' : 'ENDED';
   const label = String(trigger) + '-autonext';
-  log(`⏳ [AN] Player ${ctrl.index + 1} AutoNext Scheduled (${kind}) — start After ${trigger === 'error' ? delayMs : Math.round(delayMs / 1000) + 's'}`);
+  log(`⏳ Player ${ctrl.index + 1} AutoNext Scheduled (${kind}) — start After ${trigger === 'error' ? delayMs : Math.round(delayMs / 1000) + 's'}`);
   scheduleSafe(
     function () {
       runAutoNext(ctrl, ctx, label);

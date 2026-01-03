@@ -1,5 +1,5 @@
 // --- autoRate.js ---
-const VERSION = 'v1.2.4';
+const VERSION = 'v1.4.0';
 /*
  * Περιγραφή: Σπάνιες, τυχαίες αλλαγές ταχύτητας αναπαραγωγής (rate).
  *
@@ -18,8 +18,11 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, rndInt, randomFloat, allTrue, isNumber, isFunction, clamp, log } from './utils.js';
+import { scheduleSafe, rndInt, randomFloat, allTrue, isNumber, isFunction, clamp, makeLogger } from './utils.js';
 import { stats } from './globals.js';
+
+/* ========================= Logger ========================= */
+const log = makeLogger(FILENAME);
 
 /**
  * Πολιτική:
@@ -144,7 +147,7 @@ function _applyRateChange(ctrl, targetRate) {
     // 3) Άνοιγμα νέου PLAYING παραθύρου με νέο ρυθμό
     ctrl.currentRate = desired;
     ctrl.playingStart = Date.now();
-    log(`⏩ [AR] Player ${ctrl.index + 1} Rate → x${String(desired)}`);
+    log(`🏃‍♂️ Player ${ctrl.index + 1} Rate → x${String(desired)}`);
   } catch (_) {}
 }
 
@@ -165,7 +168,7 @@ export function resetPlaybackRate(ctrl) {
       } catch (_) {}
     }
     ctrl.currentRate = 1.0;
-    log(`⏮️ [AR] Player ${ctrl.index + 1} Rate reset → x1`);
+    log(`🏃‍♂️ Player ${ctrl.index + 1} Rate reset → x1`);
   } catch (_) {}
 }
 
@@ -241,7 +244,7 @@ export function scheduleRateChanges(ctrl) {
     }
     if (planned === 0) {
       const pct = Math.floor(chance * 100);
-      log(`ℹ️ [AR] Player ${ctrl.index + 1} → RateScheduler (No Changes Planned (chance=${pct}%))`);
+      log(`🏃‍♂️ Player ${ctrl.index + 1} → RateScheduler (No Changes Planned (chance=${pct}%))`);
       return;
     }
 
@@ -258,7 +261,7 @@ export function scheduleRateChanges(ctrl) {
       'rate-change'
     );
 
-    log(`🗓️ [AR] Player ${ctrl.index + 1} RateScheduler: x${String(targetRate)} in ~${delaySec}s (win ${fromSec}-${toSec}s)`);
+    log(`🏃‍♂️ Player ${ctrl.index + 1} RateScheduler: x${String(targetRate)} in ~${delaySec}s (win ${fromSec}-${toSec}s)`);
   } catch (_) {}
 }
 

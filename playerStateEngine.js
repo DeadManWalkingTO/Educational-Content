@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v2.6.2';
+const VERSION = 'v2.8.0';
 /*
  * - Μικρό gate στο onEnded(): αφαιρέθηκε ο fake-end guard (rewind).
  * - Καθαρό finalize ENDED: clearTimers, watchdog-compatible autoNext, accumulators/markers.
@@ -18,11 +18,14 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { log, allTrue, isDefined, isFunction, isNumber, clamp } from './utils.js';
+import { makeLogger, allTrue, isDefined, isFunction, isNumber, clamp } from './utils.js';
 import { autoNextAfterEnded } from './autoNext.js';
 import { scheduleUnmute } from './autoUnmute.js';
 // ΝΕΟ: restartPauseGuard από autoPause.js
 import { restartPauseGuard } from './autoPause.js';
+
+/* ========================= Logger ========================= */
+const log = makeLogger(FILENAME);
 
 /* -------- Helpers -------- */
 function hasYT() {
@@ -122,17 +125,17 @@ function updateAccumulators(ctrl, s) {
 
 /* -------- Handlers -------- */
 function onUnstarted(ctrl) {
-  log(`🎬 [PS] Player ${ctrl.index + 1} State → UNSTARTED`);
+  log(`🎬 Player ${ctrl.index + 1} State → UNSTARTED`);
 }
 function onEnded(ctrl) {
-  log(`🏁 [PS] Player ${ctrl.index + 1} State → ENDED`);
+  log(`🏁 Player ${ctrl.index + 1} State → ENDED`);
 
   // ⚠️ ΑΦΑΙΡΕΘΗΚΕ: Fake-end guard (rewind 2–5s & retry). Δεν εκτελείται πλέον.
 
   try {
     ctrl.clearTimers();
   } catch (_) {}
-  log(`🔚 [PS] Player ${ctrl.index + 1} Finalize → ENDED`);
+  log(`🔚 Player ${ctrl.index + 1} Finalize → ENDED`);
 
   // ΝΕΟ gate: αν δεν έχει ήδη προγραμματιστεί AutoNext από watchdog (ή αλλού), προγραμμάτισε τώρα.
   let alreadyScheduled = false;
@@ -148,7 +151,7 @@ function onEnded(ctrl) {
   if (alreadyScheduled !== true) {
     autoNextAfterEnded(ctrl);
   } else {
-    log(`⏭️ [PS] Player ${ctrl.index + 1} ENDED — AutoNext Already Scheduled (Watch-Time) → Skip Reschedule`);
+    log(`⏭️ Player ${ctrl.index + 1} ENDED — AutoNext Already Scheduled (Watch-Time) → Skip Reschedule`);
   }
   try {
     window.dispatchEvent(new CustomEvent('videoEnded', { detail: { index: ctrl.index } }));
@@ -158,21 +161,21 @@ function onPlaying(ctrl) {
   if (ctrl.isPlayingActive !== true) {
     ctrl.isPlayingActive = true;
   }
-  log(`▶️ [PS] Player ${ctrl.index + 1} State → PLAYING`);
+  log(`▶️ Player ${ctrl.index + 1} State → PLAYING`);
   // NEO: προγραμματισμός unmute από το autoUnmute module
   scheduleUnmute(ctrl, true);
 }
 function onPaused(ctrl) {
-  log(`⏸️ [PS] Player ${ctrl.index + 1} State → PAUSED`);
+  log(`⏸️ Player ${ctrl.index + 1} State → PAUSED`);
 }
 function onBuffering(ctrl) {
-  log(`⏳ [PS] Player ${ctrl.index + 1} State → BUFFERING`);
+  log(`⏳ Player ${ctrl.index + 1} State → BUFFERING`);
 }
 function onCued(ctrl) {
-  log(`🎯 [PS] Player ${ctrl.index + 1} State → CUED`);
+  log(`🎯 Player ${ctrl.index + 1} State → CUED`);
 }
 function onUnknown(ctrl, s) {
-  log(`🟡 [PS] Player ${ctrl.index + 1} State → UNKNOWN (${String(s)})`);
+  log(`🟡 Player ${ctrl.index + 1} State → UNKNOWN (${String(s)})`);
 }
 
 /* -------- Dispatcher -------- */
@@ -182,7 +185,7 @@ export function onStateChangeExternal(ctrl, e) {
   try {
     s = readPlayerState(ctrl, e);
   } catch (err) {
-    log(`❌ [PS] Player ${ctrl.index + 1} StateChange Error ${String(err?.message ?? err)}`);
+    log(`❌ Player ${ctrl.index + 1} StateChange Error ${String(err?.message ?? err)}`);
   }
   // Μήνυμα κατάστασης
   try {

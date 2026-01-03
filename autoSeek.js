@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v1.2.2';
+const VERSION = 'v1.4.0';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, mid-seek scheduler, init-seek).
  * Στόχος: Επαναχρησιμοποίηση/απομόνωση λογικής, συμβατότητα με PlayerController & state engine.
@@ -18,8 +18,11 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, log, rndInt, anyTrue, allTrue, isFunction, isNumber, clamp } from './utils.js';
+import { scheduleSafe, makeLogger, rndInt, anyTrue, allTrue, isFunction, isNumber, clamp } from './utils.js';
 import { stats } from './globals.js';
+
+/* ========================= Logger ========================= */
+const log = makeLogger(FILENAME);
 
 /** Ασφαλές seek με bounds-check & pad κοντά στο τέλος. */
 
@@ -57,7 +60,7 @@ export function safeSeek(ctrl, seconds) {
     stats.seeks = (stats.seeks ?? 0) + 1;
   } catch (err) {
     stats.errors = (stats.errors ?? 0) + 1;
-    log(`❌ [AS] SafeSeek Error: ${err?.message ?? err}`);
+    log(`❌ SafeSeek Error: ${err?.message ?? err}`);
   }
 }
 
@@ -134,7 +137,7 @@ function _doMidSeekOnce(ctrl) {
     safeSeek(ctrl, target);
 
     stats.seeks = (stats.seeks ?? 0) + 1;
-    log(`🔄 [AS] Player ${ctrl.index + 1} Mid-Seek -> ${target}s`);
+    log(`⏩ Player ${ctrl.index + 1} Mid-Seek -> ${target}s`);
 
     const now = Date.now();
     ctrl.seekMeta.lastMs = now;
@@ -155,7 +158,7 @@ export function scheduleMidSeek(ctrl) {
   const canMid = allTrue(parts);
 
   if (canMid !== true) {
-    log(`ℹ️ [AS] Player ${ctrl.index + 1} ScheduleMidSeek Skipped (Short Or Disabled)`);
+    log(`⏩ Player ${ctrl.index + 1} ScheduleMidSeek Skipped (Short Or Disabled)`);
     return;
   }
 

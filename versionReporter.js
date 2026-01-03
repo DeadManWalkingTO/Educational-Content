@@ -1,10 +1,9 @@
 // --- versionReporter.js ---
-const VERSION = 'v3.24.2';
+const VERSION = 'v4.2.0';
 /*
  * Περιγραφή:
  * Συγκεντρώνει εκδόσεις όλων των modules και του HTML. Ελαφρύς renderer για panel/κείμενο,
  * ασφαλείς έλεγχοι με βοηθητικές συναρτήσεις από utils.js (log, isDefined, domReady, deepClone, fmtMs, scheduleSafe).
- * Σημείωση: Η έκδοση του Main θα προστεθεί από το main.js (δεν ανήκει στο aggregation εδώ).
  */
 
 // --- Export Version ---
@@ -12,10 +11,10 @@ export function getVersion() {
   return VERSION;
 }
 
-//Όνομα αρχείου για logging.
+/* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
-// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
@@ -34,14 +33,18 @@ import { getVersion as getPlayerControllerVersion } from './playerController.js'
 import { getVersion as getPlayerStateEngineVersion } from './playerStateEngine.js';
 import { getVersion as getPoliciesVersion } from './policies.js';
 import { getVersion as getUiControlsVersion } from './uiControls.js';
-import { getVersion as getUtilitiesVersion, log, isDefined, domReady, deepClone, fmtMs, scheduleSafe } from './utils.js';
+import { getVersion as getUtilitiesVersion, iconForPascal, makeLogger, isDefined, domReady, deepClone, fmtMs, scheduleSafe } from './utils.js';
 import { getVersion as getVideoPickerVersion } from './videoPicker.js';
 import { getVersion as getWatchdogVersion } from './watchdog.js';
 import { getVersion as getYoutubeReadyVersion } from './youtubeReady.js';
 
-/* ------------------------ Version Retrieval ------------------------ */
+/* ========================= Logger ========================= */
+const log = makeLogger(FILENAME);
 
+/* ========================= Module Code ========================= */
+/* ------------------------ Version Retrieval ------------------------ */
 /**
+ * Σημείωση: Η έκδοση του Main θα προστεθεί από το main.js (δεν ανήκει στο aggregation εδώ).
  * Ανάκτηση HTML έκδοσης από <meta name="html-version" content="vX.Y.Z">.
  * Επιστρέφει 'unknown' αν λείπει είτε το meta είτε το content.
  */
@@ -139,61 +142,6 @@ function buildOrderedEntries(versionsObj) {
   return out;
 }
 
-/**
- * Εικονίδιο/emoji ανά module για πιο γρήγορη οπτική σάρωση.
- */
-
-function iconFor(name) {
-  switch (name) {
-    case 'HTML':
-      return '📄';
-    case 'Globals':
-      return '🌐';
-    case 'Lists':
-      return '🧾';
-    case 'HumanMode':
-      return '👤';
-    case 'PlayerController':
-      return '🎬';
-    case 'UiControls':
-      return '🛠️';
-    case 'Watchdog':
-      return '🐶';
-    case 'ConsoleFilter':
-      return '🧐';
-    case 'YoutubeReady':
-      return '🎥';
-    case 'Utilities':
-      return '🧰';
-    case 'VersionReporter':
-      return '🧩';
-    case 'Policies':
-      return '📜';
-    case 'PlayerStateEngine':
-      return '🎛️';
-    case 'AutoNext':
-      return '⏭️';
-    case 'AutoUnmute':
-      return '🎵';
-    case 'AutoVolume':
-      return '🔊';
-    case 'AutoSeek':
-      return '⏩';
-    case 'AutoPause':
-      return '⏸️';
-    case 'VideoPicker':
-      return '📹';
-    case 'AutoQuality':
-      return '🎚️';
-    case 'AutoRate':
-      return '⚡';
-    case 'Main':
-      return '🚀';
-    default:
-      return '✅';
-  }
-}
-
 /* ------------------------ Renderers ------------------------ */
 
 /**
@@ -217,7 +165,7 @@ export function renderVersionsPanel(versionsObj) {
   let i = 0;
   while (i < ordered.length) {
     const e = ordered[i];
-    const icon = iconFor(e.name);
+    const icon = iconForPascal(e.name);
     const text = icon + ' ' + e.name + ' — ' + e.ver;
     parts.push('<div style="' + itemStyle + '"><div style="' + textStyle + '">' + text + '</div></div>');
     i = i + 1;
@@ -238,7 +186,7 @@ export function renderVersionsText(versionsObj) {
   let i = 0;
   while (i < ordered.length) {
     const e = ordered[i];
-    const icon = iconFor(e.name);
+    const icon = iconForPascal(e.name);
     const text = icon + ' ' + e.name + ' — ' + e.ver;
     parts.push(text);
     i = i + 1;
@@ -269,7 +217,7 @@ domReady().then(function () {
       const versions = reportAllVersions();
       const txt = renderVersionsText(versions);
       const dt = performance.now() - t0;
-      log('📦 [VR] VersionReporter → Ready (' + fmtMs(dt) + ') / ' + totalModules(versions));
+      log('🏷️ VersionReporter → Ready (' + fmtMs(dt) + ') / ' + totalModules(versions));
       //log(txt);
     },
     50,
