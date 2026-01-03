@@ -1,16 +1,15 @@
 // --- autoQuality.js ---
-const VERSION = 'v1.4.0';
+const VERSION = 'v1.4.1';
 /*
  * Περιγραφή: Τυχαίες αλλαγές ποιότητας (YouTube Iframe API) με guards:
- *            εκτέλεση μόνο όταν ο player είναι PLAYING και unmuted.
- *            Χρησιμοποιείται από PlayerController για πιο ρεαλιστική συμπεριφορά.
+ * - Εκτέλεση μόνο όταν ο player είναι PLAYING και unmuted (κοινός helper από utils.js).
+ * - Χρήση window (required watch ή duration) για pacing.
  */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
-
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
@@ -18,26 +17,11 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, rndInt, allTrue, isNumber, isDefined, makeLogger } from './utils.js';
+import { scheduleSafe, rndInt, allTrue, isNumber, isDefined, makeLogger, whenPlayingAndUnmuted } from './utils.js';
 import { stats } from './globals.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
-
-/**
- * Πολιτική:  Προτιμώμενη σειρά βάσει διάρκειας (<300s ή ≥300s) με αυστηρό bias:
- *            < 300s -> ['hd720','large','medium'], ≥ 300s -> ['small','medium','large'].
- * Χρονισμός: Μέσα στο παράθυρο required watch time (10–90%), fallback 10–80% της διάρκειας.
- *
- * Δημόσιο API:
- *   scheduleQualityChanges(player, durationSec, config, group, requiredWatchSec, ctrlOrIndex)
- *     - player: YT Iframe API player
- *     - durationSec: διάρκεια βίντεο (sec)
- *     - config: { qualityChangeChance:number } (0..1, default 0.3)
- *     - group: group id για scheduleSafe
- *     - requiredWatchSec: αν υπάρχει, ορίζει το παράθυρο που χρησιμοποιείται (σε sec)
- *     - ctrlOrIndex: προαιρετικό. PlayerController instance ή 0-based index, για tagging στα logs (P1, P2, ...)
- */
 
 /* ========================= Helpers ========================= */
 function _can(obj, methodName) {
@@ -53,123 +37,6 @@ function _can(obj, methodName) {
   }
   return false;
 }
-
-function _ytDefined() {
-  let ok = false;
-  if (typeof YT !== 'undefined') {
-    if (typeof YT?.PlayerState !== 'undefined') {
-      ok = true;
-    }
-  }
-  return ok;
-}
-
-function _isPlaying(p) {
-  const parts = [];
-  parts.push(_ytDefined() === true);
-  parts.push(_can(p, 'getPlayerState') === true);
-  const canCheck = allTrue(parts);
-  if (canCheck === true) {
-    try {
-      const st = p.getPlayerState();
-      if (st === YT.PlayerState.PLAYING) {
-        return true;
-      }
-    } catch (_) {}
-  }
-  return false;
-}
-
-function _isMuted(p) {
-  const parts = [];
-  parts.push(_can(p, 'isMuted') === true);
-  const canCheck = allTrue(parts);
-  if (canCheck === true) {
-    try {
-      const m = p.isMuted();
-      if (m === true) {
-        return true;
-      }
-    } catch (_) {}
-  }
-  return false;
-}
-
-function _whenPlayingAndUnmuted(player, attemptTask, retryMinMs, retryMaxMs, group, tag) {
-  const attempt = () => {
-    try {
-      const p = player;
-      if (typeof p === 'undefined') {
-        return;
-      }
-      if (p === null) {
-        return;
-      }
-      const partsMuted = [];
-      partsMuted.push(_isMuted(p) === true);
-      const isActuallyMuted = allTrue(partsMuted);
-      if (isActuallyMuted === true) {
-        const delay = rndInt(retryMinMs, retryMaxMs);
-        scheduleSafe(attempt, delay, group, `${tag}-retry-muted`);
-        return;
-      }
-      const partsPlaying = [];
-      partsPlaying.push(_isPlaying(p) === true);
-      const okPlay = allTrue(partsPlaying);
-      if (okPlay !== true) {
-        const delay2 = rndInt(retryMinMs, retryMaxMs);
-        scheduleSafe(attempt, delay2, group, `${tag}-retry-not-playing`);
-        return;
-      }
-      try {
-        attemptTask();
-      } catch (_) {}
-    } catch (_) {}
-  };
-  attempt();
-}
-
-/* Tagging helpers για logs */
-function _shownIndexFromCtrl(ctrl) {
-  try {
-    const idx = Number(ctrl?.index);
-    const ok = Number.isNaN(idx) === false;
-    if (ok === true) {
-      const oneBased = Math.floor(idx) + 1;
-      return String(oneBased);
-    }
-  } catch (_) {}
-  return '#';
-}
-
-function _shownIndexFromIndex(idx0) {
-  try {
-    const idx = Number(idx0);
-    const ok = Number.isNaN(idx) === false;
-    if (ok === true) {
-      const oneBased = Math.floor(idx) + 1;
-      return String(oneBased);
-    }
-  } catch (_) {}
-  return '#';
-}
-
-function _resolvePlayerTag(ctrlOrIndex) {
-  // Επιστρέφει string "P<index>" ή "P#" αν δεν βρεθεί
-  try {
-    const isObj = typeof ctrlOrIndex === 'object';
-    if (isObj === true) {
-      const idxStr = _shownIndexFromCtrl(ctrlOrIndex);
-      return `Player ${idxStr}`;
-    } else {
-      const idxStr2 = _shownIndexFromIndex(ctrlOrIndex);
-      return `P${idxStr2}`;
-    }
-  } catch (_) {}
-  return 'P#';
-}
-
-/* ========================= Core ========================= */
 function _pickQuality(player, preferredOrder) {
   try {
     const parts = [];
@@ -202,7 +69,6 @@ function _pickQuality(player, preferredOrder) {
     return null;
   }
 }
-
 function _applyQuality(player, quality, tag) {
   try {
     const parts = [];
@@ -213,23 +79,21 @@ function _applyQuality(player, quality, tag) {
       return;
     }
     player.setPlaybackQuality(quality);
-
     try {
       stats.qualityChanges = (Number(stats.qualityChanges) || 0) + 1;
     } catch (_) {}
-
     log(`📺 ${String(tag)} Quality → ${String(quality)}`);
   } catch (_) {}
 }
 
 /**
- * Προγραμματισμός τυχαίων αλλαγών ποιότητας.
- * @param {any} player - YouTube Iframe API player
- * @param {number} durationSec - διάρκεια βίντεο
- * @param {{qualityChangeChance:number}} config - { qualityChangeChance } (0..1)
- * @param {string} group - group id για scheduleSafe
- * @param {number} requiredWatchSec - παράθυρο απαιτούμενης θέασης (sec)
- * @param {any} ctrlOrIndex - προαιρετικό. PlayerController instance ή 0-based index
+ * Προγραμματισμός αλλαγών ποιότητας.
+ * @param {any} player
+ * @param {number} durationSec
+ * @param {{qualityChangeChance:number}} config
+ * @param {string} group
+ * @param {number} requiredWatchSec
+ * @param {any} ctrlOrIndex
  */
 export function scheduleQualityChanges(player, durationSec, config = null, group = 'pc:quality', requiredWatchSec = 0, ctrlOrIndex = null) {
   const parts = [];
@@ -241,14 +105,31 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
     return;
   }
 
-  const tag = _resolvePlayerTag(ctrlOrIndex);
+  const tag = (function resolveTag() {
+    try {
+      const isObj = typeof ctrlOrIndex === 'object';
+      if (isObj === true) {
+        const idx = Number(ctrlOrIndex?.index);
+        const ok = Number.isNaN(idx) === false;
+        if (ok === true) {
+          return `Player ${String(Math.floor(idx) + 1)}`;
+        }
+      } else {
+        const idx0 = Number(ctrlOrIndex);
+        const ok2 = Number.isNaN(idx0) === false;
+        if (ok2 === true) {
+          return `P${String(Math.floor(idx0) + 1)}`;
+        }
+      }
+    } catch (_) {}
+    return 'P#';
+  })();
 
   let d = 0;
   if (isNumber(durationSec) === true) {
     d = durationSec;
   }
 
-  // Προτιμώμενη σειρά βάσει διάρκειας (αυστηρό bias σε small για μεγάλα βίντεο)
   let preferredOrder = ['small', 'medium', 'large'];
   const durParts = [];
   durParts.push(d < 300);
@@ -257,7 +138,7 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
     preferredOrder = ['hd720', 'large', 'medium'];
   }
 
-  // --- BaseCount από το required watch window (ΟΧΙ από τη συνολική διάρκεια) ---
+  // BaseCount από required watch window ή duration
   let windowSec = 0;
   if (isNumber(requiredWatchSec) === true) {
     windowSec = requiredWatchSec;
@@ -265,18 +146,15 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
   let baseCount = 1;
   const partsWin300 = [];
   partsWin300.push(windowSec >= 300);
-  const isWin300 = allTrue(partsWin300);
-  if (isWin300 === true) {
+  if (allTrue(partsWin300) === true) {
     baseCount = 2;
   }
   const partsWin900 = [];
   partsWin900.push(windowSec >= 900);
-  const isWin900 = allTrue(partsWin900);
-  if (isWin900 === true) {
+  if (allTrue(partsWin900) === true) {
     baseCount = 3;
   }
 
-  // Πιθανότητα (0..1), default 0.3
   let chance = 0.3;
   if (isNumber(config?.qualityChangeChance) === true) {
     chance = config.qualityChangeChance;
@@ -288,23 +166,18 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
     chance = 1;
   }
 
-  // planned = floor(baseCount * chance) + ελάχιστο 1 αν chance > 0 και planned === 0
   let planned = Math.floor(baseCount * chance);
   if (planned < 1) {
     const partsMin = [];
     partsMin.push(chance > 0);
-    const allowMin = allTrue(partsMin);
-    if (allowMin === true) {
+    if (allTrue(partsMin) === true) {
       planned = 1;
     }
   }
 
-  // 🧪 Debug Log #1: planned & window & dur (με tag παίκτη)
   try {
-    const msg = `🧪 ${String(tag)} QualityScheduler → Planned=${String(planned)} Window=${String(windowSec)}s Dur=${String(d)}s`;
-    log(msg);
+    log(`🧪 ${String(tag)} QualityScheduler → Planned=${String(planned)} Window=${String(windowSec)}s Dur=${String(d)}s`);
   } catch (_) {}
-
   if (planned === 0) {
     try {
       log(`🧪 ${String(tag)} QualityScheduler → No Tasks Scheduled (BaseCount Or Chance Too Low)`);
@@ -312,15 +185,14 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
     return;
   }
 
-  // Παράθυρο εκτέλεσης 10–90% του required watch window (fallback: 10–80% duration)
+  // Παράθυρο χρόνου: 10–90% του required watch (fallback: 10–80% του duration)
   let fromMs = 20000;
   let toMs = 120000;
   let minPct = 0.1;
   let maxPct = 0.9;
   const partsWinPos = [];
   partsWinPos.push(windowSec > 0);
-  const haveWin = allTrue(partsWinPos);
-  if (haveWin === true) {
+  if (allTrue(partsWinPos) === true) {
     const lo = Math.floor(windowSec * minPct);
     const hi = Math.floor(windowSec * maxPct);
     fromMs = Math.max(2, lo) * 1000;
@@ -328,8 +200,7 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
   } else {
     const partsDurPos = [];
     partsDurPos.push(d > 0);
-    const haveDur = allTrue(partsDurPos);
-    if (haveDur === true) {
+    if (allTrue(partsDurPos) === true) {
       fromMs = Math.floor(d * 0.1) * 1000;
       toMs = Math.floor(d * 0.8) * 1000;
     }
@@ -339,8 +210,6 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
   while (i < planned) {
     const delaySec = rndInt(Math.floor(fromMs / 1000), Math.floor(toMs / 1000));
     const delayMs = delaySec * 1000;
-
-    // 🧪 Debug Log #2: scheduling info με σειρά προτίμησης (με tag παίκτη)
     try {
       const ord = Array.isArray(preferredOrder) === true ? preferredOrder.join('>') : '-';
       const msg2 = `🧪 ${String(tag)} QualityScheduler → Scheduling in ${String(Math.round(delayMs / 1000))}s (Order=${ord})`;
@@ -356,13 +225,12 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
 
     scheduleSafe(
       () => {
-        _whenPlayingAndUnmuted(player, task, 800, 2000, group, 'quality-change');
+        whenPlayingAndUnmuted(player, ctrlOrIndex, task, 800, 2000, group, 'quality-change');
       },
       delayMs,
       group,
       'quality-change'
     );
-
     i = i + 1;
   }
 }

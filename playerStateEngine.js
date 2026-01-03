@@ -1,9 +1,9 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v2.9.0';
+const VERSION = 'v3.0.1';
 /*
- * Refactor: Handler-first με hooks (beforeTransition/afterTransition).
- * Συμμόρφωση: imports από utils.js, χωρίς || και &&, χρήση anyTrue/allTrue, switch/case.
- * Public API: onStateChangeExternal(ctrl, e) παραμένει ίδιο (καλείται από PlayerController).
+ * Refactor: Προσθήκη external handlers onReadyExternal/onErrorExternal + handler-first με hooks (beforeTransition/afterTransition).
+ * ΔΙΟΡΘΩΣΗ: Αφαίρεση dynamic import. Χρήση στατικού import getBehaviorPlan από './policies.js'.
+ * Public API: onStateChangeExternal(ctrl, e) (υφιστάμενο) + onReadyExternal(ctrl, e), onErrorExternal(ctrl, e).
  */
 
 // --- Export Version ---
@@ -18,10 +18,16 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { makeLogger, allTrue, anyTrue, isDefined, isFunction, isNumber } from './utils.js';
-import { autoNextAfterEnded } from './autoNext.js';
+import { makeLogger, allTrue, anyTrue, isDefined, isFunction, isNumber, jitter, scheduleSafe } from './utils.js';
+import { autoNextAfterEnded, autoNextAfterError } from './autoNext.js';
 import { scheduleUnmute } from './autoUnmute.js';
-import { restartPauseGuard } from './autoPause.js';
+import { schedulePauses, restartPauseGuard } from './autoPause.js';
+import { scheduleVolumeChanges, scheduleMicroAdjust } from './autoVolume.js';
+import { safeSeek as safeSeekExternal, scheduleMidSeek as scheduleMidSeekExternal, applyInitSeek } from './autoSeek.js';
+import { scheduleQualityChanges } from './autoQuality.js';
+import { scheduleRateChanges, resetPlaybackRate } from './autoRate.js';
+import { stats } from './globals.js';
+import { getBehaviorPlan } from './policies.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -57,7 +63,7 @@ function readPlayerState(ctrl, e) {
   return s;
 }
 
-/* Ενιαία ενοποίηση του finalize του PLAYING window */
+/* Ενιαία ενοποίηση finalize PLAYING window */
 function finalizePlayingWindow(ctrl, reason) {
   const guards = [];
   guards.push(isDefined(ctrl.playingStart) === true);
@@ -84,7 +90,6 @@ function handleEnded(ctrl) {
   try {
     ctrl.clearTimers();
   } catch (_) {}
-
   let alreadyScheduled = false;
   const baseGuards = [];
   baseGuards.push(typeof ctrl !== 'undefined');
@@ -95,13 +100,11 @@ function handleEnded(ctrl) {
       alreadyScheduled = true;
     }
   }
-
   if (alreadyScheduled !== true) {
     autoNextAfterEnded(ctrl);
   } else {
     log(`⏭️ Player ${ctrl.index + 1} ENDED — AutoNext Already Scheduled (Watch-Time) → Skip Reschedule`);
   }
-
   try {
     window.dispatchEvent(new CustomEvent('videoEnded', { detail: { index: ctrl.index } }));
   } catch (_) {}
@@ -206,7 +209,6 @@ export function onStateChangeExternal(ctrl, e) {
   } catch (err) {
     log(`❌ Player ${ctrl.index + 1} StateChange Error ${String(err?.message ?? err)}`);
   }
-
   let prevState = ctrl.lastKnownState;
   if (isDefined(prevState) !== true) {
     if (hasYT() === true) {
@@ -215,10 +217,8 @@ export function onStateChangeExternal(ctrl, e) {
       prevState = -1;
     }
   }
-
   // Hooks πριν από το handler
   beforeTransition(ctrl, prevState, s);
-
   // Dispatch με switch/case
   try {
     const parts = [];
@@ -255,16 +255,164 @@ export function onStateChangeExternal(ctrl, e) {
       handleUnknown(ctrl, s);
     }
   } catch (_) {}
-
   // Ενημέρωση lastKnownState
   try {
     ctrl.lastKnownState = s;
   } catch (_) {}
-
   // Hooks μετά τον handler
   afterTransition(ctrl, prevState, s);
-
   // ΣΗΜΑΝΤΙΚΟ: Το scheduling του unmute βρίσκεται ΜΟΝΟ στο handlePlaying().
+}
+
+/* ========================= External READY/ERROR ========================= */
+
+/**
+ * READY orchestration: mute, plan, init seek, rate reset, kickoff auto-* (pauses/mid-seek/volume/micro/rate/quality), guardPlay.
+ */
+export function onReadyExternal(ctrl, e) {
+  try {
+    const p = e?.target;
+    const canMute = isFunction(p?.mute) === true;
+    if (canMute === true) {
+      try {
+        p.mute();
+      } catch (_) {}
+    }
+
+    // duration
+    let durationNow = 0;
+    const canDur = isFunction(p?.getDuration) === true;
+    if (canDur === true) {
+      try {
+        const d = p.getDuration();
+        if (isNumber(d) === true) durationNow = d;
+      } catch (_) {}
+    }
+
+    // video_id
+    let videoIdFromAPI = '';
+    const canVD = isFunction(p?.getVideoData) === true;
+    if (canVD === true) {
+      try {
+        const vd = p.getVideoData();
+        if (isDefined(vd?.video_id) === true) videoIdFromAPI = vd.video_id;
+      } catch (_) {}
+    }
+
+    // Behavior plan (ΣΤΑΤΙΚΟ import)
+    const ctx = {
+      durationSec: durationNow,
+      profileName: ctrl.profileName,
+      videoId: videoIdFromAPI,
+      isFirstVideo: true,
+      playerIndex: ctrl.index,
+      baseStartDelaySec: ctrl.config?.startDelay,
+    };
+    try {
+      ctrl.plan = getBehaviorPlan(ctx);
+    } catch (_) {}
+    try {
+      const req = ctrl?.plan?.watch?.requiredWatchTimeSec;
+      ctrl.videoRequiredWatchTime = isNumber(req) === true ? Math.max(0, Math.floor(req)) : 15;
+    } catch (_) {
+      ctrl.videoRequiredWatchTime = 15;
+    }
+
+    // Init seek + rate reset
+    let targetSec = 0;
+    try {
+      const hasStart = isDefined(ctrl?.plan?.startSeek) === true;
+      if (hasStart === true) {
+        const t = ctrl.plan.startSeek.targetSec;
+        if (isNumber(t) === true) targetSec = t;
+      }
+    } catch (_) {}
+    ctrl.pendingUnmute = true;
+    ctrl.unmuteScheduled = false;
+    applyInitSeek(ctrl, targetSec);
+    try {
+      resetPlaybackRate(ctrl);
+    } catch (_) {}
+
+    // Kickoff: guardPlay (ασφαλής, με jitter)
+    const jitterMs = jitter(240, 0.5);
+    scheduleSafe(
+      function () {
+        try {
+          const pLocal = ctrl.player;
+          const guards = [];
+          guards.push(isDefined(pLocal) === true);
+          guards.push(pLocal !== null);
+          guards.push(isFunction(ctrl?.guardPlay) === true);
+          const ok = allTrue(guards);
+          if (ok === true) ctrl.guardPlay(pLocal);
+        } catch (err) {
+          log(`❌ Player ${ctrl.index + 1} GuardPlay Error ${String(err?.message ?? err)}`);
+        }
+      },
+      jitterMs,
+      ctrl._group('play'),
+      'guardPlay-initial'
+    );
+
+    // Pauses & Mid-Seek
+    try {
+      schedulePauses(ctrl);
+    } catch (_) {}
+    try {
+      scheduleMidSeekExternal(ctrl);
+    } catch (_) {}
+
+    // Volume & Micro-Adjust
+    try {
+      let duration = 0;
+      if (isFunction(ctrl.player?.getDuration) === true) {
+        const d2 = ctrl.player.getDuration();
+        if (isNumber(d2) === true) duration = d2;
+      }
+      scheduleVolumeChanges(ctrl.player, ctrl.config, duration, ctrl._group('volume'), ctrl);
+      scheduleMicroAdjust(ctrl.player, duration, ctrl._group('volume'), ctrl);
+    } catch (_) {}
+
+    // Rate Changes
+    try {
+      scheduleRateChanges(ctrl);
+    } catch (_) {}
+
+    // Quality Changes
+    try {
+      let durationQ = 0;
+      if (isFunction(ctrl.player?.getDuration) === true) {
+        const dQ = ctrl.player.getDuration();
+        if (isNumber(dQ) === true) durationQ = dQ;
+      }
+      let requiredWatchSec = 0;
+      const hasReq = isDefined(ctrl?.plan?.watch?.requiredWatchTimeSec) === true;
+      if (hasReq === true) {
+        const req2 = ctrl.plan.watch.requiredWatchTimeSec;
+        if (isNumber(req2) === true) requiredWatchSec = req2;
+      }
+      const qcfg = { qualityChangeChance: ctrl?.config?.qualityChangeChance };
+      scheduleQualityChanges(ctrl.player, durationQ, qcfg, ctrl._group('quality'), requiredWatchSec, ctrl);
+    } catch (_) {}
+
+    log(`ℹ️ Player ${ctrl.index + 1} READY orchestration completed (Plan/Seek/Rate/Pauses/Volume/Quality)`);
+  } catch (_) {}
+}
+
+/**
+ * ERROR handling: clear timers → autoNextAfterError → stats.errors++ (global).
+ */
+export function onErrorExternal(ctrl, _e) {
+  try {
+    ctrl.clearTimers();
+  } catch (_) {}
+  try {
+    autoNextAfterError(ctrl);
+  } catch (_) {}
+  try {
+    stats.errors = (isNumber(stats?.errors) === true ? stats.errors : 0) + 1;
+  } catch (_) {}
 }
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
