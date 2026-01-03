@@ -1,9 +1,9 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v2.8.1';
+const VERSION = 'v2.9.0';
 /*
- * - Μικρό gate στο onEnded(): αφαιρέθηκε το fake-end guard (rewind).
- * - Καθαρό finalize ENDED: clearTimers, watchdog-compatible autoNext, accumulators/markers.
- * - Κατά τα λοιπά, παραμένει η ίδια διαχείριση για ENDED/PAUSED/BUFFERING/CUED/UNKNOWN.
+ * Refactor: Handler-first με hooks (beforeTransition/afterTransition).
+ * Συμμόρφωση: imports από utils.js, χωρίς || και &&, χρήση anyTrue/allTrue, switch/case.
+ * Public API: onStateChangeExternal(ctrl, e) παραμένει ίδιο (καλείται από PlayerController).
  */
 
 // --- Export Version ---
@@ -18,22 +18,15 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { makeLogger, allTrue, isDefined, isFunction, isNumber, clamp } from './utils.js';
+import { makeLogger, allTrue, anyTrue, isDefined, isFunction, isNumber } from './utils.js';
 import { autoNextAfterEnded } from './autoNext.js';
 import { scheduleUnmute } from './autoUnmute.js';
-// ΝΕΟ: restartPauseGuard από autoPause.js
 import { restartPauseGuard } from './autoPause.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
 
-/**
- * - ΝΕΟ: Finalize του PLAYING window σε ΚΑΘΕ έξοδο από PLAYING → (BUFFERING/CUED/UNSTARTED/PAUSED/ENDED) ώστε να μην μένει "ορφανό" playingStart.
- */
-
-/* ========================= Module Code ========================= */
-
-/* -------- Helpers -------- */
+/* ========================= Helpers ========================= */
 function hasYT() {
   let ok = false;
   if (typeof YT !== 'undefined') {
@@ -43,29 +36,8 @@ function hasYT() {
   }
   return ok;
 }
-function stateName(v) {
-  if (hasYT() !== true) {
-    return 'UNKNOWN';
-  }
-  switch (v) {
-    case YT.PlayerState.UNSTARTED:
-      return 'UNSTARTED';
-    case YT.PlayerState.ENDED:
-      return 'ENDED';
-    case YT.PlayerState.PLAYING:
-      return 'PLAYING';
-    case YT.PlayerState.PAUSED:
-      return 'PAUSED';
-    case YT.PlayerState.BUFFERING:
-      return 'BUFFERING';
-    case YT.PlayerState.CUED:
-      return 'CUED';
-    default:
-      return 'UNKNOWN';
-  }
-}
+
 function readPlayerState(ctrl, e) {
-  // 1) Προτιμούμε e.data αν υπάρχει
   let s;
   const hasEvent = isDefined(e) === true;
   if (hasEvent === true) {
@@ -75,7 +47,6 @@ function readPlayerState(ctrl, e) {
       return s;
     }
   }
-  // 2) Αλλιώς, από player.getPlayerState με guards
   const parts = [];
   parts.push(isDefined(ctrl?.player) === true);
   parts.push(isFunction(ctrl?.player?.getPlayerState) === true);
@@ -85,10 +56,104 @@ function readPlayerState(ctrl, e) {
   }
   return s;
 }
+
+/* Ενιαία ενοποίηση του finalize του PLAYING window */
+function finalizePlayingWindow(ctrl, reason) {
+  const guards = [];
+  guards.push(isDefined(ctrl.playingStart) === true);
+  const canFinalize = allTrue(guards);
+  if (canFinalize !== true) {
+    return;
+  }
+  const ms = Date.now() - ctrl.playingStart;
+  const rate = isNumber(ctrl.currentRate) === true ? ctrl.currentRate : 1.0;
+  const base = isNumber(ctrl.totalPlayTime) === true ? ctrl.totalPlayTime : 0;
+  ctrl.totalPlayTime = base + (ms / 1000) * rate;
+  ctrl.playingStart = null;
+  const tag = isDefined(reason) === true ? String(reason) : 'exit';
+  log(`🧮 Player ${ctrl.index + 1} Finalize[${tag}]`);
+}
+
+/* ========================= Handlers ========================= */
+function handleUnstarted(ctrl) {
+  log(`🎬 Player ${ctrl.index + 1} State → UNSTARTED`);
+}
+
+function handleEnded(ctrl) {
+  log(`🏁 Player ${ctrl.index + 1} State → ENDED`);
+  try {
+    ctrl.clearTimers();
+  } catch (_) {}
+
+  let alreadyScheduled = false;
+  const baseGuards = [];
+  baseGuards.push(typeof ctrl !== 'undefined');
+  baseGuards.push(ctrl !== null);
+  const okBase = allTrue(baseGuards);
+  if (okBase === true) {
+    if (ctrl.autoNextScheduled === true) {
+      alreadyScheduled = true;
+    }
+  }
+
+  if (alreadyScheduled !== true) {
+    autoNextAfterEnded(ctrl);
+  } else {
+    log(`⏭️ Player ${ctrl.index + 1} ENDED — AutoNext Already Scheduled (Watch-Time) → Skip Reschedule`);
+  }
+
+  try {
+    window.dispatchEvent(new CustomEvent('videoEnded', { detail: { index: ctrl.index } }));
+  } catch (_) {}
+}
+
+function handlePlaying(ctrl) {
+  if (ctrl.isPlayingActive !== true) {
+    ctrl.isPlayingActive = true;
+  }
+  log(`▶️ Player ${ctrl.index + 1} State → PLAYING`);
+  /* Scheduling unmute ΜΟΝΟ εδώ */
+  scheduleUnmute(ctrl, true);
+}
+
+function handlePaused(ctrl) {
+  log(`⏸️ Player ${ctrl.index + 1} State → PAUSED`);
+}
+
+function handleBuffering(ctrl) {
+  log(`⏳ Player ${ctrl.index + 1} State → BUFFERING`);
+}
+
+function handleCued(ctrl) {
+  log(`🎯 Player ${ctrl.index + 1} State → CUED`);
+}
+
+function handleUnknown(ctrl, s) {
+  log(`🟡 Player ${ctrl.index + 1} State → UNKNOWN (${String(s)})`);
+}
+
+/* ========================= Hooks ========================= */
+function beforeTransition(ctrl, prev, next) {
+  if (hasYT() === true) {
+    let wasPlaying = false;
+    if (prev === YT.PlayerState.PLAYING) {
+      wasPlaying = true;
+    }
+    if (wasPlaying === true) {
+      let notPlayingNow = false;
+      if (next !== YT.PlayerState.PLAYING) {
+        notPlayingNow = true;
+      }
+      if (notPlayingNow === true) {
+        finalizePlayingWindow(ctrl, 'exit');
+      }
+    }
+  }
+}
+
 function updateAccumulators(ctrl, s) {
   const p = ctrl.player;
   if (hasYT() === true) {
-    // PLAYING -> set start & rate
     if (s === YT.PlayerState.PLAYING) {
       ctrl.playingStart = Date.now();
       if (isFunction(p?.getPlaybackRate) === true) {
@@ -99,7 +164,6 @@ function updateAccumulators(ctrl, s) {
         ctrl.currentRate = 1.0;
       }
     } else {
-      // ENDED/PAUSED -> finalize PLAYING window
       let endedOrPaused = false;
       if (s === YT.PlayerState.PAUSED) {
         endedOrPaused = true;
@@ -115,11 +179,11 @@ function updateAccumulators(ctrl, s) {
       if (canFinalize === true) {
         const ms = Date.now() - ctrl.playingStart;
         const addSec = (ms / 1000) * (isNumber(ctrl.currentRate) === true ? ctrl.currentRate : 1.0);
-        ctrl.totalPlayTime = (isNumber(ctrl.totalPlayTime) === true ? ctrl.totalPlayTime : 0) + addSec;
+        const base = isNumber(ctrl.totalPlayTime) === true ? ctrl.totalPlayTime : 0;
+        ctrl.totalPlayTime = base + addSec;
         ctrl.playingStart = null;
       }
     }
-    // BUFFERING/PAUSED markers
     if (s === YT.PlayerState.BUFFERING) {
       ctrl.lastBufferingStart = Date.now();
     }
@@ -129,60 +193,13 @@ function updateAccumulators(ctrl, s) {
   }
 }
 
-/* -------- Handlers -------- */
-function onUnstarted(ctrl) {
-  log(`🎬 Player ${ctrl.index + 1} State → UNSTARTED`);
-}
-function onEnded(ctrl) {
-  log(`🏁 Player ${ctrl.index + 1} State → ENDED`);
-  try {
-    ctrl.clearTimers();
-  } catch (_) {}
-  log(`🔚 Player ${ctrl.index + 1} Finalize → ENDED`);
-  // NEO gate: αν δεν έχει ήδη προγραμματιστεί AutoNext από watchdog, προγραμμάτισε τώρα
-  let alreadyScheduled = false;
-  const parts = [];
-  parts.push(typeof ctrl !== 'undefined');
-  parts.push(ctrl !== null);
-  const okBase = allTrue(parts);
-  if (okBase === true) {
-    if (ctrl.autoNextScheduled === true) {
-      alreadyScheduled = true;
-    }
-  }
-  if (alreadyScheduled !== true) {
-    autoNextAfterEnded(ctrl);
-  } else {
-    log(`⏭️ Player ${ctrl.index + 1} ENDED — AutoNext Already Scheduled (Watch-Time) → Skip Reschedule`);
-  }
-  try {
-    window.dispatchEvent(new CustomEvent('videoEnded', { detail: { index: ctrl.index } }));
-  } catch (_) {}
-}
-function onPlaying(ctrl) {
-  if (ctrl.isPlayingActive !== true) {
-    ctrl.isPlayingActive = true;
-  }
-  log(`▶️ Player ${ctrl.index + 1} State → PLAYING`);
-  // NEO: προγραμματισμός unmute από το autoUnmute module
-  scheduleUnmute(ctrl, true);
-}
-function onPaused(ctrl) {
-  log(`⏸️ Player ${ctrl.index + 1} State → PAUSED`);
-}
-function onBuffering(ctrl) {
-  log(`⏳ Player ${ctrl.index + 1} State → BUFFERING`);
-}
-function onCued(ctrl) {
-  log(`🎯 Player ${ctrl.index + 1} State → CUED`);
-}
-function onUnknown(ctrl, s) {
-  log(`🟡 Player ${ctrl.index + 1} State → UNKNOWN (${String(s)})`);
+function afterTransition(ctrl, prev, next) {
+  updateAccumulators(ctrl, next);
+  restartPauseGuard(ctrl);
 }
 
-/* -------- Dispatcher -------- */
+/* ========================= Dispatcher ========================= */
 export function onStateChangeExternal(ctrl, e) {
-  // Ανάγνωση τρέχοντος state
   let s;
   try {
     s = readPlayerState(ctrl, e);
@@ -190,135 +207,64 @@ export function onStateChangeExternal(ctrl, e) {
     log(`❌ Player ${ctrl.index + 1} StateChange Error ${String(err?.message ?? err)}`);
   }
 
-  // Μνήμη κατάστασης + finalize σε ΚΑΘΕ έξοδο από PLAYING
-  try {
-    let prevState = ctrl.lastKnownState;
-    if (isDefined(prevState) !== true) {
-      if (hasYT() === true) {
-        prevState = YT.PlayerState.UNSTARTED;
-      } else {
-        prevState = -1;
-      }
+  let prevState = ctrl.lastKnownState;
+  if (isDefined(prevState) !== true) {
+    if (hasYT() === true) {
+      prevState = YT.PlayerState.UNSTARTED;
+    } else {
+      prevState = -1;
     }
-    let tSec = 0;
-    try {
-      const pLocal = ctrl.player;
-      const canCT = allTrue([isDefined(pLocal) === true, isFunction(pLocal?.getCurrentTime) === true]);
-      if (canCT === true) {
-        tSec = pLocal.getCurrentTime();
-      }
-    } catch (_) {}
+  }
 
-    let scheduled = false;
-    try {
-      const hasTimersObj = isDefined(ctrl.timers) === true ? (typeof ctrl.timers === 'object' ? true : false) : false;
-      if (hasTimersObj === true) {
-        const hasPauseArr = Array.isArray(ctrl.timers?.pauseTimers) === true;
-        if (hasPauseArr === true) {
-          if (ctrl.timers.pauseTimers.length > 0) {
-            scheduled = true;
-          }
-        }
-        if (scheduled !== true) {
-          const hasMid = isDefined(ctrl.timers?.midSeek) === true ? (ctrl.timers.midSeek !== null ? true : false) : false;
-          if (hasMid === true) {
-            scheduled = true;
-          }
-        }
-        if (scheduled !== true) {
-          const hasProg = isDefined(ctrl.timers?.progressCheck) === true ? (ctrl.timers.progressCheck !== null ? true : false) : false;
-          if (hasProg === true) {
-            scheduled = true;
-          }
-        }
-      }
-      if (scheduled !== true) {
-        const hasExpectedPause = isNumber(ctrl.expectedPauseMs) === true ? (ctrl.expectedPauseMs > 0 ? true : false) : false;
-        if (hasExpectedPause === true) {
-          scheduled = true;
-        }
-      }
-    } catch (_) {}
+  // Hooks πριν από το handler
+  beforeTransition(ctrl, prevState, s);
 
-    // ΝΕΟ: Finalize σε ΚΑΘΕ έξοδο από PLAYING (πριν το updateAccumulators)
-    try {
-      if (hasYT() === true) {
-        const wasPlaying = prevState === YT.PlayerState.PLAYING;
-        const notPlayingNow = isDefined(s) === true ? (s !== YT.PlayerState.PLAYING ? true : false) : false;
-        if (wasPlaying === true) {
-          if (notPlayingNow === true) {
-            // Για PAUSED/ENDED υπάρχει ήδη finalize στο updateAccumulators. Εδώ καλύπτουμε BUFFERING/CUED/UNSTARTED/UNKNOWN.
-            let isPausedOrEnded = false;
-            if (isDefined(s) === true) {
-              if (s === YT.PlayerState.PAUSED) {
-                isPausedOrEnded = true;
-              } else {
-                if (s === YT.PlayerState.ENDED) {
-                  isPausedOrEnded = true;
-                }
-              }
-            }
-            if (isPausedOrEnded !== true) {
-              const guardParts = [];
-              guardParts.push(isDefined(ctrl.playingStart) === true);
-              const canFinalizeNow = allTrue(guardParts);
-              if (canFinalizeNow === true) {
-                const ms = Date.now() - ctrl.playingStart;
-                const addSec = (ms / 1000) * (isNumber(ctrl.currentRate) === true ? ctrl.currentRate : 1.0);
-                const base = isNumber(ctrl.totalPlayTime) === true ? ctrl.totalPlayTime : 0;
-                ctrl.totalPlayTime = base + addSec;
-                ctrl.playingStart = null;
-                log(`🧮 Player ${ctrl.index + 1} Finalize-OnExit → +${Math.round(addSec)}s`);
-              }
-            }
-          }
-        }
-      }
-    } catch (_) {}
-
-    ctrl.lastKnownState = s;
-  } catch (_) {}
-
-  // Dispatcher (switch)
+  // Dispatch με switch/case
   try {
-    if (isDefined(s) === true) {
+    const parts = [];
+    parts.push(isDefined(s) === true);
+    const hasState = allTrue(parts);
+    if (hasState === true) {
       if (hasYT() === true) {
         switch (s) {
           case YT.PlayerState.UNSTARTED:
-            onUnstarted(ctrl);
+            handleUnstarted(ctrl);
             break;
           case YT.PlayerState.ENDED:
-            onEnded(ctrl);
+            handleEnded(ctrl);
             break;
           case YT.PlayerState.PLAYING:
-            onPlaying(ctrl);
+            handlePlaying(ctrl);
             break;
           case YT.PlayerState.PAUSED:
-            onPaused(ctrl);
+            handlePaused(ctrl);
             break;
           case YT.PlayerState.BUFFERING:
-            onBuffering(ctrl);
+            handleBuffering(ctrl);
             break;
           case YT.PlayerState.CUED:
-            onCued(ctrl);
+            handleCued(ctrl);
             break;
           default:
-            onUnknown(ctrl, s);
+            handleUnknown(ctrl, s);
         }
       } else {
-        onUnknown(ctrl, s);
+        handleUnknown(ctrl, s);
       }
     } else {
-      onUnknown(ctrl, s);
+      handleUnknown(ctrl, s);
     }
   } catch (_) {}
 
-  // Accumulators & pause guard
-  if (isDefined(s) === true) {
-    updateAccumulators(ctrl, s);
-    restartPauseGuard(ctrl);
-  }
-  // ΣΗΜΑΝΤΙΚΟ: Το scheduling του unmute γίνεται MONO στο onPlaying().
+  // Ενημέρωση lastKnownState
+  try {
+    ctrl.lastKnownState = s;
+  } catch (_) {}
+
+  // Hooks μετά τον handler
+  afterTransition(ctrl, prevState, s);
+
+  // ΣΗΜΑΝΤΙΚΟ: Το scheduling του unmute βρίσκεται ΜΟΝΟ στο handlePlaying().
 }
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
