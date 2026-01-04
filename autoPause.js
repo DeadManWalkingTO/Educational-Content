@@ -1,5 +1,5 @@
 // --- autoPause.js ---
-const VERSION = 'v1.4.0';
+const VERSION = 'v1.4.3';
 /*
  * Περιγραφή: Κεντρικοποίηση λογικής παύσεων.
  * - schedulePauses(controller): Προγραμματίζει παύσεις βάσει plan/config.
@@ -30,17 +30,24 @@ const log = makeLogger(FILENAME);
  * Ελάχιστες παύσεις = αυτές που ορίζει η πολιτική.
  * @param {PlayerController} controller
  */
+
 export function schedulePauses(controller) {
   const p = controller.player;
+
+  // --- Guards για δυνατότητες player ---
   const guards = [];
   guards.push(isDefined(p));
-  guards.push(controller._can?.(p, 'getDuration') === true);
+  // Παλιά: controller._can?.(p, 'getDuration') === true
+  // Νέα: άμεσος έλεγχος ύπαρξης μεθόδου
+  guards.push(typeof p?.getDuration === 'function');
   const canDur = allTrue(guards);
   if (canDur !== true) {
     return;
   }
 
-  const duration = p.getDuration();
+  /* const duration = p.getDuration(); Παλιά λογική πλήρους διάρκειας */
+  // Πολιτική: χρησιμοποιούμε το required watch seconds
+  const duration = controller.getRequiredWatchSec();
   if (duration <= 0) {
     return;
   }
@@ -59,7 +66,7 @@ export function schedulePauses(controller) {
   }
 
   // Logging για διαφάνεια
-  log(`💤 Pause Plan → Baseline=${planFromPolicy?.count ?? '-'}, Final=${count}, Profile=${controller.profileName}`);
+  log(`😴 Pause Plan → Baseline=${planFromPolicy?.count ?? '-'}, Final=${count}, Profile=${controller.profileName}`);
 
   let i = 0;
   while (i < count) {
@@ -73,13 +80,16 @@ export function schedulePauses(controller) {
 
     const id = scheduleSafe(
       function () {
+        // Έλεγχος ότι είμαστε σε PLAYING
         const canPlay = [];
-        canPlay.push(controller._can?.(p, 'getPlayerState') === true);
+        // Παλιά: controller._can?.(p, 'getPlayerState') === true
+        canPlay.push(typeof p?.getPlayerState === 'function');
         const stOK = allTrue(canPlay) === true ? p.getPlayerState() === YT.PlayerState.PLAYING : false;
 
         if (stOK === true) {
           try {
-            if (controller._can?.(p, 'pauseVideo') === true) {
+            // Παλιά: controller._can?.(p, 'pauseVideo') === true
+            if (typeof p?.pauseVideo === 'function') {
               p.pauseVideo();
             }
           } catch (_) {}
@@ -88,6 +98,7 @@ export function schedulePauses(controller) {
           controller.expectedPauseMs = pauseLen;
           log(`⏸️ Player ${controller.index + 1} Pause → ${Math.round(pauseLen / 1000)}s`);
 
+          // Προγραμματισμός resume μετά από pauseLen
           scheduleSafe(
             function () {
               controller.guardPlay(p);

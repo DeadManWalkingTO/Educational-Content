@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v3.12.1';
+const VERSION = 'v3.17.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * - WTBus emit: όταν πιαστεί το required watch-time, εκπέμπουμε αμέσως 'wt:reached' (primary).
@@ -18,14 +18,15 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 /* ========================= Imports ========================= */
 import { makeLogger, allTrue, isDefined, isNumber, isFunction, scheduleSafe, rndInt } from './utils.js';
 import { stats } from './globals.js';
+import { getBehaviorPlan } from './policies.js';
 import { emitWatchtimeReached } from './wtBus.js';
 import { autoNextAfterWatchtime, autoNextAfterError } from './autoNext.js';
-import { applyInitSeek } from './autoSeek.js';
-import { scheduleRateChanges, resetPlaybackRate } from './autoRate.js';
+import { schedulePauses, restartPauseGuard } from './autoPause.js';
 import { scheduleQualityChanges } from './autoQuality.js';
+import { scheduleRateChanges, resetPlaybackRate } from './autoRate.js';
+import { applyInitSeek } from './autoSeek.js';
+import { scheduleUnmute } from './autoUnmute.js';
 import { scheduleVolumeChanges, scheduleMicroAdjust } from './autoVolume.js';
-import { getBehaviorPlan } from './policies.js';
-import { scheduleUnmute } from './autoUnmute.js'; // AutoUnmute integration
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -49,7 +50,9 @@ export function onReadyExternal(ctrl, e) {
     parts.push(p !== null);
     const ok = allTrue(parts);
     if (ok !== true) return;
-    // Plan (duration-aware)
+
+    /* Plan (duration-aware) */
+    /* Παλιά λογική πλήρους διάρκειας:*/
     let durationNow = 0;
     try {
       const can = _can(p, 'getDuration') === true;
@@ -66,7 +69,7 @@ export function onReadyExternal(ctrl, e) {
     } catch (_p) {
       ctrl.videoRequiredWatchTime = 15;
     }
-    // Reset baseline playback rate
+    /* Reset baseline playback rate */
     try {
       resetPlaybackRate(ctrl);
     } catch (_) {}
@@ -77,7 +80,7 @@ export function onReadyExternal(ctrl, e) {
         applyInitSeek(ctrl, t);
       }
     } catch (_) {}
-    // Soft tasks schedules (respect back-pressure εργόστερα)
+    /* Soft tasks schedules (respect back-pressure εργόστερα) */
     try {
       scheduleRateChanges(ctrl);
     } catch (_) {}
@@ -91,7 +94,7 @@ export function onReadyExternal(ctrl, e) {
     try {
       scheduleMicroAdjust(p, durationNow, ctrl._group('volume'), ctrl);
     } catch (_) {}
-    log(`✅ Player ${ctrl.index + 1} READY → Plan required=${ctrl.videoRequiredWatchTime}s`);
+    log(`✅ Player ${ctrl.index + 1} READY → Plan Required WT=${ctrl.videoRequiredWatchTime}s`);
   } catch (err) {
     log(`❌ onReadyExternal Error → ${err}`);
   }
@@ -108,9 +111,28 @@ export function onReadyExternal(ctrl, e) {
     }
   } catch (_) {}
 
+  /* Logging για διαφάνεια */
   try {
     const baselinePauses = ctrl?.plan?.pauses?.count ?? '-';
     log(`📋 Player ${ctrl.index + 1} Pause Plan → Baseline=${baselinePauses}, ProfileChance=${ctrl?.config?.pauseChance ?? '?'}`);
+  } catch (_) {}
+
+  try {
+    const d = rndInt(1200, 2400); // ίδιο εύρος καθυστέρησης
+    scheduleSafe(
+      () => {
+        try {
+          schedulePauses(ctrl);
+        } catch (_) {}
+        try {
+          restartPauseGuard(ctrl);
+        } catch (_) {}
+      },
+      d,
+      ctrl._group('pause'),
+      'pause-plan'
+    );
+    log(`ℹ️ Player ${ctrl.index + 1} Pause Plan scheduled (muted-friendly, READY)`);
   } catch (_) {}
 }
 
@@ -136,23 +158,54 @@ export function onStateChangeExternal(ctrl, e) {
       }
 
       /* Καταγραφή PLAYING event */
+
       try {
         const p = ctrl?.player;
 
-        // Ασφαλείς αναγνώσεις από IFrame API
+        // Quality
         const quality = typeof p?.getPlaybackQuality === 'function' ? p.getPlaybackQuality() ?? '?' : '?';
-        const vol = typeof p?.getVolume === 'function' ? p.getVolume() ?? '?' : '?';
+
+        // Muted state (guards χωρίς &&/||)
+        let isMutedNow = false;
+        try {
+          const partsMuted = [];
+          partsMuted.push(typeof p?.isMuted === 'function');
+          const canCheckMuted = allTrue(partsMuted);
+          if (canCheckMuted === true) {
+            const m = p.isMuted();
+            const isBool = typeof m === 'boolean';
+            if (isBool === true) isMutedNow = m === true;
+          }
+        } catch (_) {}
+
+        // Volume (raw value)
+        let vol = '?';
+        try {
+          const partsVol = [];
+          partsVol.push(typeof p?.getVolume === 'function');
+          const canGetVol = allTrue(partsVol);
+          if (canGetVol === true) {
+            const vv = p.getVolume();
+            vol = typeof vv === 'number' ? vv : vol;
+          }
+        } catch (_) {}
 
         // Controller meta (played/required)
-        const played = typeof ctrl?.getPlayedSec === 'function' ? ctrl.getPlayedSec() : ctrl.videoTotalPlayTime ?? 0;
-        const required = typeof ctrl?.getRequiredWatchSec === 'function' ? ctrl.getRequiredWatchSec() : ctrl.videoRequiredWatchTime ?? 0;
+        const played = typeof ctrl?.getPlayedSec === 'function' ? ctrl.getPlayedSec() : isNumber(ctrl?.videoTotalPlayTime) === true ? ctrl.videoTotalPlayTime : 0;
 
-        // Προαιρετικά: effective rate από τον player (αν θες αντί για ctrl.currentRate)
-        // const rateEff  = (typeof p?.getPlaybackRate === 'function') ? (p.getPlaybackRate() ?? (ctrl.currentRate ?? 1.0)) : (ctrl.currentRate ?? 1.0);
+        const required = typeof ctrl?.getRequiredWatchSec === 'function' ? ctrl.getRequiredWatchSec() : isNumber(ctrl?.videoRequiredWatchTime) === true ? ctrl.videoRequiredWatchTime : 0;
 
-        log(`🟢 Player ${ctrl.index + 1} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)}, Quality=${quality}, Vol=${vol}, Played=${played}s, Required=${required}s)`);
+        // Label: δείξε state MUTED(value) για διαγνωστική σαφήνεια
+        const volLabel = isMutedNow === true ? `MUTED(${vol})` : String(vol);
+
+        // Προαιρετικά: effective rate από τον player
+        // const rateEff = (typeof p?.getPlaybackRate === 'function')
+        //   ? (p.getPlaybackRate() ?? (ctrl.currentRate ?? 1.0))
+        //   : (ctrl.currentRate ?? 1.0);
+
+        log(`🟢 Player ${ctrl.index + 1} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)}, ` + `Quality=${quality}, Vol=${volLabel}, Played=${played}s, Required=${required}s)`);
       } catch (_) {
-        log(`🟢 Player ${ctrl.index + 1} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)}, Quality=?, Vol=?, Played=?s, Required=?s)`);
+        log(`🟢 Player ${ctrl.index + 1} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)}, ` + `Quality=?, Vol=?, Played=?s, Required=?s)`);
       }
 
       // AutoUnmute scheduling με PLAYING trigger (μία φορά, όταν εκκρεμεί)

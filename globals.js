@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v5.2.2';
+const VERSION = 'v5.2.3';
 /*
  * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
  * - Νέα counters: stats.wtSignals (WTBus emits) και stats.softBackpressureHits (soft-task gate reschedules).
@@ -131,7 +131,7 @@ export function clearStopTimers() {
 export let hasUserGesture = false;
 export function setUserGesture() {
   hasUserGesture = true;
-  log(`💻 Αλλληλεπίδραση Χρήστη`);
+  log(`💻 Αλληλεπίδραση Χρήστη`);
 }
 
 /** --- UI Utilities (stats panel binding) --- */
