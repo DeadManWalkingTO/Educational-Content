@@ -1,5 +1,5 @@
 // --- consoleFilter.js ---
-const VERSION = 'v3.8.0';
+const VERSION = 'v3.8.2';
 /*
  * Τυποποιημένο wrapping της global console με state-machine και tagging.
  * Προωθεί non-critical logs (error/warn/info/log) σε επιλεγμένο level με prefix tag,
@@ -30,7 +30,7 @@ let _orig = { error: null, warn: null, info: null, log: null };
 /**
  * State φίλτρου:
  * - enabled: on/off
- * - level: 'info' ή 'warn' -> επίπεδο προώθησης
+ * - level: 'info' ή 'warn' → επίπεδο προώθησης
  * - patterns: Array<RegExp> για stringified args
  * - sources: Array<RegExp> για Error.stack hints
  * - tag: prefix στα forwarded logs

@@ -1,5 +1,5 @@
 // --- lists.js ---
-const VERSION = 'v4.16.0';
+const VERSION = 'v4.16.4';
 /*
 Περιγραφή: Φόρτωση λιστών video IDs από local/remote πηγές, με parsing, sanitization,
 logging και fallback. Επιστρέφει arrays για συμβατότητα, ενώ το reload() παρέχει meta.
@@ -122,7 +122,7 @@ async function fetchText(url, timeoutMs) {
 }
 
 /**
- * Προσπάθεια φόρτωσης από URL -> μετατροπή σε λίστα.
+ * Προσπάθεια φόρτωσης από URL → μετατροπή σε λίστα.
  * @param {string} url
  * @param {number|undefined} timeoutMs
  * @returns {Promise<string[]|null>}
@@ -177,7 +177,7 @@ async function loadVideoListWithMeta() {
       return { list: clean, source: 'local' };
     }
   } catch (err) {
-    log(`⚠️ Local List Load Failed -> ${err}`);
+    log(`⚠️ Local List Load Failed → ${err}`);
   }
 
   // 2) Remote GitHub
@@ -232,7 +232,7 @@ async function loadAltListWithMeta() {
       return { list: clean, source: 'local' };
     }
   } catch (err) {
-    log(`⚠️ Alt List Load Failed -> ${err}`);
+    log(`⚠️ Alt List Load Failed → ${err}`);
   }
   try {
     stats.errors = stats.errors + 1;
@@ -269,7 +269,7 @@ export async function reloadList() {
   const altMeta = both[1];
   const mainList = mainMeta.list;
   const altList = altMeta.list;
-  log(`🔄 Lists Reloaded -> Main:${mainList.length} (Source:${mainMeta.source}) Alt:${altList.length} (Source:${altMeta.source})`);
+  log(`🔄 Lists Reloaded → Main:${mainList.length} (Source:${mainMeta.source}) Alt:${altList.length} (Source:${altMeta.source})`);
   return { mainList, altList, meta: { mainSource: mainMeta.source, altSource: altMeta.source } };
 }
 

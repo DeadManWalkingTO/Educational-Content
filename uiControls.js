@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-const VERSION = 'v4.2.0';
+const VERSION = 'v4.2.3';
 /*
  * Κεντρικό χειριστήριο UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
  * - Stop All: χρήση utils.scheduleSafe αντί για native setTimeout (ενοποίηση timers).
@@ -274,11 +274,11 @@ export async function bindUiEvents() {
       safeAddEvent(el, 'click', handler);
       bound = bound + 1;
     } else {
-      log(`⚠️ Bind Skipped -> Missing Element #${id}`);
+      log(`⚠️ Bind Skipped → Missing Element #${id}`);
     }
   }
   __uiBound = true;
-  log(`✅ Events Bound (uiControls.js ${VERSION}) -> ${bound} handlers`);
+  log(`✅ Events Bound (uiControls.js ${VERSION}) → ${bound} handlers`);
   return bound;
 }
 
@@ -290,7 +290,7 @@ export async function reloadList() {
     const altList = ret.altList;
     setMainList(mainList);
     setAltList(altList);
-    log(`📂 Lists Applied -> Main: ${mainList.length} - Alt: ${altList.length}`);
+    log(`📂 Lists Applied → Main: ${mainList.length} - Alt: ${altList.length}`);
     if (typeof document !== 'undefined') {
       const detail = {
         mainCount: Array.isArray(mainList) ? mainList.length : 0,

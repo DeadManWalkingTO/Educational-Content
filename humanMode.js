@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-const VERSION = 'v5.2.0';
+const VERSION = 'v5.3.2';
 /*
  * Περιγραφή: Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς playback.
  * Στόχος: duration-aware start, ρεαλιστικές παύσεις/seek/ένταση/ποιότητα/ρυθμός.
@@ -242,9 +242,9 @@ export async function initPlayersSequentially(mainList, altList) {
     try {
       baselinePauses = isDefined(controller?.plan?.pauses?.count) === true ? controller.plan.pauses.count : '-';
     } catch (_) {}
-    log(`📋 Player ${i + 1} Pause Plan -> Baseline=${baselinePauses}, ProfileChance=${config.pauseChance}`);
+    log(`📋 Player ${i + 1} Pause Plan (Προ-Baseline) → Baseline=${baselinePauses}, ProfileChance=${config.pauseChance}`);
     const session = { pauseChance: config.pauseChance, seekChance: config.seekChance, qualityChangeChance: config.qualityChangeChance, volumeChangeChance: config.volumeChangeChance };
-    log(`👤 Player ${i + 1} HumanMode Init -> Session=${JSON.stringify(session)}`);
+    log(`👤 Player ${i + 1} HumanMode Init → Session=${JSON.stringify(session)}`);
 
     i = i + 1;
   }

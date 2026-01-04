@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v1.4.1';
+const VERSION = 'v1.4.2';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, mid-seek scheduler, init-seek).
  * Αλλαγή: Προστέθηκε guard ώστε να μην γίνεται double-schedule του mid-seek.
@@ -125,7 +125,7 @@ function _doMidSeekOnce(ctrl) {
 
     safeSeek(ctrl, target);
     stats.seeks = (stats.seeks ?? 0) + 1;
-    log(`⏩ Player ${ctrl.index + 1} Mid-Seek -> ${target}s`);
+    log(`⏩ Player ${ctrl.index + 1} Mid-Seek → ${target}s`);
 
     const now = Date.now();
     ctrl.seekMeta.lastMs = now;

@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v7.15.0';
+const VERSION = 'v7.15.3';
 /*
  * Controller: λεπτό wrapper για YT events με delegation στο PlayerStateEngine.
  * - Soft-task back-pressure meta: softTaskMinGapMs, lastSoftTaskMs, softFreezeUntilMs.
@@ -121,7 +121,7 @@ export class PlayerController {
               log(`🧭 Player ${this.index + 1} Lists Updated → Idle (Plan Refreshed)`);
             }
           } catch (err) {
-            log(`⚠️ Player ${this.index + 1} Lists Update Error -> ${err}`);
+            log(`⚠️ Player ${this.index + 1} Lists Update Error → ${err}`);
           }
         };
         safeAddEvent(document, 'lists:updated', handler);
@@ -241,8 +241,8 @@ export class PlayerController {
       events: { onReady: (e) => this.onReady(e), onStateChange: (e) => this.onStateChange(e), onError: () => this.onError() },
     });
     log(`ℹ️ YT PlayerVars → Origin: ${getOrigin()} / Host: ${getYouTubeEmbedHost()}`);
-    log(`ℹ️ Player ${this.index + 1} Initialized -> ID=${videoId}`);
-    log(`👤 Player ${this.index + 1} Profile -> ${this.profileName}`);
+    log(`ℹ️ Player ${this.index + 1} Initialized → ID=${videoId}`);
+    log(`👤 Player ${this.index + 1} Profile → ${this.profileName}`);
   }
 
   onReady(e) {

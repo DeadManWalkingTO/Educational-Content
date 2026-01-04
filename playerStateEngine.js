@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v3.7.2';
+const VERSION = 'v3.12.1';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * - WTBus emit: όταν πιαστεί το required watch-time, εκπέμπουμε αμέσως 'wt:reached' (primary).
@@ -107,6 +107,11 @@ export function onReadyExternal(ctrl, e) {
       ctrl.unmuteScheduled = false; // καθαρό state
     }
   } catch (_) {}
+
+  try {
+    const baselinePauses = ctrl?.plan?.pauses?.count ?? '-';
+    log(`📋 Player ${ctrl.index + 1} Pause Plan → Baseline=${baselinePauses}, ProfileChance=${ctrl?.config?.pauseChance ?? '?'}`);
+  } catch (_) {}
 }
 
 /**
@@ -131,7 +136,24 @@ export function onStateChangeExternal(ctrl, e) {
       }
 
       /* Καταγραφή PLAYING event */
-      log(`🟢 Player ${ctrl.index + 1} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)})`);
+      try {
+        const p = ctrl?.player;
+
+        // Ασφαλείς αναγνώσεις από IFrame API
+        const quality = typeof p?.getPlaybackQuality === 'function' ? p.getPlaybackQuality() ?? '?' : '?';
+        const vol = typeof p?.getVolume === 'function' ? p.getVolume() ?? '?' : '?';
+
+        // Controller meta (played/required)
+        const played = typeof ctrl?.getPlayedSec === 'function' ? ctrl.getPlayedSec() : ctrl.videoTotalPlayTime ?? 0;
+        const required = typeof ctrl?.getRequiredWatchSec === 'function' ? ctrl.getRequiredWatchSec() : ctrl.videoRequiredWatchTime ?? 0;
+
+        // Προαιρετικά: effective rate από τον player (αν θες αντί για ctrl.currentRate)
+        // const rateEff  = (typeof p?.getPlaybackRate === 'function') ? (p.getPlaybackRate() ?? (ctrl.currentRate ?? 1.0)) : (ctrl.currentRate ?? 1.0);
+
+        log(`🟢 Player ${ctrl.index + 1} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)}, Quality=${quality}, Vol=${vol}, Played=${played}s, Required=${required}s)`);
+      } catch (_) {
+        log(`🟢 Player ${ctrl.index + 1} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)}, Quality=?, Vol=?, Played=?s, Required=?s)`);
+      }
 
       // AutoUnmute scheduling με PLAYING trigger (μία φορά, όταν εκκρεμεί)
       try {
@@ -202,7 +224,22 @@ export function onStateChangeExternal(ctrl, e) {
 
     /*-------------- ENDED --------------*/
     if (state === YT.PlayerState.ENDED) {
-      log(`🔵 Player ${ctrl.index + 1} → ENDED`);
+      /* Καταγραφή PLAYING event */
+      try {
+        const p = ctrl?.player;
+
+        // Controller meta (played/required)
+        const played = typeof ctrl?.getPlayedSec === 'function' ? ctrl.getPlayedSec() : ctrl.videoTotalPlayTime ?? 0;
+        const required = typeof ctrl?.getRequiredWatchSec === 'function' ? ctrl.getRequiredWatchSec() : ctrl.videoRequiredWatchTime ?? 0;
+
+        // Προαιρετικά: effective rate από τον player (αν θες αντί για ctrl.currentRate)
+        // const rateEff  = (typeof p?.getPlaybackRate === 'function') ? (p.getPlaybackRate() ?? (ctrl.currentRate ?? 1.0)) : (ctrl.currentRate ?? 1.0);
+
+        log(`🔵 Player ${ctrl.index + 1} → ENDED (Played=${played}s, Required=${required}s)`);
+      } catch (_) {
+        log(`🔵 Player ${ctrl.index + 1} → ENDED (Played=?s, Required=?s)`);
+      }
+
       // (υπό προϋποθέσεις) fallback autoNext από AutoNext module
       if (ctrl.watchtimeFired !== true) {
         autoNextAfterWatchtime(ctrl); // WT pacing προτιμάται

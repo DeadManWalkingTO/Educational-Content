@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v1.7.0';
+const VERSION = 'v1.7.1';
 /*
  * Περιγραφή: Εξωτερικός watchdog για "required watch time" ανά PlayerController.
  * - WTBus subscribe: cache στους indices που έλαβαν 'wt:reached'.
@@ -28,7 +28,7 @@ const log = makeLogger(FILENAME);
 
 // ========================= State =========================
 let watchdogTimerId = null;
-// Cache για WTBus events (index -> lastMs)
+// Cache για WTBus events (index → lastMs)
 const wtSeen = {};
 const WT_FALLBACK_GRACE_MS = 8000;
 let wtBusDisposer = null;
