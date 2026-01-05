@@ -1,9 +1,9 @@
 // --- youtubeReady.js ---
-const VERSION = 'v1.11.0';
+const VERSION = 'v1.11.1';
 /*
  * Σκοπός: Ready gate για το YouTube IFrame Player API με timeout,
  * ασφαλές injection του script, global callback (once) και polling fallback.
- * Εξαρτήσεις (utils.js): isDefined, isFunction, log, domReady, scheduleSafe, delay, cancel, fmtMs, once.
+ * Εξαρτήσεις (utils.js): isDefined, isFunction, log, domReady, scheduleSafe, delay, cancel, fmtMs, once, allTrue, anyTrue.
  */
 
 // --- Export Version ---
@@ -18,16 +18,14 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { isDefined, isFunction, makeLogger, domReady, scheduleSafe, delay, cancel, fmtMs, once } from './utils.js';
+import { isDefined, isFunction, makeLogger, domReady, scheduleSafe, delay, cancel, fmtMs, once, allTrue, anyTrue } from './utils.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
 
 /* ========================= Εσωτερικά ========================= */
 
-/**
- * Επιστρέφει true όταν υπάρχει window.YT και YT.Player είναι function.
- */
+/** Επιστρέφει true όταν υπάρχει window.YT και YT.Player είναι function. */
 function isApiReady() {
   let hasWindow = false;
   try {
@@ -36,43 +34,46 @@ function isApiReady() {
     hasWindow = false;
   }
 
-  if (hasWindow !== true) {
-    return false;
-  }
+  const wOk = [];
+  wOk.push(hasWindow === true);
+  if (allTrue(wOk) !== true) return false;
 
-  if (isDefined(window.YT) !== true) {
-    return false;
-  }
+  const hasYT = [];
+  hasYT.push(isDefined(window.YT) === true);
+  if (allTrue(hasYT) !== true) return false;
 
-  const playerIsFn = isFunction(window.YT.Player);
-  if (playerIsFn !== true) {
-    return false;
-  }
+  const playerIsFn = isFunction(window.YT.Player) === true;
+  const partsFn = [];
+  partsFn.push(playerIsFn === true);
+  if (allTrue(partsFn) !== true) return false;
 
   return true;
 }
 
-/**
- * Προσπαθεί να εγχύσει το IFrame API script αν δεν υπάρχει ήδη στο DOM.
- */
+/** Προσπαθεί να εγχύσει το IFrame API script αν δεν υπάρχει ήδη στο DOM. */
 function ensureIframeApiScriptInjected() {
   try {
-    const hasDoc = typeof document !== 'undefined';
-    if (hasDoc !== true) {
-      return;
-    }
+    const hasDoc = [];
+    hasDoc.push(typeof document !== 'undefined');
+    if (allTrue(hasDoc) !== true) return;
 
     const scripts = document.getElementsByTagName('script');
     let found = false;
-    let i = 0;
 
+    let i = 0;
     while (i < scripts.length) {
       const s = scripts[i];
-      if (isDefined(s) === true) {
-        const hasSrc = isDefined(s.src);
-        if (hasSrc === true) {
+
+      const canCheck = [];
+      canCheck.push(isDefined(s) === true);
+      if (allTrue(canCheck) === true) {
+        const hasSrc = [];
+        hasSrc.push(isDefined(s.src) === true);
+        if (allTrue(hasSrc) === true) {
           const idx = s.src.indexOf('youtube.com/iframe_api');
-          if (idx >= 0) {
+          const isMatch = [];
+          isMatch.push(idx >= 0);
+          if (allTrue(isMatch) === true) {
             found = true;
           }
         }
@@ -80,33 +81,42 @@ function ensureIframeApiScriptInjected() {
       i = i + 1;
     }
 
-    if (found !== true) {
-      const tag = document.createElement('script');
-      tag.src = 'https://www.youtube.com/iframe_api';
+    switch (allTrue([found === true]) === true) {
+      case true:
+        log('ℹ️ YouTube IFrame API Script Already Present → No Injection');
+        break;
 
-      const firstScriptTag = scripts[0];
-      if (isDefined(firstScriptTag) === true) {
-        const hasParent = isDefined(firstScriptTag.parentNode);
-        if (hasParent === true) {
-          firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-          log('📎 YouTube IFrame API Script Injected Before First <script>');
+      default: {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+
+        const firstScriptTag = scripts[0];
+        const hasFirst = [];
+        hasFirst.push(isDefined(firstScriptTag) === true);
+
+        if (allTrue(hasFirst) === true) {
+          const hasParent = [];
+          hasParent.push(isDefined(firstScriptTag.parentNode) === true);
+          if (allTrue(hasParent) === true) {
+            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+            log('📎 YouTube IFrame API Script Injected Before First <script>');
+          } else {
+            document.head.appendChild(tag);
+            log('📎 YouTube IFrame API Script Injected Into <head>');
+          }
         } else {
           document.head.appendChild(tag);
-          log('📎 YouTube IFrame API Script Injected Into <head>');
+          log('📎 YouTube IFrame API Script Injected Into <head> (No Existing <script>)');
         }
-      } else {
-        document.head.appendChild(tag);
-        log('📎 YouTube IFrame API Script Injected Into <head> (No Existing <script>)');
+        break;
       }
-    } else {
-      log('ℹ️ YouTube IFrame API Script Already Present → No Injection');
     }
   } catch (err) {
     try {
       const msg = err instanceof Error ? err.message : String(err);
       log('❌ ensureIframeApiScriptInjected Error ' + msg);
     } catch (_) {
-      // no-op
+      /* no-op */
     }
   }
 }
@@ -117,14 +127,19 @@ function ensureIframeApiScriptInjected() {
  * - Αν απουσιάζει, ορίζει wrapper με once για αποφυγή διπλών κλήσεων.
  */
 function setupGlobalReady(onReadyCb) {
-  const hasWindow = typeof window !== 'undefined' ? true : false;
-  if (hasWindow !== true) {
+  const winAvail = [];
+  winAvail.push(typeof window !== 'undefined');
+  if (allTrue(winAvail) !== true) {
     return function () {};
   }
 
   const existing = window.onYouTubeIframeAPIReady;
-  if (isDefined(existing) === true) {
-    if (isFunction(existing) === true) {
+  const hasExisting = [];
+  hasExisting.push(isDefined(existing) === true);
+  if (allTrue(hasExisting) === true) {
+    const isFn = [];
+    isFn.push(isFunction(existing) === true);
+    if (allTrue(isFn) === true) {
       log('ℹ️ window.onYouTubeIframeAPIReady Already Defined');
       return function () {};
     }
@@ -132,7 +147,9 @@ function setupGlobalReady(onReadyCb) {
 
   const safeOnceCb = once(function () {
     try {
-      if (isFunction(onReadyCb)) {
+      const canCall = [];
+      canCall.push(isFunction(onReadyCb) === true);
+      if (allTrue(canCall) === true) {
         onReadyCb();
       }
     } catch (err) {
@@ -140,7 +157,7 @@ function setupGlobalReady(onReadyCb) {
         const msg = err instanceof Error ? err.message : String(err);
         log('❌ onYouTubeIframeAPIReady Wrapper Error ' + msg);
       } catch (_) {
-        // no-op
+        /* no-op */
       }
     }
   });
@@ -148,13 +165,12 @@ function setupGlobalReady(onReadyCb) {
   window.onYouTubeIframeAPIReady = function () {
     safeOnceCb();
   };
-
   log('🧩 window.onYouTubeIframeAPIReady → Installed');
+
   return function () {};
 }
 
 /* ========================= Δημόσια API ========================= */
-
 /**
  * Περιμένει το YouTube IFrame API με timeout και fallback polling.
  * Χρησιμοποιεί συναρτήσεις από utils.js (imports).
@@ -175,7 +191,7 @@ export function youtubeReady(timeoutMs) {
 
     // 2) Already ready?
     const readyNow = isApiReady();
-    if (readyNow === true) {
+    if (allTrue([readyNow === true]) === true) {
       log('✅ YouTube API Is Already Ready');
       resolve();
       return;
@@ -187,11 +203,14 @@ export function youtubeReady(timeoutMs) {
     // 4) Global callback
     setupGlobalReady(function () {
       const ok = isApiReady();
-      if (ok === true) {
-        log('✅ YouTube API Ready (Global Callback)');
-        resolve();
-      } else {
-        log('⚠️ Global Callback Fired But API Not Fully Ready Yet');
+      switch (allTrue([ok === true]) === true) {
+        case true:
+          log('✅ YouTube API Ready (Global Callback)');
+          resolve();
+          break;
+        default:
+          log('⚠️ Global Callback Fired But API Not Fully Ready Yet');
+          break;
       }
     });
 
@@ -201,11 +220,16 @@ export function youtubeReady(timeoutMs) {
     const group = 'yt-api-ready';
 
     function clearAll() {
-      if (isDefined(timeoutId) === true) {
+      const hasT = [];
+      hasT.push(isDefined(timeoutId) === true);
+      if (allTrue(hasT) === true) {
         cancel(timeoutId);
         timeoutId = null;
       }
-      if (isDefined(pollId) === true) {
+
+      const hasP = [];
+      hasP.push(isDefined(pollId) === true);
+      if (allTrue(hasP) === true) {
         cancel(pollId);
         pollId = null;
       }
@@ -215,15 +239,18 @@ export function youtubeReady(timeoutMs) {
     timeoutId = scheduleSafe(
       function () {
         const ok = isApiReady();
-        if (ok === true) {
-          log('✅ YouTube API Ready (Just Before Timeout)');
-          clearAll();
-          resolve();
-          return;
+        switch (allTrue([ok === true]) === true) {
+          case true:
+            log('✅ YouTube API Ready (Just Before Timeout)');
+            clearAll();
+            resolve();
+            return;
+          default:
+            log('⏱️ Timeout Waiting For YT API After ' + fmtMs(maxWait));
+            clearAll();
+            reject(new Error('Timeout ' + fmtMs(maxWait)));
+            return;
         }
-        log('⏱️ Timeout Waiting For YT API After ' + fmtMs(maxWait));
-        clearAll();
-        reject(new Error('Timeout ' + fmtMs(maxWait)));
       },
       maxWait,
       group,
@@ -233,14 +260,17 @@ export function youtubeReady(timeoutMs) {
     // Poll κάθε ~200 ms (utils.delay)
     function pollTick() {
       const ok = isApiReady();
-      if (ok === true) {
-        log('✅ YouTube API Ready (Poll)');
-        clearAll();
-        resolve();
-        return;
+      switch (allTrue([ok === true]) === true) {
+        case true:
+          log('✅ YouTube API Ready (Poll)');
+          clearAll();
+          resolve();
+          return;
+        default:
+          // Επαναπρογραμματισμός επόμενου poll
+          pollId = delay(pollTick, 200, group);
+          return;
       }
-      // Επαναπρογραμματισμός επόμενου poll
-      pollId = delay(pollTick, 200, group);
     }
 
     // Πρώτο poll
