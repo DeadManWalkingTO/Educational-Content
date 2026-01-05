@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v5.4.2';
+const VERSION = 'v5.4.3';
 /*
  * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
  * - Νέα counters: stats.wtSignals (WTBus emits) και stats.softBackpressureHits (soft-task gate reschedules).
@@ -86,7 +86,7 @@ export const stats = {
 export const PLAYER_COUNT = 8;
 export const MAIN_PROBABILITY = 0.5;
 export const AUTO_NEXT_LIMIT_PER_PLAYER = 50;
-export const WATCHDOG_RATE = secToMs(300);
+export const WATCHDOG_RATE = secToMs(120);
 
 /** Controllers registry (γεμίζει από main.js) */
 export const controllers = [];
