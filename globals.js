@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v5.2.3';
+const VERSION = 'v5.3.2';
 /*
  * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
  * - Νέα counters: stats.wtSignals (WTBus emits) και stats.softBackpressureHits (soft-task gate reschedules).
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { makeLogger, ts, isDefined, isNonEmptyArray, deepClone, cancel, secToMs } from './utils.js';
+import { makeLogger, ts, isDefined, isNonEmptyArray, deepClone, cancel, secToMs, anyTrue, allTrue } from './utils.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -37,7 +37,7 @@ export const consoleFilterConfig = {
     /googleads\.g\.doubleclick\.net\/pagead\/viewthroughconversion/i,
     /www\.youtube\.com\/pagead\/viewthroughconversion/i,
     /Failed to execute 'postMessage' on 'DOMWindow'.*target origin.*does not match the recipient window's origin/i,
-    /Failed to execute 'postMessage'.*does not match the recipient window's origin/i,
+    /Failed to execute 'postMessage'.*does not match/i,
     /postMessage.*origin.*does not match/i,
   ],
   sources: [/www\-widgetapi\.js/i, /googleads\.g\.doubleclick\.net/i, /pagead\/viewthroughconversion/i],
@@ -48,13 +48,24 @@ export const consoleFilterConfig = {
 /** --- YouTube API Helpers --- */
 export function getOrigin() {
   try {
-    return window.location.origin;
-  } catch (e) {
-    return 'https://localhost';
-  }
+    const parts = [];
+    parts.push(typeof window !== 'undefined');
+    parts.push(isDefined(window?.location) === true);
+    parts.push(isDefined(window?.location?.origin) === true);
+    const ok = allTrue(parts);
+    if (ok === true) {
+      return window.location.origin;
+    }
+  } catch (_) {}
+  return 'https://localhost';
 }
+
 export function getYouTubeEmbedHost() {
-  return 'https://www.youtube.com';
+  // Δομημένη επιλογή (switch-case) — κρατάμε ασφαλές default.
+  switch ('default') {
+    default:
+      return 'https://www.youtube.com';
+  }
 }
 
 /** --- Στατιστικά για την εφαρμογή --- */
@@ -83,38 +94,52 @@ export const controllers = [];
 /** --- Lists state --- */
 let _mainList = [];
 let _altList = [];
+
 export function getMainList() {
   return _mainList;
 }
+
 export function getAltList() {
   return _altList;
 }
+
 export function setMainList(list) {
-  const next = Array.isArray(list) ? deepClone(list) : [];
+  const okArr = allTrue([Array.isArray(list) === true]);
+  const next = okArr === true ? deepClone(list) : [];
   _mainList = next;
   log(`📂 Main list applied → ${_mainList.length} videos`);
 }
+
 export function setAltList(list) {
-  const next = Array.isArray(list) ? deepClone(list) : [];
+  const okArr = allTrue([Array.isArray(list) === true]);
+  const next = okArr === true ? deepClone(list) : [];
   _altList = next;
   log(`📂 Alt List Applied → ${_altList.length} Videos`);
 }
+
 export function hasArrayWithItems(arr) {
   return isNonEmptyArray(arr);
 }
 
 /** --- Stop All state & helpers --- */
 export let isStopping = false;
+
 const stopTimers = [];
+
 export function setIsStopping(flag) {
-  isStopping = !!flag;
+  // Αποφεύγουμε !! — ρητός ορισμός boolean
+  isStopping = flag === true ? true : false;
   log(`⏹️ isStopping → ${isStopping}`);
 }
+
 export function pushStopTimer(timerId) {
-  if (isDefined(timerId)) {
+  const parts = [];
+  parts.push(isDefined(timerId) === true);
+  if (allTrue(parts) === true) {
     stopTimers.push(timerId);
   }
 }
+
 export function clearStopTimers() {
   while (stopTimers.length > 0) {
     const id = stopTimers.pop();
@@ -136,33 +161,46 @@ export function setUserGesture() {
 
 /** --- UI Utilities (stats panel binding) --- */
 function updateStats() {
-  if (typeof document === 'undefined') {
+  const canDOM = [];
+  canDOM.push(typeof document !== 'undefined');
+  if (allTrue(canDOM) !== true) {
     return;
   }
+
   let el = document.getElementById('statsPanel');
-  if (el === null) {
+  const needCreate = [];
+  needCreate.push(el === null);
+  if (allTrue(needCreate) === true) {
     el = document.createElement('div');
     el.id = 'statsPanel';
     el.className = 'stats';
     document.body.appendChild(el);
   }
+
   el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Pauses:${stats.pauses} - Seeks:${stats.seeks} - VolumeChanges:${stats.volumeChanges} - QualityChanges:${stats.qualityChanges} - RateChanges:${stats.rateChanges} - Errors:${stats.errors} - WTSignals:${stats.wtSignals} - SoftBP:${stats.softBackpressureHits}`;
 }
+
 // Listener για app:log (Activity Panel + updateStats)
 if (typeof document !== 'undefined') {
   document.addEventListener('app:log', (ev) => {
     const { full } = ev.detail;
     const panel = document.getElementById('activityPanel');
-    if (panel !== null) {
+
+    const showPanel = [];
+    showPanel.push(panel !== null);
+    if (allTrue(showPanel) === true) {
       const div = document.createElement('div');
       div.textContent = full;
       panel.appendChild(div);
+
       const LOG_PANEL_MAX = 250;
       while (panel.children.length > LOG_PANEL_MAX) {
         panel.removeChild(panel.firstChild);
       }
+
       panel.scrollTop = panel.scrollHeight;
     }
+
     try {
       updateStats();
     } catch (e) {}
