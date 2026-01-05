@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v2.1.2';
+const VERSION = 'v2.1.3';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, mid-seek scheduler, init-seek).
  * Στόχοι: Start-Seek awareness + Adaptive timing εντός WT παραθύρου + late/short stop.
@@ -167,8 +167,8 @@ export function applyInitSeek(ctrl, targetSec) {
     ctrl.seekMeta.initTargetSec = targetSec;
     ctrl.seekMeta.initAppliedMs = Date.now();
   } catch (_) {}
+  const delayMs = 800;
   try {
-    const delayMs = 800;
     safeSeek(ctrl, targetSec);
     try {
       log(`⏱️ Player ${ctrl.index + 1} Init-Seek scheduled in ${(delayMs / 1000).toFixed(1)}s → target=${targetSec}s`);
@@ -183,7 +183,7 @@ export function applyInitSeek(ctrl, targetSec) {
         } catch (_) {}
       } catch (_) {}
     },
-    800,
+    delayMs,
     ctrl._group('init-seek'),
     'init-seek-repeat'
   );
