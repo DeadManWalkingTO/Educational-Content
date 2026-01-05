@@ -1,9 +1,9 @@
 // --- policies.js ---
-const VERSION = 'v1.20.0';
+const VERSION = 'v1.21.2';
 /*
  * Περιγραφή: Module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
- * Τροποποίηση: Συνεπές στυλ 'else if' σε όλες τις διακλαδώσεις + τυχαιότητα στο capSec με profile tuning.
- * - capSec range: 10–20 min (600–1200 s) + bias ±30 s, profile tuning (focused +60 s, explorer -60 s), clamp [480, 1500] s.
+ * 
+ * 
  */
 
 // --- Export Version ---
@@ -18,29 +18,40 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { rndInt, randomFloat, clamp, isFiniteNumber, isString, makeLogger } from './utils.js';
+import { rndInt, randomFloat, clamp, isFiniteNumber, isString, makeLogger, allTrue, anyTrue } from './utils.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
 
 /* ========================= Helpers ========================= */
+
 /** Τυχαιότητα για capSec με προσαρμογή ανά profile */
 function _computeCapSec(profileName) {
   const baseMinSec = 10 * 60; // 600
   const baseMaxSec = 20 * 60; // 1200
+
   let cap = rndInt(baseMinSec, baseMaxSec);
   const bias = rndInt(-30, 30);
   cap = cap + bias;
 
   let name = 'unknown';
-  if (isString(profileName) === true) {
+  const partsName = [];
+  partsName.push(isString(profileName) === true);
+  if (allTrue(partsName) === true) {
     name = String(profileName).toLowerCase();
   }
 
-  if (name === 'focused') {
-    cap = cap + 60;
-  } else if (name === 'explorer') {
-    cap = cap - 60;
+  // Προσαρμογή ανά προφίλ με switch-case
+  switch (name) {
+    case 'focused':
+      cap = cap + 60;
+      break;
+    case 'explorer':
+      cap = cap - 60;
+      break;
+    default:
+      /* no-op */
+      break;
   }
 
   cap = clamp(cap, 480, 1500);
@@ -49,12 +60,7 @@ function _computeCapSec(profileName) {
 
 /* ========================= Required Watch Time ========================= */
 export function getRequiredWatchTime(durationSec, profileName = 'unknown') {
-  let valid = false;
-  if (isFiniteNumber(durationSec) === true) {
-    if (durationSec > 0) {
-      valid = true;
-    }
-  }
+  const valid = allTrue([isFiniteNumber(durationSec) === true, durationSec > 0]);
   if (valid !== true) {
     try {
       log(`🧮 Required=15s (Fallback), Duration=${String(durationSec)} (Invalid)`);
@@ -65,27 +71,35 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown') {
   const d = Math.floor(Number(durationSec));
   const capSec = _computeCapSec(profileName);
 
+  // Επιλογή εύρους ποσοστού με switch(true)
   let minPct = 0.55;
   let maxPct = 0.75;
-  if (d < 120) {
-    minPct = 0.92;
-    maxPct = 1.0;
-  } else if (d < 300) {
-    minPct = 0.7;
-    maxPct = 0.9;
-  } else if (d < 1800) {
-    minPct = 0.35;
-    maxPct = 0.5;
-  } else if (d < 7200) {
-    minPct = 0.25;
-    maxPct = 0.38;
-  } else {
-    minPct = 0.12;
-    maxPct = 0.18;
+  switch (true) {
+    case allTrue([d < 120]) === true:
+      minPct = 0.92;
+      maxPct = 1.0;
+      break;
+    case allTrue([d < 300]) === true:
+      minPct = 0.7;
+      maxPct = 0.9;
+      break;
+    case allTrue([d < 1800]) === true:
+      minPct = 0.35;
+      maxPct = 0.5;
+      break;
+    case allTrue([d < 7200]) === true:
+      minPct = 0.25;
+      maxPct = 0.38;
+      break;
+    default:
+      minPct = 0.12;
+      maxPct = 0.18;
+      break;
   }
 
-  if (d < 60) {
-    const req = d + 1; // 1s πάνω από τη διάρκεια: WT δεν θα πιαστεί ποτέ πριν από ENDED
+  // Μικρά βίντεο: WT = D+1 (ώστε να μην πιαστεί πριν το ENDED)
+  if (allTrue([d < 60]) === true) {
+    const req = d + 1;
     try {
       log(`🧮 Required=${req}s (Small-Video rule, D=${d}s > return D+1)`);
     } catch (_) {}
@@ -100,10 +114,10 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown') {
   const requiredRaw = Math.floor(d * pct);
   let required = requiredRaw;
 
-  if (required > capSec) {
+  if (allTrue([required > capSec]) === true) {
     required = capSec;
   }
-  if (required < 15) {
+  if (allTrue([required < 15]) === true) {
     required = 15;
   }
 
@@ -117,82 +131,87 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown') {
 
 /* ========================= Pause Plan ========================= */
 export function getPausePlan(durationSec) {
-  let valid = false;
-  if (isFiniteNumber(durationSec) === true) {
-    if (durationSec > 0) {
-      valid = true;
-    }
-  }
+  const valid = allTrue([isFiniteNumber(durationSec) === true, durationSec > 0]);
   if (valid !== true) {
     return { count: 0, min: 0, max: 0 };
   }
 
   const d = Math.floor(Number(durationSec));
 
-  if (d < 60) {
-    return { count: rndInt(0, 1), min: 3, max: 15 };
-  } else if (d < 120) {
-    return { count: rndInt(1, 1), min: 6, max: 15 };
-  } else if (d < 300) {
-    return { count: rndInt(1, 2), min: 8, max: 20 };
-  } else if (d < 1800) {
-    return { count: rndInt(2, 3), min: 25, max: 55 };
-  } else if (d < 7200) {
-    return { count: rndInt(3, 4), min: 50, max: 110 };
+  // Επιλογή πλάνου παύσεων με switch(true)
+  switch (true) {
+    case allTrue([d < 60]) === true:
+      return { count: rndInt(0, 1), min: 3, max: 15 };
+    case allTrue([d < 120]) === true:
+      return { count: rndInt(1, 1), min: 6, max: 15 };
+    case allTrue([d < 300]) === true:
+      return { count: rndInt(1, 2), min: 8, max: 20 };
+    case allTrue([d < 1800]) === true:
+      return { count: rndInt(2, 3), min: 25, max: 55 };
+    case allTrue([d < 7200]) === true:
+      return { count: rndInt(3, 4), min: 50, max: 110 };
+    default:
+      return { count: rndInt(4, 5), min: 90, max: 160 };
   }
-
-  return { count: rndInt(4, 5), min: 90, max: 160 };
 }
 
 /* ========================= Start-Seek (με ποικιλία ανά profile) ========================= */
 export function getStartSeek(durationSec, profileName) {
-  let valid = false;
-  if (isFiniteNumber(durationSec) === true) {
-    if (durationSec > 0) {
-      valid = true;
-    }
-  }
+  const valid = allTrue([isFiniteNumber(durationSec) === true, durationSec > 0]);
   if (valid !== true) {
     return 0;
   }
 
   const d = Math.floor(Number(durationSec));
+
   let baseMaxPct = 0.1;
-  if (d < 120) {
-    baseMaxPct = 0.1;
-  } else if (d < 300) {
-    baseMaxPct = 0.15;
-  } else if (d < 1800) {
-    baseMaxPct = 0.2;
-  } else if (d < 7200) {
-    baseMaxPct = 0.2;
-  } else {
-    baseMaxPct = 0.25;
+  switch (true) {
+    case allTrue([d < 120]) === true:
+      baseMaxPct = 0.1;
+      break;
+    case allTrue([d < 300]) === true:
+      baseMaxPct = 0.15;
+      break;
+    case allTrue([d < 1800]) === true:
+      baseMaxPct = 0.2;
+      break;
+    case allTrue([d < 7200]) === true:
+      baseMaxPct = 0.2;
+      break;
+    default:
+      baseMaxPct = 0.25;
+      break;
   }
 
   let name = 'unknown';
-  if (isString(profileName) === true) {
+  if (allTrue([isString(profileName) === true]) === true) {
     name = String(profileName).toLowerCase();
   }
 
   let maxPct = baseMaxPct;
-  if (name === 'explorer') {
-    maxPct = clamp(maxPct + 0.02, 0, 0.25);
-  } else if (name === 'focused') {
-    maxPct = maxPct - 0.03;
-    if (maxPct < 0.08) {
-      maxPct = 0.08;
+  switch (name) {
+    case 'explorer':
+      maxPct = clamp(maxPct + 0.02, 0, 0.25);
+      break;
+    case 'focused': {
+      const tmp = maxPct - 0.03;
+      maxPct = tmp < 0.08 ? 0.08 : tmp;
+      break;
     }
+    default:
+      /* no-op */
+      break;
   }
 
   const pct = clamp(randomFloat(0, maxPct), 0, 1);
   let target = Math.floor(d * pct);
+
   const pad = 2;
   const maxTarget = Math.max(0, Math.floor(d - pad));
-  if (target > maxTarget) {
+  if (allTrue([target > maxTarget]) === true) {
     target = maxTarget;
   }
-  if (target < 0) {
+  if (allTrue([target < 0]) === true) {
     target = 0;
   }
   return target;
@@ -200,21 +219,17 @@ export function getStartSeek(durationSec, profileName) {
 
 /* ===== Mid-Seek Policy ===== */
 function _getMidSeekPlan(durationSec, profileName) {
-  let valid = false;
-  if (isFiniteNumber(durationSec) === true) {
-    if (durationSec > 0) {
-      valid = true;
-    }
-  }
+  const valid = allTrue([isFiniteNumber(durationSec) === true, durationSec > 0]);
   if (valid !== true) {
     return { enabled: false, notes: 'invalid-duration' };
   }
 
   const d = Math.floor(Number(durationSec));
-  if (d < 300) {
+  if (allTrue([d < 300]) === true) {
     return { enabled: false, notes: 'short-video' };
   }
 
+  // Βασικές τιμές, θα προσαρμοστούν παρακάτω
   let intervalMs = 0;
   let minGapSec = 120;
   let maxSeeks = 2;
@@ -222,42 +237,49 @@ function _getMidSeekPlan(durationSec, profileName) {
   let toPct = 0.6;
   const nearEndPct = 0.05;
 
-  if (d < 600) {
-    intervalMs = rndInt(4, 6) * 60000;
-    maxSeeks = rndInt(1, 2);
-  } else if (d < 1800) {
-    intervalMs = rndInt(6, 9) * 60000;
-    maxSeeks = rndInt(2, 3);
-  } else if (d < 7200) {
-    intervalMs = rndInt(8, 12) * 60000;
-    maxSeeks = rndInt(3, 5);
-  } else {
-    intervalMs = rndInt(10, 15) * 60000;
-    maxSeeks = rndInt(4, 6);
+  // Επιλογή intervals με switch(true)
+  switch (true) {
+    case allTrue([d < 600]) === true:
+      intervalMs = rndInt(4, 6) * 60000;
+      maxSeeks = rndInt(1, 2);
+      break;
+    case allTrue([d < 1800]) === true:
+      intervalMs = rndInt(6, 9) * 60000;
+      maxSeeks = rndInt(2, 3);
+      break;
+    case allTrue([d < 7200]) === true:
+      intervalMs = rndInt(8, 12) * 60000;
+      maxSeeks = rndInt(3, 5);
+      break;
+    default:
+      intervalMs = rndInt(10, 15) * 60000;
+      maxSeeks = rndInt(4, 6);
+      break;
   }
 
   let n = 'unknown';
-  if (isString(profileName) === true) {
+  if (allTrue([isString(profileName) === true]) === true) {
     n = String(profileName).toLowerCase();
   }
 
-  if (n === 'explorer') {
-    toPct = clamp(0.62, 0, 1);
-    const mg = minGapSec - 10;
-    if (mg > 90) {
-      minGapSec = mg;
-    } else {
-      minGapSec = 90;
+  // Προσαρμογές ανά προφίλ
+  switch (n) {
+    case 'explorer': {
+      toPct = clamp(0.62, 0, 1);
+      const mg = minGapSec - 10;
+      minGapSec = mg > 90 ? mg : 90;
+      break;
     }
-  } else if (n === 'focused') {
-    toPct = clamp(0.55, 0, 1);
-    minGapSec = minGapSec + 30;
-    const m = maxSeeks - 1;
-    if (m >= 1) {
-      maxSeeks = m;
-    } else {
-      maxSeeks = 1;
+    case 'focused': {
+      toPct = clamp(0.55, 0, 1);
+      minGapSec = minGapSec + 30;
+      const m = maxSeeks - 1;
+      maxSeeks = m >= 1 ? m : 1;
+      break;
     }
+    default:
+      /* no-op */
+      break;
   }
 
   return {
@@ -277,91 +299,120 @@ function _getUnmutePlan(durationSec, profileName, baseStartDelaySec) {
   const d = Math.floor(Number(durationSec));
 
   let name = 'unknown';
-  if (isString(profileName) === true) {
+  if (allTrue([isString(profileName) === true]) === true) {
     name = String(profileName).toLowerCase();
   }
 
+  // Grace window (ms) με switch(true)
   let gMin = 1500;
   let gMax = 3000;
-  if (d < 120) {
-    gMin = 900;
-    gMax = 1500;
-  } else if (d < 300) {
-    gMin = 1200;
-    gMax = 2000;
-  } else if (d < 1800) {
-    gMin = 1500;
-    gMax = 3000;
-  } else if (d < 7200) {
-    gMin = 1800;
-    gMax = 4000;
-  } else {
-    gMin = 2200;
-    gMax = 5000;
+  switch (true) {
+    case allTrue([d < 120]) === true:
+      gMin = 900;
+      gMax = 1500;
+      break;
+    case allTrue([d < 300]) === true:
+      gMin = 1200;
+      gMax = 2000;
+      break;
+    case allTrue([d < 1800]) === true:
+      gMin = 1500;
+      gMax = 3000;
+      break;
+    case allTrue([d < 7200]) === true:
+      gMin = 1800;
+      gMax = 4000;
+      break;
+    default:
+      gMin = 2200;
+      gMax = 5000;
+      break;
   }
 
-  if (name === 'focused') {
-    gMin = gMin + 300;
-    gMax = gMax + 500;
-  } else if (name === 'explorer') {
-    gMin = gMin - 200;
-    gMax = gMax - 300;
+  // Profile tuning
+  switch (name) {
+    case 'focused':
+      gMin = gMin + 300;
+      gMax = gMax + 500;
+      break;
+    case 'explorer':
+      gMin = gMin - 200;
+      gMax = gMax - 300;
+      break;
+    default:
+      /* no-op */
+      break;
   }
 
-  if (gMin < 600) {
+  if (allTrue([gMin < 600]) === true) {
     gMin = 600;
   }
-  if (gMax < gMin + 200) {
+  if (allTrue([gMax < gMin + 200]) === true) {
     gMax = gMin + 200;
   }
 
+  // Επιπλέον καθυστέρηση (sec) με switch(true)
   let extraMin = 30;
   let extraMax = 90;
-  if (d < 120) {
-    extraMin = 2;
-    extraMax = 8;
-  } else if (d < 300) {
-    extraMin = 5;
-    extraMax = 20;
-  } else if (d < 1800) {
-    extraMin = 10;
-    extraMax = 45;
-  } else {
-    extraMin = 30;
-    extraMax = 90;
+  switch (true) {
+    case allTrue([d < 120]) === true:
+      extraMin = 2;
+      extraMax = 8;
+      break;
+    case allTrue([d < 300]) === true:
+      extraMin = 5;
+      extraMax = 20;
+      break;
+    case allTrue([d < 1800]) === true:
+      extraMin = 10;
+      extraMax = 45;
+      break;
+    default:
+      extraMin = 30;
+      extraMax = 90;
+      break;
   }
 
-  if (d < 120) {
+  // 70% cap σε μικρά βίντεο: προσαρμογή βάσει baseStartDelaySec + grace + extra
+  if (allTrue([d < 120]) === true) {
     const capSec = Math.max(0, Math.floor(d * 0.7));
     let baseSec = 5;
-    if (isFiniteNumber(baseStartDelaySec) === true) {
+    const useBase = [];
+    useBase.push(isFiniteNumber(baseStartDelaySec) === true);
+    if (allTrue(useBase) === true) {
       baseSec = Math.floor(Number(baseStartDelaySec));
     } else {
       baseSec = 5;
     }
+
     const gMaxSec = Math.floor(gMax / 1000);
     let roomForExtraSec = capSec - baseSec - gMaxSec;
-    if (roomForExtraSec < 0) {
+    if (allTrue([roomForExtraSec < 0]) === true) {
       roomForExtraSec = 0;
     }
-    if (roomForExtraSec < extraMin) {
+
+    if (allTrue([roomForExtraSec < extraMin]) === true) {
       extraMin = roomForExtraSec;
     }
-    if (roomForExtraSec < extraMax) {
+    if (allTrue([roomForExtraSec < extraMax]) === true) {
       extraMax = roomForExtraSec;
     }
+
     const totalMinSec = baseSec + extraMin + gMaxSec;
-    if (totalMinSec > capSec) {
+    if (allTrue([totalMinSec > capSec]) === true) {
       let newGMaxMs = Math.max(0, (capSec - baseSec - extraMin) * 1000);
-      if (newGMaxMs < 600) {
+      if (allTrue([newGMaxMs < 600]) === true) {
         newGMaxMs = 600;
       }
       gMax = newGMaxMs;
+
       let desiredGMin = gMax - 200;
-      if (desiredGMin < 600) {
+      if (allTrue([desiredGMin < 600]) === true) {
         desiredGMin = 600;
       }
-      if (gMin > desiredGMin) {
+
+      // Φέρνουμε το gMin προς το desiredGMin με ασφαλή τρόπο
+      if (allTrue([gMin > desiredGMin]) === true) {
         gMin = desiredGMin;
       } else {
         gMin = Math.min(gMin, desiredGMin);
@@ -369,14 +420,20 @@ function _getUnmutePlan(durationSec, profileName, baseStartDelaySec) {
     }
   }
 
+  // Εύρος έντασης (σε %) με προσαρμογές για μικρές διάρκειες
   let vLo = 10;
   let vHi = 30;
-  if (d < 120) {
-    vLo = 15;
-    vHi = 35;
-  } else if (d < 300) {
-    vLo = 12;
-    vHi = 32;
+  switch (true) {
+    case allTrue([d < 120]) === true:
+      vLo = 15;
+      vHi = 35;
+      break;
+    case allTrue([d < 300]) === true:
+      vLo = 12;
+      vHi = 32;
+      break;
+    default:
+      /* keep defaults */ break;
   }
 
   return {
@@ -390,30 +447,31 @@ function _getUnmutePlan(durationSec, profileName, baseStartDelaySec) {
 
 /* ========================= Behavior Plan ========================= */
 export function getBehaviorPlan(ctx) {
-  let hasObject = false;
-  if (typeof ctx === 'object') {
-    hasObject = true;
-  }
-  let hasCtx = false;
-  if (hasObject === true) {
-    if (ctx !== null) {
-      hasCtx = true;
-    }
-  }
+  const hasCtx = allTrue([typeof ctx === 'object', ctx !== null]);
   if (hasCtx !== true) {
     return _defaultPlan();
   }
 
   const d = Math.floor(Number(ctx.durationSec));
-  const prof = isString(ctx.profileName) === true ? String(ctx.profileName).toLowerCase() : 'unknown';
+  const prof = allTrue([isString(ctx.profileName) === true]) === true ? String(ctx.profileName).toLowerCase() : 'unknown';
 
+  // Επιλογή baseStartDelaySec:
+  // 1) Αν δόθηκε ρητά και είναι έγκυρο, χρησιμοποίησέ το.
+  // 2) Αλλιώς, αν είναι το πρώτο βίντεο → 5..180 s
+  // 3) Αλλιώς → 2..10 s
   let baseStartDelaySec = 5;
-  if (isFiniteNumber(ctx.baseStartDelaySec) === true) {
+  const hasBase = allTrue([isFiniteNumber(ctx.baseStartDelaySec) === true]);
+  if (hasBase === true) {
     baseStartDelaySec = Math.floor(Number(ctx.baseStartDelaySec));
-  } else if (ctx.isFirstVideo === true) {
-    baseStartDelaySec = rndInt(5, 180);
   } else {
-    baseStartDelaySec = rndInt(2, 10);
+    switch (allTrue([ctx.isFirstVideo === true]) === true) {
+      case true:
+        baseStartDelaySec = rndInt(5, 180);
+        break;
+      default:
+        baseStartDelaySec = rndInt(2, 10);
+        break;
+    }
   }
 
   const watchRequired = getRequiredWatchTime(d, prof);
