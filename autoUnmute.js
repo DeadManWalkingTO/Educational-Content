@@ -1,5 +1,5 @@
 // --- autoUnmute.js ---
-const VERSION = 'v2.17.0';
+const VERSION = 'v2.18.2';
 /*
  * scheduleUnmute(ctrl, stateIsPlaying): parsing plan.unmute (base/extra/grace), debounce, flags, scheduling.
  * applyUnmute(player, plan, ctrl): unMute + setVolume + delayed verify (+ micro-adjust), baseline update.
@@ -13,11 +13,12 @@ export function getVersion() {
 
 /* Όνομα αρχείου για logging.*/
 const FILENAME = import.meta.url.split('/').pop();
-/* Ενημέρωση για Εκκίνηση Φόρτωσης */
+
+/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { allTrue, isFunction, isNumber, clamp, makeLogger, rndInt, scheduleSafe, isDefined } from './utils.js';
+import { allTrue, anyTrue, isFunction, isNumber, clamp, makeLogger, rndInt, scheduleSafe, isDefined } from './utils.js';
 import { stats } from './globals.js';
 
 /* ========================= Logger ========================= */
@@ -45,8 +46,7 @@ function ensureUnmuteMeta(ctrl) {
 }
 
 /**
- * Καθαρή πράξη unmute + setVolume (με delayed verification) + micro-adjust.
- * ΝΕΟ: baseline = target (αν inheritVolume), ώστε να κληρονομείται σωστά.
+ * Καθαρή πράξη unmute + setVolume (με delayed verification).
  */
 export function applyUnmute(player, plan, ctrl = null) {
   try {
@@ -98,7 +98,8 @@ export function applyUnmute(player, plan, ctrl = null) {
           const curIsNum = isNumber(cur) === true;
           if (curIsNum === true) {
             const diff = Math.abs(cur - target);
-            if (diff >= 5) {
+            const mismatch = allTrue([diff >= 5]);
+            if (mismatch === true) {
               // Επαναφορά στην τιμή-στόχο αν αποκλίνει αισθητά
               player.setVolume(target);
             }
@@ -107,7 +108,8 @@ export function applyUnmute(player, plan, ctrl = null) {
         }
       } catch (_) {}
     };
-    scheduleSafe(verifyFn, verifyDelay, ctrl?._group('unmute') ?? `pc:${String(ctrl?.index ?? '0')}:unmute`, 'unmute-verify');
+    const grp = isFunction(ctrl?._group) === true ? ctrl._group('unmute') : `pc:${String(ctrl?.index ?? '0')}:unmute`;
+    scheduleSafe(verifyFn, verifyDelay, grp, 'unmute-verify');
 
     // Logging & stats
     try {
@@ -154,8 +156,10 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
     let gMax = 0;
     try {
       const u = ctrl?.plan?.unmute;
-      const hasU = typeof u !== 'undefined' ? u !== null : false;
-      if (hasU === true) {
+      const hasU = typeof u !== 'undefined' ? (u !== null ? true : false) : false;
+      const partsHas = [];
+      partsHas.push(hasU === true);
+      if (allTrue(partsHas) === true) {
         const b = Number(u.baseDelaySec);
         if (isNumber(b) === true) {
           baseSec = Math.floor(b);
@@ -190,13 +194,18 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
 
     // Τυχαίες συνιστώσες
     let extraSec = 0;
-    if (extraMax >= extraMin) {
+    const partsExtra = [];
+    partsExtra.push(extraMax >= extraMin);
+    if (allTrue(partsExtra) === true) {
       try {
         extraSec = rndInt(extraMin, extraMax);
       } catch (_) {}
     }
+
     let graceMs = 0;
-    if (gMax >= gMin) {
+    const partsGrace = [];
+    partsGrace.push(gMax >= gMin);
+    if (allTrue(partsGrace) === true) {
       try {
         graceMs = rndInt(gMin, gMax);
       } catch (_) {}
@@ -210,7 +219,7 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
     const now = Date.now();
     const sinceLast = now - (ctrl.unmuteMeta.lastMs ?? 0);
     const haveLast = (ctrl.unmuteMeta.lastMs ?? 0) > 0;
-    const tooSoon = haveLast === true ? sinceLast < ctrl.unmuteMeta.minGapMs : false;
+    const tooSoon = haveLast === true ? (sinceLast < ctrl.unmuteMeta.minGapMs ? true : false) : false;
     if (tooSoon === true) {
       const retryDelay = ctrl.unmuteMeta.minGapMs - sinceLast;
       scheduleSafe(
@@ -230,19 +239,47 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
     log(`🔕 Player ${String(ctrl.index + 1)} Unmute Scheduled After ${String(totalSecShown)}s`);
 
     const attemptApply = () => {
+      // Soft-gate: freeze + min-gap
       const nowMs = Date.now();
-      const softOK = nowMs >= (ctrl?.softFreezeUntilMs ?? 0) && nowMs - (ctrl?.lastSoftTaskMs ?? 0) >= (ctrl?.softTaskMinGapMs ?? 0);
+      const softOK = allTrue([nowMs >= (ctrl?.softFreezeUntilMs ?? 0), nowMs - (ctrl?.lastSoftTaskMs ?? 0) >= (ctrl?.softTaskMinGapMs ?? 0)]);
+
+      // PLAYING gate
       const p = ctrl?.player;
       let playing = false;
       try {
-        playing = typeof p?.getPlayerState === 'function' && typeof YT !== 'undefined' && p.getPlayerState() === YT.PlayerState.PLAYING;
+        const partsPlay = [];
+        partsPlay.push(isFunction(p?.getPlayerState) === true);
+        partsPlay.push(typeof YT !== 'undefined');
+        const canCheckPlay = allTrue(partsPlay);
+        if (canCheckPlay === true) {
+          const st = p.getPlayerState();
+          const partsIs = [];
+          partsIs.push(st === YT.PlayerState.PLAYING);
+          playing = allTrue(partsIs) === true;
+        }
       } catch (_) {}
-      if (softOK !== true || playing !== true) {
+
+      // Απόφαση retry με switch-case για λόγο αποτυχίας
+      const needRetry = anyTrue([softOK !== true, playing !== true]);
+      if (needRetry === true) {
+        let reason = 'unknown';
+        switch (true) {
+          case softOK !== true:
+            reason = 'softgap';
+            break;
+          case playing !== true:
+            reason = 'not-playing';
+            break;
+          default:
+            reason = 'unknown';
+            break;
+        }
         const d = rndInt(800, 2000);
-        scheduleSafe(attemptApply, d, ctrl._group('unmute'), 'unmute-apply-retry');
+        scheduleSafe(attemptApply, d, ctrl._group('unmute'), `unmute-apply-retry-${reason}`);
         return;
       }
 
+      // Εφαρμογή unmute
       try {
         applyUnmute(ctrl.player, ctrl.plan, ctrl);
         ctrl.pendingUnmute = false;
@@ -250,6 +287,7 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
         ctrl.unmuteMeta.lastMs = Date.now();
       } catch (_) {}
     };
+
     scheduleSafe(attemptApply, finalDelayMs, ctrl._group('unmute'), 'delayed-unmute');
   } catch (_) {}
 }
