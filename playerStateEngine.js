@@ -1,9 +1,9 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v4.8.0';
+const VERSION = 'v4.9.0';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * - WTBus emit: όταν πιαστεί το required watch-time, εκπέμπουμε αμέσως 'wt:reached' (primary).
- * - Διατηρούμε guard flags: ctrl.watchtimeFired / ctrl.autoNextScheduled. ΝΕΟ: One-shot εφαρμογή reset rate & apply baseline volume στο πρώτο PLAYING κάθε νέου βίντεο.
+ * - Διατηρούμε guard flags: ctrl.watchtimeFired / ctrl.autoNextScheduled. One-shot reset rate & quality στο πρώτο PLAYING κάθε νέου βίντεο.
  */
 
 // --- Export Version ---
@@ -77,7 +77,7 @@ export function onReadyExternal(ctrl, e) {
     const ctx = { durationSec: durationNow, profileName: ctrl.profileName, isFirstVideo: true, playerIndex: ctrl.index };
     ctrl.plan = getBehaviorPlan(ctx);
 
-    /*----------------------  one-shot flags ----------------------*/
+    /* one-shot flags */
     if (typeof ctrl._rateAppliedForThisVideo !== 'boolean') ctrl._rateAppliedForThisVideo = false;
     if (typeof ctrl._qualityAutoAppliedForThisVideo !== 'boolean') ctrl._qualityAutoAppliedForThisVideo = false;
 
@@ -85,11 +85,13 @@ export function onReadyExternal(ctrl, e) {
     try {
       resetPlaybackRate(ctrl);
     } catch (_) {}
+
     /* Reset playback quality (READY) */
     try {
       resetPlaybackQuality(ctrl);
     } catch (_) {}
 
+    /* MidSeek plan log */
     try {
       const ms = ctrl?.plan?.midSeek ?? { enabled: false };
       log(
@@ -99,6 +101,7 @@ export function onReadyExternal(ctrl, e) {
       );
     } catch (_) {}
 
+    /* Required watch time */
     try {
       const req = ctrl.plan?.watch?.requiredWatchTimeSec;
       ctrl.videoRequiredWatchTime = isNumber(req) === true ? Math.max(0, Math.floor(req)) : 15;
@@ -106,7 +109,7 @@ export function onReadyExternal(ctrl, e) {
       ctrl.videoRequiredWatchTime = 15;
     }
 
-    // Init seek (policy-driven)
+    /* Init seek (policy-driven) */
     try {
       const t = ctrl.plan?.startSeek?.targetSec ?? 0;
       if (isNumber(t) === true && t > 0) {
@@ -167,7 +170,7 @@ export function onReadyExternal(ctrl, e) {
       log(`ℹ️ Player ${ctrl.index + 1} Pause Plan scheduled (muted-friendly, READY)`);
     } catch (_) {}
 
-    // --- Initial play scheduling (όπως πριν) ---
+    // --- Initial play scheduling (βελτιωμένο) ---
     try {
       try {
         groupCancel(ctrl._group('play'));
@@ -178,7 +181,7 @@ export function onReadyExternal(ctrl, e) {
         ctrl.initialPlayScheduled = true;
         const startDelay = rndInt(200, 600);
         let attempts = 0;
-        const maxAttempts = 12;
+        const maxAttempts = 20; // αυξήθηκε από 12 → 20
         const tryStart = () => {
           try {
             const p3 = ctrl?.player;
@@ -192,10 +195,21 @@ export function onReadyExternal(ctrl, e) {
               log(`▶️ Player ${ctrl.index + 1} initial play → already PLAYING (stop retries)`);
               return;
             }
+
+            // Guard: αν εκκρεμεί unmute, περίμενε λίγο (μην πιέζεις το start)
+            if (ctrl?.pendingUnmute === true) {
+              const dWait = rndInt(300, 800);
+              scheduleSafe(tryStart, dWait, ctrl._group('play'), 'initial-play-unmute-wait');
+              return;
+            }
+
+            // Κανονική απόπειρα έναρξης
             ctrl.guardPlay(ctrl.player);
+
             attempts = attempts + 1;
             if (attempts < maxAttempts) {
-              scheduleSafe(tryStart, 500, ctrl._group('play'), 'initial-play-retry');
+              const dRetry = rndInt(300, 800); // jitter 300–800 ms
+              scheduleSafe(tryStart, dRetry, ctrl._group('play'), 'initial-play-retry');
             } else {
               try {
                 groupCancel(ctrl._group('play'));
@@ -233,11 +247,11 @@ export function onStateChangeExternal(ctrl, e) {
         ctrl.playingStart = Date.now();
       }
 
-      /*----------------------  one-shot flags ----------------------*/
+      // one-shot flags (αν δεν υπάρχουν)
       if (typeof ctrl._rateAppliedForThisVideo !== 'boolean') ctrl._rateAppliedForThisVideo = false;
       if (typeof ctrl._qualityAutoAppliedForThisVideo !== 'boolean') ctrl._qualityAutoAppliedForThisVideo = false;
 
-      /* 1) RESET RATE στο πρώτο PLAYING κάθε βίντεο */
+      // 1) RESET RATE στο πρώτο PLAYING κάθε βίντεο
       if (ctrl._rateAppliedForThisVideo !== true) {
         try {
           resetPlaybackRate(ctrl);
@@ -245,7 +259,7 @@ export function onStateChangeExternal(ctrl, e) {
         } catch (_) {}
       }
 
-      /* 2) RESET QUALITY σε auto (YouTube IFrame API: 'default') */
+      // 2) RESET QUALITY σε auto (default) στο πρώτο PLAYING
       if (ctrl._qualityAutoAppliedForThisVideo !== true) {
         try {
           resetPlaybackQuality(ctrl);
@@ -268,17 +282,6 @@ export function onStateChangeExternal(ctrl, e) {
             if (isBool === true) isMutedNow = m === true;
           }
         } catch (_) {}
-
-        // Baseline init ONLY if not muted
-        if (typeof ctrl.volumeBaseline !== 'number' && typeof ctrl?.player?.getVolume === 'function' && ctrl.inheritVolume === true) {
-          try {
-            const curVol = ctrl.player.getVolume();
-            const notMuted = isMutedNow === false;
-            if (typeof curVol === 'number' && notMuted === true) {
-              ctrl.volumeBaseline = Math.max(0, Math.min(100, Math.floor(curVol)));
-            }
-          } catch (_) {}
-        }
 
         // Raw volume
         let vol = '?';
@@ -353,7 +356,7 @@ export function onStateChangeExternal(ctrl, e) {
             } catch (_) {}
             ctrl.autoNextScheduled = true;
 
-            // ΝΕΟ: reset one-shot flags για επόμενο βίντεο
+            // reset one-shot flag για το επόμενο βίντεο (rate)
             try {
               ctrl._rateAppliedForThisVideo = false;
             } catch (_) {}
@@ -372,7 +375,7 @@ export function onStateChangeExternal(ctrl, e) {
     if (state === YT.PlayerState.ENDED) {
       log(`🔵 Player ${ctrl.index + 1} → ENDED`);
       if (ctrl.deferAutoNextUntilEnded === true) {
-        // Reset one-shot flags για επόμενο βίντεο
+        // reset one-shot flag (rate) για επόμενο βίντεο
         try {
           ctrl._rateAppliedForThisVideo = false;
         } catch (_) {}

@@ -1,9 +1,9 @@
 // --- autoQuality.js ---
-const VERSION = 'v1.7.2';
+const VERSION = 'v1.9.0';
 /*
  * Περιγραφή: Τυχαίες αλλαγές ποιότητας (YouTube Iframe API) με guards.
- * - Ενημέρωση ctrl.lastSoftTaskMs μετά από επιτυχή αλλαγή ποιότητας. Καταμέτρηση stats.softBackpressureHits σε κάθε reschedule λόγω back-pressure.
- * - ΝΕΟ: resetPlaybackQuality(ctrl): επαναφορά ποιότητας σε 'default' (auto), όπως το resetPlaybackRate στο autoRate.
+ * - Ενημέρωση ctrl.lastSoftTaskMs μετά από επιτυχή αλλαγή ποιότητας. Καταμέτρηση stats.softBackpressureHits.
+ * - resetPlaybackQuality(ctrl): επαναφορά ποιότητας σε 'default' (auto). verify σε reset & scheduled changes (100–200 ms), επαναφορά στην τιμή-στόχο όπου απαιτείται.
  */
 
 // --- Export Version ---
@@ -63,6 +63,36 @@ function _pickQuality(player, preferredOrder) {
     return null;
   }
 }
+
+/* ΝΕΟ: Verify quality (καθυστερημένη ανάγνωση + επαναφορά στην τιμή-στόχο όπου απαιτείται)
+   ΣΗΜ: Για στόχο 'default' (auto) κάνουμε μόνο logging της πραγματικής ποιότητας. */
+function _verifyQuality(player, targetQuality, ctrl = null, group = 'pc:quality') {
+  try {
+    const canGet = _can(player, 'getPlaybackQuality') === true;
+    const canSet = _can(player, 'setPlaybackQuality') === true;
+    if (canGet !== true) return;
+
+    const delay = rndInt(100, 200);
+    const verifyTask = () => {
+      try {
+        const cur = player.getPlaybackQuality();
+        const shownIdx = typeof ctrl?.index === 'number' ? String(Math.floor(ctrl.index) + 1) : '#';
+        log(`📺 Player ${shownIdx} Quality (verify) → ${String(cur)} (target=${String(targetQuality)})`);
+        // Αν ο στόχος είναι συγκεκριμένο level (όχι 'default'), και διαφέρει, επαναφορά
+        const isDefault = String(targetQuality) === 'default';
+        if (isDefault !== true && canSet === true) {
+          const curOk = typeof cur === 'string';
+          const mismatch = curOk === true ? cur !== String(targetQuality) : true;
+          if (mismatch === true) {
+            player.setPlaybackQuality(String(targetQuality));
+          }
+        }
+      } catch (_) {}
+    };
+    scheduleSafe(verifyTask, delay, ctrl?._group('quality') ?? group, 'quality-verify');
+  } catch (_) {}
+}
+
 function _applyQuality(player, quality, tag, ctrl = null) {
   try {
     const parts = [];
@@ -70,6 +100,7 @@ function _applyQuality(player, quality, tag, ctrl = null) {
     parts.push(isDefined(quality) === true);
     const ok = allTrue(parts);
     if (ok !== true) return;
+
     player.setPlaybackQuality(quality);
     // stats
     if (isNumber(stats.qualityChanges) === true) {
@@ -82,8 +113,12 @@ function _applyQuality(player, quality, tag, ctrl = null) {
     try {
       if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
     } catch (_) {}
+
+    // ΝΕΟ: verify της αλλαγής
+    _verifyQuality(player, quality, ctrl, ctrl?._group('quality') ?? 'pc:quality');
   } catch (_) {}
 }
+
 function _gateOrReschedule(ctrl, group, tag, taskFn, retryMinMs = 800, retryMaxMs = 2000) {
   try {
     const now = Date.now();
@@ -107,6 +142,7 @@ function _gateOrReschedule(ctrl, group, tag, taskFn, retryMinMs = 800, retryMaxM
     scheduleSafe(() => _gateOrReschedule(ctrl, group, tag, taskFn, retryMinMs, retryMaxMs), d, group, `${tag}-retry-softgap`);
   } catch (_) {}
 }
+
 /* ========================= Public API ========================= */
 export function scheduleQualityChanges(player, durationSec, config = null, group = 'pc:quality', requiredWatchSec = 0, ctrlOrIndex = null) {
   const parts = [];
@@ -115,6 +151,7 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
   parts.push(_can(player, 'setPlaybackQuality') === true);
   const canQualityAPIs = allTrue(parts);
   if (canQualityAPIs !== true) return;
+
   const tag = (function resolveTag() {
     try {
       const isObj = typeof ctrlOrIndex === 'object';
@@ -134,35 +171,44 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
     } catch (_) {}
     return 'P#';
   })();
+
   let d = 0;
   if (isNumber(durationSec) === true) d = durationSec;
+
   let preferredOrder = ['small', 'medium', 'large'];
   const isShort = allTrue([d < 300]);
   if (isShort === true) preferredOrder = ['hd720', 'large', 'medium'];
+
   let windowSec = 0;
   if (isNumber(requiredWatchSec) === true) windowSec = requiredWatchSec;
+
   let baseCount = 1;
   if (allTrue([windowSec >= 300]) === true) baseCount = 2;
   if (allTrue([windowSec >= 900]) === true) baseCount = 3;
+
   let chance = 0.3;
   if (isNumber(config?.qualityChangeChance) === true) chance = config.qualityChangeChance;
   if (chance < 0) chance = 0;
   if (chance > 1) chance = 1;
+
   let planned = Math.floor(baseCount * chance);
   if (planned < 1) {
     const partsMin = [];
     partsMin.push(chance > 0);
     if (allTrue(partsMin) === true) planned = 1;
   }
+
   try {
     log(`🧪 ${String(tag)} QualityScheduler → Planned=${String(planned)} Window=${String(windowSec)}s Dur=${String(d)}s`);
   } catch (_) {}
+
   if (planned === 0) {
     try {
       log(`🧪 ${String(tag)} QualityScheduler → No Tasks Scheduled (BaseCount Or Chance Too Low)`);
     } catch (_) {}
     return;
   }
+
   let fromMs = 20000;
   let toMs = 120000;
   const partsWinPos = [];
@@ -182,6 +228,7 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
       toMs = Math.floor(d * 0.8) * 1000;
     }
   }
+
   let i = 0;
   while (i < planned) {
     const delaySec = rndInt(Math.floor(fromMs / 1000), Math.floor(toMs / 1000));
@@ -191,10 +238,12 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
       const msg2 = `🧪 ${String(tag)} QualityScheduler → Scheduling in ${String(Math.round(delayMs / 1000))}s (Order=${ord})`;
       log(msg2);
     } catch (_) {}
+
     const task = () => {
       const q = _pickQuality(player, preferredOrder);
       if (q !== null) _applyQuality(player, q, tag, typeof ctrlOrIndex === 'object' ? ctrlOrIndex : null);
     };
+
     scheduleSafe(
       () => {
         const ctrl = typeof ctrlOrIndex === 'object' ? ctrlOrIndex : null;
@@ -209,8 +258,7 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
 }
 
 /**
- * ΝΕΟ: Επαναφέρει την ποιότητα αναπαραγωγής σε 'default' (auto) με ασφαλή guards,
- * αντίστοιχο με το resetPlaybackRate(ctrl) του autoRate.
+ * Επαναφέρει την ποιότητα σε 'default' (auto) με ασφαλή guards.
  * @param {any} ctrl - PlayerController (αναμένει ctrl.player με setPlaybackQuality/getPlaybackQuality)
  * @returns {boolean} true αν έγινε reset, αλλιώς false
  */
@@ -233,18 +281,20 @@ export function resetPlaybackQuality(ctrl) {
       }
     } catch (_) {}
 
-    // Ενημέρωση soft-task timestamp (συνεπές με τις υπόλοιπες "reset" πράξεις)
+    // Ενημέρωση soft-task timestamp
     try {
       if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
     } catch (_) {}
 
-    // Log για παρακολούθηση (ίδια φιλοσοφία με rate reset)
+    // Log
     try {
       const shownIdx = typeof ctrl?.index === 'number' ? String(Math.floor(ctrl.index) + 1) : '#';
       log(`⚙️ Player ${shownIdx} Quality reset → auto (default) [now=${afterQ}]`);
     } catch (_) {}
 
-    // Δεν αυξάνουμε stats.qualityChanges εδώ, γιατί είναι "reset" και όχι random change από scheduler
+    // ΝΕΟ: verify του reset (μόνο logging για 'default')
+    _verifyQuality(p, 'default', ctrl, ctrl?._group('quality') ?? 'pc:quality');
+
     return true;
   } catch (_) {
     return false;

@@ -1,16 +1,15 @@
 // --- autoRate.js ---
-const VERSION = 'v1.6.0';
+const VERSION = 'v1.7.0';
 /*
  * Περιγραφή: Σπάνιες αλλαγές ταχύτητας αναπαραγωγής (rate).
  * - Back-pressure gate: σέβεται softFreezeUntilMs και softTaskMinGapMs ανά controller.
- * - Καταμέτρηση stats.softBackpressureHits σε κάθε reschedule λόγω back-pressure.
+ * - Καταμέτρηση stats.softBackpressureHits σε κάθε reschedule λόγω back-pressure. verify σε reset & scheduled changes (100–200 ms), επαναφορά αν αποκλίνει.
  */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
-
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
@@ -37,12 +36,10 @@ function _getAvailableRates(p) {
   // fallback set
   return [0.25, 0.5, 1, 1.25, 1.5, 2];
 }
-
 function _whenPlaying(ctrl, task, retryMinMs, retryMaxMs, group, tag) {
   const attempt = () => {
     try {
       const p = ctrl?.player;
-
       const guards = [];
       guards.push(typeof p !== 'undefined');
       guards.push(p !== null);
@@ -53,7 +50,6 @@ function _whenPlaying(ctrl, task, retryMinMs, retryMaxMs, group, tag) {
         scheduleSafe(attempt, d1, group, `${tag}-retry-player`);
         return;
       }
-
       // Respect soft freeze + min gap
       try {
         const now = Date.now();
@@ -72,33 +68,55 @@ function _whenPlaying(ctrl, task, retryMinMs, retryMaxMs, group, tag) {
           return;
         }
       } catch (_) {}
-
-      let playing = false;
-      try {
-        if (isFunction(ctrl?._isPlaying) === true) {
-          const res = ctrl._isPlaying(p);
-          if (res === true) playing = true;
-        }
-      } catch (_) {}
-
-      if (playing !== true) {
-        const d2 = rndInt(retryMinMs, retryMaxMs);
-        scheduleSafe(attempt, d2, group, `${tag}-retry-not-playing`);
-        return;
+    } catch (_) {}
+    let playing = false;
+    try {
+      if (isFunction(ctrl?._isPlaying) === true) {
+        const res = ctrl._isPlaying(p);
+        if (res === true) playing = true;
       }
-
-      try {
-        task();
-      } catch (_) {}
+    } catch (_) {}
+    if (playing !== true) {
+      const d2 = rndInt(retryMinMs, retryMaxMs);
+      scheduleSafe(attempt, d2, group, `${tag}-retry-not-playing`);
+      return;
+    }
+    try {
+      task();
     } catch (_) {}
   };
   attempt();
 }
 
+/* ΝΕΟ: Verify rate (καθυστερημένη ανάγνωση + επαναφορά στην τιμή-στόχο) */
+function _verifyRate(p, target, ctrl = null, group = 'pc:rate') {
+  try {
+    const canGet = isFunction(p?.getPlaybackRate) === true;
+    const canSet = isFunction(p?.setPlaybackRate) === true;
+    if (canGet !== true || canSet !== true) return;
+
+    const delay = rndInt(100, 200);
+    const verifyTask = () => {
+      try {
+        const cur = p.getPlaybackRate();
+        const curIsNum = typeof cur === 'number';
+        if (curIsNum === true) {
+          const diff = Math.abs(cur - Number(target));
+          if (diff >= 0.01) {
+            p.setPlaybackRate(Number(target));
+          }
+          const shownIdx = typeof ctrl?.index === 'number' ? String(Math.floor(ctrl.index) + 1) : '#';
+          log(`⚡ Player ${shownIdx} Rate (verify) → x${String(cur)} (target=x${String(target)})`);
+        }
+      } catch (_) {}
+    };
+    scheduleSafe(verifyTask, delay, ctrl?._group('rate') ?? group, 'rate-verify');
+  } catch (_) {}
+}
+
 function _applyRateChange(ctrl, targetRate) {
   try {
     const p = ctrl?.player;
-
     const guards = [];
     guards.push(typeof p !== 'undefined');
     guards.push(p !== null);
@@ -123,7 +141,6 @@ function _applyRateChange(ctrl, targetRate) {
     // 2) Εφαρμογή νέου ρυθμού (αν επιτρέπεται)
     let desired = Number(targetRate);
     if (Number.isNaN(desired) === true) desired = 1.0;
-
     const rates = _getAvailableRates(p);
     let allowed = false;
     let i = 0;
@@ -135,7 +152,6 @@ function _applyRateChange(ctrl, targetRate) {
       i = i + 1;
     }
     if (allowed !== true) desired = 1.0;
-
     try {
       p.setPlaybackRate(desired);
       if (isNumber(stats.rateChanges) === true) {
@@ -148,12 +164,14 @@ function _applyRateChange(ctrl, targetRate) {
     // 3) Άνοιγμα νέου PLAYING παραθύρου με νέο ρυθμό
     ctrl.currentRate = desired;
     ctrl.playingStart = Date.now();
-
     try {
       if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
     } catch (_) {}
 
     log(`🏃‍♂️ Player ${ctrl.index + 1} Rate → x${String(desired)}`);
+
+    // ΝΕΟ: verify της αλλαγής
+    _verifyRate(p, desired, ctrl, ctrl._group?.('rate') ?? 'pc:rate');
   } catch (_) {}
 }
 
@@ -170,19 +188,18 @@ export function resetPlaybackRate(ctrl) {
       try {
         p.setPlaybackRate(1.0);
       } catch (_) {}
+      // ΝΕΟ: verify του reset
+      _verifyRate(p, 1.0, ctrl, ctrl._group?.('rate') ?? 'pc:rate');
     }
     ctrl.currentRate = 1.0;
     log(`⚙️ Player ${ctrl.index + 1} Rate reset → x1`);
   } catch (_) {}
 }
 
-/**
- * Προγραμματισμός μίας αλλαγής rate (0 ή 1) ανά βίντεο, με πιθανότητα.
- */
+/** Προγραμματισμός μίας αλλαγής rate (0 ή 1) ανά βίντεο, με πιθανότητα. */
 export function scheduleRateChanges(ctrl) {
   try {
     const p = ctrl?.player;
-
     const guards = [];
     guards.push(typeof p !== 'undefined');
     guards.push(p !== null);
@@ -203,7 +220,6 @@ export function scheduleRateChanges(ctrl) {
       const req = ctrl?.plan?.watch?.requiredWatchTimeSec;
       if (isNumber(req) === true) windowSec = req;
     } catch (_) {}
-
     let fromSec = 0;
     let toSec = 0;
     if (windowSec > 0) {
@@ -235,7 +251,6 @@ export function scheduleRateChanges(ctrl) {
     const roll = randomFloat(0, 1);
     let planned = 0;
     if (roll < chance) planned = 1;
-
     if (planned === 0) {
       const pct = Math.floor(chance * 100);
       log(`🏃‍♂️ Player ${ctrl.index + 1} → RateScheduler (No Changes Planned (chance=${pct}%))`);
@@ -247,7 +262,6 @@ export function scheduleRateChanges(ctrl) {
     const targetRate = isShort === true ? 0.5 : 2.0;
 
     scheduleSafe(() => _whenPlaying(ctrl, () => _applyRateChange(ctrl, targetRate), 800, 2000, ctrl._group?.('rate'), 'rate-change'), delayMs, ctrl._group?.('rate'), 'rate-change');
-
     log(`🏃‍♂️ Player ${ctrl.index + 1} RateScheduler: x${String(targetRate)} in ~${delaySec}s (win ${fromSec}-${toSec}s)`);
   } catch (_) {}
 }

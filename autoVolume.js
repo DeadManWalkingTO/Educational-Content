@@ -1,16 +1,15 @@
 // --- autoVolume.js ---
-const VERSION = 'v1.7.0';
+const VERSION = 'v1.9.0';
 /*
  * Περιγραφή: Αυτοματοποιημένες αλλαγές έντασης + micro-adjust (freeze-aware).
- * Αλλαγή: Το παράθυρο εκτέλεσης ορίζεται μέσα στο RequiredWatchTime (WT-window),
- * Αντί για τη συνολική διάρκεια, ώστε να εκτελείται προβλέψιμα πριν το WT threshold.
+ * - Παράθυρο εκτέλεσης μέσα στο RequiredWatchTime (WT-window).
+ * - ΝΕΟ: verify σε κάθε αλλαγή έντασης (100–200 ms), επαναφορά στην τιμή-στόχο αν αποκλίνει.
  */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
-
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
@@ -32,6 +31,35 @@ function _can(obj, methodName) {
   if (typeof fn === 'function') return true;
   return false;
 }
+
+/* ΝΕΟ: Verify volume (καθυστερημένη ανάγνωση + επαναφορά στην τιμή-στόχο) */
+function _verifyVolume(player, target, ctrl = null, group = 'pc:volume') {
+  try {
+    const canGet = _can(player, 'getVolume') === true;
+    const canSet = _can(player, 'setVolume') === true;
+    if (canGet !== true || canSet !== true) return;
+
+    const delay = rndInt(100, 200); // 100–200 ms
+    const verifyTask = () => {
+      try {
+        const cur = player.getVolume();
+        if (typeof cur === 'number') {
+          const diff = Math.abs(cur - Number(target));
+          if (diff >= 5) {
+            player.setVolume(Number(target)); // επαναφορά στην τιμή-στόχο
+          }
+          log(`🔊 Volume (verify) → ${String(cur)}% (target=${String(target)}%)`);
+        }
+      } catch (_) {}
+      // Προαιρετικά: ενημέρωση soft-task timestamp
+      try {
+        if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
+      } catch (_) {}
+    };
+    scheduleSafe(verifyTask, delay, ctrl?._group('volume') ?? group, 'volume-verify');
+  } catch (_) {}
+}
+
 /** Εφαρμογή έντασης (με ενημέρωση soft-task timestamp). */
 function _applyVolume(player, range, ctrl = null) {
   try {
@@ -51,8 +79,6 @@ function _applyVolume(player, range, ctrl = null) {
     const canSet = _can(player, 'setVolume') === true;
     if (canSet === true) {
       player.setVolume(target);
- 
-
       // stats
       if (isNumber(stats.volumeChanges) === true) {
         stats.volumeChanges = stats.volumeChanges + 1;
@@ -64,9 +90,12 @@ function _applyVolume(player, range, ctrl = null) {
       try {
         if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
       } catch (_) {}
+      // ΝΕΟ: verify της αλλαγής
+      _verifyVolume(player, target, ctrl, ctrl?._group('volume') ?? 'pc:volume');
     }
   } catch (_) {}
 }
+
 /** Gate ή reschedule με βάση soft-freeze και min-gap. */
 function _gateOrReschedule(ctrl, group, tag, taskFn, retryMinMs = 800, retryMaxMs = 2000) {
   try {
@@ -91,6 +120,7 @@ function _gateOrReschedule(ctrl, group, tag, taskFn, retryMinMs = 800, retryMaxM
     scheduleSafe(() => _gateOrReschedule(ctrl, group, tag, taskFn, retryMinMs, retryMaxMs), d, group, `${tag}-retry-softgap`);
   } catch (_) {}
 }
+
 /* ========================= Module Code ========================= */
 /**
  * Προγραμματισμός αλλαγών έντασης (WT-window + back-pressure).
@@ -103,6 +133,7 @@ function _gateOrReschedule(ctrl, group, tag, taskFn, retryMinMs = 800, retryMaxM
 export function scheduleVolumeChanges(player, cfg, durationSec, group = 'pc:volume', ctrl = null) {
   const canVol = allTrue([typeof player !== 'undefined', player !== null, _can(player, 'setVolume') === true]);
   if (canVol !== true) return;
+
   // WT-window: windowSec = min(durationSec, ctrl.videoRequiredWatchTime) (fallback=durationSec)
   let d = 0;
   if (isNumber(durationSec) === true) d = durationSec;
@@ -113,20 +144,25 @@ export function scheduleVolumeChanges(player, cfg, durationSec, group = 'pc:volu
   } catch (_) {}
   const hasWT = isNumber(wt) === true && wt > 0;
   const windowSec = hasWT === true ? Math.min(d, wt) : d;
+
   // BaseCount ανά παράθυρο
   let baseCount = 1;
   if (windowSec >= 300) baseCount = 2;
   if (windowSec >= 900) baseCount = 3;
+
   // πιθανότητα
   let chance = 0.2;
   if (isNumber(cfg?.volumeChangeChance) === true) chance = cfg.volumeChangeChance;
   if (chance < 0) chance = 0;
   if (chance > 1) chance = 1;
+
   let planned = Math.floor(baseCount * chance);
   if (planned < 0) planned = 0;
+
   // εύρος έντασης
   let rangeArr = [10, 50];
   if (Array.isArray(cfg?.volumeRange) === true) rangeArr = cfg.volumeRange;
+
   // χρονικό παράθυρο μέσα στο WT-window (fallback: default 20..120 s)
   let fromMs = 20000;
   let toMs = 120000;
@@ -138,6 +174,7 @@ export function scheduleVolumeChanges(player, cfg, durationSec, group = 'pc:volu
     fromMs = loMs;
     toMs = hiMs;
   }
+
   // Αν planned==0, δεν προγραμματίζουμε tasks
   if (planned === 0) {
     try {
@@ -145,12 +182,14 @@ export function scheduleVolumeChanges(player, cfg, durationSec, group = 'pc:volu
     } catch (_) {}
     return;
   }
+
   // προγραμματισμός αλλαγών
   let i = 0;
   log(`🔊 VolumeScheduler → planned=${planned}, window=${windowSec}s, range=${rangeArr[0]}–${rangeArr[1]}%`);
   while (i < planned) {
     const delaySec = rndInt(Math.floor(fromMs / 1000), Math.floor(toMs / 1000));
     const delayMs = delaySec * 1000;
+
     scheduleSafe(
       () => {
         // Gate πριν την εκτέλεση (freeze + min-gap) + Playing/Unmuted gate
@@ -163,9 +202,11 @@ export function scheduleVolumeChanges(player, cfg, durationSec, group = 'pc:volu
       group,
       'volume-change'
     );
+
     i = i + 1;
   }
 }
+
 /**
  * Micro-adjust κοντά στο τέλος του WT-window (freeze-aware + back-pressure).
  * @param {any} player
@@ -184,15 +225,19 @@ export function scheduleMicroAdjust(player, durationSec, group = 'pc:volume', ct
   } catch (_) {}
   const hasWT = isNumber(wt) === true && wt > 0;
   const windowSec = hasWT === true ? Math.min(d, wt) : d;
+
   // μόνο για WT-window >= 600 s (≥10')
   const sizeOk = allTrue([windowSec >= 600]);
   if (sizeOk !== true) return;
+
   const canBoth = allTrue([_can(player, 'getVolume') === true, _can(player, 'setVolume') === true]);
   if (canBoth !== true) return;
+
   // Θέση micro-adjust μέσα στο WT-window (85%..95%)
   const microFrom = Math.floor(windowSec * 0.85);
   const microTo = Math.floor(windowSec * 0.95);
   const microDelayMs = rndInt(microFrom, microTo) * 1000;
+
   const microTask = () => {
     try {
       const cur = player.getVolume();
@@ -209,8 +254,11 @@ export function scheduleMicroAdjust(player, durationSec, group = 'pc:volume', ct
       try {
         if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
       } catch (_) {}
+      // ΝΕΟ: verify της μικρο-αλλαγής
+      _verifyVolume(player, tgt, ctrl, ctrl?._group('volume') ?? 'pc:volume');
     } catch (_) {}
   };
+
   scheduleSafe(
     () => _gateOrReschedule(ctrl, group, 'volume-micro', () => whenPlayingAndUnmuted(player, ctrl, microTask, 800, 2000, group, 'volume-micro'), 800, 2000),
     microDelayMs,
@@ -218,6 +266,7 @@ export function scheduleMicroAdjust(player, durationSec, group = 'pc:volume', ct
     'volume-micro'
   );
 }
+
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
