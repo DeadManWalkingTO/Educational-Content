@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v4.2.2';
+const VERSION = 'v4.8.0';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * - WTBus emit: όταν πιαστεί το required watch-time, εκπέμπουμε αμέσως 'wt:reached' (primary).
@@ -24,7 +24,7 @@ import { getBehaviorPlan } from './policies.js';
 import { emitWatchtimeReached } from './wtBus.js';
 import { autoNextAfterWatchtime, autoNextAfterError } from './autoNext.js';
 import { schedulePauses, restartPauseGuard } from './autoPause.js';
-import { scheduleQualityChanges } from './autoQuality.js';
+import { scheduleQualityChanges, resetPlaybackQuality } from './autoQuality.js';
 import { scheduleRateChanges, resetPlaybackRate } from './autoRate.js';
 import { applyInitSeek } from './autoSeek.js';
 import { scheduleUnmute } from './autoUnmute.js';
@@ -77,6 +77,19 @@ export function onReadyExternal(ctrl, e) {
     const ctx = { durationSec: durationNow, profileName: ctrl.profileName, isFirstVideo: true, playerIndex: ctrl.index };
     ctrl.plan = getBehaviorPlan(ctx);
 
+    /*----------------------  one-shot flags ----------------------*/
+    if (typeof ctrl._rateAppliedForThisVideo !== 'boolean') ctrl._rateAppliedForThisVideo = false;
+    if (typeof ctrl._qualityAutoAppliedForThisVideo !== 'boolean') ctrl._qualityAutoAppliedForThisVideo = false;
+
+    /* Reset playback rate (READY) */
+    try {
+      resetPlaybackRate(ctrl);
+    } catch (_) {}
+    /* Reset playback quality (READY) */
+    try {
+      resetPlaybackQuality(ctrl);
+    } catch (_) {}
+
     try {
       const ms = ctrl?.plan?.midSeek ?? { enabled: false };
       log(
@@ -92,11 +105,6 @@ export function onReadyExternal(ctrl, e) {
     } catch (_p) {
       ctrl.videoRequiredWatchTime = 15;
     }
-
-    /* Reset baseline playback rate (READY) */
-    try {
-      resetPlaybackRate(ctrl);
-    } catch (_) {}
 
     // Init seek (policy-driven)
     try {
@@ -121,14 +129,6 @@ export function onReadyExternal(ctrl, e) {
       scheduleMicroAdjust(p, durationNow, ctrl._group('volume'), ctrl);
     } catch (_) {}
     log(`✅ Player ${ctrl.index + 1} READY → Plan Required WT=${ctrl.videoRequiredWatchTime}s`);
-
-    // Apply baseline volume (READY) — θα καλυφθεί επιπλέον στο PLAYING
-    try {
-      const p2 = ctrl?.player;
-      if (typeof p2?.setVolume === 'function' && typeof ctrl?.volumeBaseline === 'number' && ctrl.inheritVolume === true) {
-        p2.setVolume(Math.max(0, Math.min(100, Math.floor(ctrl.volumeBaseline))));
-      }
-    } catch (_) {}
 
     /* Initial mute at READY */
     try {
@@ -165,12 +165,6 @@ export function onReadyExternal(ctrl, e) {
         'pause-plan'
       );
       log(`ℹ️ Player ${ctrl.index + 1} Pause Plan scheduled (muted-friendly, READY)`);
-    } catch (_) {}
-
-    // ΝΕΟ: one-shot flags για το νέο βίντεο
-    try {
-      ctrl._rateAppliedForThisVideo = false;
-      ctrl._volumeAppliedForThisVideo = false;
     } catch (_) {}
 
     // --- Initial play scheduling (όπως πριν) ---
@@ -239,11 +233,11 @@ export function onStateChangeExternal(ctrl, e) {
         ctrl.playingStart = Date.now();
       }
 
-      // ΝΕΟ: one-shot flags (αν δεν υπάρχουν)
+      /*----------------------  one-shot flags ----------------------*/
       if (typeof ctrl._rateAppliedForThisVideo !== 'boolean') ctrl._rateAppliedForThisVideo = false;
-      if (typeof ctrl._volumeAppliedForThisVideo !== 'boolean') ctrl._volumeAppliedForThisVideo = false;
+      if (typeof ctrl._qualityAutoAppliedForThisVideo !== 'boolean') ctrl._qualityAutoAppliedForThisVideo = false;
 
-      // 1) RESET RATE στο πρώτο PLAYING κάθε βίντεο
+      /* 1) RESET RATE στο πρώτο PLAYING κάθε βίντεο */
       if (ctrl._rateAppliedForThisVideo !== true) {
         try {
           resetPlaybackRate(ctrl);
@@ -251,15 +245,11 @@ export function onStateChangeExternal(ctrl, e) {
         } catch (_) {}
       }
 
-      // 2) APPLY BASELINE VOLUME στο πρώτο PLAYING (κληρονομικότητα)
-      if (ctrl._volumeAppliedForThisVideo !== true && ctrl.inheritVolume === true && typeof ctrl.volumeBaseline === 'number') {
+      /* 2) RESET QUALITY σε auto (YouTube IFrame API: 'default') */
+      if (ctrl._qualityAutoAppliedForThisVideo !== true) {
         try {
-          const canSetVol = typeof p?.setVolume === 'function';
-          if (canSetVol === true) {
-            const tgt = Math.max(0, Math.min(100, Math.floor(ctrl.volumeBaseline)));
-            p.setVolume(tgt);
-            ctrl._volumeAppliedForThisVideo = true;
-          }
+          resetPlaybackQuality(ctrl);
+          ctrl._qualityAutoAppliedForThisVideo = true;
         } catch (_) {}
       }
 
@@ -366,7 +356,6 @@ export function onStateChangeExternal(ctrl, e) {
             // ΝΕΟ: reset one-shot flags για επόμενο βίντεο
             try {
               ctrl._rateAppliedForThisVideo = false;
-              ctrl._volumeAppliedForThisVideo = false;
             } catch (_) {}
 
             autoNextAfterWatchtime(ctrl);
@@ -386,7 +375,6 @@ export function onStateChangeExternal(ctrl, e) {
         // Reset one-shot flags για επόμενο βίντεο
         try {
           ctrl._rateAppliedForThisVideo = false;
-          ctrl._volumeAppliedForThisVideo = false;
         } catch (_) {}
         autoNextAfterWatchtime(ctrl);
         return;
@@ -394,7 +382,6 @@ export function onStateChangeExternal(ctrl, e) {
       if (ctrl.watchtimeFired !== true) {
         try {
           ctrl._rateAppliedForThisVideo = false;
-          ctrl._volumeAppliedForThisVideo = false;
         } catch (_) {}
         autoNextAfterWatchtime(ctrl);
       }

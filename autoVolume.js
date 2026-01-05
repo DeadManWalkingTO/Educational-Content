@@ -1,5 +1,5 @@
 // --- autoVolume.js ---
-const VERSION = 'v1.6.2';
+const VERSION = 'v1.7.0';
 /*
  * Περιγραφή: Αυτοματοποιημένες αλλαγές έντασης + micro-adjust (freeze-aware).
  * Αλλαγή: Το παράθυρο εκτέλεσης ορίζεται μέσα στο RequiredWatchTime (WT-window),
@@ -51,10 +51,7 @@ function _applyVolume(player, range, ctrl = null) {
     const canSet = _can(player, 'setVolume') === true;
     if (canSet === true) {
       player.setVolume(target);
-      // ενημέρωση volumeBaseline αν κληρονομείται
-      try {
-        if (ctrl?.inheritVolume === true) ctrl.volumeBaseline = target;
-      } catch (_) {}
+ 
 
       // stats
       if (isNumber(stats.volumeChanges) === true) {

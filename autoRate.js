@@ -1,5 +1,5 @@
 // --- autoRate.js ---
-const VERSION = 'v1.5.1';
+const VERSION = 'v1.6.0';
 /*
  * Περιγραφή: Σπάνιες αλλαγές ταχύτητας αναπαραγωγής (rate).
  * - Back-pressure gate: σέβεται softFreezeUntilMs και softTaskMinGapMs ανά controller.
@@ -172,7 +172,7 @@ export function resetPlaybackRate(ctrl) {
       } catch (_) {}
     }
     ctrl.currentRate = 1.0;
-    log(`🏃‍♂️ Player ${ctrl.index + 1} Rate reset → x1`);
+    log(`⚙️ Player ${ctrl.index + 1} Rate reset → x1`);
   } catch (_) {}
 }
 

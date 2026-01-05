@@ -1,5 +1,5 @@
 // --- autoUnmute.js ---
-const VERSION = 'v2.14.2';
+const VERSION = 'v2.17.0';
 /*
  * scheduleUnmute(ctrl, stateIsPlaying): parsing plan.unmute (base/extra/grace), debounce, flags, scheduling.
  * applyUnmute(player, plan, ctrl): unMute + setVolume + delayed verify (+ micro-adjust), baseline update.
@@ -87,13 +87,6 @@ export function applyUnmute(player, plan, ctrl = null) {
     const target = rndInt(Math.floor(lo), Math.floor(hi));
     player.setVolume(target);
 
-    // Baseline ενημέρωση
-    try {
-      if (isDefined(ctrl) === true && ctrl?.inheritVolume === true) {
-        ctrl.volumeBaseline = target;
-      }
-    } catch (_) {}
-
     // Καθυστερημένη επαλήθευση (για να αποφύγουμε "Current=100%" αμέσως μετά το setVolume)
     const idxShown = _shownIndex(ctrl);
     const verifyDelay = rndInt(100, 200); // 100–200 ms
@@ -110,21 +103,6 @@ export function applyUnmute(player, plan, ctrl = null) {
               player.setVolume(target);
             }
             log(`🔊 Player ${idxShown} Current Volume (verify) → ${String(cur)}% (target=${target}%)`);
-          }
-        }
-      } catch (_) {}
-      // Προαιρετικό micro-adjust μικρό, γύρω από την τιμή (±3), ΧΩΡΙΣ αλλαγή baseline
-      try {
-        const canGet = isFunction(player?.getVolume);
-        const canSet = isFunction(player?.setVolume);
-        const okAPI = allTrue([canGet === true, canSet === true]);
-        if (okAPI === true) {
-          const cur2 = player.getVolume();
-          if (isNumber(cur2) === true) {
-            let micro = cur2 + rndInt(-3, 3);
-            micro = clamp(micro, 0, 100);
-            player.setVolume(micro);
-            // baseline παραμένει στο target
           }
         }
       } catch (_) {}
