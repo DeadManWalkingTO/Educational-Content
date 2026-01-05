@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v4.13.2';
+const VERSION = 'v4.14.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * - WTBus emit: όταν πιαστεί το required watch-time, εκπέμπουμε αμέσως 'wt:reached' (primary).
@@ -103,7 +103,7 @@ export function onReadyExternal(ctrl, e) {
       let msmsg = '';
       msmsg = msmsg + `intervalMs=${ms.intervalMs ?? '-'} minGapSec=${ms.minGapSec ?? '-'} maxSeeks=${ms.maxSeeks ?? '-'}`;
       msmsg = msmsg + ` fromPct=${ms.fromPct ?? '-'} toPct=${ms.toPct ?? '-'} nearEndPct=${ms.nearEndPct ?? '-'}`;
-      log(`🎯 MidSeek Plan → Enabled=${ms.enabled} (${msmsg})`);
+      log(`🎯 Player ${ctrl.index + 1} MidSeek Plan → Enabled=${ms.enabled} (${msmsg})`);
     } catch (_) {}
 
     /* Required watch time */
