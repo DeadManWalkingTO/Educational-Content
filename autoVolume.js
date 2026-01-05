@@ -1,5 +1,5 @@
 // --- autoVolume.js ---
-const VERSION = 'v1.11.2';
+const VERSION = 'v1.15.2';
 /*
  * Περιγραφή: Αυτοματοποιημένες αλλαγές έντασης + micro-adjust (freeze-aware).
  * - Παράθυρο εκτέλεσης μέσα στο RequiredWatchTime (WT-window).
@@ -59,7 +59,9 @@ function _verifyVolume(player, target, ctrl = null, group = 'pc:volume') {
           if (allTrue(needFix) === true) {
             player.setVolume(Number(target)); // επαναφορά στην τιμή-στόχο
           }
-          log(`🔊 Volume (verify) → ${String(cur)}% (target=${String(target)}%)`);
+
+          const pidx = isDefined(ctrl?.index) === true ? ctrl.index + 1 : '?';
+          log(`🔊 Player ${pidx} Volume (verify) → ${String(cur)}% (target=${String(target)}%)`);
         }
       } catch (_) {}
       // Προαιρετικά: ενημέρωση soft-task timestamp
@@ -110,8 +112,8 @@ function _applyVolume(player, range, ctrl = null) {
       } else {
         stats.volumeChanges = 1;
       }
-
-      log(`🔊 Volume → ${target}%`);
+      const pidx = isDefined(ctrl?.index) === true ? ctrl.index + 1 : '?';
+      log(`🔊 Player ${pidx} Volume → ${target}%`);
 
       // ενημέρωση soft-task timestamp
       try {
@@ -222,14 +224,16 @@ export function scheduleVolumeChanges(player, cfg, durationSec, group = 'pc:volu
   // Αν planned==0, δεν προγραμματίζουμε tasks
   if (planned === 0) {
     try {
-      log(`🔊 VolumeScheduler → No Tasks Scheduled (planned=0, baseCount=${baseCount}, chance=${Math.floor(chance * 100)}%, window=${windowSec}s)`);
+      const pidx = isDefined(ctrl?.index) === true ? ctrl.index + 1 : '?';
+      log(`🔊 Player ${pidx} VolumeScheduler → No Tasks Scheduled (planned=0, baseCount=${baseCount}, chance=${Math.floor(chance * 100)}%, window=${windowSec}s)`);
     } catch (_) {}
     return;
   }
 
   // προγραμματισμός αλλαγών
   let i = 0;
-  log(`🔊 VolumeScheduler → Planned=${planned}, window=${windowSec}s, range=${rangeArr[0]}–${rangeArr[1]}%`);
+  const pidx = isDefined(ctrl?.index) === true ? ctrl.index + 1 : '?';
+  log(`🔊 Player ${pidx} VolumeScheduler → Planned=${planned}, window=${windowSec}s, range=${rangeArr[0]}–${rangeArr[1]}%`);
   while (i < planned) {
     const delaySec = rndInt(Math.floor(fromMs / 1000), Math.floor(toMs / 1000));
     const delayMs = delaySec * 1000;
@@ -260,6 +264,7 @@ export function scheduleVolumeChanges(player, cfg, durationSec, group = 'pc:volu
  */
 export function scheduleMicroAdjust(player, durationSec, group = 'pc:volume', ctrl = null) {
   // WT-window
+
   let d = 0;
   if (isNumber(durationSec) === true) d = durationSec;
 
@@ -303,8 +308,8 @@ export function scheduleMicroAdjust(player, durationSec, group = 'pc:volume', ct
       } else {
         stats.volumeChanges = 1;
       }
-
-      log(`🔉 Micro-Volume Adjust → ${tgt}% (Δ=${delta})`);
+      const pidx = isDefined(ctrl?.index) === true ? ctrl.index + 1 : '?';
+      log(`🔉 Player ${pidx} Micro-Volume Adjust → ${tgt}% (Δ=${delta})`);
 
       try {
         if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
