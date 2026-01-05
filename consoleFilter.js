@@ -1,5 +1,5 @@
 // --- consoleFilter.js ---
-const VERSION = 'v3.8.2';
+const VERSION = 'v3.9.2';
 /*
  * Τυποποιημένο wrapping της global console με state-machine και tagging.
  * Προωθεί non-critical logs (error/warn/info/log) σε επιλεγμένο level με prefix tag,
@@ -43,22 +43,28 @@ let _st = {
   tag: '[YouTubeAPI][non-critical]',
 };
 
-/**
- * safeToString(x): Ασφαλής μετατροπή σε string με guards από utils.
- */
+/* ========================= Helpers ========================= */
+/** Ασφαλής μετατροπή σε string με guards από utils. */
 function safeToString(x) {
   try {
-    if (isString(x) === true) {
+    const partsStr = [];
+    partsStr.push(isString(x) === true);
+    if (allTrue(partsStr) === true) {
       return x;
     }
+
     const isObj = typeof x === 'object';
-    if (isObj === true) {
-      if (isDefined(x) === true) {
-        const hasMessage = isDefined(x.message);
-        if (hasMessage === true) {
+    const partsObj = [];
+    partsObj.push(isObj === true);
+    if (allTrue(partsObj) === true) {
+      const partsDef = [];
+      partsDef.push(isDefined(x) === true);
+      if (allTrue(partsDef) === true) {
+        const partsMsg = [];
+        partsMsg.push(isDefined(x.message) === true);
+        if (allTrue(partsMsg) === true) {
           return String(x.message);
         }
-        // Fallback: γενική μετατροπή
         return String(x);
       }
       // null/undefined
@@ -68,7 +74,9 @@ function safeToString(x) {
   } catch (_) {
     try {
       const ser = safeJsonStringify(x);
-      if (ser.ok === true) {
+      const partsSer = [];
+      partsSer.push(ser.ok === true);
+      if (allTrue(partsSer) === true) {
         return ser.value;
       }
       return '';
@@ -78,12 +86,12 @@ function safeToString(x) {
   }
 }
 
-/**
- * matchAnyArg(args, regexList): true αν κάποιο arg ταιριάζει σε κάποιο RegExp.
- */
+/** true αν κάποιο arg ταιριάζει σε κάποιο RegExp. */
 function matchAnyArg(args, regexList) {
   const hasList = isNonEmptyArray(regexList);
-  if (hasList !== true) {
+  const partsList = [];
+  partsList.push(hasList === true);
+  if (allTrue(partsList) !== true) {
     return false;
   }
   try {
@@ -93,7 +101,9 @@ function matchAnyArg(args, regexList) {
       let j = 0;
       while (j < regexList.length) {
         const ok = regexList[j].test(s);
-        if (ok === true) {
+        const partsOk = [];
+        partsOk.push(ok === true);
+        if (allTrue(partsOk) === true) {
           return true;
         }
         j = j + 1;
@@ -106,26 +116,31 @@ function matchAnyArg(args, regexList) {
   return false;
 }
 
-/**
- * matchSourceHints(args, sources): true αν υπάρχουν hints από Error.stack.
- */
+/** true αν υπάρχουν hints από Error.stack. */
 function matchSourceHints(args, sources) {
   const hasList = isNonEmptyArray(sources);
-  if (hasList !== true) {
+  const partsList = [];
+  partsList.push(hasList === true);
+  if (allTrue(partsList) !== true) {
     return false;
   }
   try {
     let i = 0;
     while (i < args.length) {
       const a = args[i];
-      if (isDefined(a) === true) {
-        const hasStack = isDefined(a.stack);
-        if (hasStack === true) {
+      const partsA = [];
+      partsA.push(isDefined(a) === true);
+      if (allTrue(partsA) === true) {
+        const partsStack = [];
+        partsStack.push(isDefined(a.stack) === true);
+        if (allTrue(partsStack) === true) {
           const st = String(a.stack);
           let j = 0;
           while (j < sources.length) {
             const ok = sources[j].test(st);
-            if (ok === true) {
+            const partsOk = [];
+            partsOk.push(ok === true);
+            if (allTrue(partsOk) === true) {
               return true;
             }
             j = j + 1;
@@ -140,9 +155,7 @@ function matchSourceHints(args, sources) {
   return false;
 }
 
-/**
- * buildState(cfg): Δημιουργεί state με ασφαλή αντιγραφή και defaults.
- */
+/** Δημιουργεί state με ασφαλή αντιγραφή και defaults. */
 function buildState(cfg) {
   let st = {
     enabled: true,
@@ -152,33 +165,49 @@ function buildState(cfg) {
     tag: '[YouTubeAPI][non-critical]',
   };
 
-  if (isDefined(cfg) === true) {
+  const partsCfg = [];
+  partsCfg.push(isDefined(cfg) === true);
+  if (allTrue(partsCfg) === true) {
     // enabled
-    if (isDefined(cfg.enabled) === true) {
-      st.enabled = !!cfg.enabled;
+    const partsEn = [];
+    partsEn.push(isDefined(cfg.enabled) === true);
+    if (allTrue(partsEn) === true) {
+      st.enabled = cfg.enabled === true ? true : false;
     }
 
-    // level
-    if (isDefined(cfg.tagLevel) === true) {
-      if (String(cfg.tagLevel) === 'warn') {
-        st.level = 'warn';
-      } else {
-        st.level = 'info';
+    // level (switch-case αντί για if/else)
+    const partsLevel = [];
+    partsLevel.push(isDefined(cfg.tagLevel) === true);
+    if (allTrue(partsLevel) === true) {
+      const lv = String(cfg.tagLevel);
+      switch (lv) {
+        case 'warn':
+          st.level = 'warn';
+          break;
+        default:
+          st.level = 'info';
+          break;
       }
     }
 
     // patterns
-    if (isNonEmptyArray(cfg.patterns) === true) {
+    const partsPat = [];
+    partsPat.push(isNonEmptyArray(cfg.patterns) === true);
+    if (allTrue(partsPat) === true) {
       st.patterns = cfg.patterns.slice();
     }
 
     // sources
-    if (isNonEmptyArray(cfg.sources) === true) {
+    const partsSrc = [];
+    partsSrc.push(isNonEmptyArray(cfg.sources) === true);
+    if (allTrue(partsSrc) === true) {
       st.sources = cfg.sources.slice();
     }
 
     // tag
-    if (isDefined(cfg.tag) === true) {
+    const partsTag = [];
+    partsTag.push(isDefined(cfg.tag) === true);
+    if (allTrue(partsTag) === true) {
       st.tag = String(cfg.tag);
     }
   }
@@ -186,9 +215,7 @@ function buildState(cfg) {
   return st;
 }
 
-/**
- * forward(level, args): Στέλνει payload στο επιλεγμένο επίπεδο με tag prefix.
- */
+/** Στέλνει payload στο επιλεγμένο επίπεδο με tag prefix (switch-case). */
 function forward(level, args) {
   const payload = [String(_st.tag)];
   let i = 0;
@@ -197,36 +224,49 @@ function forward(level, args) {
     i = i + 1;
   }
 
-  if (level === 'warn') {
-    if (isDefined(_orig.warn) === true) {
-      _orig.warn.apply(console, payload);
-      return;
+  switch (String(level)) {
+    case 'warn': {
+      const partsWarn = [];
+      partsWarn.push(isDefined(_orig.warn) === true);
+      if (allTrue(partsWarn) === true) {
+        _orig.warn.apply(console, payload);
+        return;
+      }
+      // fallthrough to info/log αν δεν υπάρχει warn
     }
-  }
-
-  if (level === 'info') {
-    if (isDefined(_orig.info) === true) {
-      _orig.info.apply(console, payload);
-      return;
+    // eslint-disable-next-line no-fallthrough
+    case 'info': {
+      const partsInfo = [];
+      partsInfo.push(isDefined(_orig.info) === true);
+      if (allTrue(partsInfo) === true) {
+        _orig.info.apply(console, payload);
+        return;
+      }
+      // fallthrough στο log
     }
-  }
-
-  if (isDefined(_orig.log) === true) {
-    _orig.log.apply(console, payload);
+    // eslint-disable-next-line no-fallthrough
+    default: {
+      const partsLog = [];
+      partsLog.push(isDefined(_orig.log) === true);
+      if (allTrue(partsLog) === true) {
+        _orig.log.apply(console, payload);
+      }
+      break;
+    }
   }
 }
 
-/**
- * shouldTag(args): Απόφαση tagging/forwarding βάσει state.
- */
+/** Απόφαση tagging/forwarding βάσει state. */
 function shouldTag(args) {
-  if (_st.enabled !== true) {
+  const partsEnabled = [];
+  partsEnabled.push(_st.enabled === true);
+  if (allTrue(partsEnabled) !== true) {
     return false;
   }
+
   const byMsg = matchAnyArg(args, _st.patterns);
   const bySrc = matchSourceHints(args, _st.sources);
-
-  // Χρήση anyTrue για OR
+  // Χρήση anyTrue για "OR"
   const decide = anyTrue([byMsg === true, bySrc === true]);
   if (decide === true) {
     return true;
@@ -234,10 +274,46 @@ function shouldTag(args) {
   return false;
 }
 
+/** Δημιουργεί wrapper για το αντίστοιχο console fn (switch-case). */
+function wrapConsole(fnName) {
+  const orig = _orig[fnName];
+  const partsOrig = [];
+  partsOrig.push(isDefined(orig) === true);
+  if (allTrue(partsOrig) !== true) {
+    return function () {};
+  }
+
+  // Με switch-case αντί για πολλαπλά if-blocks
+  switch (String(fnName)) {
+    case 'error':
+    case 'warn':
+    case 'info':
+    case 'log':
+      return function (...args) {
+        const tagIt = shouldTag(args);
+        const partsTag = [];
+        partsTag.push(tagIt === true);
+        if (allTrue(partsTag) === true) {
+          forward(_st.level, args);
+          return;
+        }
+        orig.apply(console, args);
+      };
+
+    default:
+      // Γενικός fallback (σε περίπτωση άλλου fnName)
+      return function (...args) {
+        orig.apply(console, args);
+      };
+  }
+}
+
 /* --- Exports - Start --- */
 export function installConsoleFilter(cfg) {
   // Αν έχει ήδη εγκατασταθεί, επιστρέφουμε
-  if (_installed === true) {
+  const partsInst = [];
+  partsInst.push(_installed === true);
+  if (allTrue(partsInst) === true) {
     return;
   }
 
@@ -245,67 +321,10 @@ export function installConsoleFilter(cfg) {
   _st = buildState(cfg);
 
   // Κρατάμε references και κάνουμε bind
-  _orig.error = isDefined(console.error) ? console.error.bind(console) : null;
-  _orig.warn = isDefined(console.warn) ? console.warn.bind(console) : null;
-  _orig.info = isDefined(console.info) ? console.info.bind(console) : null;
-  _orig.log = isDefined(console.log) ? console.log.bind(console) : null;
-
-  function wrapConsole(fnName) {
-    const orig = _orig[fnName];
-    if (isDefined(orig) !== true) {
-      return function () {};
-    }
-
-    // Ειδικές περιπτώσεις: error/warn/info/log
-    if (fnName === 'error') {
-      return function (...args) {
-        const tagIt = shouldTag(args);
-        if (tagIt === true) {
-          forward(_st.level, args);
-          return;
-        }
-        orig.apply(console, args);
-      };
-    }
-
-    if (fnName === 'warn') {
-      return function (...args) {
-        const tagIt = shouldTag(args);
-        if (tagIt === true) {
-          forward(_st.level, args);
-          return;
-        }
-        orig.apply(console, args);
-      };
-    }
-
-    if (fnName === 'info') {
-      return function (...args) {
-        const tagIt = shouldTag(args);
-        if (tagIt === true) {
-          forward(_st.level, args);
-          return;
-        }
-        orig.apply(console, args);
-      };
-    }
-
-    if (fnName === 'log') {
-      return function (...args) {
-        const tagIt = shouldTag(args);
-        if (tagIt === true) {
-          forward(_st.level, args);
-          return;
-        }
-        orig.apply(console, args);
-      };
-    }
-
-    // Γενικός fallback
-    return function (...args) {
-      orig.apply(console, args);
-    };
-  }
+  _orig.error = isDefined(console.error) === true ? console.error.bind(console) : null;
+  _orig.warn = isDefined(console.warn) === true ? console.warn.bind(console) : null;
+  _orig.info = isDefined(console.info) === true ? console.info.bind(console) : null;
+  _orig.log = isDefined(console.log) === true ? console.log.bind(console) : null;
 
   // Εφαρμογή wrappers
   console.error = wrapConsole('error');
@@ -317,17 +336,24 @@ export function installConsoleFilter(cfg) {
 }
 
 export function setFilterLevel(level) {
-  if (String(level) === 'warn') {
-    _st.level = 'warn';
-    return;
+  // Χρήση switch-case
+  switch (String(level)) {
+    case 'warn':
+      _st.level = 'warn';
+      return;
+    default:
+      _st.level = 'info';
+      return;
   }
-  _st.level = 'info';
 }
 
 export function addPatterns(regexList) {
   const ok = isNonEmptyArray(regexList);
-  const lenPositive = isDefined(regexList) ? regexList.length > 0 : false;
-  if (allTrue([ok === true, lenPositive === true]) === true) {
+  const lenPositive = isDefined(regexList) === true ? (regexList.length > 0 ? true : false) : false;
+  const parts = [];
+  parts.push(ok === true);
+  parts.push(lenPositive === true);
+  if (allTrue(parts) === true) {
     let i = 0;
     while (i < regexList.length) {
       _st.patterns.push(regexList[i]);
@@ -338,8 +364,11 @@ export function addPatterns(regexList) {
 
 export function addSources(regexList) {
   const ok = isNonEmptyArray(regexList);
-  const lenPositive = isDefined(regexList) ? regexList.length > 0 : false;
-  if (allTrue([ok === true, lenPositive === true]) === true) {
+  const lenPositive = isDefined(regexList) === true ? (regexList.length > 0 ? true : false) : false;
+  const parts = [];
+  parts.push(ok === true);
+  parts.push(lenPositive === true);
+  if (allTrue(parts) === true) {
     let i = 0;
     while (i < regexList.length) {
       _st.sources.push(regexList[i]);
@@ -349,7 +378,9 @@ export function addSources(regexList) {
 }
 
 export function setTag(tag) {
-  if (isDefined(tag) === true) {
+  const partsTag = [];
+  partsTag.push(isDefined(tag) === true);
+  if (allTrue(partsTag) === true) {
     _st.tag = String(tag);
   }
 }
@@ -363,26 +394,41 @@ export function disable() {
 }
 
 export function restoreConsole() {
-  if (_installed !== true) {
+  const partsInst = [];
+  partsInst.push(_installed !== true);
+  if (allTrue(partsInst) === true) {
     return;
   }
-  if (isDefined(_orig.error) === true) {
+
+  /* --- Exports - End --- */
+
+  const pErr = [];
+  pErr.push(isDefined(_orig.error) === true);
+  if (allTrue(pErr) === true) {
     console.error = _orig.error;
   }
-  if (isDefined(_orig.warn) === true) {
+
+  const pWarn = [];
+  pWarn.push(isDefined(_orig.warn) === true);
+  if (allTrue(pWarn) === true) {
     console.warn = _orig.warn;
   }
-  if (isDefined(_orig.info) === true) {
+
+  const pInfo = [];
+  pInfo.push(isDefined(_orig.info) === true);
+  if (allTrue(pInfo) === true) {
     console.info = _orig.info;
   }
-  if (isDefined(_orig.log) === true) {
+
+  const pLog = [];
+  pLog.push(isDefined(_orig.log) === true);
+  if (allTrue(pLog) === true) {
     console.log = _orig.log;
   }
+
   _installed = false;
 }
-/* --- Exports - End --- */
 
-/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
+// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
-
 // --- End Of File ---
