@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-const VERSION = 'v4.2.3';
+const VERSION = 'v4.3.2';
 /*
  * Κεντρικό χειριστήριο UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
  * - Stop All: χρήση utils.scheduleSafe αντί για native setTimeout (ενοποίηση timers).
@@ -10,15 +10,16 @@ const VERSION = 'v4.2.3';
 export function getVersion() {
   return VERSION;
 }
-// Όνομα αρχείου για logging.
+
+/* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
-// Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου
+/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
 import { controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, stats } from './globals.js';
-import { rndInt, makeLogger, allTrue, isDefined, isNonEmptyArray, safeAddEvent, domReady, debounce, isFunction, scheduleSafe } from './utils.js';
+import { rndInt, makeLogger, allTrue, anyTrue, isDefined, isNonEmptyArray, safeAddEvent, domReady, debounce, isFunction, scheduleSafe } from './utils.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
 
 /* ========================= Logger ========================= */
@@ -32,37 +33,76 @@ function byId(id) {
     return null;
   }
 }
+
 function hasEntries(panel) {
-  return isDefined(panel?.children) && panel.children.length > 0;
+  const guards = [];
+  guards.push(isDefined(panel?.children) === true);
+  guards.push((panel?.children?.length ?? 0) > 0);
+  return allTrue(guards);
 }
+
 function isReadyController(c) {
-  return allTrue([!!c, !!(c ? c.player : false)]);
+  // Χωρίς &&: ρητοί έλεγχοι αντικειμένου/player
+  const parts = [];
+  parts.push(isDefined(c) === true);
+  parts.push(isDefined(c?.player) === true);
+  return allTrue(parts);
 }
+
 function noteError(message) {
   try {
     stats.errors += 1;
   } catch {}
   log(message);
 }
+
 function shuffleControllers(list) {
-  const a = Array.isArray(list) ? list.slice() : [];
-  for (let i = a.length - 1; i > 0; i--) {
+  const a = Array.isArray(list) === true ? list.slice() : [];
+  let i = a.length - 1;
+  while (i > 0) {
     const j = rndInt(0, i);
-    [a[i], a[j]] = [a[j], a[i]];
+    const tmp = a[i];
+    a[i] = a[j];
+    a[j] = tmp;
+    i = i - 1;
   }
   return a;
 }
+
 function pickRandomId(source) {
-  if (!isNonEmptyArray(source)) return null;
+  const ok = [];
+  ok.push(isNonEmptyArray(source) === true);
+  if (allTrue(ok) !== true) return null;
   return source[rndInt(0, source.length - 1)];
 }
+
 function buildLogsText(panel) {
-  return Array.from(panel.children)
-    .map((div) => div.textContent)
-    .join('\n');
+  const children = Array.from(panel.children ?? []);
+  const out = [];
+  let i = 0;
+  while (i < children.length) {
+    const div = children[i];
+    out.push(div.textContent);
+    i = i + 1;
+  }
+  return out.join('\n');
 }
+
 function buildFinalText(logsText, statsText) {
   return `=== LOGS ===\n${logsText}\n=== STATS ===\n${statsText}`;
+}
+
+/** Επιλογή πηγής λίστας για restart (χωρίς && / ||). */
+function selectSource(useMain, mainList, altList) {
+  // Προτεραιότητα: Main (αν ζητείται και έχει στοιχεία), αλλιώς Alt (αν έχει), αλλιώς Main
+  switch (true) {
+    case allTrue([useMain === true, isNonEmptyArray(mainList) === true]) === true:
+      return mainList;
+    case allTrue([isNonEmptyArray(altList) === true]) === true:
+      return altList;
+    default:
+      return mainList;
+  }
 }
 
 /* ========================= Δημόσιο API ========================= */
@@ -70,14 +110,20 @@ function buildFinalText(logsText, statsText) {
 export function setControlsEnabled(enabled) {
   const ids = ['btnStopAll', 'btnRestartAll', 'btnToggleTheme', 'btnCopyLogs', 'btnClearLogs', 'btnReloadList'];
   let touched = 0;
-  for (const id of ids) {
-    const el = byId(id);
-    if (isDefined(el)) {
-      el.disabled = !enabled;
+  let i = 0;
+  while (i < ids.length) {
+    const el = byId(ids[i]);
+    const canTouch = [];
+    canTouch.push(isDefined(el) === true);
+    if (allTrue(canTouch) === true) {
+      el.disabled = enabled !== true;
       touched = touched + 1;
     }
+    i = i + 1;
   }
-  log(`✅ Controls ${enabled ? 'Enabled' : 'Disabled'} (${touched} Στοιχεία)`);
+
+  const label = enabled === true ? 'Enabled' : 'Disabled';
+  log(`✅ Controls ${label} (${touched} Στοιχεία)`);
   return touched;
 }
 
@@ -87,12 +133,15 @@ function stopAll() {
   clearStopTimers();
 
   const shuffled = shuffleControllers(controllers);
+
   let totalDelay = 0;
   let i = 0;
   while (i < shuffled.length) {
     const c = shuffled[i];
+
     const randomDelay = rndInt(30000, 60000);
     totalDelay = totalDelay + randomDelay;
+
     const step = i + 1;
     const delayMs = totalDelay;
 
@@ -113,7 +162,8 @@ function stopAll() {
             noteError(`❌ Player ${c.index + 1} Stop Error`);
           }
         } else {
-          noteError(`❌ Player ${c ? c.index + 1 : '?'} Stop Skipped → Not Initialized`);
+          const idxShown = isDefined(c?.index) === true ? String(c.index + 1) : '?';
+          noteError(`❌ Player ${idxShown} Stop Skipped → Not Initialized`);
         }
       },
       delayMs,
@@ -123,7 +173,6 @@ function stopAll() {
 
     // Αποθήκευση ID για μελλοντική ακύρωση μέσω clearStopTimers()
     pushStopTimer(id);
-
     i = i + 1;
   }
 
@@ -152,12 +201,16 @@ function restartAll() {
       continue;
     }
 
-    // Επιλογή νέου id (main/alt)
+    // Επιλογή νέου id (main/alt) — χωρίς && / ||, με switch-case
     const useMain = Math.random() < MAIN_PROBABILITY;
-    const source = useMain && isNonEmptyArray(mainList) ? mainList : isNonEmptyArray(altList) ? altList : mainList;
-    const newId = pickRandomId(source);
-    if (!isDefined(newId)) {
-      noteError(`❌ Player ${c ? c.index + 1 : '?'} Restart Skipped → No Videos Available`);
+    const sourceList = selectSource(useMain, mainList, altList);
+    const newId = pickRandomId(sourceList);
+
+    const partsNew = [];
+    partsNew.push(isDefined(newId) === true);
+    if (allTrue(partsNew) !== true) {
+      const shownIdx = isDefined(c?.index) === true ? String(c.index + 1) : '?';
+      noteError(`❌ Player ${shownIdx} Restart Skipped → No Videos Available`);
       i = i + 1;
       continue;
     }
@@ -167,8 +220,7 @@ function restartAll() {
       const p = c?.player;
       const parts = [];
       parts.push(isDefined(p) === true);
-      const hasP = allTrue(parts);
-      if (hasP === true) {
+      if (allTrue(parts) === true) {
         try {
           if (isFunction(p?.stopVideo) === true) p.stopVideo();
         } catch {}
@@ -182,7 +234,8 @@ function restartAll() {
     // Init
     try {
       c.init(newId);
-      log(`🔄 [RestartAll] Player ${c.index + 1} Restart → ${newId} (Source:${useMain ? 'Main' : 'Alt'})`);
+      const srcLabel = useMain === true ? 'Main' : 'Alt';
+      log(`🔄 [RestartAll] Player ${c.index + 1} Restart → ${newId} (Source:${srcLabel})`);
     } catch (e) {
       noteError(`❌ Player ${c.index + 1} Restart Error → ${e}`);
     }
@@ -201,8 +254,11 @@ function toggleTheme() {
       noteError('❌ Theme Toggle Error → Body Not Available');
       return;
     }
+
     document.body.classList.toggle('light');
-    const mode = document.body.classList.contains('light') ? 'Light' : 'Dark';
+
+    const isLight = document.body.classList.contains('light');
+    const mode = isLight === true ? 'Light' : 'Dark';
     log(`🌙 Theme → ${mode} Mode`);
   } catch (e) {
     noteError(`❌ Theme Toggle Error → ${e}`);
@@ -212,11 +268,16 @@ function toggleTheme() {
 /** Καθαρισμός activity panel. */
 function clearLogs() {
   const panel = byId('activityPanel');
-  if (allTrue([isDefined(panel), hasEntries(panel)]) === true) {
+  const guards = [];
+  guards.push(isDefined(panel) === true);
+  guards.push(hasEntries(panel) === true);
+
+  if (allTrue(guards) === true) {
     panel.innerHTML = '';
     log('🧹 Logs Cleared → All Entries Removed');
     return true;
   }
+
   log('⚠️ Clear Logs → Nothing To Remove');
   return false;
 }
@@ -225,13 +286,17 @@ function clearLogs() {
 export async function copyLogs() {
   const panel = byId('activityPanel');
   const statsPanel = byId('statsPanel');
-  if (!hasEntries(panel)) {
+
+  const hasPanelEntries = hasEntries(panel) === true;
+  if (hasPanelEntries !== true) {
     log('⚠️ Copy Logs → No Entries');
     return false;
   }
+
   const logsText = buildLogsText(panel);
-  const statsText = isDefined(statsPanel) ? statsPanel.textContent : '📊 Stats Not Available';
+  const statsText = isDefined(statsPanel) === true ? statsPanel.textContent : '📊 Stats Not Available';
   const finalText = buildFinalText(logsText, statsText);
+
   try {
     await navigator.clipboard.writeText(finalText);
     log(`✅ Logs Copied Via Clipboard API → ${panel.children.length} Entries + Stats`);
@@ -241,11 +306,14 @@ export async function copyLogs() {
     try {
       // eslint-disable-next-line no-undef
       const ok = unsecuredCopyToClipboard(finalText);
-      if (ok) {
+      const partsOk = [];
+      partsOk.push(ok === true);
+      if (allTrue(partsOk) === true) {
         log(`📋 (Fallback) Logs Copied → ${panel.children.length} Entries + Stats`);
         return true;
       }
     } catch {}
+
     noteError('❌ Copy Logs Failed (Fallback)');
     return false;
   }
@@ -254,10 +322,14 @@ export async function copyLogs() {
 /* ========================= Event Bindings ========================= */
 let __uiBound = false;
 export async function bindUiEvents() {
-  if (__uiBound) return 0;
+  const already = [];
+  already.push(__uiBound === true);
+  if (allTrue(already) === true) return 0;
+
   await domReady();
 
   const debouncedReload = debounce(reloadList, 500);
+
   const pairs = [
     ['btnStopAll', stopAll],
     ['btnRestartAll', restartAll],
@@ -268,15 +340,25 @@ export async function bindUiEvents() {
   ];
 
   let bound = 0;
-  for (const [id, handler] of pairs) {
+  let i = 0;
+  while (i < pairs.length) {
+    const id = pairs[i][0];
+    const handler = pairs[i][1];
+
     const el = byId(id);
-    if (isDefined(el)) {
+    const canBind = [];
+    canBind.push(isDefined(el) === true);
+
+    if (allTrue(canBind) === true) {
       safeAddEvent(el, 'click', handler);
       bound = bound + 1;
     } else {
       log(`⚠️ Bind Skipped → Missing Element #${id}`);
     }
+
+    i = i + 1;
   }
+
   __uiBound = true;
   log(`✅ Events Bound (uiControls.js ${VERSION}) → ${bound} handlers`);
   return bound;
@@ -288,19 +370,26 @@ export async function reloadList() {
     const ret = await reloadListsFromSource();
     const mainList = ret.mainList;
     const altList = ret.altList;
+
     setMainList(mainList);
     setAltList(altList);
+
     log(`📂 Lists Applied → Main: ${mainList.length} - Alt: ${altList.length}`);
-    if (typeof document !== 'undefined') {
+
+    const domAvail = [];
+    domAvail.push(typeof document !== 'undefined');
+    if (allTrue(domAvail) === true) {
       const detail = {
-        mainCount: Array.isArray(mainList) ? mainList.length : 0,
-        altCount: Array.isArray(altList) ? altList.length : 0,
+        mainCount: Array.isArray(mainList) === true ? mainList.length : 0,
+        altCount: Array.isArray(altList) === true ? altList.length : 0,
         mainSource: ret?.meta?.mainSource ?? 'unknown',
         altSource: ret?.meta?.altSource ?? 'unknown',
       };
+
       document.dispatchEvent(new CustomEvent('lists:updated', { detail }));
       log(`📣 Event 'Lists:Updated' Dispatched → Main:${detail.mainCount} Alt:${detail.altCount}`);
     }
+
     return true;
   } catch (err) {
     stats.errors = (stats.errors ?? 0) + 1;
@@ -309,7 +398,7 @@ export async function reloadList() {
   }
 }
 
-// Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου
+/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---
