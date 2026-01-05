@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v4.9.0';
+const VERSION = 'v4.10.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * - WTBus emit: όταν πιαστεί το required watch-time, εκπέμπουμε αμέσως 'wt:reached' (primary).
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { makeLogger, allTrue, isDefined, isNumber, isFunction, scheduleSafe, rndInt, once } from './utils.js';
+import { makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, scheduleSafe, rndInt, once } from './utils.js';
 import { stats } from './globals.js';
 import { getBehaviorPlan } from './policies.js';
 import { emitWatchtimeReached } from './wtBus.js';
@@ -35,11 +35,15 @@ const log = makeLogger(FILENAME);
 
 /* ========================= Helpers ========================= */
 function _can(obj, methodName) {
-  if (typeof obj === 'undefined') return false;
-  if (obj === null) return false;
+  const guardsObj = [];
+  guardsObj.push(isDefined(obj) === true);
+  guardsObj.push(obj !== null);
+  const okObj = allTrue(guardsObj);
+  if (okObj !== true) return false;
+
   const fn = obj[methodName];
   const parts = [];
-  parts.push(typeof fn === 'function');
+  parts.push(isFunction(fn) === true);
   return allTrue(parts);
 }
 
@@ -57,7 +61,9 @@ export function onReadyExternal(ctrl, e) {
     let durationNow = 0;
     try {
       const can = _can(p, 'getDuration') === true;
-      if (can === true) {
+      const partsCan = [];
+      partsCan.push(can === true);
+      if (allTrue(partsCan) === true) {
         const d = p.getDuration();
         if (isNumber(d) === true) durationNow = d;
       }
@@ -112,7 +118,10 @@ export function onReadyExternal(ctrl, e) {
     /* Init seek (policy-driven) */
     try {
       const t = ctrl.plan?.startSeek?.targetSec ?? 0;
-      if (isNumber(t) === true && t > 0) {
+      const partsInit = [];
+      partsInit.push(isNumber(t) === true);
+      partsInit.push(t > 0);
+      if (allTrue(partsInit) === true) {
         applyInitSeek(ctrl, t);
       }
     } catch (_) {}
@@ -131,14 +140,33 @@ export function onReadyExternal(ctrl, e) {
     try {
       scheduleMicroAdjust(p, durationNow, ctrl._group('volume'), ctrl);
     } catch (_) {}
+
     log(`✅ Player ${ctrl.index + 1} READY → Plan Required WT=${ctrl.videoRequiredWatchTime}s`);
 
-    /* Initial mute at READY */
+    /* Initial mute at READY (χωρίς ||/&&) */
     try {
       const pp = ctrl?.player;
-      const canMute = typeof pp?.mute === 'function';
-      const canIsMuted = typeof pp?.isMuted === 'function';
-      const shouldMute = canMute === true && (canIsMuted !== true || pp.isMuted() !== true);
+      const canMute = isFunction(pp?.mute) === true;
+      const canIsMuted = isFunction(pp?.isMuted) === true;
+
+      let isMutedNow = false;
+      const partsCheckMuted = [];
+      partsCheckMuted.push(canIsMuted === true);
+      if (allTrue(partsCheckMuted) === true) {
+        const m = pp.isMuted();
+        const isBool = typeof m === 'boolean';
+        if (allTrue([isBool === true]) === true) {
+          isMutedNow = m === true;
+        }
+      }
+
+      const cond1 = [];
+      cond1.push(canMute === true);
+      const cond2 = [];
+      cond2.push(canIsMuted !== true);
+      cond2.push(isMutedNow !== true);
+
+      const shouldMute = allTrue([cond1[0] === true, anyTrue(cond2) === true]);
       if (shouldMute === true) {
         pp.mute();
         ctrl.pendingUnmute = true;
@@ -170,7 +198,7 @@ export function onReadyExternal(ctrl, e) {
       log(`ℹ️ Player ${ctrl.index + 1} Pause Plan scheduled (muted-friendly, READY)`);
     } catch (_) {}
 
-    // --- Initial play scheduling (βελτιωμένο) ---
+    // --- Initial play scheduling (βελτιωμένο, χωρίς ||/&&) ---
     try {
       try {
         groupCancel(ctrl._group('play'));
@@ -182,12 +210,25 @@ export function onReadyExternal(ctrl, e) {
         const startDelay = rndInt(200, 600);
         let attempts = 0;
         const maxAttempts = 20; // αυξήθηκε από 12 → 20
+
         const tryStart = () => {
           try {
             const p3 = ctrl?.player;
-            const canState = typeof YT !== 'undefined' && typeof p3?.getPlayerState === 'function';
-            const isPlaying = canState === true && p3.getPlayerState() === YT.PlayerState.PLAYING;
-            if (isPlaying === true) {
+
+            const canStateParts = [];
+            canStateParts.push(typeof YT !== 'undefined');
+            canStateParts.push(isFunction(p3?.getPlayerState) === true);
+            const canState = allTrue(canStateParts);
+
+            let isPlayingNow = false;
+            if (allTrue([canState === true]) === true) {
+              const st = p3.getPlayerState();
+              if (allTrue([st === YT.PlayerState.PLAYING]) === true) {
+                isPlayingNow = true;
+              }
+            }
+
+            if (isPlayingNow === true) {
               try {
                 groupCancel(ctrl._group('play'));
               } catch (_) {}
@@ -197,7 +238,9 @@ export function onReadyExternal(ctrl, e) {
             }
 
             // Guard: αν εκκρεμεί unmute, περίμενε λίγο (μην πιέζεις το start)
-            if (ctrl?.pendingUnmute === true) {
+            const waitUnmute = [];
+            waitUnmute.push(ctrl?.pendingUnmute === true);
+            if (allTrue(waitUnmute) === true) {
               const dWait = rndInt(300, 800);
               scheduleSafe(tryStart, dWait, ctrl._group('play'), 'initial-play-unmute-wait');
               return;
@@ -205,9 +248,9 @@ export function onReadyExternal(ctrl, e) {
 
             // Κανονική απόπειρα έναρξης
             ctrl.guardPlay(ctrl.player);
-
             attempts = attempts + 1;
-            if (attempts < maxAttempts) {
+
+            if (allTrue([attempts < maxAttempts]) === true) {
               const dRetry = rndInt(300, 800); // jitter 300–800 ms
               scheduleSafe(tryStart, dRetry, ctrl._group('play'), 'initial-play-retry');
             } else {
@@ -219,9 +262,11 @@ export function onReadyExternal(ctrl, e) {
             }
           } catch (_) {}
         };
+
         scheduleSafe(tryStart, startDelay, ctrl._group('play'), 'initial-play');
         log(`▶️ Player ${ctrl.index + 1} READY → initial play scheduled (${startDelay} ms)`);
       }
+
       try {
         ctrl.readyAt = Date.now();
       } catch (_) {}
@@ -239,9 +284,10 @@ export function onStateChangeExternal(ctrl, e) {
     parts.push(typeof YT !== 'undefined');
     const ok = allTrue(parts);
     if (ok !== true) return;
+
     const state = p.getPlayerState();
 
-    /*---------------------- PLAYING ----------------------*/
+    /*------------------------------ PLAYING ------------------------------*/
     if (state === YT.PlayerState.PLAYING) {
       if (ctrl.playingStart === null) {
         ctrl.playingStart = Date.now();
@@ -270,16 +316,19 @@ export function onStateChangeExternal(ctrl, e) {
       /* Καταγραφή PLAYING event */
       try {
         const pp = ctrl?.player;
-        const quality = typeof pp?.getPlaybackQuality === 'function' ? pp.getPlaybackQuality() ?? '?' : '?';
+        const quality = isFunction(pp?.getPlaybackQuality) === true ? pp.getPlaybackQuality() ?? '?' : '?';
+
         let isMutedNow = false;
         try {
           const partsMuted = [];
-          partsMuted.push(typeof pp?.isMuted === 'function');
+          partsMuted.push(isFunction(pp?.isMuted) === true);
           const canCheckMuted = allTrue(partsMuted);
           if (canCheckMuted === true) {
             const m = pp.isMuted();
             const isBool = typeof m === 'boolean';
-            if (isBool === true) isMutedNow = m === true;
+            if (allTrue([isBool === true]) === true) {
+              isMutedNow = m === true;
+            }
           }
         } catch (_) {}
 
@@ -287,18 +336,20 @@ export function onStateChangeExternal(ctrl, e) {
         let vol = '?';
         try {
           const partsVol = [];
-          partsVol.push(typeof pp?.getVolume === 'function');
+          partsVol.push(isFunction(pp?.getVolume) === true);
           const canGetVol = allTrue(partsVol);
           if (canGetVol === true) {
             const vv = pp.getVolume();
-            vol = typeof vv === 'number' ? vv : vol;
+            const okNum = [];
+            okNum.push(typeof vv === 'number');
+            if (allTrue(okNum) === true) vol = vv;
           }
         } catch (_) {}
 
         const played = typeof ctrl?.getPlayedSec === 'function' ? ctrl.getPlayedSec() : isNumber(ctrl?.videoTotalPlayTime) === true ? ctrl.videoTotalPlayTime : 0;
+
         const required = ctrl.videoRequiredWatchTime;
         const volLabel = isMutedNow === true ? `Muted` : String(vol);
-
         log(`🟢 Player ${ctrl.index + 1} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)}, Quality=${quality}, Vol=${volLabel}, Played=${played}s, Required=${required}s)`);
       } catch (_) {
         log(`🟢 Player ${ctrl.index + 1} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)}, Quality=?, Vol=?, Played=?s, Required=?s)`);
@@ -320,6 +371,7 @@ export function onStateChangeExternal(ctrl, e) {
         try {
           const base = isNumber(ctrl.totalPlayTime) === true ? ctrl.totalPlayTime : 0;
           let extra = 0;
+
           const okExtraParts = [];
           okExtraParts.push(isNumber(ctrl.currentRate) === true);
           okExtraParts.push(isDefined(ctrl.playingStart) === true);
@@ -327,6 +379,7 @@ export function onStateChangeExternal(ctrl, e) {
           if (canExtra === true) {
             extra = ((Date.now() - ctrl.playingStart) / 1000) * ctrl.currentRate;
           }
+
           const played = Math.floor(base + extra);
           const required = isNumber(ctrl.videoRequiredWatchTime) === true ? ctrl.videoRequiredWatchTime : 15;
 
@@ -348,12 +401,14 @@ export function onStateChangeExternal(ctrl, e) {
           const met = played >= required;
           if (met === true && ctrl.watchtimeFired !== true) {
             ctrl.watchtimeFired = true;
+
             try {
               emitWatchtimeReached(ctrl.index);
             } catch (_) {}
             try {
               if (isFunction(ctrl.clearTimers)) ctrl.clearTimers();
             } catch (_) {}
+
             ctrl.autoNextScheduled = true;
 
             // reset one-shot flag για το επόμενο βίντεο (rate)
@@ -362,20 +417,21 @@ export function onStateChangeExternal(ctrl, e) {
             } catch (_) {}
 
             autoNextAfterWatchtime(ctrl);
+
             stats.autoNext = isNumber(stats?.autoNext) === true ? stats.autoNext + 1 : 1;
             log(`🏁 Player ${ctrl.index + 1} WT Reached → AutoNext Scheduled (WT)`);
             return;
           }
         } catch (_) {}
       };
+
       scheduleSafe(checkWT, rndInt(800, 1500), ctrl._group('wt'), 'wt-check');
     }
 
-    /*---------------------- ENDED ----------------------*/
+    /*------------------------------ ENDED ------------------------------*/
     if (state === YT.PlayerState.ENDED) {
       log(`🔵 Player ${ctrl.index + 1} → ENDED`);
       if (ctrl.deferAutoNextUntilEnded === true) {
-        // reset one-shot flag (rate) για επόμενο βίντεο
         try {
           ctrl._rateAppliedForThisVideo = false;
         } catch (_) {}
@@ -390,7 +446,7 @@ export function onStateChangeExternal(ctrl, e) {
       }
     }
 
-    /*---------------------- Άλλα States ----------------------*/
+    /*------------------------------ Άλλα States ------------------------------*/
     if (state === YT.PlayerState.PAUSED) {
       log(`🟡 Player ${ctrl.index + 1} → PAUSED`);
       ctrl.lastPausedStart = Date.now();
