@@ -1,14 +1,16 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v3.17.2';
+const VERSION = 'v4.2.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * - WTBus emit: όταν πιαστεί το required watch-time, εκπέμπουμε αμέσως 'wt:reached' (primary).
- * - Διατηρούμε guard flags: ctrl.watchtimeFired / ctrl.autoNextScheduled.
+ * - Διατηρούμε guard flags: ctrl.watchtimeFired / ctrl.autoNextScheduled. ΝΕΟ: One-shot εφαρμογή reset rate & apply baseline volume στο πρώτο PLAYING κάθε νέου βίντεο.
  */
+
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
+
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
@@ -16,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { makeLogger, allTrue, isDefined, isNumber, isFunction, scheduleSafe, rndInt } from './utils.js';
+import { makeLogger, allTrue, isDefined, isNumber, isFunction, scheduleSafe, rndInt, once } from './utils.js';
 import { stats } from './globals.js';
 import { getBehaviorPlan } from './policies.js';
 import { emitWatchtimeReached } from './wtBus.js';
@@ -52,7 +54,6 @@ export function onReadyExternal(ctrl, e) {
     if (ok !== true) return;
 
     /* Plan (duration-aware) */
-    /* Παλιά λογική πλήρους διάρκειας:*/
     let durationNow = 0;
     try {
       const can = _can(p, 'getDuration') === true;
@@ -61,18 +62,42 @@ export function onReadyExternal(ctrl, e) {
         if (isNumber(d) === true) durationNow = d;
       }
     } catch (_) {}
+
+    /* Small-duration rule (defer auto-next until ENDED) */
+    try {
+      const partsSmall = [];
+      partsSmall.push(isNumber(durationNow) === true);
+      partsSmall.push(durationNow > 0);
+      partsSmall.push(durationNow < 60);
+      const isSmall = allTrue(partsSmall);
+      ctrl.deferAutoNextUntilEnded = isSmall === true;
+      log(`ℹ️ Player ${ctrl.index + 1} Ready → duration=${Math.floor(durationNow)}s, deferAutoNextUntilEnded=${ctrl.deferAutoNextUntilEnded}`);
+    } catch (_) {}
+
     const ctx = { durationSec: durationNow, profileName: ctrl.profileName, isFirstVideo: true, playerIndex: ctrl.index };
     ctrl.plan = getBehaviorPlan(ctx);
+
+    try {
+      const ms = ctrl?.plan?.midSeek ?? { enabled: false };
+      log(
+        `🎯 MidSeek Plan → enabled=${ms.enabled} intervalMs=${ms.intervalMs ?? '-'} minGapSec=${ms.minGapSec ?? '-'} maxSeeks=${ms.maxSeeks ?? '-'} fromPct=${ms.fromPct ?? '-'} toPct=${
+          ms.toPct ?? '-'
+        } nearEndPct=${ms.nearEndPct ?? '-'}`
+      );
+    } catch (_) {}
+
     try {
       const req = ctrl.plan?.watch?.requiredWatchTimeSec;
       ctrl.videoRequiredWatchTime = isNumber(req) === true ? Math.max(0, Math.floor(req)) : 15;
     } catch (_p) {
       ctrl.videoRequiredWatchTime = 15;
     }
-    /* Reset baseline playback rate */
+
+    /* Reset baseline playback rate (READY) */
     try {
       resetPlaybackRate(ctrl);
     } catch (_) {}
+
     // Init seek (policy-driven)
     try {
       const t = ctrl.plan?.startSeek?.targetSec ?? 0;
@@ -80,7 +105,8 @@ export function onReadyExternal(ctrl, e) {
         applyInitSeek(ctrl, t);
       }
     } catch (_) {}
-    /* Soft tasks schedules (respect back-pressure εργόστερα) */
+
+    /* Soft tasks schedules (respect back-pressure) */
     try {
       scheduleRateChanges(ctrl);
     } catch (_) {}
@@ -95,50 +121,107 @@ export function onReadyExternal(ctrl, e) {
       scheduleMicroAdjust(p, durationNow, ctrl._group('volume'), ctrl);
     } catch (_) {}
     log(`✅ Player ${ctrl.index + 1} READY → Plan Required WT=${ctrl.videoRequiredWatchTime}s`);
-  } catch (err) {
-    log(`❌ onReadyExternal Error → ${err}`);
-  }
-  /* Αρχική σίγαση κατά το READY, αν χρειάζεται */
-  try {
-    const p = ctrl?.player;
-    const canMute = typeof p?.mute === 'function';
-    const canIsMuted = typeof p?.isMuted === 'function';
-    const shouldMute = canMute === true && (canIsMuted !== true || p.isMuted() !== true);
-    if (shouldMute === true) {
-      p.mute(); // αρχική σίγαση
-      ctrl.pendingUnmute = true; // αφήνουμε το AutoUnmute να άρει τη σίγαση αργότερα
-      ctrl.unmuteScheduled = false; // καθαρό state
-    }
-  } catch (_) {}
 
-  /* Logging για διαφάνεια */
-  try {
-    const baselinePauses = ctrl?.plan?.pauses?.count ?? '-';
-    log(`📋 Player ${ctrl.index + 1} Pause Plan → Baseline=${baselinePauses}, ProfileChance=${ctrl?.config?.pauseChance ?? '?'}`);
-  } catch (_) {}
+    // Apply baseline volume (READY) — θα καλυφθεί επιπλέον στο PLAYING
+    try {
+      const p2 = ctrl?.player;
+      if (typeof p2?.setVolume === 'function' && typeof ctrl?.volumeBaseline === 'number' && ctrl.inheritVolume === true) {
+        p2.setVolume(Math.max(0, Math.min(100, Math.floor(ctrl.volumeBaseline))));
+      }
+    } catch (_) {}
 
-  try {
-    const d = rndInt(1200, 2400); // ίδιο εύρος καθυστέρησης
-    scheduleSafe(
-      () => {
-        try {
-          schedulePauses(ctrl);
-        } catch (_) {}
-        try {
-          restartPauseGuard(ctrl);
-        } catch (_) {}
-      },
-      d,
-      ctrl._group('pause'),
-      'pause-plan'
-    );
-    log(`ℹ️ Player ${ctrl.index + 1} Pause Plan scheduled (muted-friendly, READY)`);
+    /* Initial mute at READY */
+    try {
+      const pp = ctrl?.player;
+      const canMute = typeof pp?.mute === 'function';
+      const canIsMuted = typeof pp?.isMuted === 'function';
+      const shouldMute = canMute === true && (canIsMuted !== true || pp.isMuted() !== true);
+      if (shouldMute === true) {
+        pp.mute();
+        ctrl.pendingUnmute = true;
+        ctrl.unmuteScheduled = false;
+      }
+    } catch (_) {}
+
+    /* Logging / Pause scheduling */
+    try {
+      const baselinePauses = ctrl?.plan?.pauses?.count ?? '-';
+      log(`📋 Player ${ctrl.index + 1} Pause Plan → Baseline=${baselinePauses}, ProfileChance=${ctrl?.config?.pauseChance ?? '?'}`);
+    } catch (_) {}
+
+    try {
+      const d = rndInt(1200, 2400);
+      scheduleSafe(
+        () => {
+          try {
+            schedulePauses(ctrl);
+          } catch (_) {}
+          try {
+            restartPauseGuard(ctrl);
+          } catch (_) {}
+        },
+        d,
+        ctrl._group('pause'),
+        'pause-plan'
+      );
+      log(`ℹ️ Player ${ctrl.index + 1} Pause Plan scheduled (muted-friendly, READY)`);
+    } catch (_) {}
+
+    // ΝΕΟ: one-shot flags για το νέο βίντεο
+    try {
+      ctrl._rateAppliedForThisVideo = false;
+      ctrl._volumeAppliedForThisVideo = false;
+    } catch (_) {}
+
+    // --- Initial play scheduling (όπως πριν) ---
+    try {
+      try {
+        groupCancel(ctrl._group('play'));
+      } catch (_) {}
+      if (ctrl.initialPlayScheduled === true) {
+        log(`⏸️ Player ${ctrl.index + 1} READY → initial play already scheduled (skip)`);
+      } else {
+        ctrl.initialPlayScheduled = true;
+        const startDelay = rndInt(200, 600);
+        let attempts = 0;
+        const maxAttempts = 12;
+        const tryStart = () => {
+          try {
+            const p3 = ctrl?.player;
+            const canState = typeof YT !== 'undefined' && typeof p3?.getPlayerState === 'function';
+            const isPlaying = canState === true && p3.getPlayerState() === YT.PlayerState.PLAYING;
+            if (isPlaying === true) {
+              try {
+                groupCancel(ctrl._group('play'));
+              } catch (_) {}
+              ctrl.initialPlayScheduled = false;
+              log(`▶️ Player ${ctrl.index + 1} initial play → already PLAYING (stop retries)`);
+              return;
+            }
+            ctrl.guardPlay(ctrl.player);
+            attempts = attempts + 1;
+            if (attempts < maxAttempts) {
+              scheduleSafe(tryStart, 500, ctrl._group('play'), 'initial-play-retry');
+            } else {
+              try {
+                groupCancel(ctrl._group('play'));
+              } catch (_) {}
+              ctrl.initialPlayScheduled = false;
+              log(`⏱️ Player ${ctrl.index + 1} initial play → gave up after ${attempts} attempts`);
+            }
+          } catch (_) {}
+        };
+        scheduleSafe(tryStart, startDelay, ctrl._group('play'), 'initial-play');
+        log(`▶️ Player ${ctrl.index + 1} READY → initial play scheduled (${startDelay} ms)`);
+      }
+      try {
+        ctrl.readyAt = Date.now();
+      } catch (_) {}
+    } catch (_) {}
   } catch (_) {}
 }
 
-/**
- * Παρακολούθηση PLAYING και fire watch-time όταν πιαστεί το threshold.
- */
+/** Παρακολούθηση PLAYING και fire watch-time όταν πιαστεί το threshold. */
 export function onStateChangeExternal(ctrl, e) {
   try {
     const p = ctrl?.player;
@@ -148,67 +231,87 @@ export function onStateChangeExternal(ctrl, e) {
     parts.push(typeof YT !== 'undefined');
     const ok = allTrue(parts);
     if (ok !== true) return;
-
     const state = p.getPlayerState();
 
-    /*-------------- PLAYING --------------*/
+    /*---------------------- PLAYING ----------------------*/
     if (state === YT.PlayerState.PLAYING) {
       if (ctrl.playingStart === null) {
         ctrl.playingStart = Date.now();
       }
 
+      // ΝΕΟ: one-shot flags (αν δεν υπάρχουν)
+      if (typeof ctrl._rateAppliedForThisVideo !== 'boolean') ctrl._rateAppliedForThisVideo = false;
+      if (typeof ctrl._volumeAppliedForThisVideo !== 'boolean') ctrl._volumeAppliedForThisVideo = false;
+
+      // 1) RESET RATE στο πρώτο PLAYING κάθε βίντεο
+      if (ctrl._rateAppliedForThisVideo !== true) {
+        try {
+          resetPlaybackRate(ctrl);
+          ctrl._rateAppliedForThisVideo = true;
+        } catch (_) {}
+      }
+
+      // 2) APPLY BASELINE VOLUME στο πρώτο PLAYING (κληρονομικότητα)
+      if (ctrl._volumeAppliedForThisVideo !== true && ctrl.inheritVolume === true && typeof ctrl.volumeBaseline === 'number') {
+        try {
+          const canSetVol = typeof p?.setVolume === 'function';
+          if (canSetVol === true) {
+            const tgt = Math.max(0, Math.min(100, Math.floor(ctrl.volumeBaseline)));
+            p.setVolume(tgt);
+            ctrl._volumeAppliedForThisVideo = true;
+          }
+        } catch (_) {}
+      }
+
       /* Καταγραφή PLAYING event */
-
       try {
-        const p = ctrl?.player;
-
-        // Quality
-        const quality = typeof p?.getPlaybackQuality === 'function' ? p.getPlaybackQuality() ?? '?' : '?';
-
-        // Muted state (guards χωρίς &&/||)
+        const pp = ctrl?.player;
+        const quality = typeof pp?.getPlaybackQuality === 'function' ? pp.getPlaybackQuality() ?? '?' : '?';
         let isMutedNow = false;
         try {
           const partsMuted = [];
-          partsMuted.push(typeof p?.isMuted === 'function');
+          partsMuted.push(typeof pp?.isMuted === 'function');
           const canCheckMuted = allTrue(partsMuted);
           if (canCheckMuted === true) {
-            const m = p.isMuted();
+            const m = pp.isMuted();
             const isBool = typeof m === 'boolean';
             if (isBool === true) isMutedNow = m === true;
           }
         } catch (_) {}
 
-        // Volume (raw value)
+        // Baseline init ONLY if not muted
+        if (typeof ctrl.volumeBaseline !== 'number' && typeof ctrl?.player?.getVolume === 'function' && ctrl.inheritVolume === true) {
+          try {
+            const curVol = ctrl.player.getVolume();
+            const notMuted = isMutedNow === false;
+            if (typeof curVol === 'number' && notMuted === true) {
+              ctrl.volumeBaseline = Math.max(0, Math.min(100, Math.floor(curVol)));
+            }
+          } catch (_) {}
+        }
+
+        // Raw volume
         let vol = '?';
         try {
           const partsVol = [];
-          partsVol.push(typeof p?.getVolume === 'function');
+          partsVol.push(typeof pp?.getVolume === 'function');
           const canGetVol = allTrue(partsVol);
           if (canGetVol === true) {
-            const vv = p.getVolume();
+            const vv = pp.getVolume();
             vol = typeof vv === 'number' ? vv : vol;
           }
         } catch (_) {}
 
-        // Controller meta (played/required)
         const played = typeof ctrl?.getPlayedSec === 'function' ? ctrl.getPlayedSec() : isNumber(ctrl?.videoTotalPlayTime) === true ? ctrl.videoTotalPlayTime : 0;
+        const required = ctrl.videoRequiredWatchTime;
+        const volLabel = isMutedNow === true ? `Muted` : String(vol);
 
-        const required = typeof ctrl?.getRequiredWatchSec === 'function' ? ctrl.getRequiredWatchSec() : isNumber(ctrl?.videoRequiredWatchTime) === true ? ctrl.videoRequiredWatchTime : 0;
-
-        // Label: δείξε state MUTED(value) για διαγνωστική σαφήνεια
-        const volLabel = isMutedNow === true ? `MUTED(${vol})` : String(vol);
-
-        // Προαιρετικά: effective rate από τον player
-        // const rateEff = (typeof p?.getPlaybackRate === 'function')
-        //   ? (p.getPlaybackRate() ?? (ctrl.currentRate ?? 1.0))
-        //   : (ctrl.currentRate ?? 1.0);
-
-        log(`🟢 Player ${ctrl.index + 1} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)}, ` + `Quality=${quality}, Vol=${volLabel}, Played=${played}s, Required=${required}s)`);
+        log(`🟢 Player ${ctrl.index + 1} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)}, Quality=${quality}, Vol=${volLabel}, Played=${played}s, Required=${required}s)`);
       } catch (_) {
-        log(`🟢 Player ${ctrl.index + 1} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)}, ` + `Quality=?, Vol=?, Played=?s, Required=?s)`);
+        log(`🟢 Player ${ctrl.index + 1} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)}, Quality=?, Vol=?, Played=?s, Required=?s)`);
       }
 
-      // AutoUnmute scheduling με PLAYING trigger (μία φορά, όταν εκκρεμεί)
+      // AutoUnmute scheduling (μία φορά, όταν εκκρεμεί)
       try {
         const g = [];
         g.push(ctrl?.pendingUnmute === true);
@@ -219,10 +322,9 @@ export function onStateChangeExternal(ctrl, e) {
         }
       } catch (_) {}
 
-      // Ελαφρύς έλεγχος watch-time με μικρό jitter
+      // WT check
       const checkWT = () => {
         try {
-          // Played so far
           const base = isNumber(ctrl.totalPlayTime) === true ? ctrl.totalPlayTime : 0;
           let extra = 0;
           const okExtraParts = [];
@@ -235,7 +337,6 @@ export function onStateChangeExternal(ctrl, e) {
           const played = Math.floor(base + extra);
           const required = isNumber(ctrl.videoRequiredWatchTime) === true ? ctrl.videoRequiredWatchTime : 15;
 
-          // Near-threshold soft freeze
           const nearParts = [];
           nearParts.push(isNumber(required) === true);
           nearParts.push(isNumber(played) === true);
@@ -251,19 +352,23 @@ export function onStateChangeExternal(ctrl, e) {
             }
           }
 
-          // Threshold met → WTBus emit + schedule autoNext (primary path)
           const met = played >= required;
           if (met === true && ctrl.watchtimeFired !== true) {
             ctrl.watchtimeFired = true;
-            // Emit to WTBus immediately (primary)
             try {
               emitWatchtimeReached(ctrl.index);
             } catch (_) {}
-            // Clear any timers (safety) και schedule AutoNext με WT pacing
             try {
               if (isFunction(ctrl.clearTimers)) ctrl.clearTimers();
             } catch (_) {}
             ctrl.autoNextScheduled = true;
+
+            // ΝΕΟ: reset one-shot flags για επόμενο βίντεο
+            try {
+              ctrl._rateAppliedForThisVideo = false;
+              ctrl._volumeAppliedForThisVideo = false;
+            } catch (_) {}
+
             autoNextAfterWatchtime(ctrl);
             stats.autoNext = isNumber(stats?.autoNext) === true ? stats.autoNext + 1 : 1;
             log(`🏁 Player ${ctrl.index + 1} WT Reached → AutoNext Scheduled (WT)`);
@@ -271,52 +376,40 @@ export function onStateChangeExternal(ctrl, e) {
           }
         } catch (_) {}
       };
-      // Μικρή επανάληψη ελέγχου (light), όχι σφιχτή λούπα
       scheduleSafe(checkWT, rndInt(800, 1500), ctrl._group('wt'), 'wt-check');
     }
 
-    /*-------------- ENDED --------------*/
+    /*---------------------- ENDED ----------------------*/
     if (state === YT.PlayerState.ENDED) {
-      /* Καταγραφή PLAYING event */
-      try {
-        const p = ctrl?.player;
-
-        // Controller meta (played/required)
-        const played = typeof ctrl?.getPlayedSec === 'function' ? ctrl.getPlayedSec() : ctrl.videoTotalPlayTime ?? 0;
-        const required = typeof ctrl?.getRequiredWatchSec === 'function' ? ctrl.getRequiredWatchSec() : ctrl.videoRequiredWatchTime ?? 0;
-
-        // Προαιρετικά: effective rate από τον player (αν θες αντί για ctrl.currentRate)
-        // const rateEff  = (typeof p?.getPlaybackRate === 'function') ? (p.getPlaybackRate() ?? (ctrl.currentRate ?? 1.0)) : (ctrl.currentRate ?? 1.0);
-
-        log(`🔵 Player ${ctrl.index + 1} → ENDED (Played=${played}s, Required=${required}s)`);
-      } catch (_) {
-        log(`🔵 Player ${ctrl.index + 1} → ENDED (Played=?s, Required=?s)`);
+      log(`🔵 Player ${ctrl.index + 1} → ENDED`);
+      if (ctrl.deferAutoNextUntilEnded === true) {
+        // Reset one-shot flags για επόμενο βίντεο
+        try {
+          ctrl._rateAppliedForThisVideo = false;
+          ctrl._volumeAppliedForThisVideo = false;
+        } catch (_) {}
+        autoNextAfterWatchtime(ctrl);
+        return;
       }
-
-      // (υπό προϋποθέσεις) fallback autoNext από AutoNext module
       if (ctrl.watchtimeFired !== true) {
-        autoNextAfterWatchtime(ctrl); // WT pacing προτιμάται
+        try {
+          ctrl._rateAppliedForThisVideo = false;
+          ctrl._volumeAppliedForThisVideo = false;
+        } catch (_) {}
+        autoNextAfterWatchtime(ctrl);
       }
     }
 
-    /*-------------- Other States --------------*/
-    // PAUSED / BUFFERING → κρατάμε timestamps για cooldowns
+    /*---------------------- Άλλα States ----------------------*/
     if (state === YT.PlayerState.PAUSED) {
       log(`🟡 Player ${ctrl.index + 1} → PAUSED`);
       ctrl.lastPausedStart = Date.now();
-
-      // --- Hard Anti-User-Pause: Ακύρωσε άμεσα κάθε user-initiated pause ---
       try {
-        const parts = [];
-        // Αν δεν υπάρχει προγραμματισμένο auto-pause (μηδενικό expectedPauseMs),
-        // θεωρούμε ότι το PAUSE προήλθε από τον χρήστη και το ακυρώνουμε αμέσως.
-        parts.push(typeof ctrl?.expectedPauseMs === 'number');
-        const hasField = allTrue(parts);
+        const parts2 = [];
+        parts2.push(typeof ctrl?.expectedPauseMs === 'number');
+        const hasField = allTrue(parts2);
         const isUserPause = (hasField === true ? ctrl.expectedPauseMs : 0) === 0;
-
         if (isUserPause === true) {
-          // Χωρίς back-pressure/freeze για να είναι πράγματι "άμεσο"
-          // (χρησιμοποιούμε group 'pause-guard' για εύκολη ακύρωση αν χρειαστεί).
           scheduleSafe(
             () => {
               try {
@@ -344,7 +437,6 @@ export function onErrorExternal(ctrl, e) {
   try {
     stats.errors = (stats.errors ?? 0) + 1;
     log(`❌ Player ${ctrl.index + 1} Error → ${String(e)}`);
-    // Προγραμματισμός AutoNext με error pacing
     autoNextAfterError(ctrl);
   } catch (err) {
     log(`❌ onErrorExternal Error → ${err}`);

@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v1.7.1';
+const VERSION = 'v1.9.0';
 /*
  * Περιγραφή: Εξωτερικός watchdog για "required watch time" ανά PlayerController.
  * - WTBus subscribe: cache στους indices που έλαβαν 'wt:reached'.
@@ -219,6 +219,31 @@ function checkController(ctrl) {
     }
 
     log(`⏱️ Player ${ctrl.index + 1} Progress → Played=${played}s / Required=${required}s`);
+
+    // --- watchdog.js --- (μέσα στο checkController)
+    const deferSmall = ctrl?.deferAutoNextUntilEnded === true;
+    if (deferSmall === true) {
+      log(`⏭️ WD: Small-video mode → skip AutoNext (WT/fallback) until ENDED`);
+      return;
+    }
+
+    // READY for >10s without PLAYING → retry guardPlay once per check
+    try {
+      const parts = [];
+      parts.push(isNumber(ctrl?.readyAt) === true);
+      parts.push(ctrl?.playingStart === null);
+      const canCheckReady = allTrue(parts);
+      if (canCheckReady === true) {
+        const age = nowMs() - ctrl.readyAt;
+        if (age >= 10000) {
+          try {
+            ctrl.guardPlay(ctrl.player);
+          } catch (_) {}
+          log(`▶️ WD: guardPlay retried (READY >10s)`);
+          return;
+        }
+      }
+    } catch (_) {}
 
     // Near-threshold soft-freeze (υπάρχει ήδη σε state engine, απλώς ενισχύουμε το μήνυμα εδώ)
     try {

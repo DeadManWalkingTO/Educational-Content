@@ -1,5 +1,5 @@
 // --- policies.js ---
-const VERSION = 'v1.16.0';
+const VERSION = 'v1.20.0';
 /*
  * Περιγραφή: Module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
  * Τροποποίηση: Συνεπές στυλ 'else if' σε όλες τις διακλαδώσεις + τυχαιότητα στο capSec με profile tuning.
@@ -71,17 +71,25 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown') {
     minPct = 0.92;
     maxPct = 1.0;
   } else if (d < 300) {
-    minPct = 0.85;
-    maxPct = 1.0;
+    minPct = 0.7;
+    maxPct = 0.9;
   } else if (d < 1800) {
-    minPct = 0.55;
-    maxPct = 0.75;
+    minPct = 0.35;
+    maxPct = 0.5;
   } else if (d < 7200) {
     minPct = 0.25;
     maxPct = 0.38;
   } else {
     minPct = 0.12;
     maxPct = 0.18;
+  }
+
+  if (d < 60) {
+    const req = d + 1; // 1s πάνω από τη διάρκεια: WT δεν θα πιαστεί ποτέ πριν από ENDED
+    try {
+      log(`🧮 Required=${req}s (Small-Video rule, D=${d}s > return D+1)`);
+    } catch (_) {}
+    return req;
   }
 
   const span = Math.max(0, maxPct - minPct);
@@ -121,7 +129,9 @@ export function getPausePlan(durationSec) {
 
   const d = Math.floor(Number(durationSec));
 
-  if (d < 120) {
+  if (d < 60) {
+    return { count: rndInt(0, 1), min: 3, max: 15 };
+  } else if (d < 120) {
     return { count: rndInt(1, 1), min: 6, max: 15 };
   } else if (d < 300) {
     return { count: rndInt(1, 2), min: 8, max: 20 };

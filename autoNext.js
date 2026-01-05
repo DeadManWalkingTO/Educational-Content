@@ -1,5 +1,5 @@
 // --- autoNext.js ---
-const VERSION = 'v1.16.1';
+const VERSION = 'v1.17.0';
 /*
  * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR/Watchtime + scheduler.
  * - Primary WT emit γίνεται πλέον από το State Engine (δεν γίνεται εδώ).
@@ -169,6 +169,11 @@ function finalizeAutoNext(ctrl, picked) {
   } catch (_) {}
   try {
     ctrl.autoNextScheduled = false;
+  } catch (_) {}
+
+  try {
+    ctrl.initialPlayScheduled = false; // θα τεθεί ξανά στο READY
+    ctrl.deferAutoNextUntilEnded = false; // θα τεθεί ξανά στο READY με βάση τη νέα διάρκεια
   } catch (_) {}
 
   // Logging

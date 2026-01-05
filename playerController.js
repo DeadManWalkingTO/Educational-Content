@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v7.15.3';
+const VERSION = 'v7.18.0';
 /*
  * Controller: λεπτό wrapper για YT events με delegation στο PlayerStateEngine.
  * - Soft-task back-pressure meta: softTaskMinGapMs, lastSoftTaskMs, softFreezeUntilMs.
@@ -80,6 +80,19 @@ export class PlayerController {
     // Public watch-time API (per-video)
     this.videoRequiredWatchTime = 0; // s
     this.videoTotalPlayTime = 0; // s (cache για UI/logs)
+
+    // Initial play flag
+    this.initialPlayScheduled = false;
+    // Defer AutoNext until ENDED
+    this.deferAutoNextUntilEnded = false;
+
+    // Ready timestamp
+    this.readyAt = null;
+
+    // Κρατά την τελευταία επιβεβαιωμένη ένταση (0..100)
+    this.volumeBaseline = null;
+    // Επιλογή ενεργοποίησης κληρονομικότητας
+    this.inheritVolume = true;
 
     // Listener για 'lists:updated'
     try {

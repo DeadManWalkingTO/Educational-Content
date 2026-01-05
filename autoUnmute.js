@@ -1,8 +1,8 @@
 // --- autoUnmute.js ---
-const VERSION = 'v2.9.2';
+const VERSION = 'v2.14.2';
 /*
  * scheduleUnmute(ctrl, stateIsPlaying): parsing plan.unmute (base/extra/grace), debounce, flags, scheduling.
- * applyUnmute(player, plan, ctrl): unMute + setVolume + micro-adjust (ενημερωμένη λογική).
+ * applyUnmute(player, plan, ctrl): unMute + setVolume + delayed verify (+ micro-adjust), baseline update.
  * ensureUnmuteMeta(ctrl): init meta { lastMs, minGapMs }.
  */
 
@@ -10,10 +10,10 @@ const VERSION = 'v2.9.2';
 export function getVersion() {
   return VERSION;
 }
-// Όνομα αρχείου για logging.
-const FILENAME = import.meta.url.split('/').pop();
 
-// Ενημέρωση για Εκκίνηση Φόρτωσης
+/* Όνομα αρχείου για logging.*/
+const FILENAME = import.meta.url.split('/').pop();
+/* Ενημέρωση για Εκκίνηση Φόρτωσης */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
@@ -45,18 +45,20 @@ function ensureUnmuteMeta(ctrl) {
 }
 
 /**
- * Καθαρή πράξη unmute + setVolume (+ micro-adjust) με guards API.
+ * Καθαρή πράξη unmute + setVolume (με delayed verification) + micro-adjust.
+ * ΝΕΟ: baseline = target (αν inheritVolume), ώστε να κληρονομείται σωστά.
  */
 export function applyUnmute(player, plan, ctrl = null) {
   try {
-    // Guards για API ύπαρξη
+    // Guards για API
     const canUnmute = isFunction(player?.unMute);
     const canSetVol = isFunction(player?.setVolume);
     const apiOk = allTrue([canUnmute === true, canSetVol === true]);
     if (apiOk !== true) {
       return;
     }
-    // Ανάγνωση εύρους έντασης από plan (defaults 10..30)
+
+    // Εύρος έντασης από plan (defaults 10..30)
     let lo = 10;
     let hi = 30;
     try {
@@ -72,7 +74,6 @@ export function applyUnmute(player, plan, ctrl = null) {
         }
       }
     } catch (_) {}
-    // clamp & swap
     lo = clamp(Number(lo), 0, 100);
     hi = clamp(Number(hi), 0, 100);
     if (lo > hi) {
@@ -81,24 +82,56 @@ export function applyUnmute(player, plan, ctrl = null) {
       hi = tmp;
     }
 
-    // Πράξη unmute
+    // Πράξη unmute + αρχική τιμή-στόχος
     player.unMute();
     const target = rndInt(Math.floor(lo), Math.floor(hi));
     player.setVolume(target);
 
-    // Micro-adjust ±3 αν υποστηρίζεται getVolume
-    const canGetVol = isFunction(player?.getVolume);
-    if (canGetVol === true) {
-      const cur = player.getVolume();
-      const curIsNum = isNumber(cur) === true;
-      if (curIsNum === true) {
-        let micro = cur + rndInt(-3, 3);
-        micro = clamp(micro, 0, 100);
-        player.setVolume(micro);
+    // Baseline ενημέρωση
+    try {
+      if (isDefined(ctrl) === true && ctrl?.inheritVolume === true) {
+        ctrl.volumeBaseline = target;
       }
-    }
-    // Logging & stats
+    } catch (_) {}
+
+    // Καθυστερημένη επαλήθευση (για να αποφύγουμε "Current=100%" αμέσως μετά το setVolume)
     const idxShown = _shownIndex(ctrl);
+    const verifyDelay = rndInt(100, 200); // 100–200 ms
+    const verifyFn = () => {
+      try {
+        const canGetVol = isFunction(player?.getVolume);
+        if (canGetVol === true) {
+          const cur = player.getVolume();
+          const curIsNum = isNumber(cur) === true;
+          if (curIsNum === true) {
+            const diff = Math.abs(cur - target);
+            if (diff >= 5) {
+              // Επαναφορά στην τιμή-στόχο αν αποκλίνει αισθητά
+              player.setVolume(target);
+            }
+            log(`🔊 Player ${idxShown} Current Volume (verify) → ${String(cur)}% (target=${target}%)`);
+          }
+        }
+      } catch (_) {}
+      // Προαιρετικό micro-adjust μικρό, γύρω από την τιμή (±3), ΧΩΡΙΣ αλλαγή baseline
+      try {
+        const canGet = isFunction(player?.getVolume);
+        const canSet = isFunction(player?.setVolume);
+        const okAPI = allTrue([canGet === true, canSet === true]);
+        if (okAPI === true) {
+          const cur2 = player.getVolume();
+          if (isNumber(cur2) === true) {
+            let micro = cur2 + rndInt(-3, 3);
+            micro = clamp(micro, 0, 100);
+            player.setVolume(micro);
+            // baseline παραμένει στο target
+          }
+        }
+      } catch (_) {}
+    };
+    scheduleSafe(verifyFn, verifyDelay, ctrl?._group('unmute') ?? `pc:${String(ctrl?.index ?? '0')}:unmute`, 'unmute-verify');
+
+    // Logging & stats
     try {
       stats.volumeChanges = (stats.volumeChanges ?? 0) + 1;
     } catch (_) {}
@@ -109,11 +142,12 @@ export function applyUnmute(player, plan, ctrl = null) {
 /**
  * Προγραμματισμός unmute (PLAYING-only gate + retry window).
  * @param {any} ctrl - PlayerController
- * @param {boolean} stateIsPlaying - εάν είμαστε ήδη σε PLAYING τη στιγμή της κλήσης
+ * @param {boolean} stateIsPlaying - εάν είμαστε ήδη σε PLAYING στη στιγμή της κλήσης
  */
 export function scheduleUnmute(ctrl, stateIsPlaying) {
   try {
     ensureUnmuteMeta(ctrl);
+
     // Μη διπλό scheduling
     let alreadyScheduled = false;
     if (typeof ctrl?.unmuteScheduled !== 'undefined') {
@@ -124,7 +158,8 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
     if (alreadyScheduled === true) {
       return;
     }
-    // Πύλες: πρέπει να έχουμε PLAYING trigger και pendingUnmute
+
+    // Πύλες: PLAYING trigger + pendingUnmute
     const guards = [];
     guards.push(stateIsPlaying === true);
     guards.push(ctrl?.pendingUnmute === true);
@@ -133,7 +168,7 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
       return;
     }
 
-    // Parse από behavior plan
+    // Parse από plan
     let baseSec = 5;
     let extraMin = 0;
     let extraMax = 0;
@@ -193,7 +228,7 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
     const totalDelayMs = Math.max(0, (baseSec + extraSec) * 1000);
     const finalDelayMs = totalDelayMs + graceMs;
 
-    // Debounce (αν πολύ κοντά σε προηγούμενο unmute)
+    // Debounce vs previous unmute
     const now = Date.now();
     const sinceLast = now - (ctrl.unmuteMeta.lastMs ?? 0);
     const haveLast = (ctrl.unmuteMeta.lastMs ?? 0) > 0;
@@ -211,31 +246,25 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
       return;
     }
 
-    // Schedule με PLAYING gate στη στιγμή εκτέλεσης
+    // Schedule με PLAYING gate
     ctrl.unmuteScheduled = true;
     const totalSecShown = Math.round(finalDelayMs / 1000);
-    log(`🔔 Player ${String(ctrl.index + 1)} Unmute Scheduled After ${String(totalSecShown)}s`);
+    log(`🔕 Player ${String(ctrl.index + 1)} Unmute Scheduled After ${String(totalSecShown)}s`);
 
     const attemptApply = () => {
-      // Αν έχουμε παγώσει soft tasks κοντά στο WT threshold, δώσε μικρό περιθώριο
       const nowMs = Date.now();
       const softOK = nowMs >= (ctrl?.softFreezeUntilMs ?? 0) && nowMs - (ctrl?.lastSoftTaskMs ?? 0) >= (ctrl?.softTaskMinGapMs ?? 0);
-
-      // Δεν χρησιμοποιώ "unmuted" gate εδώ (στόχος είναι να κάνω unmute).
-      // Ελέγχω μόνο το PLAYING gate για να μην επιχειρώ σε PAUSED/BUFFERING.
       const p = ctrl?.player;
       let playing = false;
       try {
         playing = typeof p?.getPlayerState === 'function' && typeof YT !== 'undefined' && p.getPlayerState() === YT.PlayerState.PLAYING;
       } catch (_) {}
-
       if (softOK !== true || playing !== true) {
         const d = rndInt(800, 2000);
         scheduleSafe(attemptApply, d, ctrl._group('unmute'), 'unmute-apply-retry');
         return;
       }
 
-      // Εκτέλεση
       try {
         applyUnmute(ctrl.player, ctrl.plan, ctrl);
         ctrl.pendingUnmute = false;
@@ -243,7 +272,6 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
         ctrl.unmuteMeta.lastMs = Date.now();
       } catch (_) {}
     };
-
     scheduleSafe(attemptApply, finalDelayMs, ctrl._group('unmute'), 'delayed-unmute');
   } catch (_) {}
 }

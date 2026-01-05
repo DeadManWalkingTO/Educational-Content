@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-const VERSION = 'v5.3.2';
+const VERSION = 'v5.4.2';
 /*
  * Περιγραφή: Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς playback.
  * Στόχος: duration-aware start, ρεαλιστικές παύσεις/seek/ένταση/ποιότητα/ρυθμός.
@@ -28,19 +28,10 @@ const log = makeLogger(FILENAME);
 /* ========================= Module Code ========================= */
 /* Προφίλ συμπεριφοράς (βάσει πιθανοτήτων ανά scheduler) */
 const BEHAVIOR_PROFILES = [
-  { name: 'Explorer', pauseChance: 0.5, seekChance: 0.6, qualityChangeChance: 0.35, volumeChangeChance: 0.35, rateChangeChanceShort: 0.18, rateChangeChanceLong: 0.22 },
-  { name: 'Casual', pauseChance: 0.3, seekChance: 0.1, qualityChangeChance: 0.3, volumeChangeChance: 0.25, rateChangeChanceShort: 0.12, rateChangeChanceLong: 0.15 },
-  { name: 'Focused', pauseChance: 0.2, seekChance: 0.05, qualityChangeChance: 0.2, volumeChangeChance: 0.2, rateChangeChanceShort: 0.08, rateChangeChanceLong: 0.1 },
+  { name: 'Explorer', pauseChance: 0.5, qualityChangeChance: 0.35, volumeChangeChance: 0.35, rateChangeChanceShort: 0.18, rateChangeChanceLong: 0.22 },
+  { name: 'Casual', pauseChance: 0.3, qualityChangeChance: 0.3, volumeChangeChance: 0.25, rateChangeChanceShort: 0.12, rateChangeChanceLong: 0.15 },
+  { name: 'Focused', pauseChance: 0.2, qualityChangeChance: 0.2, volumeChangeChance: 0.2, rateChangeChanceShort: 0.08, rateChangeChanceLong: 0.1 },
 ];
-/* Βοηθητικό για έλεγχο controller/player (χωρίς &&) */
-function hasCtrlAndPlayer(ctrl) {
-  let ok = true;
-  const parts = [];
-  parts.push(isDefined(ctrl) === true);
-  parts.push(isDefined(ctrl?.player) === true);
-  ok = allTrue(parts);
-  return ok;
-}
 /* Δημιουργία containers για players */
 export function createPlayerContainers() {
   const container = document.getElementById('playersContainer');
@@ -70,33 +61,32 @@ export function createPlayerContainers() {
 /* Δημιουργία τυχαίου config ανά προφίλ (συμβατό με autoVolume/autoQuality/autoRate) */
 function createRandomPlayerConfig(profile) {
   const profName = isDefined(profile) === true ? profile.name : 'Casual';
-  const startDelay = rndInt(5, 240); // sec
-  const initSeekMax = rndInt(30, 120); // sec (ενδεικτικό για UI/telemetry)
-  const v1 = rndInt(5, 15);
-  const v2 = rndInt(20, 40);
+  let v1 = rndInt(5, 15);
+  let v2 = rndInt(20, 40);
+  // Ασφάλεια: clamp και swap αν χρειαστεί
+  v1 = Math.max(0, Math.min(100, v1));
+  v2 = Math.max(0, Math.min(100, v2));
+  if (v1 > v2) { const t = v1; v1 = v2; v2 = t; }
   const volumeRange = [v1, v2];
-  // Πιθανότητες από το profile
+
+  // Πιθανότητες από το profile (0..1)
   const pauseChance = isDefined(profile) === true ? profile.pauseChance : 0.3;
-  const seekChance = isDefined(profile) === true ? profile.seekChance : 0.1;
   const qChance = isDefined(profile) === true ? profile.qualityChangeChance : 0.3;
   const vChance = isDefined(profile) === true ? profile.volumeChangeChance : 0.25;
   const rateShort = isDefined(profile) === true ? profile.rateChangeChanceShort : 0.12;
   const rateLong = isDefined(profile) === true ? profile.rateChangeChanceLong : 0.15;
-  const replayChance = randomFloat(0, 1) < 0.15;
+
   return {
     profileName: profName,
-    startDelay,
-    initSeekMax,
     volumeRange,
     pauseChance,
-    seekChance,
     qualityChangeChance: qChance,
     volumeChangeChance: vChance,
     rateChangeChanceShort: rateShort,
     rateChangeChanceLong: rateLong,
-    replayChance,
   };
 }
+
 /* Προσθήκη logging για profile */
 function logProfile(profile) {
   let name = 'casual';
@@ -243,7 +233,7 @@ export async function initPlayersSequentially(mainList, altList) {
       baselinePauses = isDefined(controller?.plan?.pauses?.count) === true ? controller.plan.pauses.count : '-';
     } catch (_) {}
     log(`📋 Player ${i + 1} Pause Plan (Προ-Baseline) → Baseline=${baselinePauses}, ProfileChance=${config.pauseChance}`);
-    const session = { pauseChance: config.pauseChance, seekChance: config.seekChance, qualityChangeChance: config.qualityChangeChance, volumeChangeChance: config.volumeChangeChance };
+    const session = { pauseChance: config.pauseChance, qualityChangeChance: config.qualityChangeChance, volumeChangeChance: config.volumeChangeChance };
     log(`👤 Player ${i + 1} HumanMode Init → Session=${JSON.stringify(session)}`);
 
     i = i + 1;
