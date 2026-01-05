@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v7.20.0';
+const VERSION = 'v7.21.2';
 /*
  * Controller: λεπτό wrapper για YT events με delegation στο PlayerStateEngine.
  * - Soft-task back-pressure meta: softTaskMinGapMs, lastSoftTaskMs, softFreezeUntilMs.
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, cancel, groupCancel, jitter, makeLogger, rndInt, allTrue, isNumber, isDefined, isFunction, safeAddEvent, deepClone } from './utils.js';
+import { scheduleSafe, cancel, groupCancel, jitter, makeLogger, rndInt, allTrue, anyTrue, isNumber, isDefined, isFunction, safeAddEvent, deepClone } from './utils.js';
 import { MAIN_PROBABILITY, getOrigin, getYouTubeEmbedHost, stats, getMainList, getAltList } from './globals.js';
 import { getBehaviorPlan } from './policies.js';
 import { onStateChangeExternal, onReadyExternal, onErrorExternal } from './playerStateEngine.js';
@@ -83,6 +83,7 @@ export class PlayerController {
 
     // Initial play flag
     this.initialPlayScheduled = false;
+
     // Defer AutoNext until ENDED
     this.deferAutoNextUntilEnded = false;
 
@@ -96,35 +97,44 @@ export class PlayerController {
           try {
             const mainGlobal = getMainList();
             const altGlobal = getAltList();
-            const hasMain = Array.isArray(mainGlobal);
-            const hasAlt = Array.isArray(altGlobal);
-            if (hasMain === true) this.mainList = deepClone(mainGlobal);
-            if (hasAlt === true) this.altList = deepClone(altGlobal);
-            const parts = [];
-            parts.push(this.isPlayingActive === true);
-            const active = allTrue(parts);
+
+            const partsMain = [];
+            partsMain.push(Array.isArray(mainGlobal) === true);
+            if (allTrue(partsMain) === true) this.mainList = deepClone(mainGlobal);
+
+            const partsAlt = [];
+            partsAlt.push(Array.isArray(altGlobal) === true);
+            if (allTrue(partsAlt) === true) this.altList = deepClone(altGlobal);
+
+            const partsActive = [];
+            partsActive.push(this.isPlayingActive === true);
+            const active = allTrue(partsActive);
+
             if (active === true) {
               log(`🧑‍🤝‍🧑 Player ${this.index + 1} Lists Updated → Active (Future Picks Use New Lists)`);
             } else {
               this.clearTimers();
+
               try {
                 const p = this.player;
                 let durationNow = 0;
-                const check = [];
-                check.push(this._can(p, 'getDuration') === true);
-                if (allTrue(check) === true) {
+                const canDur = [];
+                canDur.push(this._can(p, 'getDuration') === true);
+                if (allTrue(canDur) === true) {
                   const dtmp = p.getDuration();
                   if (isNumber(dtmp) === true) durationNow = dtmp;
                 }
                 const ctx = { durationSec: durationNow, profileName: this.profileName, isFirstVideo: false, playerIndex: this.index };
                 this.plan = getBehaviorPlan(ctx);
               } catch (_ee) {}
+
               try {
                 const req = this.plan?.watch?.requiredWatchTimeSec;
                 this.videoRequiredWatchTime = isNumber(req) === true ? Math.max(0, Math.floor(req)) : 15;
               } catch (_p) {
                 this.videoRequiredWatchTime = 15;
               }
+
               this.freezeSoftTasks = false;
               log(`🧭 Player ${this.index + 1} Lists Updated → Idle (Plan Refreshed)`);
             }
@@ -139,52 +149,68 @@ export class PlayerController {
 
   _group(suffix = '') {
     const base = `pc:${this.index}`;
-    const parts = [];
-    parts.push(suffix === '');
-    const isEmptySuffix = allTrue(parts);
-    if (isEmptySuffix === true) {
-      return base;
+    // χρήση switch-case για καθαρό έλεγχο κενής κατάληξης
+    switch (allTrue([suffix === '']) === true) {
+      case true:
+        return base;
+      default:
+        return `${base}:${suffix}`;
     }
-    return `${base}:${suffix}`;
   }
+
   _can(obj, methodName) {
-    if (isDefined(obj) !== true) return false;
+    const guards = [];
+    guards.push(isDefined(obj) === true);
+    guards.push(obj !== null);
+    const okObj = allTrue(guards);
+    if (okObj !== true) return false;
+
     const fn = obj[methodName];
     const parts = [];
     parts.push(typeof fn === 'function');
     return allTrue(parts);
   }
+
   _ytDefined() {
-    let ok = false;
-    if (typeof YT !== 'undefined') {
-      if (typeof YT?.PlayerState !== 'undefined') ok = true;
-    }
-    return ok;
+    const parts = [];
+    parts.push(typeof YT !== 'undefined');
+    parts.push(typeof YT?.PlayerState !== 'undefined');
+    return allTrue(parts);
   }
+
   _isPlaying(p) {
     let playing = false;
     const parts = [];
     parts.push(this._ytDefined() === true);
     parts.push(this._can(p, 'getPlayerState') === true);
     const canCheck = allTrue(parts);
+
     if (canCheck === true) {
       try {
-        if (p.getPlayerState() === YT.PlayerState.PLAYING) playing = true;
+        const st = p.getPlayerState();
+        const isPlay = [];
+        isPlay.push(st === YT.PlayerState.PLAYING);
+        if (allTrue(isPlay) === true) playing = true;
       } catch (_e) {}
     }
     return playing;
   }
+
   _isMuted(p) {
     let muted = false;
     const parts = [];
     parts.push(this._can(p, 'isMuted') === true);
     if (allTrue(parts) === true) {
       try {
-        if (p.isMuted() === true) muted = true;
+        const m = p.isMuted();
+        const isM = [];
+        isM.push(m === true);
+        if (allTrue(isM) === true) muted = true;
       } catch (_e) {}
     }
     return muted;
   }
+
   _safeSeek(seconds) {
     try {
       this.lastSeekAt = Date.now();
@@ -196,7 +222,9 @@ export class PlayerController {
     const attempt = () => {
       try {
         const p = this.player;
-        if (isDefined(p) !== true) return;
+        const partsP = [];
+        partsP.push(isDefined(p) === true);
+        if (allTrue(partsP) !== true) return;
 
         // Respect soft freeze + min gap για soft tasks
         try {
@@ -212,24 +240,35 @@ export class PlayerController {
           }
         } catch (_) {}
 
-        if (this.pendingUnmute === true) {
+        // Pending unmute gate
+        const pend = [];
+        pend.push(this.pendingUnmute === true);
+        if (allTrue(pend) === true) {
           const d = rndInt(retryMinMs, retryMaxMs);
           scheduleSafe(attempt, d, this._group(groupSuffix), `${tag}-retry-pending`);
           return;
         }
-        if (this._isMuted(p) === true) {
+
+        // Muted gate
+        const isM = [];
+        isM.push(this._isMuted(p) === true);
+        if (allTrue(isM) === true) {
           const d = rndInt(retryMinMs, retryMaxMs);
           scheduleSafe(attempt, d, this._group(groupSuffix), `${tag}-retry-muted`);
           return;
         }
-        const parts = [];
-        parts.push(this._isPlaying(p) === true);
-        const okPlay = allTrue(parts);
+
+        // Playing gate
+        const partsPlay = [];
+        partsPlay.push(this._isPlaying(p) === true);
+        const okPlay = allTrue(partsPlay);
         if (okPlay !== true) {
           const d = rndInt(retryMinMs, retryMaxMs);
           scheduleSafe(attempt, d, this._group(groupSuffix), `${tag}-retry-not-playing`);
           return;
         }
+
+        // Εκτέλεση
         try {
           taskFn();
           // Ενημέρωση soft-task timestamp
@@ -248,6 +287,7 @@ export class PlayerController {
       playerVars: { enablejsapi: 1, playsinline: 1, origin: getOrigin() },
       events: { onReady: (e) => this.onReady(e), onStateChange: (e) => this.onStateChange(e), onError: () => this.onError() },
     });
+
     log(`ℹ️ YT PlayerVars → Origin: ${getOrigin()} / Host: ${getYouTubeEmbedHost()}`);
     log(`ℹ️ Player ${this.index + 1} Initialized → ID=${videoId}`);
     log(`👤 Player ${this.index + 1} Profile → ${this.profileName}`);
@@ -256,12 +296,15 @@ export class PlayerController {
   onReady(e) {
     onReadyExternal(this, e);
   }
+
   onStateChange(e) {
     onStateChangeExternal(this, e);
   }
+
   onError(e) {
     onErrorExternal(this, e);
   }
+
   scheduleMidSeek() {
     try {
       scheduleMidSeekExternal(this);
@@ -319,7 +362,6 @@ export class PlayerController {
       cancel(this.timers.midSeek);
       this.timers.midSeek = null;
     }
-
     if (typeof this.timers.progressCheck === 'number') {
       cancel(this.timers.progressCheck);
       this.timers.progressCheck = null;
@@ -327,7 +369,9 @@ export class PlayerController {
 
     try {
       const hasArr = Array.isArray(this.volumeMeta?.scheduledIds);
-      if (hasArr === true) {
+      const partsArr = [];
+      partsArr.push(hasArr === true);
+      if (allTrue(partsArr) === true) {
         for (const id of this.volumeMeta.scheduledIds) cancel(id);
         this.volumeMeta.scheduledIds = [];
       }
@@ -348,13 +392,16 @@ export class PlayerController {
       const parts = [];
       parts.push(this._can(p, 'getCurrentTime') === true);
       if (allTrue(parts) !== true) return;
+
       const ct = p.getCurrentTime();
       const prevIsNum = isNumber(this.lastKnownCT) === true;
       const prev = prevIsNum === true ? this.lastKnownCT : 0;
+
       const delta = Math.abs(ct - prev);
       const guards = [];
       guards.push(delta >= 3);
       if (allTrue(guards) === true) this.lastSeekAt = Date.now();
+
       this.lastKnownCT = ct;
     } catch (_e) {}
   }
@@ -374,19 +421,27 @@ export class PlayerController {
   getRequiredWatchSec() {
     return isNumber(this.videoRequiredWatchTime) === true ? this.videoRequiredWatchTime : 15;
   }
+
   getPlayedSec() {
     const base = isNumber(this.totalPlayTime) === true ? this.totalPlayTime : 0;
     let extra = 0;
+
     const parts = [];
     parts.push(isNumber(this.currentRate) === true);
     parts.push(this.playingStart !== null);
     const canExtra = allTrue(parts);
+
     if (canExtra === true) {
       let playingNow = false;
       try {
-        if (isFunction(this._isPlaying) === true) playingNow = this._isPlaying(this.player) === true;
+        const partsFn = [];
+        partsFn.push(isFunction(this._isPlaying) === true);
+        if (allTrue(partsFn) === true) playingNow = this._isPlaying(this.player) === true;
       } catch (_e) {}
-      if (playingNow === true) {
+
+      const shouldAdd = [];
+      shouldAdd.push(playingNow === true);
+      if (allTrue(shouldAdd) === true) {
         const ms = Date.now() - this.playingStart;
         const rate = isNumber(this.currentRate) === true ? this.currentRate : 1.0;
         extra = (ms / 1000) * rate;
@@ -394,6 +449,7 @@ export class PlayerController {
         extra = 0;
       }
     }
+
     const total = Math.max(0, Math.floor(base + extra));
     this.videoTotalPlayTime = total;
     return total;
