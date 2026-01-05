@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v4.2.2';
+const VERSION = 'v4.3.2';
 /*
  * Περιγραφή:
  * Συγκεντρώνει εκδόσεις όλων των modules και του HTML. Ελαφρύς renderer για panel/κείμενο,
@@ -33,7 +33,7 @@ import { getVersion as getPlayerControllerVersion } from './playerController.js'
 import { getVersion as getPlayerStateEngineVersion } from './playerStateEngine.js';
 import { getVersion as getPoliciesVersion } from './policies.js';
 import { getVersion as getUiControlsVersion } from './uiControls.js';
-import { getVersion as getUtilitiesVersion, iconForPascal, makeLogger, isDefined, domReady, deepClone, fmtMs, scheduleSafe } from './utils.js';
+import { getVersion as getUtilitiesVersion, iconForPascal, makeLogger, isDefined, domReady, deepClone, fmtMs, scheduleSafe, allTrue, anyTrue } from './utils.js';
 import { getVersion as getVideoPickerVersion } from './videoPicker.js';
 import { getVersion as getWatchdogVersion } from './watchdog.js';
 import { getVersion as getWtBusVersion } from './wtBus.js';
@@ -43,7 +43,6 @@ import { getVersion as getYoutubeReadyVersion } from './youtubeReady.js';
 const log = makeLogger(FILENAME);
 
 /* ========================= Module Code ========================= */
-
 /* ------------------------ Version Retrieval ------------------------ */
 /**
  * Σημείωση: Η έκδοση του Main θα προστεθεί από το main.js (δεν ανήκει στο aggregation εδώ).
@@ -51,14 +50,21 @@ const log = makeLogger(FILENAME);
  * Επιστρέφει 'unknown' αν λείπει είτε το meta είτε το content.
  */
 function getHtmlVersion() {
-  const metaTag = document.querySelector('meta[name="html-version"]');
-  if (isDefined(metaTag)) {
+  try {
+    const metaTag = document.querySelector('meta[name="html-version"]');
+
+    const hasMeta = [];
+    hasMeta.push(isDefined(metaTag) === true);
+    if (allTrue(hasMeta) !== true) return 'unknown';
+
     const c = metaTag.getAttribute('content');
-    if (isDefined(c)) {
-      return c;
-    }
+
+    const hasContent = [];
+    hasContent.push(isDefined(c) === true);
+    return allTrue(hasContent) === true ? c : 'unknown';
+  } catch (_) {
+    return 'unknown';
   }
-  return 'unknown';
 }
 
 /**
@@ -97,7 +103,6 @@ export function reportAllVersions() {
 }
 
 /* ------------------------ Common Helpers ------------------------ */
-
 /**
  * Μετατρέπει το object εκδόσεων σε ταξινομημένη λίστα εγγραφών.
  * - Το 'HTML' έρχεται πάντα πρώτο.
@@ -106,6 +111,7 @@ export function reportAllVersions() {
 function buildOrderedEntries(versionsObj) {
   const entries = [];
   const keys = Object.keys(versionsObj);
+
   let i = 0;
   while (i < keys.length) {
     const k = keys[i];
@@ -119,25 +125,40 @@ function buildOrderedEntries(versionsObj) {
   let j = 0;
   while (j < entries.length) {
     const e = entries[j];
-    if (!isDefined(e)) {
-      rest.push(e);
-    } else {
-      if (e.name === 'HTML') {
-        htmlFirst.push(e);
-      } else {
-        rest.push(e);
+
+    const hasEntry = [];
+    hasEntry.push(isDefined(e) === true);
+
+    // Χρήση switch-case για προτεραιότητα HTML
+    switch (allTrue(hasEntry) === true) {
+      case true: {
+        const isHtml = [];
+        isHtml.push(e.name === 'HTML');
+        if (allTrue(isHtml) === true) {
+          htmlFirst.push(e);
+        } else {
+          rest.push(e);
+        }
+        break;
       }
+      default:
+        rest.push(e);
+        break;
     }
+
     j = j + 1;
   }
 
+  // Αλφαβητική ταξινόμηση των υπολοίπων (χωρίς || / &&)
   rest.sort(function (a, b) {
-    if (a.name < b.name) {
-      return -1;
-    }
-    if (a.name > b.name) {
-      return 1;
-    }
+    const lt = [];
+    lt.push(a.name < b.name);
+    if (allTrue(lt) === true) return -1;
+
+    const gt = [];
+    gt.push(a.name > b.name);
+    if (allTrue(gt) === true) return 1;
+
     return 0;
   });
 
@@ -146,7 +167,6 @@ function buildOrderedEntries(versionsObj) {
 }
 
 /* ------------------------ Renderers ------------------------ */
-
 /**
  * Δημιουργεί HTML panel για εμφάνιση εκδόσεων.
  * Επιστρέφει HTML string (χωρίς bind events).
@@ -186,6 +206,7 @@ export function renderVersionsText(versionsObj) {
   const ordered = buildOrderedEntries(versionsObj);
   const parts = [];
   parts.push('✅ Εκδόσεις Modules :');
+
   let i = 0;
   while (i < ordered.length) {
     const e = ordered[i];
@@ -194,32 +215,38 @@ export function renderVersionsText(versionsObj) {
     parts.push(text);
     i = i + 1;
   }
+
   return parts.join('\n');
 }
 
 /**
- * Μετράει τα module.
+ * Μετράει τα module (συμπεριλαμβάνοντας main.js ως επιπλέον).
  */
 function totalModules(versionsObj) {
   const ordered = buildOrderedEntries(versionsObj);
+
   let i = 0;
   while (i < ordered.length) {
     i = i + 1;
   }
-  i = i + 1; // Για το main.js
+
+  // Προσθέτουμε 1 για το main.js
+  i = i + 1;
+
   return 'Σύνολο Modules: ' + i;
 }
 
 /* ------------------------ Convenience: auto-log after DOM ready ------------------------ */
-
 // Μετά το DOM ready, κάνε ένα ήπιο delayed log (ώστε να προηγηθούν άλλα early logs)
 domReady().then(function () {
   const t0 = performance.now();
+
   scheduleSafe(
     function () {
       const versions = reportAllVersions();
       const txt = renderVersionsText(versions);
       const dt = performance.now() - t0;
+
       log('🏷️ VersionReporter → Ready (' + fmtMs(dt) + ') / ' + totalModules(versions));
       //log(txt);
     },
