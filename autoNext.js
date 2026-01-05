@@ -1,10 +1,9 @@
 // --- autoNext.js ---
-const VERSION = 'v1.17.0';
+const VERSION = 'v1.18.2';
 /*
  * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR/Watchtime + scheduler.
- * - Primary WT emit γίνεται πλέον από το State Engine (δεν γίνεται εδώ).
+ * - Primary WT emit γίνεται πλέον πιο καθαρά με guards από utils.js.
  * - Freeze window μετά από AutoNext για έλεγχο back-pressure soft tasks.
-
  */
 
 // --- Export Version ---
@@ -19,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, makeLogger, rndInt, randomFloat, isDefined, isNumber, allTrue, isFunction, isNonEmptyArray } from './utils.js';
+import { scheduleSafe, makeLogger, rndInt, randomFloat, isDefined, isNumber, allTrue, anyTrue, isFunction, isNonEmptyArray } from './utils.js';
 import { AUTO_NEXT_LIMIT_PER_PLAYER, stats, MAIN_PROBABILITY } from './globals.js';
 import { pickVideoId } from './videoPicker.js';
 import { getBehaviorPlan } from './policies.js';
@@ -78,10 +77,15 @@ export function incAutoNext(playerIndex) {
 /* ========================= Context helpers ========================= */
 function buildCtx(ctrl, trigger) {
   const p = isDefined(ctrl?.player) === true ? ctrl.player : null;
+
+  // Duration (safe)
   let durationSec = 0;
   if (p !== null) {
-    const canDur = isDefined(p.getDuration) === true ? (isFunction(p.getDuration) === true ? true : false) : false;
-    if (canDur === true) {
+    const partsDur = [];
+    partsDur.push(isDefined(p) === true);
+    partsDur.push(p !== null);
+    partsDur.push(isFunction(p?.getDuration) === true);
+    if (allTrue(partsDur) === true) {
       const d = p.getDuration();
       if (isNumber(d) === true) {
         durationSec = d;
@@ -89,16 +93,10 @@ function buildCtx(ctrl, trigger) {
     }
   }
 
+  // Lists presence
   const hasMainList = isNonEmptyArray(ctrl?.mainList) === true;
   const hasAltList = isNonEmptyArray(ctrl?.altList) === true;
-  let hasLists = false;
-  if (hasMainList === true) {
-    hasLists = true;
-  } else {
-    if (hasAltList === true) {
-      hasLists = true;
-    }
-  }
+  const hasLists = anyTrue([hasMainList, hasAltList]);
 
   return {
     index: isNumber(ctrl?.index) === true ? ctrl.index : -1,
@@ -114,28 +112,46 @@ function buildCtx(ctrl, trigger) {
 
 /* ========================= Gates & Decisions ========================= */
 function shouldAutoNext(ctx) {
-  let valid = true;
-  if (isNumber(ctx?.index) !== true) valid = false;
-  if (isNumber(ctx?.durationSec) !== true) valid = false;
-  if (isNumber(ctx?.totalPlaySec) !== true) valid = false;
-  if (isDefined(ctx?.trigger) !== true) valid = false;
-  if (valid !== true) return { allow: false, reason: 'invalid-ctx' };
+  // Validity checks via allTrue
+  const partsValid = [];
+  partsValid.push(isNumber(ctx?.index) === true);
+  partsValid.push(isNumber(ctx?.durationSec) === true);
+  partsValid.push(isNumber(ctx?.totalPlaySec) === true);
+  partsValid.push(isDefined(ctx?.trigger) === true);
+  const valid = allTrue(partsValid);
+
+  if (valid !== true) {
+    return { allow: false, reason: 'invalid-ctx' };
+  }
 
   const limitOk = canAutoNext(ctx.index) === true;
-  if (limitOk !== true) return { allow: false, reason: `limit-${AUTO_NEXT_LIMIT_PER_PLAYER}/h` };
-
-  if (isDefined(ctx?.hasLists) === true) {
-    if (ctx.hasLists !== true) return { allow: false, reason: 'no-list' };
+  if (limitOk !== true) {
+    return { allow: false, reason: `limit-${AUTO_NEXT_LIMIT_PER_PLAYER}/h` };
   }
+
+  const partsLists = [];
+  partsLists.push(isDefined(ctx?.hasLists) === true);
+  partsLists.push(ctx.hasLists === true);
+  const okLists = allTrue(partsLists);
+
+  if (okLists !== true) {
+    return { allow: false, reason: 'no-list' };
+  }
+
   return { allow: true, reason: 'ok' };
 }
 
 /* ========================= Pacing ========================= */
 function computeAutoNextDelay(ctx) {
   const trig = String(isDefined(ctx?.trigger) === true ? ctx.trigger : '');
-  if (trig === 'error') return rndInt(250, 1000);
-  if (trig === 'watchtime') return rndInt(2000, 5000);
-  return rndInt(15000, 60000);
+  switch (trig) {
+    case 'error':
+      return rndInt(250, 1000);
+    case 'watchtime':
+      return rndInt(2000, 5000);
+    default:
+      return rndInt(15000, 60000);
+  }
 }
 
 /* ========================= Finalize ========================= */
@@ -163,14 +179,12 @@ function finalizeAutoNext(ctrl, picked) {
     ctrl.freezeSoftTasks = false;
     ctrl.videoTotalPlayTime = 0;
   } catch (_) {}
-
   try {
     ctrl.watchtimeFired = false;
   } catch (_) {}
   try {
     ctrl.autoNextScheduled = false;
   } catch (_) {}
-
   try {
     ctrl.initialPlayScheduled = false; // θα τεθεί ξανά στο READY
     ctrl.deferAutoNextUntilEnded = false; // θα τεθεί ξανά στο READY με βάση τη νέα διάρκεια
@@ -202,7 +216,12 @@ function finalizeAutoNext(ctrl, picked) {
 function runAutoNext(ctrl, ctx, label) {
   const picked = pickVideoId(ctx.mainList, ctx.altList, ctx.mainProbability);
 
-  const canLoad = isDefined(ctrl?.player) === true ? (isDefined(ctrl?.player?.loadVideoById) === true ? (typeof ctrl.player.loadVideoById === 'function' ? true : false) : false) : false;
+  // Guard: δυνατότητα φόρτωσης
+  const partsLoad = [];
+  partsLoad.push(isDefined(ctrl?.player) === true);
+  partsLoad.push(ctrl.player !== null);
+  partsLoad.push(isFunction(ctrl.player?.loadVideoById) === true);
+  const canLoad = allTrue(partsLoad);
 
   if (canLoad !== true) {
     if (isNumber(stats?.errors) === true) {
@@ -239,7 +258,7 @@ function runAutoNext(ctrl, ctx, label) {
       const partsDur = [];
       partsDur.push(isDefined(p) === true);
       partsDur.push(p !== null);
-      partsDur.push(isDefined(p?.getDuration) === true ? (isFunction(p.getDuration) === true ? true : false) : false);
+      partsDur.push(isFunction(p?.getDuration) === true);
       if (allTrue(partsDur) === true) {
         const dtmp = p.getDuration();
         if (isNumber(dtmp) === true) durationNow = dtmp;
@@ -248,7 +267,7 @@ function runAutoNext(ctrl, ctx, label) {
       const partsVd = [];
       partsVd.push(isDefined(p) === true);
       partsVd.push(p !== null);
-      partsVd.push(isDefined(p?.getVideoData) === true ? (isFunction(p.getVideoData) === true ? true : false) : false);
+      partsVd.push(isFunction(p?.getVideoData) === true);
       if (allTrue(partsVd) === true) {
         const vd = p.getVideoData();
         if (typeof vd?.video_id === 'string') videoIdFromAPI = vd.video_id;
@@ -262,8 +281,8 @@ function runAutoNext(ctrl, ctx, label) {
         playerIndex: ctrl.index,
         baseStartDelaySec: 2,
       };
-      ctrl.plan = getBehaviorPlan(ctx2);
 
+      ctrl.plan = getBehaviorPlan(ctx2);
       try {
         const req2 = ctrl.plan?.watch?.requiredWatchTimeSec;
         ctrl.videoRequiredWatchTime = isNumber(req2) === true ? Math.max(0, Math.floor(req2)) : 15;
@@ -273,12 +292,12 @@ function runAutoNext(ctrl, ctx, label) {
 
       let vidShown = '-';
       if (videoIdFromAPI !== '') vidShown = videoIdFromAPI;
+
       log(`⚖️ Re-plan Applied (AutoNext) → Required=${ctrl.videoRequiredWatchTime}s (Dur=${durationNow}s, ID=${vidShown})`);
     } catch (_eReplan) {}
   };
 
   scheduleSafe(replan, rndInt(500, 1500), ctrl._group('plan'), 'plan-refresh');
-
   finalizeAutoNext(ctrl, picked);
 }
 
@@ -286,26 +305,54 @@ function runAutoNext(ctrl, ctx, label) {
 function scheduleAutoNext(ctrl, trigger) {
   const ctx = buildCtx(ctrl, trigger);
   const decision = shouldAutoNext(ctx);
+
   if (decision.allow !== true) {
     const why = String(decision.reason);
+
     let kind = 'ENDED';
-    if (trigger === 'error') kind = 'ERROR';
-    else {
-      if (trigger === 'watchtime') kind = 'WATCHTIME';
+    switch (trigger) {
+      case 'error':
+        kind = 'ERROR';
+        break;
+      case 'watchtime':
+        kind = 'WATCHTIME';
+        break;
+      default:
+        kind = 'ENDED';
+        break;
     }
+
     log(`⛔ Player ${ctrl.index + 1} AutoNext Blocked (${kind}) — ${why}`);
     return;
   }
 
   const delayMs = computeAutoNextDelay(ctx);
+
   let kind = 'ENDED';
-  if (trigger === 'error') kind = 'ERROR';
-  else {
-    if (trigger === 'watchtime') kind = 'WATCHTIME';
+  switch (trigger) {
+    case 'error':
+      kind = 'ERROR';
+      break;
+    case 'watchtime':
+      kind = 'WATCHTIME';
+      break;
+    default:
+      kind = 'ENDED';
+      break;
   }
 
   const label = String(trigger) + '-autonext';
-  const shownDelay = trigger === 'error' ? String(delayMs) : String(Math.round(delayMs / 1000)) + 's';
+
+  let shownDelay = '';
+  switch (trigger) {
+    case 'error':
+      shownDelay = String(delayMs);
+      break;
+    default:
+      shownDelay = String(Math.round(delayMs / 1000)) + 's';
+      break;
+  }
+
   log(`⏳ Player ${ctrl.index + 1} AutoNext Scheduled (${kind}) — start After ${shownDelay}`);
 
   scheduleSafe(
