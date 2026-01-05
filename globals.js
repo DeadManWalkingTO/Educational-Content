@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v5.3.2';
+const VERSION = 'v5.4.2';
 /*
  * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
  * - Νέα counters: stats.wtSignals (WTBus emits) και stats.softBackpressureHits (soft-task gate reschedules).
@@ -107,7 +107,7 @@ export function setMainList(list) {
   const okArr = allTrue([Array.isArray(list) === true]);
   const next = okArr === true ? deepClone(list) : [];
   _mainList = next;
-  log(`📂 Main list applied → ${_mainList.length} videos`);
+  log(`📂 Main List Applied → ${_mainList.length} Videos`);
 }
 
 export function setAltList(list) {
@@ -149,7 +149,7 @@ export function clearStopTimers() {
       /* no-op */
     }
   }
-  log('🧯 Stop Timers → cleared');
+  log('🧯 Stop Timers → Cleared');
 }
 
 /** --- User gesture flag --- */

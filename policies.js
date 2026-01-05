@@ -1,9 +1,9 @@
 // --- policies.js ---
-const VERSION = 'v1.21.2';
+const VERSION = 'v1.23.2';
 /*
  * Περιγραφή: Module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
- * 
- * 
+ *
+ *
  */
 
 // --- Export Version ---
@@ -59,11 +59,11 @@ function _computeCapSec(profileName) {
 }
 
 /* ========================= Required Watch Time ========================= */
-export function getRequiredWatchTime(durationSec, profileName = 'unknown') {
+export function getRequiredWatchTime(durationSec, profileName = 'unknown', pidex = 0) {
   const valid = allTrue([isFiniteNumber(durationSec) === true, durationSec > 0]);
   if (valid !== true) {
     try {
-      log(`🧮 Required=15s (Fallback), Duration=${String(durationSec)} (Invalid)`);
+      log(`🧮 Player ${pidex + 1} Required → 15s (Fallback), Duration=${String(durationSec)} (Invalid)`);
     } catch (_) {}
     return 15;
   }
@@ -101,7 +101,7 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown') {
   if (allTrue([d < 60]) === true) {
     const req = d + 1;
     try {
-      log(`🧮 Required=${req}s (Small-Video rule, D=${d}s > return D+1)`);
+      log(`🧮  Player ${pidex + 1} Required → ${req}s (Small-Video rule, D=${d}s > return D+1)`);
     } catch (_) {}
     return req;
   }
@@ -123,7 +123,7 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown') {
 
   try {
     const pctStr = (pct * 100).toFixed(1);
-    log(`🧮 Required=${required}s (D=${d} - Pct=${pctStr}% - CapSec=${capSec}s - Raw=${requiredRaw}s - Profile=${String(profileName)})`);
+    log(`🧮  Player ${pidex + 1} Required → ${required}s (D=${d} - Pct=${pctStr}% - CapSec=${capSec}s - Raw=${requiredRaw}s - Profile=${String(profileName)})`);
   } catch (_) {}
 
   return required;
@@ -454,6 +454,7 @@ export function getBehaviorPlan(ctx) {
 
   const d = Math.floor(Number(ctx.durationSec));
   const prof = allTrue([isString(ctx.profileName) === true]) === true ? String(ctx.profileName).toLowerCase() : 'unknown';
+  const pidx = ctx.playerIndex;
 
   // Επιλογή baseStartDelaySec:
   // 1) Αν δόθηκε ρητά και είναι έγκυρο, χρησιμοποίησέ το.
@@ -474,7 +475,7 @@ export function getBehaviorPlan(ctx) {
     }
   }
 
-  const watchRequired = getRequiredWatchTime(d, prof);
+  const watchRequired = getRequiredWatchTime(d, prof, pidx);
   const startSeekSec = getStartSeek(d, prof);
   const pausePlan = getPausePlan(d);
   const midSeekPlan = _getMidSeekPlan(d, prof);

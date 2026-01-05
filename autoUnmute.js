@@ -1,5 +1,5 @@
 // --- autoUnmute.js ---
-const VERSION = 'v2.18.2';
+const VERSION = 'v2.19.2';
 /*
  * scheduleUnmute(ctrl, stateIsPlaying): parsing plan.unmute (base/extra/grace), debounce, flags, scheduling.
  * applyUnmute(player, plan, ctrl): unMute + setVolume + delayed verify (+ micro-adjust), baseline update.
@@ -236,7 +236,7 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
     // Schedule με PLAYING gate
     ctrl.unmuteScheduled = true;
     const totalSecShown = Math.round(finalDelayMs / 1000);
-    log(`🔕 Player ${String(ctrl.index + 1)} Unmute Scheduled After ${String(totalSecShown)}s`);
+    log(`🔕 Player ${String(ctrl.index + 1)} Unmute Scheduled → After ${String(totalSecShown)}s`);
 
     const attemptApply = () => {
       // Soft-gate: freeze + min-gap

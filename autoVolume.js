@@ -1,5 +1,5 @@
 // --- autoVolume.js ---
-const VERSION = 'v1.10.2';
+const VERSION = 'v1.11.2';
 /*
  * Περιγραφή: Αυτοματοποιημένες αλλαγές έντασης + micro-adjust (freeze-aware).
  * - Παράθυρο εκτέλεσης μέσα στο RequiredWatchTime (WT-window).
@@ -229,7 +229,7 @@ export function scheduleVolumeChanges(player, cfg, durationSec, group = 'pc:volu
 
   // προγραμματισμός αλλαγών
   let i = 0;
-  log(`🔊 VolumeScheduler → planned=${planned}, window=${windowSec}s, range=${rangeArr[0]}–${rangeArr[1]}%`);
+  log(`🔊 VolumeScheduler → Planned=${planned}, window=${windowSec}s, range=${rangeArr[0]}–${rangeArr[1]}%`);
   while (i < planned) {
     const delaySec = rndInt(Math.floor(fromMs / 1000), Math.floor(toMs / 1000));
     const delayMs = delaySec * 1000;

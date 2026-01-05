@@ -1,5 +1,5 @@
 // --- youtubeReady.js ---
-const VERSION = 'v1.11.1';
+const VERSION = 'v1.12.2';
 /*
  * Σκοπός: Ready gate για το YouTube IFrame Player API με timeout,
  * ασφαλές injection του script, global callback (once) και polling fallback.

@@ -1,5 +1,5 @@
 // --- autoRate.js ---
-const VERSION = 'v1.8.2';
+const VERSION = 'v1.9.2';
 /*
  * Περιγραφή: Σπάνιες αλλαγές ταχύτητας αναπαραγωγής (rate).
  * - Back-pressure gate: σέβεται softFreezeUntilMs και softTaskMinGapMs ανά controller.
@@ -341,7 +341,7 @@ export function scheduleRateChanges(ctrl) {
 
     if (planned === 0) {
       const pct = Math.floor(chance * 100);
-      log(`🏃‍♂️ Player ${ctrl.index + 1} → RateScheduler (No Changes Planned (chance=${pct}%))`);
+      log(`🏃‍♂️ Player ${ctrl.index + 1} RateScheduler → No Changes Planned (chance=${pct}%)`);
       return;
     }
 
@@ -361,7 +361,7 @@ export function scheduleRateChanges(ctrl) {
 
     scheduleSafe(() => _whenPlaying(ctrl, () => _applyRateChange(ctrl, targetRate), 800, 2000, ctrl._group?.('rate'), 'rate-change'), delayMs, ctrl._group?.('rate'), 'rate-change');
 
-    log(`🏃‍♂️ Player ${ctrl.index + 1} RateScheduler: x${String(targetRate)} in ~${delaySec}s (win ${fromSec}-${toSec}s)`);
+    log(`🏃‍♂️ Player ${ctrl.index + 1} RateScheduler → x${String(targetRate)} in ~${delaySec}s (win ${fromSec}-${toSec}s)`);
   } catch (_) {}
 }
 

@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-const VERSION = 'v5.5.2';
+const VERSION = 'v5.6.2';
 /*
  * Περιγραφή: Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς playback.
  * Στόχος: duration-aware start, ρεαλιστικές παύσεις/seek/ένταση/ποιότητα/ρυθμός.
@@ -103,7 +103,7 @@ function createRandomPlayerConfig(profile) {
 }
 
 /* Προσθήκη logging για profile (switch-case αντί για πολλαπλά if) */
-function logProfile(profile) {
+function logProfile(pidx, profile) {
   let name = 'casual';
   try {
     const raw = String(profile?.name ?? '').toLowerCase();
@@ -112,13 +112,13 @@ function logProfile(profile) {
 
   switch (name) {
     case 'explorer':
-      log('🧭 Προφίλ → Explorer (περισσότερες παύσεις, περισσότερο seek)');
+      log(`🧭 Player ${pidx + 1} Προφίλ → Explorer (περισσότερες παύσεις, περισσότερο seek)`);
       break;
     case 'focused':
-      log('🎯 Προφίλ → Focused (λιγότερες παύσεις, πιο σταθερό playback)');
+      log(`🎯 Player ${pidx + 1} Προφίλ → Focused (λιγότερες παύσεις, πιο σταθερό playback)`);
       break;
     default:
-      log('🙂 Προφίλ → Casual (μέτρια συμπεριφορά)');
+      log(`🙂 Player ${pidx + 1} Προφίλ → Casual (μέτρια συμπεριφορά)`);
       break;
   }
 }
@@ -260,7 +260,7 @@ export async function initPlayersSequentially(mainList, altList) {
     }
 
     // Logging profile
-    logProfile(profile);
+    logProfile(controller.index, profile);
 
     // Μικρή καθυστέρηση πριν το init για ρεαλισμό
     await sleep(rndInt(150, 300));
@@ -276,7 +276,7 @@ export async function initPlayersSequentially(mainList, altList) {
       if (allTrue(partsBase) === true) baselinePauses = controller.plan.pauses.count;
     } catch (_) {}
 
-    log(`📋 Player ${i + 1} Pause Plan (Προ-Baseline) → Baseline=${baselinePauses}, ProfileChance=${config.pauseChance}`);
+    log(`📋 Player ${i + 1} Pause Plan → Pre-Baseline=${baselinePauses} (ProfileChance=${config.pauseChance})`);
 
     const session = {
       pauseChance: config.pauseChance,

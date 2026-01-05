@@ -1,5 +1,5 @@
 // --- autoNext.js ---
-const VERSION = 'v1.18.2';
+const VERSION = 'v1.19.2';
 /*
  * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR/Watchtime + scheduler.
  * - Primary WT emit γίνεται πλέον πιο καθαρά με guards από utils.js.
@@ -55,7 +55,7 @@ function resetAutoNextCountersIfNeeded() {
       autoNextPerPlayer[i] = 0;
       i = i + 1;
     }
-    log('🔄 AutoNext Counters Reset (Hourly)');
+    log('🔄 AutoNext Counters → Reset (Hourly)');
   }
 }
 
@@ -322,7 +322,7 @@ function scheduleAutoNext(ctrl, trigger) {
         break;
     }
 
-    log(`⛔ Player ${ctrl.index + 1} AutoNext Blocked (${kind}) — ${why}`);
+    log(`⛔ Player ${ctrl.index + 1} AutoNext Blocked  → (${kind}) — ${why}`);
     return;
   }
 
@@ -353,7 +353,7 @@ function scheduleAutoNext(ctrl, trigger) {
       break;
   }
 
-  log(`⏳ Player ${ctrl.index + 1} AutoNext Scheduled (${kind}) — start After ${shownDelay}`);
+  log(`⏳ Player ${ctrl.index + 1} AutoNext Scheduled → (${kind}) — start After ${shownDelay}`);
 
   scheduleSafe(
     function () {

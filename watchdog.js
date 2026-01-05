@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v1.10.2';
+const VERSION = 'v1.11.2';
 /*
  * Περιγραφή: Εξωτερικός watchdog για "required watch time" ανά PlayerController.
  * - WTBus subscribe: cache στους indices που έλαβαν 'wt:reached'.
@@ -226,7 +226,7 @@ function checkController(ctrl) {
     // Small-video defer
     const deferSmall = ctrl?.deferAutoNextUntilEnded === true;
     if (deferSmall === true) {
-      log(`⏭️ WD: Small-video mode → skip AutoNext (WT/fallback) until ENDED`);
+      log(`⏭️ WD: Small-Video Mode → Skip AutoNext (WT/fallback) Until ENDED`);
       return;
     }
 
@@ -246,7 +246,7 @@ function checkController(ctrl) {
             try {
               ctrl.guardPlay(ctrl.player);
             } catch (_) {}
-            log(`▶️ WD: guardPlay retried (READY >10s)`);
+            log(`▶️ WD: GuardPlay Retried (READY >10s)`);
             return;
           default:
             /* no-op */
@@ -309,7 +309,7 @@ function checkController(ctrl) {
     if (ctrl.watchtimeFired !== true) {
       const skip = skipByWtBus(ctrl);
       if (skip === true) {
-        log(`⏳ Player ${ctrl.index + 1} Fallback-skip → WTBus signaled recently`);
+        log(`⏳ Player ${ctrl.index + 1} Fallback-skip → WTBus Signaled Recently`);
         return;
       }
 
@@ -344,7 +344,7 @@ export function startWatchdog(intervalMs = 10000) {
         const okIdx = Number.isNaN(idx) === false;
         if (okIdx === true) {
           wtSeen[idx] = nowMs();
-          log(`📥 WTBus received → index=${idx}`);
+          log(`📥 WTBus Received → Index=${idx}`);
         }
       } catch (_) {}
     });

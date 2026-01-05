@@ -1,5 +1,5 @@
 // --- autoQuality.js ---
-const VERSION = 'v1.10.2';
+const VERSION = 'v1.11.2';
 /*
  * Περιγραφή: Τυχαίες αλλαγές ποιότητας (YouTube Iframe API) με guards.
  * - Ενημέρωση ctrl.lastSoftTaskMs μετά από επιτυχή αλλαγή ποιότητας. Καταμέτρηση stats.softBackpressureHits.
@@ -353,7 +353,7 @@ export function resetPlaybackQuality(ctrl) {
     // Log
     try {
       const shownIdx = typeof ctrl?.index === 'number' ? String(Math.floor(ctrl.index) + 1) : '#';
-      log(`⚙️ Player ${shownIdx} Quality reset → auto (default) [now=${afterQ}]`);
+      log(`⚙️ Player ${shownIdx} Quality Reset → Auto (default) [Now=${afterQ}]`);
     } catch (_) {}
 
     // ΝΕΟ: verify του reset (μόνο logging για 'default')

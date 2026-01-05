@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v4.10.2';
+const VERSION = 'v4.13.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * - WTBus emit: όταν πιαστεί το required watch-time, εκπέμπουμε αμέσως 'wt:reached' (primary).
@@ -77,7 +77,7 @@ export function onReadyExternal(ctrl, e) {
       partsSmall.push(durationNow < 60);
       const isSmall = allTrue(partsSmall);
       ctrl.deferAutoNextUntilEnded = isSmall === true;
-      log(`ℹ️ Player ${ctrl.index + 1} Ready → duration=${Math.floor(durationNow)}s, deferAutoNextUntilEnded=${ctrl.deferAutoNextUntilEnded}`);
+      log(`ℹ️ Player ${ctrl.index + 1} Ready → Duration=${Math.floor(durationNow)}s (deferAutoNextUntilEnded=${ctrl.deferAutoNextUntilEnded})`);
     } catch (_) {}
 
     const ctx = { durationSec: durationNow, profileName: ctrl.profileName, isFirstVideo: true, playerIndex: ctrl.index };
@@ -100,11 +100,10 @@ export function onReadyExternal(ctrl, e) {
     /* MidSeek plan log */
     try {
       const ms = ctrl?.plan?.midSeek ?? { enabled: false };
-      log(
-        `🎯 MidSeek Plan → enabled=${ms.enabled} intervalMs=${ms.intervalMs ?? '-'} minGapSec=${ms.minGapSec ?? '-'} maxSeeks=${ms.maxSeeks ?? '-'} fromPct=${ms.fromPct ?? '-'} toPct=${
-          ms.toPct ?? '-'
-        } nearEndPct=${ms.nearEndPct ?? '-'}`
-      );
+      let msmsg = '';
+      msmsg = msmsg + `intervalMs=${ms.intervalMs ?? '-'} minGapSec=${ms.minGapSec ?? '-'} maxSeeks=${ms.maxSeeks ?? '-'}`;
+      msmsg = msmsg + ` fromPct=${ms.fromPct ?? '-'} toPct=${ms.toPct ?? '-'} nearEndPct=${ms.nearEndPct ?? '-'}`;
+      log(`🎯 MidSeek Plan → Enabled=${ms.enabled} (${msmsg})`);
     } catch (_) {}
 
     /* Required watch time */
@@ -233,7 +232,7 @@ export function onReadyExternal(ctrl, e) {
                 groupCancel(ctrl._group('play'));
               } catch (_) {}
               ctrl.initialPlayScheduled = false;
-              log(`▶️ Player ${ctrl.index + 1} initial play → already PLAYING (stop retries)`);
+              log(`▶️ Player ${ctrl.index + 1} Initial Play → Already PLAYING (Stop Retries)`);
               return;
             }
 
@@ -258,13 +257,13 @@ export function onReadyExternal(ctrl, e) {
                 groupCancel(ctrl._group('play'));
               } catch (_) {}
               ctrl.initialPlayScheduled = false;
-              log(`⏱️ Player ${ctrl.index + 1} initial play → gave up after ${attempts} attempts`);
+              log(`⏱️ Player ${ctrl.index + 1} Initial Play → Gave Up After ${attempts} Attempts`);
             }
           } catch (_) {}
         };
 
         scheduleSafe(tryStart, startDelay, ctrl._group('play'), 'initial-play');
-        log(`▶️ Player ${ctrl.index + 1} READY → initial play scheduled (${startDelay} ms)`);
+        log(`▶️ Player ${ctrl.index + 1} READY → Initial Play Scheduled (${startDelay} ms)`);
       }
 
       try {
@@ -393,7 +392,7 @@ export function onStateChangeExternal(ctrl, e) {
             if (within === true) {
               if (ctrl.freezeSoftTasks !== true) {
                 ctrl.freezeSoftTasks = true;
-                log(`🧊 Player ${ctrl.index + 1} Soft-Freeze Enabled (≤${guardSec}s to threshold)`);
+                log(`🧊 Player ${ctrl.index + 1} Soft-Freeze Enabled (≤${guardSec}s To Threshold)`);
               }
             }
           }
