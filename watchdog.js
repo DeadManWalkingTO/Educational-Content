@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v1.9.0';
+const VERSION = 'v1.10.2';
 /*
  * Περιγραφή: Εξωτερικός watchdog για "required watch time" ανά PlayerController.
  * - WTBus subscribe: cache στους indices που έλαβαν 'wt:reached'.
@@ -39,42 +39,42 @@ function computePlayedSoFarSec(ctrl) {
   if (isNumber(ctrl?.totalPlayTime) === true) {
     base = ctrl.totalPlayTime;
   }
+
   let extra = 0;
   const parts = [];
   parts.push(isNumber(ctrl?.currentRate) === true);
   parts.push(isDefined(ctrl?.playingStart) === true);
   const canExtra = allTrue(parts);
+
   if (canExtra === true) {
     let playingOk = false;
     try {
-      if (typeof ctrl._isPlaying === 'function') {
+      const canCheck = [];
+      canCheck.push(isFunction(ctrl?._isPlaying) === true);
+      if (allTrue(canCheck) === true) {
         playingOk = ctrl._isPlaying(ctrl.player) === true;
       }
     } catch (_) {}
-    if (playingOk === true) {
-      const ms = nowMs() - ctrl.playingStart;
-      const rate = ctrl.currentRate;
-      extra = (ms / 1000) * rate;
-    } else {
-      extra = 0;
-    }
+    extra = playingOk === true ? ((nowMs() - ctrl.playingStart) / 1000) * ctrl.currentRate : 0;
   }
+
   const total = base + extra;
   let out = Math.floor(total);
-  if (out < 0) {
-    out = 0;
-  }
+  if (allTrue([out < 0]) === true) out = 0;
   return out;
 }
 
 function canFireAutoNext(ctrl, required, played) {
   let playingOk = false;
   try {
-    if (typeof ctrl._isPlaying === 'function') {
+    const canCheck = [];
+    canCheck.push(isFunction(ctrl?._isPlaying) === true);
+    if (allTrue(canCheck) === true) {
       playingOk = ctrl._isPlaying(ctrl.player) === true;
     }
   } catch (_) {}
 
+  // recentSeek gate
   let recentSeek = false;
   try {
     const parts = [];
@@ -83,12 +83,11 @@ function canFireAutoNext(ctrl, required, played) {
     const ok = allTrue(parts);
     if (ok === true) {
       const diff = nowMs() - ctrl.lastSeekAt;
-      if (diff < ctrl.cooldowns.seekMs) {
-        recentSeek = true;
-      }
+      recentSeek = allTrue([diff < ctrl.cooldowns.seekMs]) === true;
     }
   } catch (_) {}
 
+  // recentPause gate
   let recentPause = false;
   try {
     const parts = [];
@@ -97,12 +96,11 @@ function canFireAutoNext(ctrl, required, played) {
     const ok = allTrue(parts);
     if (ok === true) {
       const diff = nowMs() - ctrl.lastPausedStart;
-      if (diff < ctrl.cooldowns.pauseMs) {
-        recentPause = true;
-      }
+      recentPause = allTrue([diff < ctrl.cooldowns.pauseMs]) === true;
     }
   } catch (_) {}
 
+  // continuity gate
   let continuityOk = false;
   try {
     const parts = [];
@@ -111,19 +109,15 @@ function canFireAutoNext(ctrl, required, played) {
     const ok = allTrue(parts);
     if (ok === true) {
       const elapsed = (nowMs() - ctrl.playingStart) / 1000;
-      if (elapsed >= ctrl.continuity.minPlaySec) {
-        continuityOk = true;
-      }
+      continuityOk = allTrue([elapsed >= ctrl.continuity.minPlaySec]) === true;
     }
   } catch (_) {}
 
-  let thresholdOk = false;
+  // threshold gate
   const tParts = [];
   tParts.push(isNumber(required) === true);
   tParts.push(played >= required);
-  if (allTrue(tParts) === true) {
-    thresholdOk = true;
-  }
+  const thresholdOk = allTrue(tParts) === true;
 
   const gates = [];
   gates.push(playingOk === true);
@@ -141,26 +135,32 @@ function canFireOnWatchtime(ctrl, required, played) {
   if (allTrue(tParts) !== true) {
     return false;
   }
+
   let playingOk = false;
   try {
-    if (typeof ctrl._isPlaying === 'function') {
+    const canCheck = [];
+    canCheck.push(isFunction(ctrl?._isPlaying) === true);
+    if (allTrue(canCheck) === true) {
       playingOk = ctrl._isPlaying(ctrl.player) === true;
     }
   } catch (_) {}
-  if (playingOk !== true) {
+
+  if (allTrue([playingOk !== true]) === true) {
     return false;
   }
+
   try {
     const parts = [];
     parts.push(isDefined(ctrl?.playingStart) === true);
     const ok = allTrue(parts);
     if (ok === true) {
       const elapsed = (nowMs() - ctrl.playingStart) / 1000;
-      if (elapsed < 2) {
+      if (allTrue([elapsed < 2]) === true) {
         return false;
       }
     }
   } catch (_) {}
+
   return true;
 }
 
@@ -169,18 +169,20 @@ function skipByWtBus(ctrl) {
   try {
     const idx = Number(ctrl?.index);
     const okIdx = Number.isNaN(idx) === false;
-    if (okIdx !== true) {
-      return false;
+
+    switch (allTrue([okIdx === true]) === true) {
+      case true: {
+        const last = wtSeen[idx];
+        const parts = [];
+        parts.push(isNumber(last) === true);
+        const seen = allTrue(parts);
+        if (seen !== true) return false;
+        const diff = nowMs() - last;
+        return allTrue([diff < WT_FALLBACK_GRACE_MS]) === true;
+      }
+      default:
+        return false;
     }
-    const last = wtSeen[idx];
-    const parts = [];
-    parts.push(isNumber(last) === true);
-    const seen = allTrue(parts);
-    if (seen !== true) {
-      return false;
-    }
-    const diff = nowMs() - last;
-    return diff < WT_FALLBACK_GRACE_MS;
   } catch (_) {}
   return false;
 }
@@ -198,6 +200,7 @@ function checkController(ctrl) {
     if (basePlanOk === true) {
       hasPlan = true;
     }
+
     let required = 0;
     if (isFunction(ctrl?.getRequiredWatchSec) === true) {
       required = ctrl.getRequiredWatchSec();
@@ -220,7 +223,7 @@ function checkController(ctrl) {
 
     log(`⏱️ Player ${ctrl.index + 1} Progress → Played=${played}s / Required=${required}s`);
 
-    // --- watchdog.js --- (μέσα στο checkController)
+    // Small-video defer
     const deferSmall = ctrl?.deferAutoNextUntilEnded === true;
     if (deferSmall === true) {
       log(`⏭️ WD: Small-video mode → skip AutoNext (WT/fallback) until ENDED`);
@@ -233,83 +236,97 @@ function checkController(ctrl) {
       parts.push(isNumber(ctrl?.readyAt) === true);
       parts.push(ctrl?.playingStart === null);
       const canCheckReady = allTrue(parts);
+
       if (canCheckReady === true) {
         const age = nowMs() - ctrl.readyAt;
-        if (age >= 10000) {
-          try {
-            ctrl.guardPlay(ctrl.player);
-          } catch (_) {}
-          log(`▶️ WD: guardPlay retried (READY >10s)`);
-          return;
+
+        // Δομημένη απόφαση με switch-case
+        switch (allTrue([age >= 10000]) === true) {
+          case true:
+            try {
+              ctrl.guardPlay(ctrl.player);
+            } catch (_) {}
+            log(`▶️ WD: guardPlay retried (READY >10s)`);
+            return;
+          default:
+            /* no-op */
+            break;
         }
       }
     } catch (_) {}
+  } catch (_) {}
 
-    // Near-threshold soft-freeze (υπάρχει ήδη σε state engine, απλώς ενισχύουμε το μήνυμα εδώ)
-    try {
-      const nearParts = [];
-      nearParts.push(isNumber(required) === true);
-      nearParts.push(isNumber(played) === true);
-      const nearOk = allTrue(nearParts);
-      if (nearOk === true) {
-        const guardSec = 5;
-        const within = played >= required - guardSec;
-        if (within === true) {
-          if (ctrl.freezeSoftTasks !== true) {
-            ctrl.freezeSoftTasks = true;
-            log(`🧊 Player ${ctrl.index + 1} Soft-Freeze Enabled (≤${guardSec}s to threshold)`);
-          }
-        }
-      }
-    } catch (_) {}
+  // Near-threshold soft-freeze (ενισχύουμε μόνο το μήνυμα)
+  try {
+    const nearParts = [];
+    nearParts.push(isNumber(controllers?.length) === true ? true : true); // placeholder guard always true
+    nearParts.push(isNumber(played) === true);
+    nearParts.push(isNumber(required) === true);
+    const nearOk = allTrue(nearParts);
 
-    // 1) Watch-time trigger (primary) → WTBus aware
-    if (ctrl.watchtimeFired !== true) {
-      const canWT = canFireOnWatchtime(ctrl, required, played);
-      if (canWT === true) {
-        // Αν ο WTBus μας έχει ενημερώσει πρόσφατα, αποφεύγουμε διπλό scheduling.
-        const skip = skipByWtBus(ctrl);
-        if (skip === true) {
-          log(`⏳ Player ${ctrl.index + 1} WTBus-skip → Already signaled recently`);
-          return;
-        }
-        ctrl.watchtimeFired = true;
-        try {
-          if (isFunction(ctrl?.clearTimers)) {
-            ctrl.clearTimers();
-          }
-        } catch (_) {}
-        ctrl.autoNextScheduled = true;
-        autoNextAfterWatchtime(ctrl);
-        stats.autoNext = isNumber(stats?.autoNext) === true ? stats.autoNext + 1 : 1;
-        log(`✅ Player ${ctrl.index + 1} Watch-Time Met → AutoNext Scheduled (WT)`);
-        return;
-      }
-    }
+    if (nearOk === true) {
+      const guardSec = 5;
+      const within = played >= required - guardSec;
 
-    // 2) Fallback: κλασική λογική (ENDED pacing)
-    const canFire = canFireAutoNext(ctrl, required, played);
-    if (canFire === true) {
-      if (ctrl.watchtimeFired !== true) {
-        // Αν ο WTBus μας έχει ενημερώσει πρόσφατα, δεν κάνουμε fallback.
-        const skip = skipByWtBus(ctrl);
-        if (skip === true) {
-          log(`⏳ Player ${ctrl.index + 1} Fallback-skip → WTBus signaled recently`);
-          return;
+      if (within === true) {
+        if (ctrl.freezeSoftTasks !== true) {
+          ctrl.freezeSoftTasks = true;
+          log(`🧊 Player ${ctrl.index + 1} Soft-Freeze Enabled (≤${guardSec}s to threshold)`);
         }
-        ctrl.watchtimeFired = true;
-        try {
-          if (isFunction(ctrl?.clearTimers)) {
-            ctrl.clearTimers();
-          }
-        } catch (_) {}
-        ctrl.autoNextScheduled = true;
-        autoNextAfterEnded(ctrl);
-        stats.autoNext = isNumber(stats?.autoNext) === true ? stats.autoNext + 1 : 1;
-        log(`✅ Player ${ctrl.index + 1} Watch-Time Met → AutoNext Scheduled (ENDED pacing)`);
       }
     }
   } catch (_) {}
+
+  // 1) Watch-time trigger (primary) → WTBus aware
+  if (ctrl.watchtimeFired !== true) {
+    const canWT = canFireOnWatchtime(ctrl, required, played);
+    if (canWT === true) {
+      const skip = skipByWtBus(ctrl);
+      if (skip === true) {
+        log(`⏳ Player ${ctrl.index + 1} WTBus-skip → Already signaled recently`);
+        return;
+      }
+
+      ctrl.watchtimeFired = true;
+      try {
+        if (isFunction(ctrl?.clearTimers)) {
+          ctrl.clearTimers();
+        }
+      } catch (_) {}
+
+      ctrl.autoNextScheduled = true;
+      autoNextAfterWatchtime(ctrl);
+
+      stats.autoNext = isNumber(stats?.autoNext) === true ? stats.autoNext + 1 : 1;
+      log(`✅ Player ${ctrl.index + 1} Watch-Time Met → AutoNext Scheduled (WT)`);
+      return;
+    }
+  }
+
+  // 2) Fallback: κλασική λογική (ENDED pacing)
+  const canFire = canFireAutoNext(ctrl, required, played);
+  if (canFire === true) {
+    if (ctrl.watchtimeFired !== true) {
+      const skip = skipByWtBus(ctrl);
+      if (skip === true) {
+        log(`⏳ Player ${ctrl.index + 1} Fallback-skip → WTBus signaled recently`);
+        return;
+      }
+
+      ctrl.watchtimeFired = true;
+      try {
+        if (isFunction(ctrl?.clearTimers)) {
+          ctrl.clearTimers();
+        }
+      } catch (_) {}
+
+      ctrl.autoNextScheduled = true;
+      autoNextAfterEnded(ctrl);
+
+      stats.autoNext = isNumber(stats?.autoNext) === true ? stats.autoNext + 1 : 1;
+      log(`✅ Player ${ctrl.index + 1} Watch-Time Met → AutoNext Scheduled (ENDED pacing)`);
+    }
+  }
 }
 
 // ========================= Public API =========================
@@ -320,6 +337,7 @@ export function startWatchdog(intervalMs = 10000) {
       wtBusDisposer();
       wtBusDisposer = null;
     }
+
     wtBusDisposer = onWatchtimeReached((ev) => {
       try {
         const idx = Number(ev?.detail?.index);
@@ -332,6 +350,7 @@ export function startWatchdog(intervalMs = 10000) {
     });
   } catch (_) {}
 
+  // Καθαρισμός προηγούμενου επαναλαμβανόμενου timer
   try {
     if (isNumber(watchdogTimerId) === true) {
       cancel(watchdogTimerId);
@@ -353,6 +372,7 @@ export function startWatchdog(intervalMs = 10000) {
       }
     } catch (_) {}
   };
+
   watchdogTimerId = repeat(handler, intervalMs, 'wd:global');
   log(`🛡️ Watchdog Started → Interval=${msToSec(intervalMs)}s (${fmtMs(intervalMs)})`);
 }
@@ -363,6 +383,7 @@ export function stopWatchdog() {
     watchdogTimerId = null;
     log('🛡️ Watchdog → Stopped');
   }
+
   try {
     if (isFunction(wtBusDisposer) === true) wtBusDisposer();
     wtBusDisposer = null;
