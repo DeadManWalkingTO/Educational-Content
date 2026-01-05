@@ -1,5 +1,5 @@
 // --- main.js ---
-const VERSION = 'v4.7.2';
+const VERSION = 'v4.8.2';
 /*
 Περιγραφή: Entry point με εκτεταμένη χρήση utils.js (domReady, safeAddEvent, once, log, retry, scheduleSafe).
 Start gate με user gesture & ασφαλές fallback, readiness του YouTube API με exponential backoff + jitter,
@@ -10,6 +10,7 @@ sequential init Human Mode, versions panel/fallback logging, και προαιρ
 export function getVersion() {
   return VERSION;
 }
+
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
@@ -18,7 +19,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { installConsoleFilter } from './consoleFilter.js';
-import { makeLogger, domReady, safeAddEvent, once, isDefined, retry } from './utils.js';
+import { makeLogger, domReady, safeAddEvent, once, isDefined, retry, allTrue, anyTrue } from './utils.js';
 import { setUserGesture, WATCHDOG_RATE } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
@@ -29,6 +30,7 @@ import { startWatchdog } from './watchdog.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
+
 /* --------------- Console filter (defensive) --------------- */
 (function safeInstallConsoleFilter() {
   try {
@@ -41,8 +43,12 @@ const log = makeLogger(FILENAME);
 /* --------------- Versions report (UI + fallback) --------------- */
 const versions = reportAllVersions();
 versions.Main = VERSION;
+
 const panel = document.getElementById('activityPanel');
-if (isDefined(panel)) {
+const partsPanel = [];
+partsPanel.push(isDefined(panel) === true);
+
+if (allTrue(partsPanel) === true) {
   panel.innerHTML = renderVersionsPanel(versions);
   panel.style.whiteSpace = 'pre-line';
 } else {
@@ -63,12 +69,14 @@ const startOnce = once(async function startApp() {
   try {
     log(`🚀 Εκκίνηση Εφαρμογής → main.js ${VERSION}`);
     log(`${renderVersionsText(versions)}`);
+
     // Φόρτωση λιστών
     const listPromises = [loadVideoList(), loadAltList()];
     const lists = await Promise.all(listPromises);
     const mainList = lists[0];
     const altList = lists[1];
     log(`📂 Lists Loaded → Main:${mainList.length} Alt:${altList.length}`);
+
     // Readiness YouTube API με retry/backoff/jitter
     log(`⏳ YouTubeAPI → Αναμονή (με Retry/Backoff/Jitter)`);
     const readyResult = await retry(
@@ -82,11 +90,19 @@ const startOnce = once(async function startApp() {
       8000, // maxMs
       0.2 // jitterRatio
     );
-    if (readyResult.ok === true) {
-      log(`✅ YouTubeAPI → Έτοιμο (Προσπάθειες: ${readyResult.attempts})`);
-    } else {
-      log(`❌ YouTubeAPI → Απέτυχε (Προσπάθειες: ${readyResult.attempts})`);
+
+    const partsReady = [];
+    partsReady.push(readyResult.ok === true);
+
+    switch (allTrue(partsReady) === true) {
+      case true:
+        log(`✅ YouTubeAPI → Έτοιμο (Προσπάθειες: ${readyResult.attempts})`);
+        break;
+      default:
+        log(`❌ YouTubeAPI → Απέτυχε (Προσπάθειες: ${readyResult.attempts})`);
+        break;
     }
+
     // Δημιουργία containers πριν το init των players
     createPlayerContainers();
 
@@ -118,21 +134,32 @@ const startOnce = once(async function startApp() {
 function setupDomGate() {
   // Bind UI controls (μία φορά στην αρχή)
   bindUiEvents();
+
   const btnStart = document.getElementById('btnStartSession');
-  if (isDefined(btnStart)) {
-    // Click handler με safeAddEvent
-    safeAddEvent(btnStart, 'click', async () => {
-      setUserGesture();
+  const partsBtn = [];
+  partsBtn.push(isDefined(btnStart) === true);
+
+  // Δομημένη απόφαση με switch-case για start gate
+  switch (allTrue(partsBtn) === true) {
+    case true: {
+      // Click handler με safeAddEvent
+      safeAddEvent(btnStart, 'click', async () => {
+        setUserGesture();
+        setControlsEnabled(true);
+        // Single-start gate (once)
+        startOnce();
+      });
+      return;
+    }
+    default: {
+      // Fallback: δεν υπάρχει start button → ενεργοποιεί controls & άμεση εκκίνηση
       setControlsEnabled(true);
-      // Single-start gate (once)
       startOnce();
-    });
-    return;
+      return;
+    }
   }
-  // Fallback: δεν υπάρχει start button → ενεργοποιεί controls & άμεση εκκίνηση
-  setControlsEnabled(true);
-  startOnce();
 }
+
 // DOM readiness μέσω utils.domReady()
 domReady().then(function () {
   setupDomGate();
