@@ -1,5 +1,5 @@
 // --- videoPicker.js ---
-const VERSION = 'v1.4.0';
+const VERSION = 'v1.5.2';
 /*
  * Επιλογή videoId από λίστες main/alt με χρήση βοηθητικών συναρτήσεων utils.js.
  * Καθαρή (pure) συνάρτηση: δεν αλλάζει είσοδο, δεν κάνει scheduling, δεν γράφει σε global state.
@@ -18,74 +18,70 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { isDefined, isNonEmptyArray, isFiniteNumber, clamp, randomFloat, rndInt, makeLogger } from './utils.js';
+import { isDefined, isNonEmptyArray, isFiniteNumber, clamp, randomFloat, rndInt, makeLogger, allTrue, anyTrue } from './utils.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
 
+/* ========================= Helpers ========================= */
+
+/** Επιλογή λίστας (Main/Alt) με `switch-case` και guards. */
+function selectList(useMain, mainList, altList) {
+  // Προτεραιότητα: Main (αν ζητείται και έχει στοιχεία), αλλιώς Alt (αν έχει), αλλιώς Main (ή κενό [])
+  switch (true) {
+    case allTrue([useMain === true, isNonEmptyArray(mainList) === true]) === true:
+      return mainList;
+    case allTrue([isNonEmptyArray(altList) === true]) === true:
+      return altList;
+    default:
+      return isNonEmptyArray(mainList) === true ? mainList : [];
+  }
+}
+
+/** Υπολογισμός έγκυρης πιθανότητας main [0,1] με guards. */
+function normalizedMainProbability(mainProbability) {
+  const ok = allTrue([isFiniteNumber(mainProbability) === true]);
+  return ok === true ? clamp(mainProbability, 0, 1) : 0.5;
+}
+
+/* ========================= Public API ========================= */
 /**
  * Επιλέγει ένα videoId από τις δοθείσες λίστες, σύμφωνα με mainProbability.
  * @param {string[]} mainList
  * @param {string[]} altList
- * @param {number} mainProbability  Πιθανότητα επιλογής από main (0..1)
+ * @param {number} mainProbability Πιθανότητα επιλογής από main (0..1)
  * @returns {{ id: string|null, source: 'main'|'alt'|'none', size: number }}
  */
 export function pickVideoId(mainList, altList, mainProbability = 0.5) {
   // Normalization / guards
-  const hasMain = isNonEmptyArray(mainList) === true ? true : false;
-  const hasAlt = isNonEmptyArray(altList) === true ? true : false;
+  const hasMain = allTrue([isNonEmptyArray(mainList) === true]);
+  const hasAlt = allTrue([isNonEmptyArray(altList) === true]);
 
   // Probability in [0, 1]
-  let pMain = 0.5;
-  if (isFiniteNumber(mainProbability) === true) {
-    pMain = clamp(mainProbability, 0, 1);
-  }
+  const pMain = normalizedMainProbability(mainProbability);
 
   // Random decision
   const r = randomFloat(0, 1);
-  let useMain = true;
-  if (r < pMain) {
-    useMain = true;
-  } else {
-    useMain = false;
-  }
+  const useMain = allTrue([r < pMain]) === true;
 
-  // Choose candidate list (no || / &&)
-  let list = null;
-  if (useMain === true) {
-    if (hasMain === true) {
-      list = mainList;
-    }
-  }
-  if (isDefined(list) !== true) {
-    if (hasAlt === true) {
-      list = altList;
-    }
-  }
-  if (isDefined(list) !== true) {
-    if (hasMain === true) {
-      list = mainList;
-    } else {
-      if (hasAlt === true) {
-        list = altList;
-      } else {
-        list = [];
-      }
-    }
-  }
+  // Επιλογή λίστας με switch-case (χωρίς ||/&&)
+  const list = selectList(useMain, mainList, altList);
 
   // Empty guard
-  const len = Array.isArray(list) === true ? list.length : 0;
-  if (len === 0) {
+  const len = allTrue([Array.isArray(list) === true]) === true ? list.length : 0;
+  if (allTrue([len === 0]) === true) {
     return { id: null, source: 'none', size: 0 };
   }
 
   // Index pick using utils.rndInt
   const pickIndex = rndInt(0, len - 1);
   const id = list[pickIndex];
-  const source = list === mainList ? 'main' : 'alt';
 
-  // Logging (safe)
+  // Πηγή: εξαρτάται από το object identity (συγκρίνουμε αναφορές)
+  const isMainRef = allTrue([list === mainList]) === true;
+  const source = isMainRef === true ? 'main' : 'alt';
+
+  // Logging (safe) — μόνο πληροφοριακό
   try {
     const pStr = `${Math.round(pMain * 100)}%`;
     log(`🎲 Επιλογή Λίστας: ${source} p=${pStr}`);
@@ -94,6 +90,7 @@ export function pickVideoId(mainList, altList, mainProbability = 0.5) {
   return { id, source, size: len };
 }
 
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: videoPicker.js ${VERSION} → Ολοκληρώθηκε`);
+/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---
