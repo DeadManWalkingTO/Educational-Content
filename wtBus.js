@@ -13,6 +13,7 @@ export function getVersion() {
 
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
+
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
