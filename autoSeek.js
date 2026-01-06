@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v2.3.2';
+const VERSION = 'v2.4.2';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, mid-seek scheduler, init-seek).
  * Στόχοι: Start-Seek awareness + Adaptive timing εντός WT παραθύρου + late/short stop.
@@ -153,8 +153,7 @@ export function safeSeek(ctrl, seconds) {
     }
     stats.seeks = (stats.seeks ?? 0) + 1;
   } catch (err) {
-    stats.errors = (stats.errors ?? 0) + 1;
-    log(`❌ SafeSeek Error: ${err?.message ?? err}`);
+    log(`❌ Player ${String(ctrl?.index + 1)} Seek → Error: Apply — Message=${String(err?.message ?? err)}`);
   }
 }
 
@@ -171,7 +170,7 @@ export function applyInitSeek(ctrl, targetSec) {
   try {
     safeSeek(ctrl, targetSec);
     try {
-      log(`⏱️ Player ${ctrl.index + 1} Init-Seek Scheduled in ${(delayMs / 1000).toFixed(1)}s → target=${targetSec}s`);
+      log(`⏳ Player ${ctrl.index + 1} Seek → Scheduled: In ${(delayMs / 1000).toFixed(1)}s (Target=${targetSec}s)`);
     } catch (_) {}
   } catch (_) {}
   scheduleSafe(
@@ -179,7 +178,7 @@ export function applyInitSeek(ctrl, targetSec) {
       try {
         safeSeek(ctrl, targetSec);
         try {
-          log(`⏩ Player ${ctrl.index + 1} Init-Seek Executed → target=${targetSec}s`);
+          log(`⏩ Player ${ctrl.index + 1} Seek → Executed: Target=${targetSec}s`);
         } catch (_) {}
       } catch (_) {}
     },
@@ -221,7 +220,7 @@ function _doMidSeekOnce(ctrl) {
     const to = Math.floor(windowSec * toPct);
     const target = rndInt(from, to);
     safeSeek(ctrl, target);
-    log(`⏩ Player ${ctrl.index + 1} Mid-Seek → ${target}s (within WT window=${windowSec}s)`);
+    log(`⏩ Player ${ctrl.index + 1} Seek → Executed: Mid (Target=${target}s, WTWindow=${windowSec}s)`);
     const now = Date.now();
     ctrl.seekMeta.lastMs = now;
     ctrl.seekMeta.count = (ctrl.seekMeta.count ?? 0) + 1;
@@ -246,18 +245,17 @@ export function scheduleMidSeek(ctrl, overrideMs) {
   }
   // Plan log annotation: δείξε καθαρά ότι το intervalMs λειτουργεί ως fallback/upper-bound
   try {
-    log(
-      `🎯 Player ${ctrl.index + 1} MidSeek Plan → enabled=${mid.enabled} [intervalMs=${mid.intervalMs} minGapSec=${mid.minGapSec}` +
-        ` maxSeeks=${mid.maxSeeks} fromPct=${mid.fromPct} toPct=${mid.toPct} nearEndPct=${mid.nearEndPct}]` +
-        ` (intervalMs acts as fallback/upper-bound; first tick is adaptive)`
-    );
+    let longmsg = '';
+    longmsg = ` IntervalMs=${mid.intervalMs} MinGapSec=${mid.minGapSec} MaxSeeks=${mid.maxSeeks}`;
+    longmsg = longmsg + ` FromPct=${mid.fromPct} ToPct=${mid.toPct} NearEndPct=${mid.nearEndPct}`;
+    log(`ℹ️ Player ${ctrl.index + 1} Seek → Policy: Mid-Seek Plan — Enabled=${mid.enabled}` + longmsg);
   } catch (_) {}
 
   // Guard: αν υπάρχει ήδη ενεργός timer, μην ξαναπρογραμματίζεις
   try {
     const alreadyScheduled = allTrue([isNumber(ctrl?.timers?.midSeek) === true]);
     if (alreadyScheduled === true) {
-      log(`🛡️ Player ${ctrl.index + 1} Mid-Seek Guard → Already scheduled`);
+      log(`⚠️ Player ${ctrl.index + 1} Seek → Warning: Mid-Seek — AlreadyScheduled`);
       return;
     }
   } catch {}
@@ -276,7 +274,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
   let wmFirst = null;
   try {
     wmFirst = _getWindowMeta(ctrl);
-    log(`🧭 Player ${ctrl.index + 1} Mid-Seek → First-Meta - cur=${Math.floor(wmFirst.cur)}s, nearEnd=${Math.floor(wmFirst.nearEndSec)}s, timeLeft=${Math.floor(wmFirst.timeLeft)}s`);
+    log(`ℹ️ Player ${ctrl.index + 1} Seek → Info: Mid-Seek Meta (Cur=${Math.floor(wmFirst.cur)}s, NearEnd=${Math.floor(wmFirst.nearEndSec)}s, TimeLeft=${Math.floor(wmFirst.timeLeft)}s)`);
   } catch (_) {}
 
   // ── Late/short stop (νέα πολιτική): αν short ή timeLeft ≤ 0 → ΜΗΝ κάνεις fallback σε intervalMs
@@ -299,7 +297,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
           reasonTag = '-';
           break;
       }
-      log(`⏹️ Player ${ctrl.index + 1} Mid-Seek → Stop (${reasonTag})`);
+      log(`ℹ️ Player ${ctrl.index + 1} Seek → Info: Mid-Seek Stop (Reason=${reasonTag})`);
       return;
     }
   } catch (_) {}
@@ -320,7 +318,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
   }
 
   try {
-    log(`⏱️ Player ${ctrl.index + 1} Mid-Seek Tick → Scheduled in ${(delayMs / 1000).toFixed(2)}s`);
+    log(`⏳ Player ${ctrl.index + 1} Seek → Scheduled: Mid-Seek In ${(delayMs / 1000).toFixed(2)}s`);
   } catch (_) {}
 
   ctrl.timers.midSeek = scheduleSafe(
@@ -333,7 +331,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
       }
       const canPlayNow = allTrue([dNow > 0, ctrl._isPlaying(p) === true]);
       try {
-        log(`⏲️ Player ${ctrl.index + 1} Mid-Seek Tick → Running (dur=${Math.floor(dNow)}s, playing=${canPlayNow})`);
+        log(`▶️ Player ${ctrl.index + 1} Seek → Executed: Mid-Seek (Dur=${Math.floor(dNow)}s, Playing=${canPlayNow})`);
       } catch (_) {}
 
       if (canPlayNow === true) {
@@ -352,11 +350,10 @@ export function scheduleMidSeek(ctrl, overrideMs) {
         try {
           const leftGapMs = hadLast === true ? Math.max(0, Number(ctrl.seekDefaults.minGapSec) * 1000 - (now - ctrl.seekMeta.lastMs)) : 0;
           const leftGapS = (leftGapMs / 1000).toFixed(2);
-          log(
-            `🔍 Player ${ctrl.index + 1} Mid-Seek Guards → Allow=${allowSeek}, gapBlock=${blockByGap} (left=${leftGapS}s), reachedMax=${reachedMax} (count=${ctrl.seekMeta.count ?? 0}/${Number(
-              ctrl.seekDefaults.maxSeeks
-            )})`
-          );
+          let longmsg = '';
+          longmsg = `GapBlock=${blockByGap}, Left=${leftGapS}s, ReachedMax=${reachedMax}, Count=${ctrl.seekMeta.count ?? 0}/${Number(ctrl.seekDefaults.maxS)}`;
+
+          log(`ℹ️ Player ${ctrl.index + 1} Seek → Info: Mid-Seek Guards (Allow=${allowSeek}, ` + longmsg);
         } catch (_) {}
 
         if (allowSeek === true) {
@@ -364,9 +361,9 @@ export function scheduleMidSeek(ctrl, overrideMs) {
           try {
             const wm = _getWindowMeta(ctrl);
             if (wm.short === true) {
-              log(`⏭️ Player ${ctrl.index + 1} Mid-Seek → skip - Short Window (${Math.floor(wm.windowSec)}s)`);
+              log(`⚠️ Player ${ctrl.index + 1} Seek → Warning: Mid-Seek — Skip=ShortWindow (Window=${Math.floor(wm.windowSec)}s)`);
             } else if (wm.pastNearEnd === true) {
-              log(`⏭️ Player ${ctrl.index + 1} Mid-Seek → Skip - Past Near-End Guard (cur=${Math.floor(wm.cur)}s, guard=${Math.floor(wm.nearEndSec)}s)`);
+              log(`⚠️ Player ${ctrl.index + 1} Seek → Warning: Mid-Seek — Skip=PastNearEnd (Cur=${Math.floor(wm.cur)}s, Guard=${Math.floor(wm.nearEndSec)}s)`);
             } else {
               const fromPct = isNumber(ctrl?.seekDefaults?.fromPct) === true ? ctrl.seekDefaults.fromPct : 0.2;
               const toPct = isNumber(ctrl?.seekDefaults?.toPct) === true ? ctrl.seekDefaults.toPct : 0.6;
@@ -375,7 +372,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
               const targetPreview = rndInt(from, to);
               const execLagMs = rndInt(0, 50);
               const countdownS = (execLagMs / 1000).toFixed(2);
-              log(`⏱️ Player ${ctrl.index + 1} Mid-Seek → Will execute in ${countdownS}s → target=${targetPreview}s (WT window=${Math.floor(wm.windowSec)}s)`);
+              log(`⏳ Player ${ctrl.index + 1} Seek → Scheduled: Mid-Seek In ${countdownS}s (WTWindow=${Math.floor(wm.windowSec)}s) Target=${targetPreview}s`);
             }
           } catch (_) {}
           // Πραγματική εκτέλεση (guards/targets όπως πριν)
@@ -389,13 +386,13 @@ export function scheduleMidSeek(ctrl, overrideMs) {
       const hasNext = allTrue([isNumber(nextDelayMs) === true, nextDelayMs > 0]);
       if (hasNext === true) {
         try {
-          log(`⏱️ Player ${ctrl.index + 1} Mid-Seek → Next tick in ${(nextDelayMs / 1000).toFixed(2)}s`);
+          log(`⏳ Player ${ctrl.index + 1} Seek → Scheduled: Mid-Seek In ${(nextDelayMs / 1000).toFixed(2)}s (Next)`);
         } catch (_) {}
         // Αναδρομικά: προγραμματίζουμε το επόμενο tick με overrideMs (adaptive)
         scheduleMidSeek(ctrl, nextDelayMs);
       } else {
         // Τερματισμός κύκλου (late/short/no remaining)
-        log(`⏹️ Player ${ctrl.index + 1} Mid-Seek → Stop (late/short/no-remaining)`);
+        log(`ℹ️ Player ${ctrl.index + 1} Seek → Info: Mid-Seek Stop (Reason=late/short/no-remaining)`);
       }
     },
     delayMs,
