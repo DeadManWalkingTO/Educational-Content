@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v7.23.2';
+const VERSION = 'v7.24.2';
 /*
  * Controller: λεπτό wrapper για YT events με delegation στο PlayerStateEngine.
  * - Soft-task back-pressure meta: softTaskMinGapMs, lastSoftTaskMs, softFreezeUntilMs.
@@ -288,7 +288,7 @@ export class PlayerController {
       events: { onReady: (e) => this.onReady(e), onStateChange: (e) => this.onStateChange(e), onError: () => this.onError() },
     });
 
-    log(`ℹ️ YT PlayerVars → Origin: ${getOrigin()} / Host: ${getYouTubeEmbedHost()}`);
+    log(`ℹ️ Player ${this.index + 1} YT PlayerVars → Origin: ${getOrigin()} / Host: ${getYouTubeEmbedHost()}`);
     log(`👤 Player ${this.index + 1} Initialized → Profile ${this.profileName} and ID=${videoId}`);
   }
 

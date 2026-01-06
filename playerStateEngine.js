@@ -1,22 +1,18 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v4.15.2';
+const VERSION = 'v4.17.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
- * - WTBus emit: όταν πιαστεί το required watch-time, εκπέμπουμε αμέσως 'wt:reached' (primary).
- * - Διατηρούμε guard flags: ctrl.watchtimeFired / ctrl.autoNextScheduled. One-shot reset rate & quality στο πρώτο PLAYING κάθε νέου βίντεο.
+ * - WTBus emit: όταν πιαστεί το required watch-time, εκπέμπουμε 'wt:reached' (primary).
+ * - Διατηρούμε guard flags: ctrl.watchtimeFired / ctrl.autoNextScheduled.
  */
-
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
-
-/* Όνομα αρχείου για logging. */
+/* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
-
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
-
 /* ========================= Imports ========================= */
 import { makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, scheduleSafe, rndInt, once } from './utils.js';
 import { stats } from './globals.js';
@@ -28,9 +24,15 @@ import { scheduleQualityChanges, resetPlaybackQuality } from './autoQuality.js';
 import { scheduleRateChanges, resetPlaybackRate } from './autoRate.js';
 import { applyInitSeek } from './autoSeek.js';
 import { scheduleUnmute } from './autoUnmute.js';
-
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
+
+/*
+ * - ΜΟΝΟ-READY στρατηγική: Ο υπολογισμός Behavior Plan (WT, pauses, mid-seek, unmute)
+ *   γίνεται αποκλειστικά στο READY (και όχι από AutoNext).
+ * - Διάκριση πρώτου βίντεο vs επόμενα μέσω ctrl._firstVideoHandled.
+ *
+ */
 
 /* ========================= Helpers ========================= */
 function _can(obj, methodName) {
@@ -44,7 +46,6 @@ function _can(obj, methodName) {
   parts.push(isFunction(fn) === true);
   return allTrue(parts);
 }
-
 /* ========================= External API (wired από PlayerController) ========================= */
 export function onReadyExternal(ctrl, e) {
   try {
@@ -54,7 +55,6 @@ export function onReadyExternal(ctrl, e) {
     parts.push(p !== null);
     const ok = allTrue(parts);
     if (ok !== true) return;
-
     /* Plan (duration-aware) */
     let durationNow = 0;
     try {
@@ -66,7 +66,6 @@ export function onReadyExternal(ctrl, e) {
         if (isNumber(d) === true) durationNow = d;
       }
     } catch (_) {}
-
     /* Small-duration rule (defer auto-next until ENDED) */
     try {
       const partsSmall = [];
@@ -77,24 +76,37 @@ export function onReadyExternal(ctrl, e) {
       ctrl.deferAutoNextUntilEnded = isSmall === true;
       log(`ℹ️ Player ${ctrl.index + 1} Ready → Duration=${Math.floor(durationNow)}s (deferAutoNextUntilEnded=${ctrl.deferAutoNextUntilEnded})`);
     } catch (_) {}
-
-    const ctx = { durationSec: durationNow, profileName: ctrl.profileName, isFirstVideo: true, playerIndex: ctrl.index };
+    /* Διάκριση πρώτου βίντεο vs επόμενα (ΜΟΝΟ-READY): */
+    try {
+      if (typeof ctrl._firstVideoHandled !== 'boolean') ctrl._firstVideoHandled = false;
+    } catch (_) {}
+    let isFirst = true;
+    try {
+      const partsFirst = [];
+      partsFirst.push(typeof ctrl._firstVideoHandled === 'boolean');
+      const hasFlag = allTrue(partsFirst);
+      if (hasFlag === true) {
+        isFirst = ctrl._firstVideoHandled !== true;
+      } else {
+        isFirst = true;
+      }
+    } catch (_) {}
+    const ctx = { durationSec: durationNow, profileName: ctrl.profileName, isFirstVideo: isFirst, playerIndex: ctrl.index };
     ctrl.plan = getBehaviorPlan(ctx);
-
+    try {
+      ctrl._firstVideoHandled = true;
+    } catch (_) {}
     /* one-shot flags */
     if (typeof ctrl._rateAppliedForThisVideo !== 'boolean') ctrl._rateAppliedForThisVideo = false;
     if (typeof ctrl._qualityAutoAppliedForThisVideo !== 'boolean') ctrl._qualityAutoAppliedForThisVideo = false;
-
     /* Reset playback rate (READY) */
     try {
       resetPlaybackRate(ctrl);
     } catch (_) {}
-
     /* Reset playback quality (READY) */
     try {
       resetPlaybackQuality(ctrl);
     } catch (_) {}
-
     /* MidSeek plan log */
     try {
       const ms = ctrl?.plan?.midSeek ?? { enabled: false };
@@ -103,15 +115,14 @@ export function onReadyExternal(ctrl, e) {
       msmsg = msmsg + ` fromPct=${ms.fromPct ?? '-'} toPct=${ms.toPct ?? '-'} nearEndPct=${ms.nearEndPct ?? '-'}`;
       log(`🎯 Player ${ctrl.index + 1} MidSeek Plan → Enabled=${ms.enabled} (${msmsg})`);
     } catch (_) {}
-
-    /* Required watch time */
+    /* Required watch time (READY-only) */
     try {
       const req = ctrl.plan?.watch?.requiredWatchTimeSec;
       ctrl.videoRequiredWatchTime = isNumber(req) === true ? Math.max(0, Math.floor(req)) : 15;
+      log(`⚖️ Player ${ctrl.index + 1} WT Confirmed at READY → Required=${ctrl.videoRequiredWatchTime}s`);
     } catch (_p) {
       ctrl.videoRequiredWatchTime = 15;
     }
-
     /* Init seek (policy-driven) */
     try {
       const t = ctrl.plan?.startSeek?.targetSec ?? 0;
@@ -122,7 +133,6 @@ export function onReadyExternal(ctrl, e) {
         applyInitSeek(ctrl, t);
       }
     } catch (_) {}
-
     /* Soft tasks schedules (respect back-pressure) */
     try {
       scheduleRateChanges(ctrl);
@@ -137,9 +147,7 @@ export function onReadyExternal(ctrl, e) {
     try {
       scheduleMicroAdjust(p, durationNow, ctrl._group('volume'), ctrl);
     } catch (_) {}
-
     log(`✅ Player ${ctrl.index + 1} READY → Plan Required WT=${ctrl.videoRequiredWatchTime}s`);
-
     /* Initial mute at READY */
     try {
       const pp = ctrl?.player;
@@ -167,7 +175,6 @@ export function onReadyExternal(ctrl, e) {
         ctrl.unmuteScheduled = false;
       }
     } catch (_) {}
-
     /* Logging / Pause scheduling */
     try {
       const baselinePauses = ctrl?.plan?.pauses?.count ?? '-';
@@ -190,21 +197,18 @@ export function onReadyExternal(ctrl, e) {
       );
       log(`ℹ️ Player ${ctrl.index + 1} Pause Plan scheduled (muted-friendly, READY)`);
     } catch (_) {}
-
-    // --- Initial play scheduling (βελτιωμένο: επιτρέπεται παρότι pendingUnmute) ---
+    // --- Initial play scheduling (βελτιωμένο: pendingUnmute gate όπως ήταν) ---
     try {
       try {
         groupCancel(ctrl._group('play'));
       } catch (_) {}
-
       if (ctrl.initialPlayScheduled === true) {
         log(`⏸️ Player ${ctrl.index + 1} READY → initial play already scheduled (skip)`);
       } else {
         ctrl.initialPlayScheduled = true;
         const startDelay = rndInt(200, 600);
         let attempts = 0;
-        const maxAttempts = 20; // αυξηθηκε από 12 → 20
-
+        const maxAttempts = 20; // αυξημένο από 12 → 20
         const tryStart = () => {
           try {
             const p3 = ctrl?.player;
@@ -227,14 +231,9 @@ export function onReadyExternal(ctrl, e) {
               log(`▶️ Player ${ctrl.index + 1} Initial Play → Already PLAYING (Stop Retries)`);
               return;
             }
-
-            // 🔓 Αφαίρεση guard: Επιτρέπουμε initial play ενώ pendingUnmute === true.
-            // Ξεκινάμε muted, και το AutoUnmute θα προγραμματιστεί στο πρώτο PLAYING.
-
-            // Κανονική απόπειρα έναρξης
+            // 🔓 Αφαίρεση guard: Επιτρέπουμε initial play ενώ pendingUnmute === true (όπως πριν).
             ctrl.guardPlay(ctrl.player);
             attempts = attempts + 1;
-
             if (allTrue([attempts < maxAttempts]) === true) {
               const dRetry = rndInt(300, 800); // jitter 300–800 ms
               scheduleSafe(tryStart, dRetry, ctrl._group('play'), 'initial-play-retry');
@@ -247,18 +246,15 @@ export function onReadyExternal(ctrl, e) {
             }
           } catch (_) {}
         };
-
         scheduleSafe(tryStart, startDelay, ctrl._group('play'), 'initial-play');
         log(`▶️ Player ${ctrl.index + 1} READY → Initial Play Scheduled (${startDelay} ms)`);
       }
-
       try {
         ctrl.readyAt = Date.now();
       } catch (_) {}
     } catch (_) {}
   } catch (_) {}
 }
-
 /** Παρακολούθηση PLAYING και fire watch-time όταν πιαστεί το threshold. */
 export function onStateChangeExternal(ctrl, e) {
   try {
@@ -269,9 +265,7 @@ export function onStateChangeExternal(ctrl, e) {
     parts.push(typeof YT !== 'undefined');
     const ok = allTrue(parts);
     if (ok !== true) return;
-
     const state = p.getPlayerState();
-
     /*------------------------------ PLAYING ------------------------------*/
     if (state === YT.PlayerState.PLAYING) {
       if (ctrl.playingStart === null) {
@@ -280,7 +274,6 @@ export function onStateChangeExternal(ctrl, e) {
       // one-shot flags (αν δεν υπάρχουν)
       if (typeof ctrl._rateAppliedForThisVideo !== 'boolean') ctrl._rateAppliedForThisVideo = false;
       if (typeof ctrl._qualityAutoAppliedForThisVideo !== 'boolean') ctrl._qualityAutoAppliedForThisVideo = false;
-
       // 1) RESET RATE στο πρώτο PLAYING κάθε βίντεο
       if (ctrl._rateAppliedForThisVideo !== true) {
         try {
@@ -288,15 +281,13 @@ export function onStateChangeExternal(ctrl, e) {
           ctrl._rateAppliedForThisVideo = true;
         } catch (_) {}
       }
-
-      // 2) RESET QUALITY σε auto (default) στο πρώτο PLAYING
+      // 2) RESET QUALITY (auto default) στο πρώτο PLAYING
       if (ctrl._qualityAutoAppliedForThisVideo !== true) {
         try {
           resetPlaybackQuality(ctrl);
           ctrl._qualityAutoAppliedForThisVideo = true;
         } catch (_) {}
       }
-
       /* Καταγραφή PLAYING event */
       try {
         const pp = ctrl?.player;
@@ -334,7 +325,6 @@ export function onStateChangeExternal(ctrl, e) {
       } catch (_) {
         log(`🟢 Player ${ctrl.index + 1} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)}, Quality=?, Vol=?, Played=?s, Required=?s)`);
       }
-
       // AutoUnmute scheduling (μόλις μπούμε PLAYING)
       try {
         const g = [];
@@ -345,7 +335,6 @@ export function onStateChangeExternal(ctrl, e) {
           scheduleUnmute(ctrl, true);
         }
       } catch (_) {}
-
       // WT check
       const checkWT = () => {
         try {
@@ -360,7 +349,6 @@ export function onStateChangeExternal(ctrl, e) {
           }
           const played = Math.floor(base + extra);
           const required = isNumber(ctrl.videoRequiredWatchTime) === true ? ctrl.videoRequiredWatchTime : 15;
-
           const nearParts = [];
           nearParts.push(isNumber(required) === true);
           nearParts.push(isNumber(played) === true);
@@ -375,7 +363,6 @@ export function onStateChangeExternal(ctrl, e) {
               }
             }
           }
-
           const met = played >= required;
           if (met === true && ctrl.watchtimeFired !== true) {
             ctrl.watchtimeFired = true;
@@ -397,10 +384,8 @@ export function onStateChangeExternal(ctrl, e) {
           }
         } catch (_) {}
       };
-
       scheduleSafe(checkWT, rndInt(800, 1500), ctrl._group('wt'), 'wt-check');
     }
-
     /*------------------------------ ENDED ------------------------------*/
     if (state === YT.PlayerState.ENDED) {
       log(`🔵 Player ${ctrl.index + 1} → ENDED`);
@@ -418,7 +403,6 @@ export function onStateChangeExternal(ctrl, e) {
         autoNextAfterWatchtime(ctrl);
       }
     }
-
     /*------------------------------ Άλλα States ------------------------------*/
     if (state === YT.PlayerState.PAUSED) {
       log(`🟡 Player ${ctrl.index + 1} → PAUSED`);
@@ -442,7 +426,6 @@ export function onStateChangeExternal(ctrl, e) {
         }
       } catch (_) {}
     }
-
     if (state === YT.PlayerState.BUFFERING) {
       log(`🟠 Player ${ctrl.index + 1} → BUFFERING`);
       ctrl.lastBufferingStart = Date.now();
@@ -451,7 +434,6 @@ export function onStateChangeExternal(ctrl, e) {
     log(`❌ onStateChangeExternal Error → ${err}`);
   }
 }
-
 export function onErrorExternal(ctrl, e) {
   try {
     stats.errors = (stats.errors ?? 0) + 1;
@@ -461,7 +443,6 @@ export function onErrorExternal(ctrl, e) {
     log(`❌ onErrorExternal Error → ${err}`);
   }
 }
-
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
