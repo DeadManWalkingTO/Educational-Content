@@ -1,5 +1,5 @@
 // --- autoRate.js ---
-const VERSION = 'v1.9.2';
+const VERSION = 'v1.10.2';
 /*
  * Περιγραφή: Σπάνιες αλλαγές ταχύτητας αναπαραγωγής (rate).
  * - Back-pressure gate: σέβεται softFreezeUntilMs και softTaskMinGapMs ανά controller.
@@ -136,7 +136,7 @@ function _verifyRate(p, target, ctrl = null, group = 'pc:rate') {
             p.setPlaybackRate(Number(target));
           }
           const shownIdx = typeof ctrl?.index === 'number' ? String(Math.floor(ctrl.index) + 1) : '#';
-          log(`⚡ Player ${shownIdx} Rate (verify) → x${String(cur)} (target=x${String(target)})`);
+          log(`✅ Player ${shownIdx} Rate → Verify: Target=x${String(target)} / Now=x${String(cur)}`);
         }
       } catch (_) {}
     };
@@ -220,7 +220,7 @@ function _applyRateChange(ctrl, targetRate) {
       if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
     } catch (_) {}
 
-    log(`🏃‍♂️ Player ${ctrl.index + 1} Rate → x${String(desired)}`);
+    log(`⚡ Player ${ctrl.index + 1} Rate → Apply: Value=x${String(desired)}`);
 
     // ΝΕΟ: verify της αλλαγής
     const grpParts = [];
@@ -252,7 +252,7 @@ export function resetPlaybackRate(ctrl) {
     }
 
     ctrl.currentRate = 1.0;
-    log(`⚙️ Player ${ctrl.index + 1} Rate reset → x1`);
+    log(`⚙️ Player ${ctrl.index + 1} Rate → Reset: Value=x1`);
   } catch (_) {}
 }
 
@@ -341,7 +341,7 @@ export function scheduleRateChanges(ctrl) {
 
     if (planned === 0) {
       const pct = Math.floor(chance * 100);
-      log(`🏃‍♂️ Player ${ctrl.index + 1} RateScheduler → No Changes Planned (chance=${pct}%)`);
+      log(`ℹ️ Player ${ctrl.index + 1} Rate → Scheduled: None (Chance=${pct}%)`);
       return;
     }
 
@@ -361,7 +361,7 @@ export function scheduleRateChanges(ctrl) {
 
     scheduleSafe(() => _whenPlaying(ctrl, () => _applyRateChange(ctrl, targetRate), 800, 2000, ctrl._group?.('rate'), 'rate-change'), delayMs, ctrl._group?.('rate'), 'rate-change');
 
-    log(`🏃‍♂️ Player ${ctrl.index + 1} RateScheduler → x${String(targetRate)} in ~${delaySec}s (win ${fromSec}-${toSec}s)`);
+    log(`⏳ Player ${ctrl.index + 1} Rate → Scheduled: In ~${delaySec}s (Window=${fromSec}-${toSec}s) Target=x${String(targetRate)}`);
   } catch (_) {}
 }
 
