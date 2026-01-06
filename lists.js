@@ -1,5 +1,5 @@
 // --- lists.js ---
-const VERSION = 'v4.18.2';
+const VERSION = 'v4.19.2';
 /*
 Περιγραφή: Φόρτωση λιστών video IDs από local/remote πηγές, 
 με parsing, sanitization, logging και fallback. 
@@ -18,7 +18,6 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { stats } from './globals.js';
 import { makeLogger, isDefined, isString, isNonEmptyArray, isNumber, anyTrue, allTrue, formatMs, retry } from './utils.js';
 
 /* ========================= Logger ========================= */
@@ -91,16 +90,6 @@ function sanitizeList(arr, tag) {
   const after = out.length;
   log(`🧹 Sanitize (${tag}) — Πριν:${before} → Μετά:${after}`);
   if (allTrue([after < 1]) === true) {
-    // Μετρητής σφαλμάτων (ασφαλής αύξηση)
-    try {
-      if (isNumber(stats.errors) === true) {
-        stats.errors = stats.errors + 1;
-      } else {
-        stats.errors = 1;
-      }
-    } catch (_) {
-      /* no-op */
-    }
     log(`❌ System Error → Lists: Sanitize — Result= Empty / Tag= ${String(tag)}`);
   }
 
@@ -256,13 +245,7 @@ async function loadVideoListWithMeta() {
   }
 
   // 3) Internal fallback
-  try {
-    if (isNumber(stats.errors) === true) {
-      stats.errors = stats.errors + 1;
-    } else {
-      stats.errors = 1;
-    }
-  } catch (_) {}
+
   const clean = sanitizeList(internalList, 'main:internal');
 
   let srcLabel = 'internal';
