@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-const VERSION = 'v5.6.2';
+const VERSION = 'v5.7.2';
 /*
  * Περιγραφή: Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς playback.
  * Στόχος: duration-aware start, ρεαλιστικές παύσεις/seek/ένταση/ποιότητα/ρυθμός.
@@ -43,8 +43,7 @@ export function createPlayerContainers() {
   const canMake = allTrue(parts);
 
   if (canMake !== true) {
-    stats.errors = (stats.errors ?? 0) + 1;
-    log('❌ Δεν βρέθηκε το στοιχείο playersContainer στο HTML');
+    log('❌ System Error → UI: Container — Missing #playersContainer');
     return;
   }
 
@@ -160,8 +159,7 @@ export async function initPlayersSequentially(mainList, altList) {
   partsAvailNone.push(lenAlt === 0);
   const noAvail = allTrue(partsAvailNone);
   if (noAvail === true) {
-    stats.errors = (stats.errors ?? 0) + 1;
-    log('❌ Δεν Υπάρχουν Διαθέσιμα Βίντεο Σε Καμία Λίστα. Η Εκκίνηση Σταματά.');
+    log('❌ System Error → Lists: Empty — Main=0 / Alt=0');
     return;
   }
 

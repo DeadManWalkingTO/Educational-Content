@@ -1,5 +1,5 @@
 // --- lists.js ---
-const VERSION = 'v4.17.2';
+const VERSION = 'v4.18.2';
 /*
 Περιγραφή: Φόρτωση λιστών video IDs από local/remote πηγές, 
 με parsing, sanitization, logging και fallback. 
@@ -101,7 +101,7 @@ function sanitizeList(arr, tag) {
     } catch (_) {
       /* no-op */
     }
-    log('⚠️ Sanitize Αποτέλεσμα Κενό → Πιθανό Πρόβλημα Πηγής/Μορφής IDs');
+    log(`❌ System Error → Lists: Sanitize — Result= Empty / Tag= ${String(tag)}`);
   }
 
   return out;
@@ -217,7 +217,7 @@ async function loadVideoListWithMeta() {
       return { list: clean, source: srcLabel };
     }
   } catch (err) {
-    log(`⚠️ Local List Load Failed → ${err}`);
+    log(`❌ System Error → Lists: Github — Attempts= ${ret.attempts} / Last= ${ret.error}`);
   }
 
   // 2) Remote GitHub (με retry)
@@ -308,14 +308,7 @@ async function loadAltListWithMeta() {
   }
 
   // Empty alt list fallback
-  try {
-    if (isNumber(stats.errors) === true) {
-      stats.errors = stats.errors + 1;
-    } else {
-      stats.errors = 1;
-    }
-  } catch (_) {}
-  log('❌ Alt List Empty → Using [] [Source:None]');
+  log('❌ System Error → Lists: AltEmpty — Using [] / Source= none');
   return { list: [], source: 'none' };
 }
 

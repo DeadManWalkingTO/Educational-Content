@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v4.17.2';
+const VERSION = 'v4.18.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * - WTBus emit: όταν πιαστεί το required watch-time, εκπέμπουμε 'wt:reached' (primary).
@@ -436,8 +436,7 @@ export function onStateChangeExternal(ctrl, e) {
 }
 export function onErrorExternal(ctrl, e) {
   try {
-    stats.errors = (stats.errors ?? 0) + 1;
-    log(`❌ Player ${ctrl.index + 1} Error → ${String(e)}`);
+    log(`❌ Player ${ctrl.index + 1} - Error → State: OnError — Detail= ${String(e)}`);
     autoNextAfterError(ctrl);
   } catch (err) {
     log(`❌ onErrorExternal Error → ${err}`);

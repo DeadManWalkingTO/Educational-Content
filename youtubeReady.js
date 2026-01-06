@@ -1,5 +1,5 @@
 // --- youtubeReady.js ---
-const VERSION = 'v1.12.2';
+const VERSION = 'v1.14.2';
 /*
  * Σκοπός: Ready gate για το YouTube IFrame Player API με timeout,
  * ασφαλές injection του script, global callback (once) και polling fallback.
@@ -246,7 +246,7 @@ export function youtubeReady(timeoutMs) {
             resolve();
             return;
           default:
-            log('⏱️ Timeout Waiting For YT API After ' + fmtMs(maxWait));
+            log(`❌ System Error → YouTube: Timeout — Waited= ${fmtMs(maxWait)}`);
             clearAll();
             reject(new Error('Timeout ' + fmtMs(maxWait)));
             return;

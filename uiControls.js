@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-const VERSION = 'v4.3.2';
+const VERSION = 'v4.5.2';
 /*
  * Κεντρικό χειριστήριο UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
  * - Stop All: χρήση utils.scheduleSafe αντί για native setTimeout (ενοποίηση timers).
@@ -47,13 +47,6 @@ function isReadyController(c) {
   parts.push(isDefined(c) === true);
   parts.push(isDefined(c?.player) === true);
   return allTrue(parts);
-}
-
-function noteError(message) {
-  try {
-    stats.errors += 1;
-  } catch {}
-  log(message);
 }
 
 function shuffleControllers(list) {
@@ -159,11 +152,11 @@ function stopAll() {
             }
             log(`⏹️ [StopAll] Player ${c.index + 1} Stopped (Step ${step}/${shuffled.length})`);
           } catch {
-            noteError(`❌ Player ${c.index + 1} Stop Error`);
+            log(`❌ Player ${c.index + 1} Stop Error`);
           }
         } else {
           const idxShown = isDefined(c?.index) === true ? String(c.index + 1) : '?';
-          noteError(`❌ Player ${idxShown} Stop Skipped → Not Initialized`);
+          log(`❌ Player ${idxShown} Stop Skipped → Not Initialized`);
         }
       },
       delayMs,
@@ -195,7 +188,7 @@ function restartAll() {
         c.loadNextVideo(c.player);
         log(`🔄 [RestartAll] Player ${c.index + 1} LoadNext`);
       } catch (e) {
-        noteError(`❌ Player ${c.index + 1} LoadNext Error → ${e}`);
+        log(`❌ Player ${c.index + 1} LoadNext Error → ${e}`);
       }
       i = i + 1;
       continue;
@@ -210,7 +203,7 @@ function restartAll() {
     partsNew.push(isDefined(newId) === true);
     if (allTrue(partsNew) !== true) {
       const shownIdx = isDefined(c?.index) === true ? String(c.index + 1) : '?';
-      noteError(`❌ Player ${shownIdx} Restart Skipped → No Videos Available`);
+      log(`❌ Player ${shownIdx} Restart Skipped → No Videos Available`);
       i = i + 1;
       continue;
     }
@@ -237,7 +230,7 @@ function restartAll() {
       const srcLabel = useMain === true ? 'Main' : 'Alt';
       log(`🔄 [RestartAll] Player ${c.index + 1} Restart → ${newId} (Source:${srcLabel})`);
     } catch (e) {
-      noteError(`❌ Player ${c.index + 1} Restart Error → ${e}`);
+      log(`❌ Player ${c.index + 1} Restart Error → ${e}`);
     }
 
     i = i + 1;
@@ -251,7 +244,7 @@ function toggleTheme() {
   try {
     const bodyOk = isDefined(document?.body) === true;
     if (bodyOk !== true) {
-      noteError('❌ Theme Toggle Error → Body Not Available');
+      log('❌ Theme Toggle Error → Body Not Available');
       return;
     }
 
@@ -261,7 +254,7 @@ function toggleTheme() {
     const mode = isLight === true ? 'Light' : 'Dark';
     log(`🌙 Theme → ${mode} Mode`);
   } catch (e) {
-    noteError(`❌ Theme Toggle Error → ${e}`);
+    log(`❌ Theme Toggle Error → ${e}`);
   }
 }
 
@@ -314,7 +307,7 @@ export async function copyLogs() {
       }
     } catch {}
 
-    noteError('❌ Copy Logs Failed (Fallback)');
+    log('❌ Copy Logs Failed (Fallback)');
     return false;
   }
 }

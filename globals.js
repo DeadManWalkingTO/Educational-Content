@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v5.4.3';
+const VERSION = 'v5.5.2';
 /*
  * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
  * - Νέα counters: stats.wtSignals (WTBus emits) και stats.softBackpressureHits (soft-task gate reschedules).
@@ -180,30 +180,47 @@ function updateStats() {
   el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Pauses:${stats.pauses} - Seeks:${stats.seeks} - VolumeChanges:${stats.volumeChanges} - QualityChanges:${stats.qualityChanges} - RateChanges:${stats.rateChanges} - Errors:${stats.errors} - WTSignals:${stats.wtSignals} - SoftBP:${stats.softBackpressureHits}`;
 }
 
-// Listener για app:log (Activity Panel + updateStats)
+/* ========================= Listener για app:log (Activity Panel + updateStats) ========================= */
+
 if (typeof document !== 'undefined') {
   document.addEventListener('app:log', (ev) => {
-    const { full } = ev.detail;
-    const panel = document.getElementById('activityPanel');
+    // Πάντα σεβόμαστε το format: [HH:MM:SS] <emoji> / <μήνυμα>
+    // Χρησιμοποιούμε το ακατέργαστο μήνυμα (χωρίς timestamp/emoji/'/') από το detail.msg
+    try {
+      const { msg, full } = ev.detail; // full = ολόκληρη γραμμή για το panel, msg = καθαρό κείμενο
+      const isStr = typeof msg === 'string';
+      const isError = isStr === true ? msg.startsWith('❌') === true : false;
+      const shouldInc = allTrue([isError === true]);
+      if (shouldInc === true) {
+        if (isNumber(stats.errors) === true) {
+          stats.errors = stats.errors + 1;
+        } else {
+          stats.errors = 1;
+        }
+      }
+    } catch (_) {
+      /* no-op */
+    }
 
+    /* --- Activity panel rendering --- */
+    const panel = document.getElementById('activityPanel');
     const showPanel = [];
     showPanel.push(panel !== null);
     if (allTrue(showPanel) === true) {
       const div = document.createElement('div');
-      div.textContent = full;
+      div.textContent = ev.detail.full; // ορατό format παραμένει ίδιο
       panel.appendChild(div);
-
       const LOG_PANEL_MAX = 250;
       while (panel.children.length > LOG_PANEL_MAX) {
         panel.removeChild(panel.firstChild);
       }
-
       panel.scrollTop = panel.scrollHeight;
     }
 
+    // Stats update (όπως ήδη υπάρχει)
     try {
       updateStats();
-    } catch (e) {}
+    } catch (_) {}
   });
 }
 
