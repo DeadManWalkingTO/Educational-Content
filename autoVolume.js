@@ -1,5 +1,5 @@
 // --- autoVolume.js ---
-const VERSION = 'v1.15.2';
+const VERSION = 'v1.16.2';
 /*
  * Περιγραφή: Αυτοματοποιημένες αλλαγές έντασης + micro-adjust (freeze-aware).
  * - Παράθυρο εκτέλεσης μέσα στο RequiredWatchTime (WT-window).
@@ -61,7 +61,7 @@ function _verifyVolume(player, target, ctrl = null, group = 'pc:volume') {
           }
 
           const pidx = isDefined(ctrl?.index) === true ? ctrl.index + 1 : '?';
-          log(`🔊 Player ${pidx} Volume (verify) → ${String(cur)}% (target=${String(target)}%)`);
+          log(`✅ Player ${pidx} Volume → Verify: ${String(cur)}% (target=${String(target)}%)`);
         }
       } catch (_) {}
       // Προαιρετικά: ενημέρωση soft-task timestamp
@@ -113,7 +113,7 @@ function _applyVolume(player, range, ctrl = null) {
         stats.volumeChanges = 1;
       }
       const pidx = isDefined(ctrl?.index) === true ? ctrl.index + 1 : '?';
-      log(`🔊 Player ${pidx} Volume → ${target}%`);
+      log(`🔊 Player ${pidx} Volume → Apply: Value=${target}%`);
 
       // ενημέρωση soft-task timestamp
       try {
@@ -225,7 +225,7 @@ export function scheduleVolumeChanges(player, cfg, durationSec, group = 'pc:volu
   if (planned === 0) {
     try {
       const pidx = isDefined(ctrl?.index) === true ? ctrl.index + 1 : '?';
-      log(`🔊 Player ${pidx} VolumeScheduler → No Tasks Scheduled (planned=0, baseCount=${baseCount}, chance=${Math.floor(chance * 100)}%, window=${windowSec}s)`);
+      log(`ℹ️ Player ${pidx} Volume → Scheduled: None (Base=${baseCount}, Chance=${Math.floor(chance * 100)}%, Window=${windowSec}s)`);
     } catch (_) {}
     return;
   }
@@ -233,7 +233,7 @@ export function scheduleVolumeChanges(player, cfg, durationSec, group = 'pc:volu
   // προγραμματισμός αλλαγών
   let i = 0;
   const pidx = isDefined(ctrl?.index) === true ? ctrl.index + 1 : '?';
-  log(`🔊 Player ${pidx} VolumeScheduler → Planned=${planned}, window=${windowSec}s, range=${rangeArr[0]}–${rangeArr[1]}%`);
+  log(`⏳ Player ${pidx} Volume → Scheduled: Count=${planned} Window=${windowSec}s Range=${rangeArr[0]}–${rangeArr[1]}%`);
   while (i < planned) {
     const delaySec = rndInt(Math.floor(fromMs / 1000), Math.floor(toMs / 1000));
     const delayMs = delaySec * 1000;
@@ -309,7 +309,7 @@ export function scheduleMicroAdjust(player, durationSec, group = 'pc:volume', ct
         stats.volumeChanges = 1;
       }
       const pidx = isDefined(ctrl?.index) === true ? ctrl.index + 1 : '?';
-      log(`🔉 Player ${pidx} Micro-Volume Adjust → ${tgt}% (Δ=${delta})`);
+      log(`🔊 Player ${pidx} Volume → Apply: MicroAdjust=${delta} Value=${tgt}%`);
 
       try {
         if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
