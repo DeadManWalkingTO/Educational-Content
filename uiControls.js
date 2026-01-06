@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-const VERSION = 'v4.5.2';
+const VERSION = 'v4.6.2';
 /*
  * Κεντρικό χειριστήριο UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
  * - Stop All: χρήση utils.scheduleSafe αντί για native setTimeout (ενοποίηση timers).
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, stats } from './globals.js';
+import { controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList } from './globals.js';
 import { rndInt, makeLogger, allTrue, anyTrue, isDefined, isNonEmptyArray, safeAddEvent, domReady, debounce, isFunction, scheduleSafe } from './utils.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
 
@@ -42,7 +42,6 @@ function hasEntries(panel) {
 }
 
 function isReadyController(c) {
-  // Χωρίς &&: ρητοί έλεγχοι αντικειμένου/player
   const parts = [];
   parts.push(isDefined(c) === true);
   parts.push(isDefined(c?.player) === true);
@@ -85,7 +84,7 @@ function buildFinalText(logsText, statsText) {
   return `=== LOGS ===\n${logsText}\n=== STATS ===\n${statsText}`;
 }
 
-/** Επιλογή πηγής λίστας για restart (χωρίς && / ||). */
+/** Επιλογή πηγής λίστας για restart. */
 function selectSource(useMain, mainList, altList) {
   // Προτεραιότητα: Main (αν ζητείται και έχει στοιχεία), αλλιώς Alt (αν έχει), αλλιώς Main
   switch (true) {
@@ -385,7 +384,6 @@ export async function reloadList() {
 
     return true;
   } catch (err) {
-    stats.errors = (stats.errors ?? 0) + 1;
     log(`❌ Reload Failed → ${err}`);
     return false;
   }
