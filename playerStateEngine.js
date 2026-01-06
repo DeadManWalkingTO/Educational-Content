@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v4.18.2';
+const VERSION = 'v4.19.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * - WTBus emit: όταν πιαστεί το required watch-time, εκπέμπουμε 'wt:reached' (primary).
@@ -119,7 +119,7 @@ export function onReadyExternal(ctrl, e) {
     try {
       const req = ctrl.plan?.watch?.requiredWatchTimeSec;
       ctrl.videoRequiredWatchTime = isNumber(req) === true ? Math.max(0, Math.floor(req)) : 15;
-      log(`⚖️ Player ${ctrl.index + 1} WT Confirmed at READY → Required=${ctrl.videoRequiredWatchTime}s`);
+      log(`⚖️ Player ${ctrl.index + 1} WT → READY: Required=${ctrl.videoRequiredWatchTime}s`);
     } catch (_p) {
       ctrl.videoRequiredWatchTime = 15;
     }
@@ -195,7 +195,7 @@ export function onReadyExternal(ctrl, e) {
         ctrl._group('pause'),
         'pause-plan'
       );
-      log(`ℹ️ Player ${ctrl.index + 1} Pause Plan scheduled (muted-friendly, READY)`);
+      log(`⏳ Player ${ctrl.index + 1} Pause → Scheduled: Ready (Muted-Friendly)`);
     } catch (_) {}
     // --- Initial play scheduling (βελτιωμένο: pendingUnmute gate όπως ήταν) ---
     try {
@@ -203,7 +203,7 @@ export function onReadyExternal(ctrl, e) {
         groupCancel(ctrl._group('play'));
       } catch (_) {}
       if (ctrl.initialPlayScheduled === true) {
-        log(`⏸️ Player ${ctrl.index + 1} READY → initial play already scheduled (skip)`);
+        log(`ℹ️ Player ${ctrl.index + 1} Play → Info: Initial AlreadyScheduled (Skip)`);
       } else {
         ctrl.initialPlayScheduled = true;
         const startDelay = rndInt(200, 600);
@@ -228,7 +228,7 @@ export function onReadyExternal(ctrl, e) {
                 groupCancel(ctrl._group('play'));
               } catch (_) {}
               ctrl.initialPlayScheduled = false;
-              log(`▶️ Player ${ctrl.index + 1} Initial Play → Already PLAYING (Stop Retries)`);
+              log(`ℹ️ Player ${ctrl.index + 1} Play → Info: Initial AlreadyPlaying (StopRetries)`);
               return;
             }
             // 🔓 Αφαίρεση guard: Επιτρέπουμε initial play ενώ pendingUnmute === true (όπως πριν).
@@ -242,12 +242,12 @@ export function onReadyExternal(ctrl, e) {
                 groupCancel(ctrl._group('play'));
               } catch (_) {}
               ctrl.initialPlayScheduled = false;
-              log(`⏱️ Player ${ctrl.index + 1} Initial Play → Gave Up After ${attempts} Attempts`);
+              log(`❌ Player ${ctrl.index + 1} Error → Play: Initial — GaveUpAfter=${attempts}Attempts`);
             }
           } catch (_) {}
         };
         scheduleSafe(tryStart, startDelay, ctrl._group('play'), 'initial-play');
-        log(`▶️ Player ${ctrl.index + 1} READY → Initial Play Scheduled (${startDelay} ms)`);
+        log(`⏳ Player ${ctrl.index + 1} Play → Scheduled: Initial In ${Math.round(startDelay / 100) / 10}s`);
       }
       try {
         ctrl.readyAt = Date.now();
