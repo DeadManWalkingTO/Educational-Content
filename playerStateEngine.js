@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v4.14.2';
+const VERSION = 'v4.15.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * - WTBus emit: όταν πιαστεί το required watch-time, εκπέμπουμε αμέσως 'wt:reached' (primary).
@@ -11,7 +11,7 @@ export function getVersion() {
   return VERSION;
 }
 
-/* Όνομα αρχείου για logging. */
+/* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
@@ -28,7 +28,6 @@ import { scheduleQualityChanges, resetPlaybackQuality } from './autoQuality.js';
 import { scheduleRateChanges, resetPlaybackRate } from './autoRate.js';
 import { applyInitSeek } from './autoSeek.js';
 import { scheduleUnmute } from './autoUnmute.js';
-import { scheduleVolumeChanges, scheduleMicroAdjust } from './autoVolume.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -40,7 +39,6 @@ function _can(obj, methodName) {
   guardsObj.push(obj !== null);
   const okObj = allTrue(guardsObj);
   if (okObj !== true) return false;
-
   const fn = obj[methodName];
   const parts = [];
   parts.push(isFunction(fn) === true);
@@ -142,12 +140,11 @@ export function onReadyExternal(ctrl, e) {
 
     log(`✅ Player ${ctrl.index + 1} READY → Plan Required WT=${ctrl.videoRequiredWatchTime}s`);
 
-    /* Initial mute at READY (χωρίς ||/&&) */
+    /* Initial mute at READY */
     try {
       const pp = ctrl?.player;
       const canMute = isFunction(pp?.mute) === true;
       const canIsMuted = isFunction(pp?.isMuted) === true;
-
       let isMutedNow = false;
       const partsCheckMuted = [];
       partsCheckMuted.push(canIsMuted === true);
@@ -158,13 +155,11 @@ export function onReadyExternal(ctrl, e) {
           isMutedNow = m === true;
         }
       }
-
       const cond1 = [];
       cond1.push(canMute === true);
       const cond2 = [];
       cond2.push(canIsMuted !== true);
       cond2.push(isMutedNow !== true);
-
       const shouldMute = allTrue([cond1[0] === true, anyTrue(cond2) === true]);
       if (shouldMute === true) {
         pp.mute();
@@ -178,7 +173,6 @@ export function onReadyExternal(ctrl, e) {
       const baselinePauses = ctrl?.plan?.pauses?.count ?? '-';
       log(`📋 Player ${ctrl.index + 1} Pause Plan → Baseline=${baselinePauses}, ProfileChance=${ctrl?.config?.pauseChance ?? '?'}`);
     } catch (_) {}
-
     try {
       const d = rndInt(1200, 2400);
       scheduleSafe(
@@ -197,28 +191,27 @@ export function onReadyExternal(ctrl, e) {
       log(`ℹ️ Player ${ctrl.index + 1} Pause Plan scheduled (muted-friendly, READY)`);
     } catch (_) {}
 
-    // --- Initial play scheduling (βελτιωμένο, χωρίς ||/&&) ---
+    // --- Initial play scheduling (βελτιωμένο: επιτρέπεται παρότι pendingUnmute) ---
     try {
       try {
         groupCancel(ctrl._group('play'));
       } catch (_) {}
+
       if (ctrl.initialPlayScheduled === true) {
         log(`⏸️ Player ${ctrl.index + 1} READY → initial play already scheduled (skip)`);
       } else {
         ctrl.initialPlayScheduled = true;
         const startDelay = rndInt(200, 600);
         let attempts = 0;
-        const maxAttempts = 20; // αυξήθηκε από 12 → 20
+        const maxAttempts = 20; // αυξηθηκε από 12 → 20
 
         const tryStart = () => {
           try {
             const p3 = ctrl?.player;
-
             const canStateParts = [];
             canStateParts.push(typeof YT !== 'undefined');
             canStateParts.push(isFunction(p3?.getPlayerState) === true);
             const canState = allTrue(canStateParts);
-
             let isPlayingNow = false;
             if (allTrue([canState === true]) === true) {
               const st = p3.getPlayerState();
@@ -226,7 +219,6 @@ export function onReadyExternal(ctrl, e) {
                 isPlayingNow = true;
               }
             }
-
             if (isPlayingNow === true) {
               try {
                 groupCancel(ctrl._group('play'));
@@ -236,14 +228,8 @@ export function onReadyExternal(ctrl, e) {
               return;
             }
 
-            // Guard: αν εκκρεμεί unmute, περίμενε λίγο (μην πιέζεις το start)
-            const waitUnmute = [];
-            waitUnmute.push(ctrl?.pendingUnmute === true);
-            if (allTrue(waitUnmute) === true) {
-              const dWait = rndInt(300, 800);
-              scheduleSafe(tryStart, dWait, ctrl._group('play'), 'initial-play-unmute-wait');
-              return;
-            }
+            // 🔓 Αφαίρεση guard: Επιτρέπουμε initial play ενώ pendingUnmute === true.
+            // Ξεκινάμε muted, και το AutoUnmute θα προγραμματιστεί στο πρώτο PLAYING.
 
             // Κανονική απόπειρα έναρξης
             ctrl.guardPlay(ctrl.player);
@@ -291,7 +277,6 @@ export function onStateChangeExternal(ctrl, e) {
       if (ctrl.playingStart === null) {
         ctrl.playingStart = Date.now();
       }
-
       // one-shot flags (αν δεν υπάρχουν)
       if (typeof ctrl._rateAppliedForThisVideo !== 'boolean') ctrl._rateAppliedForThisVideo = false;
       if (typeof ctrl._qualityAutoAppliedForThisVideo !== 'boolean') ctrl._qualityAutoAppliedForThisVideo = false;
@@ -316,7 +301,6 @@ export function onStateChangeExternal(ctrl, e) {
       try {
         const pp = ctrl?.player;
         const quality = isFunction(pp?.getPlaybackQuality) === true ? pp.getPlaybackQuality() ?? '?' : '?';
-
         let isMutedNow = false;
         try {
           const partsMuted = [];
@@ -330,7 +314,6 @@ export function onStateChangeExternal(ctrl, e) {
             }
           }
         } catch (_) {}
-
         // Raw volume
         let vol = '?';
         try {
@@ -344,9 +327,7 @@ export function onStateChangeExternal(ctrl, e) {
             if (allTrue(okNum) === true) vol = vv;
           }
         } catch (_) {}
-
         const played = typeof ctrl?.getPlayedSec === 'function' ? ctrl.getPlayedSec() : isNumber(ctrl?.videoTotalPlayTime) === true ? ctrl.videoTotalPlayTime : 0;
-
         const required = ctrl.videoRequiredWatchTime;
         const volLabel = isMutedNow === true ? `Muted` : String(vol);
         log(`🟢 Player ${ctrl.index + 1} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)}, Quality=${quality}, Vol=${volLabel}, Played=${played}s, Required=${required}s)`);
@@ -354,7 +335,7 @@ export function onStateChangeExternal(ctrl, e) {
         log(`🟢 Player ${ctrl.index + 1} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)}, Quality=?, Vol=?, Played=?s, Required=?s)`);
       }
 
-      // AutoUnmute scheduling (μία φορά, όταν εκκρεμεί)
+      // AutoUnmute scheduling (μόλις μπούμε PLAYING)
       try {
         const g = [];
         g.push(ctrl?.pendingUnmute === true);
@@ -370,7 +351,6 @@ export function onStateChangeExternal(ctrl, e) {
         try {
           const base = isNumber(ctrl.totalPlayTime) === true ? ctrl.totalPlayTime : 0;
           let extra = 0;
-
           const okExtraParts = [];
           okExtraParts.push(isNumber(ctrl.currentRate) === true);
           okExtraParts.push(isDefined(ctrl.playingStart) === true);
@@ -378,7 +358,6 @@ export function onStateChangeExternal(ctrl, e) {
           if (canExtra === true) {
             extra = ((Date.now() - ctrl.playingStart) / 1000) * ctrl.currentRate;
           }
-
           const played = Math.floor(base + extra);
           const required = isNumber(ctrl.videoRequiredWatchTime) === true ? ctrl.videoRequiredWatchTime : 15;
 
@@ -392,7 +371,7 @@ export function onStateChangeExternal(ctrl, e) {
             if (within === true) {
               if (ctrl.freezeSoftTasks !== true) {
                 ctrl.freezeSoftTasks = true;
-                log(`🧊 Player ${ctrl.index + 1} Soft-Freeze Enabled (≤${guardSec}s To Threshold)`);
+                log(`🧚 Player ${ctrl.index + 1} Soft-Freeze Enabled (≤${guardSec}s To Threshold)`);
               }
             }
           }
@@ -400,23 +379,18 @@ export function onStateChangeExternal(ctrl, e) {
           const met = played >= required;
           if (met === true && ctrl.watchtimeFired !== true) {
             ctrl.watchtimeFired = true;
-
             try {
               emitWatchtimeReached(ctrl.index);
             } catch (_) {}
             try {
               if (isFunction(ctrl.clearTimers)) ctrl.clearTimers();
             } catch (_) {}
-
             ctrl.autoNextScheduled = true;
-
             // reset one-shot flag για το επόμενο βίντεο (rate)
             try {
               ctrl._rateAppliedForThisVideo = false;
             } catch (_) {}
-
             autoNextAfterWatchtime(ctrl);
-
             stats.autoNext = isNumber(stats?.autoNext) === true ? stats.autoNext + 1 : 1;
             log(`🏁 Player ${ctrl.index + 1} WT Reached → AutoNext Scheduled (WT)`);
             return;
