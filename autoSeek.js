@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v2.2.2';
+const VERSION = 'v2.3.2';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, mid-seek scheduler, init-seek).
  * Στόχοι: Start-Seek awareness + Adaptive timing εντός WT παραθύρου + late/short stop.
@@ -247,8 +247,9 @@ export function scheduleMidSeek(ctrl, overrideMs) {
   // Plan log annotation: δείξε καθαρά ότι το intervalMs λειτουργεί ως fallback/upper-bound
   try {
     log(
-      `🎯 MidSeek Plan → enabled=${mid.enabled} [intervalMs=${mid.intervalMs} minGapSec=${mid.minGapSec} maxSeeks=${mid.maxSeeks} fromPct=${mid.fromPct} toPct=${mid.toPct} nearEndPct=${mid.nearEndPct}] ` +
-        `(intervalMs acts as fallback/upper-bound; first tick is adaptive)`
+      `🎯 Player ${ctrl.index + 1} MidSeek Plan → enabled=${mid.enabled} [intervalMs=${mid.intervalMs} minGapSec=${mid.minGapSec}` +
+        ` maxSeeks=${mid.maxSeeks} fromPct=${mid.fromPct} toPct=${mid.toPct} nearEndPct=${mid.nearEndPct}]` +
+        ` (intervalMs acts as fallback/upper-bound; first tick is adaptive)`
     );
   } catch (_) {}
 
