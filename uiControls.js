@@ -1,9 +1,9 @@
 // --- uiControls.js ---
-const VERSION = 'v4.11.2';
+const VERSION = 'v4.15.8';
 /*
  * Κεντρικό χειριστήριο UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
- * - Stop All: χρήση utils.scheduleSafe αντί για native setTimeout (ενοποίηση timers).
- * - Restart hygiene: προληπτικό stop/destroy παλιού player πριν από re-init, όπου χρειάζεται.
+ * - StopAll (Hard): Σειριακό clearTimers/stopVideo/destroy με αντίστροφη σειρά και ίδια χρονοκαθυστέρηση.
+ * - RestartAll: Γρήγορος έλεγχος υπολοίπων players → άμεσο destroy/reset πριν την κλήση του HumanMode, ώστε το HumanMode να κρατήσει τον έλεγχο και να ξαναστήσει όλους από την αρχή.
  */
 
 // --- Export Version ---
@@ -36,6 +36,7 @@ import {
   disableSchedulerHalt,
 } from './utils.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
+import { initPlayersSequentially } from './humanMode.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -113,7 +114,7 @@ function selectSource(useMain, mainList, altList) {
 }
 
 /* ========================= Δημόσιο API ========================= */
-/** Ενεργοποίηση/απενεργοποίηση controls. */
+/* =========================  Ενεργοποίηση ========================= */
 export function setControlsEnabled(enabled) {
   const mID = getPlayerScope();
   const ids = ['btnStopAll', 'btnRestartAll', 'btnToggleTheme', 'btnCopyLogs', 'btnClearLogs', 'btnReloadList'];
@@ -135,134 +136,99 @@ export function setControlsEnabled(enabled) {
   return touched;
 }
 
-/** Stop All: ενοποιημένο scheduling με utils.scheduleSafe (και σωστή ακύρωση). */
+/* ========================= Stop All (Hard) ========================= */
 function stopAll() {
   const mID = getPlayerScope();
   setIsStopping(true);
   clearStopTimers();
 
-  const shuffled = shuffleControllers(controllers);
-
+  const reversed = Array.isArray(controllers) ? controllers.slice().reverse() : [];
   let totalDelay = 0;
   let i = 0;
-  while (i < shuffled.length) {
-    const c = shuffled[i];
-    const mID = getPlayerScope(c.index);
 
+  while (i < reversed.length) {
+    const c = reversed[i];
+    const mIDc = getPlayerScope(c.index);
     const randomDelay = rndInt(30000, 60000);
-    totalDelay = totalDelay + randomDelay;
-
-    const step = i + 1;
-    const delayMs = totalDelay;
+    totalDelay += randomDelay;
 
     const id = scheduleSafe(
-      function () {
-        const guards = [];
-        guards.push(isDefined(c) === true);
-        guards.push(isDefined(c?.player) === true);
-        const ready = allTrue(guards);
-
-        if (ready === true) {
+      () => {
+        if (isDefined(c?.player)) {
           try {
-            if (isFunction(c.player?.stopVideo) === true) {
-              c.player.stopVideo();
-            }
-            log(`⏹️ ${mID} [StopAll] Stopped (Step ${step}/${shuffled.length})`);
+            c.clearTimers();
+            if (isFunction(c.player.stopVideo)) c.player.stopVideo();
+            if (isFunction(c.player.destroy)) c.player.destroy();
+
+            c.player = null;
+            c.initialPlayScheduled = false;
+            c.autoNextScheduled = false;
+            c.watchtimeFired = false;
+            c.playingStart = null;
+            c.currentRate = 1.0;
+            c.freezeSoftTasks = false;
+
+            log(`⏹️ ${mIDc} [StopAll:Hard] Destroyed & Reset`);
           } catch {
-            log(`❌ ${mID} Error → [StopAll]`);
+            log(`❌ ${mIDc} Error → HardStop Destroy/Reset`);
           }
         } else {
-          log(`❌ ${mID} Stop Skipped → Not Initialized`);
+          log(`❌ ${mIDc} Stop Skipped → Not Initialized`);
         }
       },
-      delayMs,
+      totalDelay,
       'stopall',
-      `stopall-${step}`
+      `stopall-hard-${i + 1}`
     );
 
-    // ΜΟΝΟ αν δημιουργήθηκε πραγματικός timer (id>0), αποθήκευσε το id για μελλοντική ακύρωση μέσω clearStopTimers()
-    if (id > 0) {
-      pushStopTimer(id);
-    }
-
-    i = i + 1;
+    if (id > 0) pushStopTimer(id);
+    i++;
   }
 
-  /** ➤ Φάση-2: Αφού προγραμματίστηκαν ΟΛΑ τα stop timers, ενεργοποίησε Kill-Switch */
   enableSchedulerHalt();
-
-  log(`⏹️ ${mID} [StopAll] Scheduled → ${shuffled.length} Players — Συνολική Εκτίμηση ~${Math.round(totalDelay / 1000)}s`);
+  log(`🛠️ ${mID} [StopAll:Hard] Scheduled → ${reversed.length} Players — Συνολική Εκτίμηση ~${Math.round(totalDelay / 1000)}s`);
 }
 
-/** Restart All με hygiene: όπου απαιτείται, stop/destroy πριν από re-init. */
+/* ========================= Restart All ========================= */
 function restartAll() {
   const mID = getPlayerScope();
-  // Kill-Switch OFF πριν από νέα schedules
   disableSchedulerHalt();
   setIsStopping(false);
 
-  const mainList = getMainList();
-  const altList = getAltList();
-
-  let i = 0;
-  while (i < controllers.length) {
-    const c = controllers[i];
-    const mID = getPlayerScope(c.index);
-
-    // Αν ο controller έχει ενεργό player: loadNextVideo (παραμένει ως έχει).
-    const ready = isReadyController(c);
-    if (ready === true) {
+  // Quick cleanup για υπολείμματα
+  controllers.forEach((c) => {
+    const mID = getPlayerScope(c?.player);
+    if (isDefined(c?.player)) {
       try {
-        c.loadNextVideo(c.player);
-        log(`🔄 ${mID} [RestartAll] → LoadNext`);
-      } catch (e) {
-        log(`❌ ${mID} Error → LoadNext — Detail= ${e}`);
-      }
-      i = i + 1;
-      continue;
-    }
+        c.clearTimers();
+        if (isFunction(c.player.stopVideo)) c.player.stopVideo();
+        if (isFunction(c.player.destroy)) c.player.destroy();
 
-    // Επιλογή νέου id (main/alt) — χωρίς && / ||, με switch-case
-    const useMain = Math.random() < MAIN_PROBABILITY;
-    const sourceList = selectSource(useMain, mainList, altList);
-    const newId = pickRandomId(sourceList);
-
-    const partsNew = [];
-    partsNew.push(isDefined(newId) === true);
-    if (allTrue(partsNew) !== true) {
-      const shownIdx = isDefined(c?.index) === true ? String(c.index + 1) : '?';
-      log(`❌ ${mID} Restart Skipped → No Videos Available`);
-      i = i + 1;
-      continue;
-    }
-
-    // Hygiene: αν υπάρχει παλιό player ref, προσπάθησε stop/destroy πριν από init
-    try {
-      const p = c?.player;
-      const parts = [];
-      parts.push(isDefined(p) === true);
-      if (allTrue(parts) === true) {
-        try {
-          if (isFunction(p?.stopVideo) === true) p.stopVideo();
-        } catch {}
-        try {
-          if (isFunction(p?.destroy) === true) p.destroy();
-        } catch {}
         c.player = null;
+        c.initialPlayScheduled = false;
+        c.autoNextScheduled = false;
+        c.watchtimeFired = false;
+        c.playingStart = null;
+        c.currentRate = 1.0;
+        c.freezeSoftTasks = false;
+
+        log(`🧹 ${mID} [Restart] Residual Cleanup → Destroyed & Reset`);
+      } catch {
+        log(`❌ ${mID} Error → Restart Cleanup`);
       }
-    } catch {}
-
-    // Init
-    try {
-      c.init(newId);
-      const srcLabel = useMain === true ? 'Main' : 'Alt';
-      log(`🔄 ${mID} [RestartAll] Restart → ${newId} (Source:${srcLabel})`);
-    } catch (e) {
-      log(`❌ ${mID} Error → Restart — Detail= ${e}`);
     }
+  });
 
-    i = i + 1;
-  }
+  /* HumanMode: πλήρης επανεκκίνηση */
+  scheduleSafe(
+    () => {
+      initPlayersSequentially(getMainList(), getAltList());
+      log(`🔁 ${mID} RestartAll → HumanMode Sequential Init Triggered`);
+    },
+    400,
+    'RestartFlow',
+    'resume-seq'
+  );
 
   log(`🔄 ${mID} RestartAll → Completed`);
 }
