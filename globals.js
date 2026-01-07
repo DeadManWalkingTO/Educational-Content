@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v5.6.21';
+const VERSION = 'v5.8.2';
 /*
  * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
  * - Νέα counters: stats.wtSignals (WTBus emits) και stats.softBackpressureHits (soft-task gate reschedules).
@@ -185,25 +185,47 @@ function updateStats() {
 
 if (typeof document !== 'undefined') {
   document.addEventListener('app:log', (ev) => {
-    // Πάντα σεβόμαστε το format: [HH:MM:SS] <emoji> / <μήνυμα>
-    // Χρησιμοποιούμε το ακατέργαστο μήνυμα (χωρίς timestamp/emoji/'/') από το detail.msg
+    // Αυξάνει το stats.errors αν η πλήρης γραμμή περιέχει '❌'
     try {
-      const { msg, full } = ev.detail; // full = ολόκληρη γραμμή για το panel, msg = καθαρό κείμενο
-      const isStr = typeof msg === 'string';
-      const isError = isStr === true ? msg.startsWith('❌') === true : false;
-      const shouldInc = allTrue([isError === true]);
-      if (shouldInc === true) {
-        if (isNumber(stats.errors) === true) {
-          stats.errors = stats.errors + 1;
-        } else {
-          stats.errors = 1;
+      // 1) Ανάκτηση full (ολόκληρη γραμμή με emoji/timestamp)
+      let fullStr = '';
+      const detailDefined = typeof ev.detail !== 'undefined' && ev.detail !== null ? true : false;
+      if (detailDefined === true) {
+        const f = ev.detail.full;
+        const fIsStr = typeof f === 'string' ? true : false;
+        if (fIsStr === true) {
+          fullStr = f;
+        }
+      }
+
+      // 2) Έλεγχος παρουσίας του χαρακτήρα '❌'
+      const canCheck = fullStr.length > 0 ? true : false;
+      if (canCheck === true) {
+        let hasErrorEmoji = false;
+        try {
+          const idx = fullStr.indexOf('❌');
+          if (idx >= 0) {
+            hasErrorEmoji = true;
+          }
+        } catch (_) {
+          hasErrorEmoji = false;
+        }
+
+        // 3) Αύξηση counter με ασφαλή τύπο
+        if (hasErrorEmoji === true) {
+          const isNum = typeof stats.errors === 'number' ? true : false;
+          if (isNum === true) {
+            stats.errors = stats.errors + 1;
+          } else {
+            stats.errors = 1;
+          }
         }
       }
     } catch (_) {
       /* no-op */
     }
 
-    /* --- Activity panel rendering --- */
+    /* --- Activity panel rendering (ως έχει) --- */
     const panel = document.getElementById('activityPanel');
     const showPanel = [];
     showPanel.push(panel !== null);
@@ -218,7 +240,7 @@ if (typeof document !== 'undefined') {
       panel.scrollTop = panel.scrollHeight;
     }
 
-    // Stats update (όπως ήδη υπάρχει)
+    // Stats update (ως έχει)
     try {
       updateStats();
     } catch (_) {}
