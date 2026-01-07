@@ -1,5 +1,5 @@
 // --- utils.js ---
-const VERSION = 'v3.2.1';
+const VERSION = 'v4.5.4';
 /*
  * Περιγραφή: Ενιαίο module βοηθητικών συναρτήσεων (λογική, τύποι, χρόνος, μορφοποίηση, JSON, DOM, γεγονότα, logging, scheduler).
  * Αλλαγές: Προσθήκη κοινού helper whenPlayingAndUnmuted(player, ctrl, attemptTask, retryMinMs, retryMaxMs, group, tag)
@@ -428,6 +428,213 @@ export function makeLogger(urlOrFileName) {
     } catch (_) {}
     return full;
   };
+}
+
+/**
+ * Player ID resolver για logs (1-based string, ασφαλές)
+ * Επιστρέφει πάντα string (π.χ. '1', '12'), αλλιώς fallback ('?')
+ * Υποστηριζόμενες είσοδοι:
+ *  - number: 0-based index → +1
+ *  - controller-like: { index: number } → +1
+ *  - event-like: { detail: { index: number } } → +1
+ *  - string container id: 'player12' / '#player12' → 12 (1-based)
+ *  - YT player: player.getIframe()?.parentElement?.id → parse ως string
+ */
+
+export function playerIdForLog(input, fallback = '?') {
+  try {
+    // 1) Direct number: θεωρούμε 0-based → +1
+    let numDirect = NaN;
+    try {
+      numDirect = Number(input);
+    } catch (_) {}
+    const okNumDirectParts = [];
+    okNumDirectParts.push(Number.isFinite(numDirect) === true);
+    if (allTrue(okNumDirectParts) === true) {
+      const base = Math.max(0, Math.floor(numDirect)) + 1;
+      return String(base);
+    }
+
+    // 2) Controller-like: { index }
+    let idxCtrl = NaN;
+    try {
+      idxCtrl = Number(input?.index);
+    } catch (_) {}
+    const okIdxCtrlParts = [];
+    okIdxCtrlParts.push(Number.isNaN(idxCtrl) === false);
+    if (allTrue(okIdxCtrlParts) === true) {
+      const shown = Math.max(0, Math.floor(idxCtrl)) + 1;
+      return String(shown);
+    }
+
+    // 3) Event-like: { detail: { index } }
+    let idxDetail = NaN;
+    try {
+      idxDetail = Number(input?.detail?.index);
+    } catch (_) {}
+    const okIdxDetailParts = [];
+    okIdxDetailParts.push(Number.isNaN(idxDetail) === false);
+    if (allTrue(okIdxDetailParts) === true) {
+      const shown = Math.max(0, Math.floor(idxDetail)) + 1;
+      return String(shown);
+    }
+
+    // 4) String container id: 'player12' ή '#player12'
+    const isStrParts = [];
+    isStrParts.push(isString(input) === true);
+    if (allTrue(isStrParts) === true) {
+      const s = String(input).trim();
+
+      // Ειδικά 'player' + digits (1-based)
+      let matchPlayer = null;
+      try {
+        matchPlayer = s.match(/player\s*([0-9]+)/i);
+      } catch (_) {}
+      const hasMatchParts = [];
+      hasMatchParts.push(isDefined(matchPlayer) === true);
+      hasMatchParts.push(isDefined(matchPlayer?.[1]) === true);
+      if (allTrue(hasMatchParts) === true) {
+        let n = NaN;
+        try {
+          n = Number(matchPlayer[1]);
+        } catch (_) {}
+        const okNParts = [];
+        okNParts.push(Number.isNaN(n) === false);
+        okNParts.push(n > 0);
+        if (allTrue(okNParts) === true) {
+          return String(Math.floor(n)); // 1-based όπως στο DOM id
+        }
+      }
+
+      // Γενικό fallback: πάρε το ΤΕΛΕΥΤΑΙΟ group digits
+      let groups = null;
+      try {
+        groups = s.match(/([0-9]+)/g);
+      } catch (_) {}
+      const hasGroupsParts = [];
+      hasGroupsParts.push(Array.isArray(groups) === true);
+      hasGroupsParts.push((groups?.length ?? 0) > 0);
+      if (allTrue(hasGroupsParts) === true) {
+        let last = NaN;
+        try {
+          last = Number(groups[groups.length - 1]);
+        } catch (_) {}
+        const okLastParts = [];
+        okLastParts.push(Number.isNaN(last) === false);
+        okLastParts.push(last > 0);
+        if (allTrue(okLastParts) === true) {
+          return String(Math.floor(last)); // υποθέτουμε 1-based
+        }
+      }
+    }
+
+    // 5) YT player: getIframe() → parentElement.id → αναδρομική κλήση με string
+    const canGetIframeParts = [];
+    canGetIframeParts.push(isFunction(input?.getIframe) === true);
+    if (allTrue(canGetIframeParts) === true) {
+      try {
+        const iframe = input.getIframe();
+        const pid = iframe?.parentElement?.id;
+        const hasPidParts = [];
+        hasPidParts.push(isDefined(pid) === true);
+        if (allTrue(hasPidParts) === true) {
+          return playerIdForLog(String(pid), fallback);
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+
+  // Fallback
+  return String(fallback);
+}
+
+/** 
+ * Συνάρτηση μορφοποίησης πεδίου player για logs.
+ * Δέχεται το αποτέλεσμα της playerIdForLog (string) και επιστρέφει:
+  - "Player x" αν x είναι έγκυρος 1-based αριθμός,
+  - "System" αν δεν υπάρχει/δεν αναγνωρίζεται player.
+*/
+export function formatPlayerScope(pID, globalLabel = 'System') {
+  try {
+    // 1) Φύλακες για ορισμό/τύπο
+    const partsDefined = [];
+    partsDefined.push(isDefined(pID) === true);
+    const isDef = allTrue(partsDefined);
+
+    const partsStr = [];
+    partsStr.push(isString(pID) === true);
+    const isStr = allTrue(partsStr);
+
+    // Αν δεν είναι ορισμένο ή δεν είναι string → System
+    const guardBasic = [];
+    guardBasic.push(isDef === true);
+    guardBasic.push(isStr === true);
+    if (allTrue(guardBasic) !== true) {
+      return String(globalLabel);
+    }
+
+    // 2) Κανονικοποίηση/trim
+    const s = String(pID).trim();
+
+    // 3) Γρήγορο φίλτρο για άγνωστο
+    const unk = [];
+    unk.push(s.length > 0);
+    unk.push(s !== '?');
+    const knownCandidate = allTrue(unk);
+    if (knownCandidate !== true) {
+      return String(globalLabel);
+    }
+
+    // 4) Αριθμητικός έλεγχος (μόνο digits)
+    let isDigits = false;
+    try {
+      /* Δύο τύποι ελέγχου s.match(/^\d+$/) ή s.match(/^[0-9]+$/) */
+      const m = s.match(/^[0-9]+$/);
+      const partsM = [];
+      partsM.push(isDefined(m) === true);
+      isDigits = allTrue(partsM) === true;
+    } catch (_) {
+      isDigits = false;
+    }
+
+    // 5) Μετατροπή σε number και 1-based έλεγχος
+    const partsNum = [];
+    let n = NaN;
+    if (isDigits === true) {
+      try {
+        n = Number(s);
+      } catch (_) {
+        n = NaN;
+      }
+      partsNum.push(Number.isNaN(n) === false);
+      partsNum.push(n > 0);
+      if (allTrue(partsNum) === true) {
+        const shown = Math.floor(n);
+        return 'Player ' + String(shown);
+      }
+    }
+
+    // 6) Fallback
+    return String(globalLabel);
+  } catch (_) {
+    return String(globalLabel);
+  }
+}
+
+/**
+ * Συνδυαστική: παίρνει την οποιαδήποτε είσοδο, λύνει pID και επιστρέφει
+ * απευθείας την τελική συμβολοσειρά για χρήση σε logs.
+ * Δηλαδή: getPlayerScope(source) -> "Player x" ή "System"
+ */
+
+export function getPlayerScope(input, globalLabel = 'System') {
+  try {
+    const pID = playerIdForLog(input, '?');
+    const scope = formatPlayerScope(pID, globalLabel);
+    return String(scope);
+  } catch (_) {
+    return String(globalLabel);
+  }
 }
 
 /* ======================= (F) Scheduler API (χωρίς imports) ======================= */

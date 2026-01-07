@@ -1,5 +1,5 @@
 // --- autoPause.js ---
-const VERSION = 'v1.6.2';
+const VERSION = 'v1.8.2';
 /*
  * Περιγραφή: Κεντρικοποίηση λογικής παύσεων.
  * - schedulePauses(controller): Προγραμματίζει παύσεις βάσει plan/config.
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, cancel, rndInt, allTrue, anyTrue, isNumber, isDefined, isFunction, makeLogger } from './utils.js';
+import { scheduleSafe, cancel, rndInt, allTrue, anyTrue, isNumber, isDefined, isFunction, makeLogger, getPlayerScope } from './utils.js';
 import { stats } from './globals.js';
 
 /* ========================= Logger ========================= */
@@ -32,6 +32,7 @@ const log = makeLogger(FILENAME);
  */
 export function schedulePauses(controller) {
   const p = controller.player;
+  const mID = getPlayerScope(controller.index);
 
   // --- Guards για δυνατότητες player ---
   const guards = [];
@@ -67,7 +68,7 @@ export function schedulePauses(controller) {
 
   // Logging για διαφάνεια
   const baseCountShown = isNumber(planFromPolicy?.count) === true ? planFromPolicy.count : '-';
-  log(`😴 Player ${controller.index + 1} Pause Plan → Baseline=${baseCountShown}, Final=${count}, Profile=${controller.profileName}`);
+  log(`😴 ${mID} Pause Plan → Baseline=${baseCountShown}, Final=${count}, Profile=${controller.profileName}`);
 
   let i = 0;
   while (i < count) {
@@ -98,7 +99,7 @@ export function schedulePauses(controller) {
           stats.pauses = (stats.pauses ?? 0) + 1;
           controller.expectedPauseMs = pauseLen;
 
-          log(`⏸️ Player ${controller.index + 1} Pause → ${Math.round(pauseLen / 1000)}s`);
+          log(`⏸️ ${mID} Pause → ${Math.round(pauseLen / 1000)}s`);
 
           // Προγραμματισμός resume μετά από pauseLen
           scheduleSafe(

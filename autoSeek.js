@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v2.4.2';
+const VERSION = 'v2.7.21';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, mid-seek scheduler, init-seek).
  * Στόχοι: Start-Seek awareness + Adaptive timing εντός WT παραθύρου + late/short stop.
@@ -17,6 +17,13 @@ const FILENAME = import.meta.url.split('/').pop();
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
+/* ========================= Imports ========================= */
+import { scheduleSafe, makeLogger, rndInt, anyTrue, allTrue, isFunction, isNumber, clamp, getPlayerScope } from './utils.js';
+import { stats } from './globals.js';
+
+/* ========================= Logger ========================= */
+const log = makeLogger(FILENAME);
+
 /*
  * Αλλαγές:
  * - cur = max(getCurrentTime(), initTargetSec) στον 1ο υπολογισμό (_getWindowMeta).
@@ -24,13 +31,6 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
  * - Late/short stop: αν wm.short === true ή wm.timeLeft ≤ 0, δεν γίνεται fallback σε intervalMs → log & return.
  * - Plan log annotation: “(intervalMs acts as fallback/upper-bound; first tick is adaptive)”.
  */
-
-/* ========================= Imports ========================= */
-import { scheduleSafe, makeLogger, rndInt, anyTrue, allTrue, isFunction, isNumber, clamp } from './utils.js';
-import { stats } from './globals.js';
-
-/* ========================= Logger ========================= */
-const log = makeLogger(FILENAME);
 
 /* ========================= Basic Constants ========================= */
 const ShortGuard = 75; // δευτερόλεπτα
@@ -120,6 +120,7 @@ function _computeNextDelayMs(ctrl, fallbackMs) {
 /* ========================= Safe Seek ========================= */
 /** Ασφαλές seek με bounds-check & pad κοντά στο τέλος. */
 export function safeSeek(ctrl, seconds) {
+  const mID = getPlayerScope(ctrl?.index);
   try {
     const p = ctrl.player;
     const guards = [];
@@ -153,13 +154,14 @@ export function safeSeek(ctrl, seconds) {
     }
     stats.seeks = (stats.seeks ?? 0) + 1;
   } catch (err) {
-    log(`❌ Player ${String(ctrl?.index + 1)} Seek → Error: Apply — Message=${String(err?.message ?? err)}`);
+    log(`❌ ${mID} Error → Seek: Apply — Message=${String(err?.message ?? err)}`);
   }
 }
 
 /* ========================= Init Seek ========================= */
 /** Αρχικό seek: τώρα + επανάληψη στα 800 ms για σταθερότητα (+ awareness). */
 export function applyInitSeek(ctrl, targetSec) {
+  const mID = getPlayerScope(ctrl?.index);
   try {
     // Awareness για scheduling / early CT fallback
     ctrl.seekMeta = ctrl.seekMeta ?? { lastMs: 0, count: 0 };
@@ -170,7 +172,7 @@ export function applyInitSeek(ctrl, targetSec) {
   try {
     safeSeek(ctrl, targetSec);
     try {
-      log(`⏳ Player ${ctrl.index + 1} Seek → Scheduled: In ${(delayMs / 1000).toFixed(1)}s (Target=${targetSec}s)`);
+      log(`⏳ ${mID} Seek → Scheduled: In ${(delayMs / 1000).toFixed(1)}s (Target=${targetSec}s)`);
     } catch (_) {}
   } catch (_) {}
   scheduleSafe(
@@ -178,7 +180,7 @@ export function applyInitSeek(ctrl, targetSec) {
       try {
         safeSeek(ctrl, targetSec);
         try {
-          log(`⏩ Player ${ctrl.index + 1} Seek → Executed: Target=${targetSec}s`);
+          log(`⏩ ${mID} Seek → Executed: Target=${targetSec}s`);
         } catch (_) {}
       } catch (_) {}
     },
@@ -191,6 +193,7 @@ export function applyInitSeek(ctrl, targetSec) {
 /* ========================= Mid-Seek Core ========================= */
 /** Εσωτερικό: ένα mid-seek εντός WT-window (όπως πριν). */
 function _doMidSeekOnce(ctrl) {
+  const mID = getPlayerScope(ctrl?.index);
   try {
     const p = ctrl.player;
     const exists = allTrue([typeof p !== 'undefined', p !== null]);
@@ -220,7 +223,7 @@ function _doMidSeekOnce(ctrl) {
     const to = Math.floor(windowSec * toPct);
     const target = rndInt(from, to);
     safeSeek(ctrl, target);
-    log(`⏩ Player ${ctrl.index + 1} Seek → Executed: Mid (Target=${target}s, WTWindow=${windowSec}s)`);
+    log(`⏩ ${mID} Seek → Executed: Mid (Target=${target}s, WTWindow=${windowSec}s)`);
     const now = Date.now();
     ctrl.seekMeta.lastMs = now;
     ctrl.seekMeta.count = (ctrl.seekMeta.count ?? 0) + 1;
@@ -237,10 +240,11 @@ function _doMidSeekOnce(ctrl) {
  * - Αλλιώς → υπολογίζει firstDelayMs από mid-zone/timeLeft, ή κάνει fallback στο intervalMs.
  */
 export function scheduleMidSeek(ctrl, overrideMs) {
+  const mID = getPlayerScope(ctrl?.index);
   const mid = ctrl.plan?.midSeek;
   const canMid = allTrue([typeof mid !== 'undefined', mid !== null, mid?.enabled === true]);
   if (canMid !== true) {
-    log(`⏭️ Player ${ctrl.index + 1} ScheduleMidSeek → Skipped (Short Or Disabled)`);
+    log(`⏭️ ${mID} ScheduleMidSeek → Skipped (Short Or Disabled)`);
     return;
   }
   // Plan log annotation: δείξε καθαρά ότι το intervalMs λειτουργεί ως fallback/upper-bound
@@ -248,14 +252,14 @@ export function scheduleMidSeek(ctrl, overrideMs) {
     let longmsg = '';
     longmsg = ` IntervalMs=${mid.intervalMs} MinGapSec=${mid.minGapSec} MaxSeeks=${mid.maxSeeks}`;
     longmsg = longmsg + ` FromPct=${mid.fromPct} ToPct=${mid.toPct} NearEndPct=${mid.nearEndPct}`;
-    log(`ℹ️ Player ${ctrl.index + 1} Seek → Policy: Mid-Seek Plan — Enabled=${mid.enabled}` + longmsg);
+    log(`ℹ️ ${mID} Seek → Policy: Mid-Seek Plan — Enabled=${mid.enabled}` + longmsg);
   } catch (_) {}
 
   // Guard: αν υπάρχει ήδη ενεργός timer, μην ξαναπρογραμματίζεις
   try {
     const alreadyScheduled = allTrue([isNumber(ctrl?.timers?.midSeek) === true]);
     if (alreadyScheduled === true) {
-      log(`⚠️ Player ${ctrl.index + 1} Seek → Warning: Mid-Seek — AlreadyScheduled`);
+      log(`⚠️ ${mID} Seek → Warning: Mid-Seek — AlreadyScheduled`);
       return;
     }
   } catch {}
@@ -274,7 +278,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
   let wmFirst = null;
   try {
     wmFirst = _getWindowMeta(ctrl);
-    log(`ℹ️ Player ${ctrl.index + 1} Seek → Info: Mid-Seek Meta (Cur=${Math.floor(wmFirst.cur)}s, NearEnd=${Math.floor(wmFirst.nearEndSec)}s, TimeLeft=${Math.floor(wmFirst.timeLeft)}s)`);
+    log(`ℹ️ ${mID} Seek → Info: Mid-Seek Meta (Cur=${Math.floor(wmFirst.cur)}s, NearEnd=${Math.floor(wmFirst.nearEndSec)}s, TimeLeft=${Math.floor(wmFirst.timeLeft)}s)`);
   } catch (_) {}
 
   // ── Late/short stop (νέα πολιτική): αν short ή timeLeft ≤ 0 → ΜΗΝ κάνεις fallback σε intervalMs
@@ -297,7 +301,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
           reasonTag = '-';
           break;
       }
-      log(`ℹ️ Player ${ctrl.index + 1} Seek → Info: Mid-Seek Stop (Reason=${reasonTag})`);
+      log(`ℹ️ ${mID} Seek → Info: Mid-Seek Stop (Reason=${reasonTag})`);
       return;
     }
   } catch (_) {}
@@ -318,7 +322,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
   }
 
   try {
-    log(`⏳ Player ${ctrl.index + 1} Seek → Scheduled: Mid-Seek In ${(delayMs / 1000).toFixed(2)}s`);
+    log(`⏳ ${mID} Seek → Scheduled: Mid-Seek In ${(delayMs / 1000).toFixed(2)}s`);
   } catch (_) {}
 
   ctrl.timers.midSeek = scheduleSafe(
@@ -330,9 +334,8 @@ export function scheduleMidSeek(ctrl, overrideMs) {
         dNow = p.getDuration();
       }
       const canPlayNow = allTrue([dNow > 0, ctrl._isPlaying(p) === true]);
-      try {
-        log(`▶️ Player ${ctrl.index + 1} Seek → Executed: Mid-Seek (Dur=${Math.floor(dNow)}s, Playing=${canPlayNow})`);
-      } catch (_) {}
+
+      log(`▶️ ${mID} Seek → Executed: Mid-Seek (Dur=${Math.floor(dNow)}s, Playing=${canPlayNow})`);
 
       if (canPlayNow === true) {
         // Gap / maxSeeks guards
@@ -351,9 +354,10 @@ export function scheduleMidSeek(ctrl, overrideMs) {
           const leftGapMs = hadLast === true ? Math.max(0, Number(ctrl.seekDefaults.minGapSec) * 1000 - (now - ctrl.seekMeta.lastMs)) : 0;
           const leftGapS = (leftGapMs / 1000).toFixed(2);
           let longmsg = '';
-          longmsg = `GapBlock=${blockByGap}, Left=${leftGapS}s, ReachedMax=${reachedMax}, Count=${ctrl.seekMeta.count ?? 0}/${Number(ctrl.seekDefaults.maxS)}`;
+          longmsg = `GapBlock=${blockByGap}, Left=${leftGapS}s, ReachedMax=${reachedMax},`;
+          longmsg = longmsg + ` Count=${ctrl.seekMeta.count ?? 0}/${Number(ctrl.seekDefaults.maxSeeks)}`;
 
-          log(`ℹ️ Player ${ctrl.index + 1} Seek → Info: Mid-Seek Guards (Allow=${allowSeek}, ` + longmsg);
+          log(`ℹ️ ${mID} Seek → Info: Mid-Seek Guards (Allow=${allowSeek}, ` + longmsg);
         } catch (_) {}
 
         if (allowSeek === true) {
@@ -361,9 +365,9 @@ export function scheduleMidSeek(ctrl, overrideMs) {
           try {
             const wm = _getWindowMeta(ctrl);
             if (wm.short === true) {
-              log(`⚠️ Player ${ctrl.index + 1} Seek → Warning: Mid-Seek — Skip=ShortWindow (Window=${Math.floor(wm.windowSec)}s)`);
+              log(`⚠️ ${mID} Seek → Warning: Mid-Seek — Skip=ShortWindow (Window=${Math.floor(wm.windowSec)}s)`);
             } else if (wm.pastNearEnd === true) {
-              log(`⚠️ Player ${ctrl.index + 1} Seek → Warning: Mid-Seek — Skip=PastNearEnd (Cur=${Math.floor(wm.cur)}s, Guard=${Math.floor(wm.nearEndSec)}s)`);
+              log(`⚠️ ${mID} Seek → Warning: Mid-Seek — Skip=PastNearEnd (Cur=${Math.floor(wm.cur)}s, Guard=${Math.floor(wm.nearEndSec)}s)`);
             } else {
               const fromPct = isNumber(ctrl?.seekDefaults?.fromPct) === true ? ctrl.seekDefaults.fromPct : 0.2;
               const toPct = isNumber(ctrl?.seekDefaults?.toPct) === true ? ctrl.seekDefaults.toPct : 0.6;
@@ -372,7 +376,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
               const targetPreview = rndInt(from, to);
               const execLagMs = rndInt(0, 50);
               const countdownS = (execLagMs / 1000).toFixed(2);
-              log(`⏳ Player ${ctrl.index + 1} Seek → Scheduled: Mid-Seek In ${countdownS}s (WTWindow=${Math.floor(wm.windowSec)}s) Target=${targetPreview}s`);
+              log(`⏳ ${mID} Seek → Scheduled: Mid-Seek In ${countdownS}s (WTWindow=${Math.floor(wm.windowSec)}s) Target=${targetPreview}s`);
             }
           } catch (_) {}
           // Πραγματική εκτέλεση (guards/targets όπως πριν)
@@ -386,13 +390,13 @@ export function scheduleMidSeek(ctrl, overrideMs) {
       const hasNext = allTrue([isNumber(nextDelayMs) === true, nextDelayMs > 0]);
       if (hasNext === true) {
         try {
-          log(`⏳ Player ${ctrl.index + 1} Seek → Scheduled: Mid-Seek In ${(nextDelayMs / 1000).toFixed(2)}s (Next)`);
+          log(`⏳ ${mID} Seek → Scheduled: Mid-Seek In ${(nextDelayMs / 1000).toFixed(2)}s (Next)`);
         } catch (_) {}
         // Αναδρομικά: προγραμματίζουμε το επόμενο tick με overrideMs (adaptive)
         scheduleMidSeek(ctrl, nextDelayMs);
       } else {
         // Τερματισμός κύκλου (late/short/no remaining)
-        log(`ℹ️ Player ${ctrl.index + 1} Seek → Info: Mid-Seek Stop (Reason=late/short/no-remaining)`);
+        log(`ℹ️ ${mID} Seek → Info: Mid-Seek Stop (Reason=late/short/no-remaining)`);
       }
     },
     delayMs,

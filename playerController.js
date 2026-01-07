@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v7.24.2';
+const VERSION = 'v7.25.21';
 /*
  * Controller: λεπτό wrapper για YT events με delegation στο PlayerStateEngine.
  * - Soft-task back-pressure meta: softTaskMinGapMs, lastSoftTaskMs, softFreezeUntilMs.
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, cancel, groupCancel, jitter, makeLogger, rndInt, allTrue, anyTrue, isNumber, isDefined, isFunction, safeAddEvent, deepClone } from './utils.js';
+import { scheduleSafe, cancel, groupCancel, jitter, makeLogger, rndInt, allTrue, anyTrue, isNumber, isDefined, isFunction, safeAddEvent, deepClone, getPlayerScope } from './utils.js';
 import { MAIN_PROBABILITY, getOrigin, getYouTubeEmbedHost, stats, getMainList, getAltList } from './globals.js';
 import { getBehaviorPlan } from './policies.js';
 import { onStateChangeExternal, onReadyExternal, onErrorExternal } from './playerStateEngine.js';
@@ -90,6 +90,8 @@ export class PlayerController {
     // Ready timestamp
     this.readyAt = null;
 
+    const mID = getPlayerScope(this.index);
+
     // Listener για 'lists:updated'
     try {
       if (typeof document !== 'undefined') {
@@ -111,7 +113,7 @@ export class PlayerController {
             const active = allTrue(partsActive);
 
             if (active === true) {
-              log(`🧑‍🤝‍🧑 Player ${this.index + 1} Lists Updated → Active (Future Picks Use New Lists)`);
+              log(`🧑‍🤝‍🧑 ${mID} Lists Updated → Active (Future Picks Use New Lists)`);
             } else {
               this.clearTimers();
 
@@ -136,10 +138,10 @@ export class PlayerController {
               }
 
               this.freezeSoftTasks = false;
-              log(`🧭 Player ${this.index + 1} Lists Updated → Idle (Plan Refreshed)`);
+              log(`🧭 ${mID} Lists Updated → Idle (Plan Refreshed)`);
             }
           } catch (err) {
-            log(`⚠️ Player ${this.index + 1} Lists Update Error → ${err}`);
+            log(`❌ ${mID} Error → Lists Update ${err}`);
           }
         };
         safeAddEvent(document, 'lists:updated', handler);
@@ -280,6 +282,7 @@ export class PlayerController {
   }
 
   init(videoId) {
+    const mID = getPlayerScope(this.index);
     const containerId = `player${this.index + 1}`;
     this.player = new YT.Player(containerId, {
       videoId,
@@ -288,8 +291,8 @@ export class PlayerController {
       events: { onReady: (e) => this.onReady(e), onStateChange: (e) => this.onStateChange(e), onError: () => this.onError() },
     });
 
-    log(`ℹ️ Player ${this.index + 1} YT PlayerVars → Origin: ${getOrigin()} / Host: ${getYouTubeEmbedHost()}`);
-    log(`👤 Player ${this.index + 1} Initialized → Profile ${this.profileName} and ID=${videoId}`);
+    log(`ℹ️ ${mID} YT PlayerVars → Origin: ${getOrigin()} / Host: ${getYouTubeEmbedHost()}`);
+    log(`👤 ${mID} Initialized → Profile ${this.profileName} and ID=${videoId}`);
   }
 
   onReady(e) {
@@ -406,6 +409,7 @@ export class PlayerController {
   }
 
   guardPlay(p) {
+    const mID = getPlayerScope(this.index);
     try {
       const parts = [];
       parts.push(isDefined(p) === true);
@@ -413,7 +417,7 @@ export class PlayerController {
       parts.push(this._can(p, 'playVideo') === true);
       if (allTrue(parts) === true) p.playVideo();
     } catch (err) {
-      log(`❌ Player ${this.index + 1} → LogPlayer Error ${String(err?.message ?? err)}`);
+      log(`❌ ${mID} Error → LogPlayer ${String(err?.message ?? err)}`);
     }
   }
 

@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v1.11.3';
+const VERSION = 'v1.15.21';
 /*
  * Περιγραφή: Εξωτερικός watchdog για "required watch time" ανά PlayerController.
  * - WTBus subscribe: cache στους indices που έλαβαν 'wt:reached'.
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 // ========================= Imports =========================
-import { repeat, cancel, makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, nowMs, msToSec, fmtMs, scheduleSafe } from './utils.js';
+import { repeat, cancel, makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, nowMs, msToSec, fmtMs, scheduleSafe, getPlayerScope } from './utils.js';
 import { controllers, stats } from './globals.js';
 import { autoNextAfterEnded, autoNextAfterWatchtime } from './autoNext.js';
 import { onWatchtimeReached } from './wtBus.js';
@@ -174,6 +174,7 @@ function skipByWtBus(ctrl) {
 // ========================= Core =========================
 function checkController(ctrl) {
   // 🔧 ΔΗΛΩΣΕΙΣ ΕΚΤΟΣ try ΓΙΑ ΝΑ ΕΙΝΑΙ ΟΡΑΤΕΣ ΠΑΝΤΟΥ
+  const mID = getPlayerScope(ctrl.index);
   let required = 0;
   let played = 0;
 
@@ -204,11 +205,11 @@ function checkController(ctrl) {
     } else {
       played = computePlayedSoFarSec(ctrl);
     }
-    log(`⏱️ Player ${ctrl.index + 1} Progress → Played=${played}s / Required=${required}s`);
+    log(`⏱️ ${mID} Progress → Played=${played}s / Required=${required}s`);
     // Small-video defer
     const deferSmall = ctrl?.deferAutoNextUntilEnded === true;
     if (deferSmall === true) {
-      log(`⏭️ WD: Small-Video Mode → Skip AutoNext (WT/fallback) Until ENDED`);
+      log(`⏭️ ${mID} WD: Small-Video Mode → Skip AutoNext (WT/fallback) Until ENDED`);
       return;
     }
     // READY for >10s without PLAYING → retry guardPlay once per check
@@ -225,7 +226,7 @@ function checkController(ctrl) {
             try {
               ctrl.guardPlay(ctrl.player);
             } catch (_) {}
-            log(`▶️ WD: GuardPlay Retried (READY >10s)`);
+            log(`▶️ ${mID} WD: GuardPlay Retried (READY >10s)`);
             return;
           default:
             /* no-op */
@@ -248,7 +249,7 @@ function checkController(ctrl) {
       if (within === true) {
         if (ctrl.freezeSoftTasks !== true) {
           ctrl.freezeSoftTasks = true;
-          log(`🧊 Player ${ctrl.index + 1} Soft-Freeze Enabled (≤${guardSec}s to threshold)`);
+          log(`🧊 ${mID} Soft-Freeze Enabled (≤${guardSec}s to threshold)`);
         }
       }
     }
@@ -260,7 +261,7 @@ function checkController(ctrl) {
     if (canWT === true) {
       const skip = skipByWtBus(ctrl);
       if (skip === true) {
-        log(`⏳ Player ${ctrl.index + 1} WTBus-skip → Already signaled recently`);
+        log(`⏳ ${mID} WTBus-skip → Already signaled recently`);
         return;
       }
       ctrl.watchtimeFired = true;
@@ -272,7 +273,7 @@ function checkController(ctrl) {
       ctrl.autoNextScheduled = true;
       autoNextAfterWatchtime(ctrl);
       stats.autoNext = isNumber(stats?.autoNext) === true ? stats.autoNext + 1 : 1;
-      log(`✅ Player ${ctrl.index + 1} Watch-Time Met → AutoNext Scheduled (WT)`);
+      log(`✅ ${mID} Watch-Time Met → AutoNext Scheduled (WT)`);
       return;
     }
   }
@@ -283,7 +284,7 @@ function checkController(ctrl) {
     if (ctrl.watchtimeFired !== true) {
       const skip = skipByWtBus(ctrl);
       if (skip === true) {
-        log(`⏳ Player ${ctrl.index + 1} Fallback-skip → WTBus Signaled Recently`);
+        log(`⏳ ${mID} Fallback-skip → WTBus Signaled Recently`);
         return;
       }
       ctrl.watchtimeFired = true;
@@ -295,13 +296,14 @@ function checkController(ctrl) {
       ctrl.autoNextScheduled = true;
       autoNextAfterEnded(ctrl);
       stats.autoNext = isNumber(stats?.autoNext) === true ? stats.autoNext + 1 : 1;
-      log(`✅ Player ${ctrl.index + 1} Watch-Time Met → AutoNext Scheduled (ENDED pacing)`);
+      log(`✅ ${mID} Watch-Time Met → AutoNext Scheduled (ENDED pacing)`);
     }
   }
 }
 
 // ========================= Public API =========================
 export function startWatchdog(intervalMs = 10000) {
+  const mID = getPlayerScope();
   // WTBus subscribe
   try {
     if (isFunction(wtBusDisposer) === true) {
@@ -314,7 +316,7 @@ export function startWatchdog(intervalMs = 10000) {
         const okIdx = Number.isNaN(idx) === false;
         if (okIdx === true) {
           wtSeen[idx] = nowMs();
-          log(`📥 WTBus Received → Index=${idx}`);
+          log(`📥 ${mID} WTBus Received → Index=${idx}`);
         }
       } catch (_) {}
     });
@@ -341,13 +343,14 @@ export function startWatchdog(intervalMs = 10000) {
     } catch (_) {}
   };
   watchdogTimerId = repeat(handler, intervalMs, 'wd:global');
-  log(`🛡️ Watchdog Started → Interval=${msToSec(intervalMs)}s (${fmtMs(intervalMs)})`);
+  log(`🛡️ ${mID} Watchdog Started → Interval=${msToSec(intervalMs)}s (${fmtMs(intervalMs)})`);
 }
 export function stopWatchdog() {
+  const mID = getPlayerScope();
   if (isNumber(watchdogTimerId) === true) {
     cancel(watchdogTimerId);
     watchdogTimerId = null;
-    log('🛡️ Watchdog → Stopped');
+    log(`🛡️ ${mID} Watchdog → Stopped`);
   }
   try {
     if (isFunction(wtBusDisposer) === true) wtBusDisposer();

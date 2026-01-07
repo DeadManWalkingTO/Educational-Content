@@ -1,10 +1,9 @@
 // --- autoNext.js ---
-const VERSION = 'v1.20.2';
+const VERSION = 'v1.23.21';
 /*
  * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR/Watchtime + scheduler.
  * - ΜΟΝΟ-READY στρατηγική: Καταργήθηκε το early re-plan μετά το loadVideoById.
- *   Ο υπολογισμός WT/plan γίνεται αποκλειστικά στο onReadyExternal() (State Engine),
- *   όταν το YouTube API έχει διαθέσιμα metadata (duration > 0).
+ *   Ο υπολογισμός WT/plan γίνεται αποκλειστικά στο onReadyExternal() (State Engine), όταν το YouTube API έχει διαθέσιμα metadata (duration > 0).
  */
 // --- Export Version ---
 export function getVersion() {
@@ -17,7 +16,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, makeLogger, rndInt, randomFloat, isDefined, isNumber, allTrue, anyTrue, isFunction, isNonEmptyArray } from './utils.js';
+import { scheduleSafe, makeLogger, rndInt, randomFloat, isDefined, isNumber, allTrue, anyTrue, isFunction, isNonEmptyArray, getPlayerScope } from './utils.js';
 import { AUTO_NEXT_LIMIT_PER_PLAYER, stats, MAIN_PROBABILITY } from './globals.js';
 import { pickVideoId } from './videoPicker.js';
 // ⚠️ Καταργήθηκε το import getBehaviorPlan: ο υπολογισμός γίνεται στο playerStateEngine.js
@@ -52,7 +51,8 @@ function resetAutoNextCountersIfNeeded() {
       autoNextPerPlayer[i] = 0;
       i = i + 1;
     }
-    log(`🔄 Player ${ctrl.index + 1} AutoNext Counters → Reset (Hourly)`);
+    const mID = getPlayerScope();
+    log(`🔄 ${mID} AutoNext Counters → Reset (Hourly)`);
   }
 }
 export function canAutoNext(playerIndex) {
@@ -139,6 +139,7 @@ function computeAutoNextDelay(ctx) {
 }
 /* ========================= Finalize ========================= */
 function finalizeAutoNext(ctrl, picked) {
+  const mID = getPlayerScope(ctrl.index);
   incAutoNext(ctrl.index);
   // Stats
   if (isNumber(stats?.autoNext) === true) {
@@ -177,7 +178,7 @@ function finalizeAutoNext(ctrl, picked) {
     if (isDefined(picked?.source) === true) src = picked.source;
     let size = 0;
     if (isNumber(picked?.size) === true) size = picked.size;
-    log(`⏭️ Player ${ctrl.index + 1} AutoNext → ${pid} (Source:${src}, size:${size})`);
+    log(`⏭️ ${mID} AutoNext → ${pid} (Source:${src}, size:${size})`);
   } catch (_) {}
   // Προγραμματισμός παύσεων (μετά το AutoNext)
   try {
@@ -190,6 +191,7 @@ function finalizeAutoNext(ctrl, picked) {
 }
 /* ========================= Runner ========================= */
 function runAutoNext(ctrl, ctx, label) {
+  const mID = getPlayerScope(ctrl.index);
   const picked = pickVideoId(ctx.mainList, ctx.altList, ctx.mainProbability);
   // Guard: δυνατότητα φόρτωσης βίντεο
   const partsLoad = [];
@@ -198,21 +200,11 @@ function runAutoNext(ctrl, ctx, label) {
   partsLoad.push(isFunction(ctrl.player?.loadVideoById) === true);
   const canLoad = allTrue(partsLoad);
   if (canLoad !== true) {
-    if (isNumber(stats?.errors) === true) {
-      stats.errors = stats.errors + 1;
-    } else {
-      stats.errors = 1;
-    }
-    log('❌ AutoNext Aborted → Player/LoadVideoById Unavailable');
+    log(`❌ ${mID} AutoNext Aborted → Player/LoadVideoById Unavailable`);
     return;
   }
   if (picked.id === null) {
-    if (isNumber(stats?.errors) === true) {
-      stats.errors = stats.errors + 1;
-    } else {
-      stats.errors = 1;
-    }
-    log('❌ AutoNext Aborted → No Available List');
+    log(`❌ ${mID} AutoNext Aborted → No Available List`);
     return;
   }
   // Φόρτωση επόμενου βίντεο
@@ -222,11 +214,13 @@ function runAutoNext(ctrl, ctx, label) {
   } catch (_) {}
   // ΜΟΝΟ-READY: δεν γίνεται re-plan εδώ.
   // Το plan/WT θα υπολογιστούν στο onReadyExternal() όταν το YouTube API δώσει duration>0.
-  log(`ℹ️ Player ${ctrl.index + 1} AutoNext → Re-plan deferred to READY (State Engine)`);
+
+  log(`ℹ️ ${mID} AutoNext → Re-plan deferred to READY (State Engine)`);
   finalizeAutoNext(ctrl, picked);
 }
 /* ========================= Scheduler (Generic) ========================= */
 function scheduleAutoNext(ctrl, trigger) {
+  const mID = getPlayerScope(ctrl.index);
   const ctx = buildCtx(ctrl, trigger);
   const decision = shouldAutoNext(ctx);
   if (decision.allow !== true) {
@@ -243,7 +237,7 @@ function scheduleAutoNext(ctrl, trigger) {
         kind = 'ENDED';
         break;
     }
-    log(`⛔ Player ${ctrl.index + 1} AutoNext Blocked → (${kind}) — ${why}`);
+    log(`⛔ ${mID} AutoNext Blocked → (${kind}) — ${why}`);
     return;
   }
   const delayMs = computeAutoNextDelay(ctx);
@@ -269,7 +263,7 @@ function scheduleAutoNext(ctrl, trigger) {
       shownDelay = String(Math.round(delayMs / 1000)) + 's';
       break;
   }
-  log(`⏳ Player ${ctrl.index + 1} AutoNext Scheduled → (${kind}) — start After ${shownDelay}`);
+  log(`⏳ ${mID} AutoNext Scheduled → (${kind}) — start After ${shownDelay}`);
   scheduleSafe(
     function () {
       runAutoNext(ctrl, ctx, label);

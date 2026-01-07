@@ -1,5 +1,5 @@
 // --- autoRate.js ---
-const VERSION = 'v1.10.2';
+const VERSION = 'v1.11.3';
 /*
  * Περιγραφή: Σπάνιες αλλαγές ταχύτητας αναπαραγωγής (rate).
  * - Back-pressure gate: σέβεται softFreezeUntilMs και softTaskMinGapMs ανά controller.
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, rndInt, randomFloat, allTrue, anyTrue, isNumber, isFunction, isDefined, isNonEmptyArray, clamp, makeLogger } from './utils.js';
+import { scheduleSafe, rndInt, randomFloat, allTrue, anyTrue, isNumber, isFunction, isDefined, isNonEmptyArray, clamp, makeLogger, getPlayerScope } from './utils.js';
 import { stats } from './globals.js';
 
 /* ========================= Logger ========================= */
@@ -112,6 +112,7 @@ function _whenPlaying(ctrl, task, retryMinMs, retryMaxMs, group, tag) {
 
 /* ΝΕΟ: Verify rate (καθυστερημένη ανάγνωση + επαναφορά στην τιμή-στόχο) */
 function _verifyRate(p, target, ctrl = null, group = 'pc:rate') {
+  const mID = getPlayerScope(ctrl.index);
   try {
     const canGet = isFunction(p?.getPlaybackRate) === true;
     const canSet = isFunction(p?.setPlaybackRate) === true;
@@ -135,8 +136,8 @@ function _verifyRate(p, target, ctrl = null, group = 'pc:rate') {
           if (allTrue(partsMismatch) === true) {
             p.setPlaybackRate(Number(target));
           }
-          const shownIdx = typeof ctrl?.index === 'number' ? String(Math.floor(ctrl.index) + 1) : '#';
-          log(`✅ Player ${shownIdx} Rate → Verify: Target=x${String(target)} / Now=x${String(cur)}`);
+
+          log(`✅ ${mID} Rate → Verify: Target=x${String(target)} / Now=x${String(cur)}`);
         }
       } catch (_) {}
     };
@@ -151,6 +152,7 @@ function _verifyRate(p, target, ctrl = null, group = 'pc:rate') {
 
 /** Εφαρμογή αλλαγής rate με closing/opening PLAYING παραθύρου και verify. */
 function _applyRateChange(ctrl, targetRate) {
+  const mID = getPlayerScope(ctrl.index);
   try {
     const p = ctrl?.player;
 
@@ -220,7 +222,7 @@ function _applyRateChange(ctrl, targetRate) {
       if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
     } catch (_) {}
 
-    log(`⚡ Player ${ctrl.index + 1} Rate → Apply: Value=x${String(desired)}`);
+    log(`⚡ ${mID} Rate → Apply: Value=x${String(desired)}`);
 
     // ΝΕΟ: verify της αλλαγής
     const grpParts = [];
@@ -232,6 +234,7 @@ function _applyRateChange(ctrl, targetRate) {
 
 /* ========================= Public API ========================= */
 export function resetPlaybackRate(ctrl) {
+  const mID = getPlayerScope(ctrl.index);
   try {
     const p = ctrl?.player;
     const guards = [];
@@ -252,12 +255,13 @@ export function resetPlaybackRate(ctrl) {
     }
 
     ctrl.currentRate = 1.0;
-    log(`⚙️ Player ${ctrl.index + 1} Rate → Reset: Value=x1`);
+    log(`⚙️ ${mID} Rate → Reset: Value=x1`);
   } catch (_) {}
 }
 
 /** Προγραμματισμός μίας αλλαγής rate (0 ή 1) ανά βίντεο, με πιθανότητα. */
 export function scheduleRateChanges(ctrl) {
+  const mID = getPlayerScope(ctrl.index);
   try {
     const p = ctrl?.player;
 
@@ -341,7 +345,7 @@ export function scheduleRateChanges(ctrl) {
 
     if (planned === 0) {
       const pct = Math.floor(chance * 100);
-      log(`ℹ️ Player ${ctrl.index + 1} Rate → Scheduled: None (Chance=${pct}%)`);
+      log(`ℹ️ ${mID} Rate → Scheduled: None (Chance=${pct}%)`);
       return;
     }
 
@@ -361,7 +365,7 @@ export function scheduleRateChanges(ctrl) {
 
     scheduleSafe(() => _whenPlaying(ctrl, () => _applyRateChange(ctrl, targetRate), 800, 2000, ctrl._group?.('rate'), 'rate-change'), delayMs, ctrl._group?.('rate'), 'rate-change');
 
-    log(`⏳ Player ${ctrl.index + 1} Rate → Scheduled: In ~${delaySec}s (Window=${fromSec}-${toSec}s) Target=x${String(targetRate)}`);
+    log(`⏳ ${mID} Rate → Scheduled: In ~${delaySec}s (Window=${fromSec}-${toSec}s) Target=x${String(targetRate)}`);
   } catch (_) {}
 }
 

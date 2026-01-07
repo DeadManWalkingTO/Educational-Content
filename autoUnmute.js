@@ -1,5 +1,5 @@
 // --- autoUnmute.js ---
-const VERSION = 'v2.21.2';
+const VERSION = 'v2.22.21';
 /*
  * scheduleUnmute(ctrl, stateIsPlaying): parsing plan.unmute (base/extra/grace), debounce, flags, scheduling.
  * applyUnmute(player, plan, ctrl): unMute + setVolume + delayed verify (+ micro-adjust), baseline update.
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { allTrue, anyTrue, isFunction, isNumber, clamp, makeLogger, rndInt, scheduleSafe, isDefined } from './utils.js';
+import { allTrue, anyTrue, isFunction, isNumber, clamp, makeLogger, rndInt, scheduleSafe, isDefined, getPlayerScope } from './utils.js';
 import { stats } from './globals.js';
 
 /* ========================= Logger ========================= */
@@ -49,6 +49,7 @@ function ensureUnmuteMeta(ctrl) {
  * Καθαρή πράξη unmute + setVolume (με delayed verification).
  */
 export function applyUnmute(player, plan, ctrl = null) {
+  const mID = getPlayerScope(ctrl?.index);
   try {
     // Guards για API
     const canUnmute = isFunction(player?.unMute);
@@ -88,7 +89,6 @@ export function applyUnmute(player, plan, ctrl = null) {
     player.setVolume(target);
 
     // Καθυστερημένη επαλήθευση (για να αποφύγουμε "Current=100%" αμέσως μετά το setVolume)
-    const idxShown = _shownIndex(ctrl);
     const verifyDelay = rndInt(100, 200); // 100–200 ms
     const verifyFn = () => {
       try {
@@ -103,7 +103,7 @@ export function applyUnmute(player, plan, ctrl = null) {
               // Επαναφορά στην τιμή-στόχο αν αποκλίνει αισθητά
               player.setVolume(target);
             }
-            log(`✅ Player ${idxShown} Unmute → Verify: Target=${target}% / Now=${String(cur)}%`);
+            log(`✅ ${mID} Unmute → Verify: Target=${target}% / Now=${String(cur)}%`);
           }
         }
       } catch (_) {}
@@ -115,7 +115,7 @@ export function applyUnmute(player, plan, ctrl = null) {
     try {
       stats.volumeChanges = (stats.volumeChanges ?? 0) + 1;
     } catch (_) {}
-    log(`🔕 Player ${idxShown} Unmute → Apply: Value=${String(target)}% (Unmute)`);
+    log(`🔕 ${mID} Unmute → Apply: Value=${String(target)}% (Unmute)`);
   } catch (_) {}
 }
 
@@ -125,6 +125,7 @@ export function applyUnmute(player, plan, ctrl = null) {
  * @param {boolean} stateIsPlaying - εάν είμαστε ήδη σε PLAYING στη στιγμή της κλήσης
  */
 export function scheduleUnmute(ctrl, stateIsPlaying) {
+  const mID = getPlayerScope(ctrl?.index);
   try {
     ensureUnmuteMeta(ctrl);
 
@@ -236,7 +237,7 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
     // Schedule με PLAYING gate
     ctrl.unmuteScheduled = true;
     const totalSecShown = Math.round(finalDelayMs / 1000);
-    log(`⏳ Player ${String(ctrl.index + 1)} Unmute → Scheduled: In ${String(totalSecShown)}s`);
+    log(`⏳ ${mID} Unmute → Scheduled: In ${String(totalSecShown)}s`);
 
     const attemptApply = () => {
       // Soft-gate: freeze + min-gap

@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-const VERSION = 'v4.6.2';
+const VERSION = 'v4.9.21';
 /*
  * Κεντρικό χειριστήριο UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
  * - Stop All: χρήση utils.scheduleSafe αντί για native setTimeout (ενοποίηση timers).
@@ -19,7 +19,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList } from './globals.js';
-import { rndInt, makeLogger, allTrue, anyTrue, isDefined, isNonEmptyArray, safeAddEvent, domReady, debounce, isFunction, scheduleSafe } from './utils.js';
+import { rndInt, makeLogger, allTrue, anyTrue, isDefined, isNonEmptyArray, safeAddEvent, domReady, debounce, isFunction, scheduleSafe, getPlayerScope } from './utils.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
 
 /* ========================= Logger ========================= */
@@ -100,6 +100,7 @@ function selectSource(useMain, mainList, altList) {
 /* ========================= Δημόσιο API ========================= */
 /** Ενεργοποίηση/απενεργοποίηση controls. */
 export function setControlsEnabled(enabled) {
+  const mID = getPlayerScope();
   const ids = ['btnStopAll', 'btnRestartAll', 'btnToggleTheme', 'btnCopyLogs', 'btnClearLogs', 'btnReloadList'];
   let touched = 0;
   let i = 0;
@@ -115,12 +116,13 @@ export function setControlsEnabled(enabled) {
   }
 
   const label = enabled === true ? 'Enabled' : 'Disabled';
-  log(`✅ Controls ${label} (${touched} Στοιχεία)`);
+  log(`✅ ${mID} Controls ${label} (${touched} Στοιχεία)`);
   return touched;
 }
 
 /** Stop All: ενοποιημένο scheduling με utils.scheduleSafe (και σωστή ακύρωση). */
 function stopAll() {
+  const mID = getPlayerScope();
   setIsStopping(true);
   clearStopTimers();
 
@@ -130,6 +132,7 @@ function stopAll() {
   let i = 0;
   while (i < shuffled.length) {
     const c = shuffled[i];
+    const mID = getPlayerScope(c.index);
 
     const randomDelay = rndInt(30000, 60000);
     totalDelay = totalDelay + randomDelay;
@@ -149,13 +152,12 @@ function stopAll() {
             if (isFunction(c.player?.stopVideo) === true) {
               c.player.stopVideo();
             }
-            log(`⏹️ [StopAll] Player ${c.index + 1} Stopped (Step ${step}/${shuffled.length})`);
+            log(`⏹️ ${mID} [StopAll] Stopped (Step ${step}/${shuffled.length})`);
           } catch {
-            log(`❌ Player ${c.index + 1} Stop Error`);
+            log(`❌ ${mID} Error → [StopAll]`);
           }
         } else {
-          const idxShown = isDefined(c?.index) === true ? String(c.index + 1) : '?';
-          log(`❌ Player ${idxShown} Stop Skipped → Not Initialized`);
+          log(`❌ ${mID} Stop Skipped → Not Initialized`);
         }
       },
       delayMs,
@@ -168,26 +170,28 @@ function stopAll() {
     i = i + 1;
   }
 
-  log(`⏹️ [StopAll] Scheduled ${shuffled.length} Players → Συνολική Εκτίμηση ~${Math.round(totalDelay / 1000)}s`);
+  log(`⏹️ ${mID} [StopAll] Scheduled → ${shuffled.length} Players — Συνολική Εκτίμηση ~${Math.round(totalDelay / 1000)}s`);
 }
 
 /** Restart All με hygiene: όπου απαιτείται, stop/destroy πριν από re-init. */
 function restartAll() {
+  const mID = getPlayerScope();
   const mainList = getMainList();
   const altList = getAltList();
 
   let i = 0;
   while (i < controllers.length) {
     const c = controllers[i];
+    const mID = getPlayerScope(c.index);
 
     // Αν ο controller έχει ενεργό player: loadNextVideo (παραμένει ως έχει).
     const ready = isReadyController(c);
     if (ready === true) {
       try {
         c.loadNextVideo(c.player);
-        log(`🔄 [RestartAll] Player ${c.index + 1} LoadNext`);
+        log(`🔄 ${mID} [RestartAll] → LoadNext`);
       } catch (e) {
-        log(`❌ Player ${c.index + 1} LoadNext Error → ${e}`);
+        log(`❌ ${mID} Error → LoadNext — Detail= ${e}`);
       }
       i = i + 1;
       continue;
@@ -202,7 +206,7 @@ function restartAll() {
     partsNew.push(isDefined(newId) === true);
     if (allTrue(partsNew) !== true) {
       const shownIdx = isDefined(c?.index) === true ? String(c.index + 1) : '?';
-      log(`❌ Player ${shownIdx} Restart Skipped → No Videos Available`);
+      log(`❌ ${mID} Restart Skipped → No Videos Available`);
       i = i + 1;
       continue;
     }
@@ -227,23 +231,24 @@ function restartAll() {
     try {
       c.init(newId);
       const srcLabel = useMain === true ? 'Main' : 'Alt';
-      log(`🔄 [RestartAll] Player ${c.index + 1} Restart → ${newId} (Source:${srcLabel})`);
+      log(`🔄 ${mID} [RestartAll] Restart → ${newId} (Source:${srcLabel})`);
     } catch (e) {
-      log(`❌ Player ${c.index + 1} Restart Error → ${e}`);
+      log(`❌ ${mID} Error → Restart — Detail= ${e}`);
     }
 
     i = i + 1;
   }
 
-  log('🔄 RestartAll → Completed');
+  log(`🔄 ${mID} RestartAll → Completed`);
 }
 
 /** Εναλλαγή θέματος (Light/Dark). */
 function toggleTheme() {
+  const mID = getPlayerScope();
   try {
     const bodyOk = isDefined(document?.body) === true;
     if (bodyOk !== true) {
-      log('❌ Theme Toggle Error → Body Not Available');
+      log(`❌ ${mID} Error → Theme Toggle — Body Not Available`);
       return;
     }
 
@@ -251,14 +256,15 @@ function toggleTheme() {
 
     const isLight = document.body.classList.contains('light');
     const mode = isLight === true ? 'Light' : 'Dark';
-    log(`🌙 Theme → ${mode} Mode`);
+    log(`🌙 ${mID} Theme → ${mode} Mode`);
   } catch (e) {
-    log(`❌ Theme Toggle Error → ${e}`);
+    log(`❌ ${mID} Error → Theme Toggle — Detail= ${e}`);
   }
 }
 
 /** Καθαρισμός activity panel. */
 function clearLogs() {
+  const mID = getPlayerScope();
   const panel = byId('activityPanel');
   const guards = [];
   guards.push(isDefined(panel) === true);
@@ -266,22 +272,23 @@ function clearLogs() {
 
   if (allTrue(guards) === true) {
     panel.innerHTML = '';
-    log('🧹 Logs Cleared → All Entries Removed');
+    log(`🧹 ${mID} Logs Cleared → All Entries Removed`);
     return true;
   }
 
-  log('⚠️ Clear Logs → Nothing To Remove');
+  log(`⚠️ ${mID} Clear Logs → Nothing To Remove`);
   return false;
 }
 
 /** Αντιγραφή logs + stats στο clipboard (με fallback). */
 export async function copyLogs() {
+  const mID = getPlayerScope();
   const panel = byId('activityPanel');
   const statsPanel = byId('statsPanel');
 
   const hasPanelEntries = hasEntries(panel) === true;
   if (hasPanelEntries !== true) {
-    log('⚠️ Copy Logs → No Entries');
+    log(`⚠️ ${mID} Copy Logs → No Entries`);
     return false;
   }
 
@@ -291,7 +298,7 @@ export async function copyLogs() {
 
   try {
     await navigator.clipboard.writeText(finalText);
-    log(`✅ Logs Copied Via Clipboard API → ${panel.children.length} Entries + Stats`);
+    log(`✅ ${mID} Logs Copied Via Clipboard API → ${panel.children.length} Entries + Stats`);
     return true;
   } catch {
     // Fallback τοπικού project (αν υπάρχει unsecuredCopyToClipboard)
@@ -301,12 +308,12 @@ export async function copyLogs() {
       const partsOk = [];
       partsOk.push(ok === true);
       if (allTrue(partsOk) === true) {
-        log(`📋 (Fallback) Logs Copied → ${panel.children.length} Entries + Stats`);
+        log(`📋 ${mID} (Fallback) Logs Copied → ${panel.children.length} Entries + Stats`);
         return true;
       }
     } catch {}
 
-    log('❌ Copy Logs Failed (Fallback)');
+    log(`❌ ${mID} Error → Copy Logs Failed (Fallback)`);
     return false;
   }
 }
@@ -314,6 +321,7 @@ export async function copyLogs() {
 /* ========================= Event Bindings ========================= */
 let __uiBound = false;
 export async function bindUiEvents() {
+  const mID = getPlayerScope();
   const already = [];
   already.push(__uiBound === true);
   if (allTrue(already) === true) return 0;
@@ -345,19 +353,20 @@ export async function bindUiEvents() {
       safeAddEvent(el, 'click', handler);
       bound = bound + 1;
     } else {
-      log(`⚠️ Bind Skipped → Missing Element #${id}`);
+      log(`❌ ${mID} Error → Bind Skipped — Missing Element #${id}`);
     }
 
     i = i + 1;
   }
 
   __uiBound = true;
-  log(`✅ Events Bound (uiControls.js ${VERSION}) → ${bound} handlers`);
+  log(`✅ ${mID} Events Bound → (uiControls.js ${VERSION}) — ${bound} handlers`);
   return bound;
 }
 
 /** Reload λιστών από πηγή & broadcast event προς controllers. */
 export async function reloadList() {
+  const mID = getPlayerScope();
   try {
     const ret = await reloadListsFromSource();
     const mainList = ret.mainList;
@@ -366,7 +375,7 @@ export async function reloadList() {
     setMainList(mainList);
     setAltList(altList);
 
-    log(`📂 Lists Applied → Main: ${mainList.length} - Alt: ${altList.length}`);
+    log(`📂 ${mID} Lists Applied → Main: ${mainList.length} — Alt: ${altList.length}`);
 
     const domAvail = [];
     domAvail.push(typeof document !== 'undefined');
@@ -379,12 +388,12 @@ export async function reloadList() {
       };
 
       document.dispatchEvent(new CustomEvent('lists:updated', { detail }));
-      log(`📣 Event 'Lists:Updated' Dispatched → Main:${detail.mainCount} Alt:${detail.altCount}`);
+      log(`📣 ${mID} Event → 'Lists:Updated' Dispatched — Main:${detail.mainCount} Alt:${detail.altCount}`);
     }
 
     return true;
   } catch (err) {
-    log(`❌ Reload Failed → ${err}`);
+    log(`❌ ${mID} Error → Reload Failed — Detail= ${err}`);
     return false;
   }
 }

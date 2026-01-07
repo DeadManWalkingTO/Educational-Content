@@ -1,5 +1,5 @@
 // --- main.js ---
-const VERSION = 'v4.8.2';
+const VERSION = 'v4.9.2';
 /*
 Περιγραφή: Entry point με εκτεταμένη χρήση utils.js (domReady, safeAddEvent, once, log, retry, scheduleSafe).
 Start gate με user gesture & ασφαλές fallback, readiness του YouTube API με exponential backoff + jitter,
@@ -19,7 +19,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { installConsoleFilter } from './consoleFilter.js';
-import { makeLogger, domReady, safeAddEvent, once, isDefined, retry, allTrue, anyTrue } from './utils.js';
+import { makeLogger, domReady, safeAddEvent, once, isDefined, retry, allTrue, anyTrue, getPlayerScope } from './utils.js';
 import { setUserGesture, WATCHDOG_RATE } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
 import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
@@ -30,13 +30,15 @@ import { startWatchdog } from './watchdog.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
+const mID = getPlayerScope();
 
 /* --------------- Console filter (defensive) --------------- */
 (function safeInstallConsoleFilter() {
   try {
     installConsoleFilter();
+    log(`✅ ${mID} Console Filter → Εγκατάσταση`);
   } catch (e) {
-    console.log(`[${new Date().toLocaleTimeString()}] ⚠️ [Main] Console Filter → Αποτυχία Εγκατάστασης: ${e}`);
+    log(`❌ ${mID} Error → Console Filter — Αποτυχία Εγκατάστασης: ${e}`);
   }
 })();
 
@@ -52,7 +54,7 @@ if (allTrue(partsPanel) === true) {
   panel.innerHTML = renderVersionsPanel(versions);
   panel.style.whiteSpace = 'pre-line';
 } else {
-  log(`✅ Εκδόσεις: ${JSON.stringify(versions)}`);
+  log(`✅ ${mID} Εκδόσεις: ${JSON.stringify(versions)}`);
 }
 
 /* --------------- Application start (once) --------------- */
@@ -67,18 +69,18 @@ if (allTrue(partsPanel) === true) {
  */
 const startOnce = once(async function startApp() {
   try {
-    log(`🚀 Εκκίνηση Εφαρμογής → main.js ${VERSION}`);
-    log(`${renderVersionsText(versions)}`);
+    log(`🚀 ${mID} Εκκίνηση Εφαρμογής → main.js ${VERSION}`);
+    log(`✅ ${mID} ${renderVersionsText(versions)}`);
 
     // Φόρτωση λιστών
     const listPromises = [loadVideoList(), loadAltList()];
     const lists = await Promise.all(listPromises);
     const mainList = lists[0];
     const altList = lists[1];
-    log(`📂 Lists Loaded → Main:${mainList.length} Alt:${altList.length}`);
+    log(`📂 ${mID} Lists Loaded → Main:${mainList.length} — Alt:${altList.length}`);
 
     // Readiness YouTube API με retry/backoff/jitter
-    log(`⏳ YouTubeAPI → Αναμονή (με Retry/Backoff/Jitter)`);
+    log(`⏳ ${mID} YouTubeAPI → Αναμονή (με Retry/Backoff/Jitter)`);
     const readyResult = await retry(
       async () => {
         await youtubeReady(20000); // 20s timeout
@@ -96,10 +98,10 @@ const startOnce = once(async function startApp() {
 
     switch (allTrue(partsReady) === true) {
       case true:
-        log(`✅ YouTubeAPI → Έτοιμο (Προσπάθειες: ${readyResult.attempts})`);
+        log(`✅ ${mID} YouTubeAPI → Έτοιμο (Προσπάθειες: ${readyResult.attempts})`);
         break;
       default:
-        log(`❌ YouTubeAPI → Απέτυχε (Προσπάθειες: ${readyResult.attempts})`);
+        log(`❌ ${mID} YouTubeAPI → Απέτυχε (Προσπάθειες: ${readyResult.attempts})`);
         break;
     }
 
@@ -113,13 +115,13 @@ const startOnce = once(async function startApp() {
     // Human Mode sequential init
     initPlayersSequentially(mainList, altList)
       .then(() => {
-        log(`✅ HumanMode → Ολοκληρώθηκε Sequential Init`);
+        log(`✅ ${mID} HumanMode → Ολοκληρώθηκε Sequential Init`);
       })
       .catch((err) => {
-        log(`❌ HumanMode Init Error → ${err}`);
+        log(`❌ ${mID} HumanMode Init Error → ${err}`);
       });
   } catch (err) {
-    log(`❌ Σφάλμα Κατά Την Εκκίνηση → ${err}`);
+    log(`❌ ${mID} Σφάλμα Κατά Την Εκκίνηση → ${err}`);
   }
 });
 

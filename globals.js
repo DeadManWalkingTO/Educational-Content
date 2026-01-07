@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v5.5.2';
+const VERSION = 'v5.6.21';
 /*
  * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
  * - Νέα counters: stats.wtSignals (WTBus emits) και stats.softBackpressureHits (soft-task gate reschedules).
@@ -18,10 +18,11 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { makeLogger, ts, isDefined, isNonEmptyArray, deepClone, cancel, secToMs, anyTrue, allTrue } from './utils.js';
+import { makeLogger, ts, isDefined, isNonEmptyArray, deepClone, cancel, secToMs, anyTrue, allTrue, getPlayerScope } from './utils.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
+const mID = getPlayerScope();
 
 /** --- Console Filter (external) Early Install - Start --- */
 /*
@@ -107,14 +108,14 @@ export function setMainList(list) {
   const okArr = allTrue([Array.isArray(list) === true]);
   const next = okArr === true ? deepClone(list) : [];
   _mainList = next;
-  log(`📂 Main List Applied → ${_mainList.length} Videos`);
+  log(`📂 ${mID} Main List Applied → ${_mainList.length} Videos`);
 }
 
 export function setAltList(list) {
   const okArr = allTrue([Array.isArray(list) === true]);
   const next = okArr === true ? deepClone(list) : [];
   _altList = next;
-  log(`📂 Alt List Applied → ${_altList.length} Videos`);
+  log(`📂 ${mID} Alt List Applied → ${_altList.length} Videos`);
 }
 
 export function hasArrayWithItems(arr) {
@@ -129,7 +130,7 @@ const stopTimers = [];
 export function setIsStopping(flag) {
   // Αποφεύγουμε !! — ρητός ορισμός boolean
   isStopping = flag === true ? true : false;
-  log(`⏹️ isStopping → ${isStopping}`);
+  log(`⏹️ ${mID} isStopping → ${isStopping}`);
 }
 
 export function pushStopTimer(timerId) {
@@ -149,14 +150,14 @@ export function clearStopTimers() {
       /* no-op */
     }
   }
-  log('🧯 Stop Timers → Cleared');
+  log(`🧯 ${mID} Stop Timers → Cleared`);
 }
 
 /** --- User gesture flag --- */
 export let hasUserGesture = false;
 export function setUserGesture() {
   hasUserGesture = true;
-  log(`💻 Αλληλεπίδραση Χρήστη`);
+  log(`💻 ${mID} Αλληλεπίδραση Χρήστη`);
 }
 
 /** --- UI Utilities (stats panel binding) --- */

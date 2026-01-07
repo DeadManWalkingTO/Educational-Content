@@ -1,5 +1,5 @@
 // --- autoQuality.js ---
-const VERSION = 'v1.11.2';
+const VERSION = 'v1.14.21';
 /*
  * Περιγραφή: Τυχαίες αλλαγές ποιότητας (YouTube Iframe API) με guards.
  * - Ενημέρωση ctrl.lastSoftTaskMs μετά από επιτυχή αλλαγή ποιότητας. Καταμέτρηση stats.softBackpressureHits.
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, rndInt, allTrue, anyTrue, isNumber, isDefined, isFunction, isNonEmptyArray, makeLogger, whenPlayingAndUnmuted } from './utils.js';
+import { scheduleSafe, rndInt, allTrue, anyTrue, isNumber, isDefined, isFunction, isNonEmptyArray, makeLogger, whenPlayingAndUnmuted, getPlayerScope } from './utils.js';
 import { stats } from './globals.js';
 
 /* ========================= Logger ========================= */
@@ -80,6 +80,7 @@ function _pickQuality(player, preferredOrder) {
 /* ΝΕΟ: Verify quality (καθυστερημένη ανάγνωση + επαναφορά στην τιμή-στόχο όπου απαιτείται)
    ΣΗΜ: Για στόχο 'default' (auto) κάνουμε μόνο logging της πραγματικής ποιότητας. */
 function _verifyQuality(player, targetQuality, ctrl = null, group = 'pc:quality') {
+  const mID = getPlayerScope(ctrl.index);
   try {
     const canGet = _can(player, 'getPlaybackQuality') === true;
     const canSet = _can(player, 'setPlaybackQuality') === true;
@@ -89,8 +90,7 @@ function _verifyQuality(player, targetQuality, ctrl = null, group = 'pc:quality'
     const verifyTask = () => {
       try {
         const cur = player.getPlaybackQuality();
-        const shownIdx = typeof ctrl?.index === 'number' ? String(Math.floor(ctrl.index) + 1) : '#';
-        log(`📺 Player ${shownIdx} Quality (verify) → ${String(cur)} (target=${String(targetQuality)})`);
+        log(`📺 ${mID} Quality → Verify: ${String(cur)} (target=${String(targetQuality)})`);
 
         // Αν ο στόχος είναι συγκεκριμένο level (όχι 'default'), και διαφέρει, επαναφορά
         const isDefault = String(targetQuality) === 'default';
@@ -114,6 +114,7 @@ function _verifyQuality(player, targetQuality, ctrl = null, group = 'pc:quality'
 }
 
 function _applyQuality(player, quality, tag, ctrl = null) {
+  const mID = getPlayerScope(ctrl.index);
   try {
     const parts = [];
     parts.push(_can(player, 'setPlaybackQuality') === true);
@@ -130,7 +131,7 @@ function _applyQuality(player, quality, tag, ctrl = null) {
       stats.qualityChanges = 1;
     }
 
-    log(`📺 ${String(tag)} Quality → ${String(quality)}`);
+    log(`📺 ${mID} Quality → ${String(quality)}`);
 
     // ενημέρωση soft-task timestamp
     try {
@@ -174,6 +175,7 @@ function _gateOrReschedule(ctrl, group, tag, taskFn, retryMinMs = 800, retryMaxM
 
 /* ========================= Public API ========================= */
 export function scheduleQualityChanges(player, durationSec, config = null, group = 'pc:quality', requiredWatchSec = 0, ctrlOrIndex = null) {
+  const mID = getPlayerScope(ctrlOrIndex);
   // Guards για ποιότητα
   const parts = [];
   parts.push(isDefined(player) === true);
@@ -250,12 +252,12 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
   }
 
   try {
-    log(`🧪 ${String(tag)} QualityScheduler → Planned=${String(planned)} Window=${String(windowSec)}s Dur=${String(d)}s`);
+    log(`🧪 ${mID} QualityScheduler → Planned=${String(planned)} Window=${String(windowSec)}s Dur=${String(d)}s`);
   } catch (_) {}
 
   if (planned === 0) {
     try {
-      log(`🧪 ${String(tag)} QualityScheduler → No Tasks Scheduled (BaseCount Or Chance Too Low)`);
+      log(`🧪 ${mID} QualityScheduler → No Tasks Scheduled (BaseCount Or Chance Too Low)`);
     } catch (_) {}
     return;
   }
@@ -292,8 +294,8 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
 
     try {
       const ord = isNonEmptyArray(preferredOrder) === true ? preferredOrder.join('>') : '-';
-      const msg2 = `🧪 ${String(tag)} QualityScheduler → Scheduling in ${String(Math.round(delayMs / 1000))}s (Order=${ord})`;
-      log(msg2);
+      const longmsg = `${String(Math.round(delayMs / 1000))}s (Order=${ord})`;
+      log(`🧪 ${mID} QualityScheduler → Scheduling in ` + longmsg);
     } catch (_) {}
 
     const task = () => {
@@ -322,6 +324,7 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
  * @returns {boolean} true αν έγινε reset, αλλιώς false
  */
 export function resetPlaybackQuality(ctrl) {
+  const mID = getPlayerScope(ctrl.index);
   try {
     const p = ctrl?.player;
     const canSet = _can(p, 'setPlaybackQuality') === true;
@@ -351,10 +354,7 @@ export function resetPlaybackQuality(ctrl) {
     } catch (_) {}
 
     // Log
-    try {
-      const shownIdx = typeof ctrl?.index === 'number' ? String(Math.floor(ctrl.index) + 1) : '#';
-      log(`⚙️ Player ${shownIdx} Quality Reset → Auto (default) [Now=${afterQ}]`);
-    } catch (_) {}
+    log(`⚙️ ${mID} Quality → Reset: Auto (default) [Now=${afterQ}]`);
 
     // ΝΕΟ: verify του reset (μόνο logging για 'default')
     const grp = isDefined(ctrl?._group) === true ? ctrl._group('quality') : 'pc:quality';

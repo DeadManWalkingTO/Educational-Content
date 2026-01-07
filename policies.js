@@ -1,5 +1,5 @@
 // --- policies.js ---
-const VERSION = 'v1.23.2';
+const VERSION = 'v1.24.2';
 /*
  * Περιγραφή: Module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
  *
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { rndInt, randomFloat, clamp, isFiniteNumber, isString, makeLogger, allTrue, anyTrue } from './utils.js';
+import { rndInt, randomFloat, clamp, isFiniteNumber, isString, makeLogger, allTrue, anyTrue, getPlayerScope } from './utils.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -60,10 +60,11 @@ function _computeCapSec(profileName) {
 
 /* ========================= Required Watch Time ========================= */
 export function getRequiredWatchTime(durationSec, profileName = 'unknown', pidex = 0) {
+  const mID = getPlayerScope(pidex);
   const valid = allTrue([isFiniteNumber(durationSec) === true, durationSec > 0]);
   if (valid !== true) {
     try {
-      log(`🧮 Player ${pidex + 1} Required → 15s (Fallback), Duration=${String(durationSec)} (Invalid)`);
+      log(`🧮 ${mID} Required → 15s (Fallback), Duration=${String(durationSec)} (Invalid)`);
     } catch (_) {}
     return 15;
   }
@@ -101,7 +102,7 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown', pidex
   if (allTrue([d < 60]) === true) {
     const req = d + 1;
     try {
-      log(`🧮  Player ${pidex + 1} Required → ${req}s (Small-Video rule, D=${d}s > return D+1)`);
+      log(`🧮 ${mID} Required → ${req}s (Small-Video rule, D=${d}s > return D+1)`);
     } catch (_) {}
     return req;
   }
@@ -123,7 +124,7 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown', pidex
 
   try {
     const pctStr = (pct * 100).toFixed(1);
-    log(`🧮  Player ${pidex + 1} Required → ${required}s (D=${d} - Pct=${pctStr}% - CapSec=${capSec}s - Raw=${requiredRaw}s - Profile=${String(profileName)})`);
+    log(`🧮 ${mID} Required → ${required}s (D=${d} - Pct=${pctStr}% - CapSec=${capSec}s - Raw=${requiredRaw}s - Profile=${String(profileName)})`);
   } catch (_) {}
 
   return required;

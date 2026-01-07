@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v4.3.2';
+const VERSION = 'v4.5.2';
 /*
  * Περιγραφή:
  * Συγκεντρώνει εκδόσεις όλων των modules και του HTML. Ελαφρύς renderer για panel/κείμενο,
@@ -33,7 +33,7 @@ import { getVersion as getPlayerControllerVersion } from './playerController.js'
 import { getVersion as getPlayerStateEngineVersion } from './playerStateEngine.js';
 import { getVersion as getPoliciesVersion } from './policies.js';
 import { getVersion as getUiControlsVersion } from './uiControls.js';
-import { getVersion as getUtilitiesVersion, iconForPascal, makeLogger, isDefined, domReady, deepClone, fmtMs, scheduleSafe, allTrue, anyTrue } from './utils.js';
+import { getVersion as getUtilitiesVersion, iconForPascal, makeLogger, isDefined, domReady, deepClone, fmtMs, scheduleSafe, allTrue, anyTrue, getPlayerScope } from './utils.js';
 import { getVersion as getVideoPickerVersion } from './videoPicker.js';
 import { getVersion as getWatchdogVersion } from './watchdog.js';
 import { getVersion as getWtBusVersion } from './wtBus.js';
@@ -41,6 +41,7 @@ import { getVersion as getYoutubeReadyVersion } from './youtubeReady.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
+const mID = getPlayerScope();
 
 /* ========================= Module Code ========================= */
 /* ------------------------ Version Retrieval ------------------------ */
@@ -205,7 +206,7 @@ export function renderVersionsPanel(versionsObj) {
 export function renderVersionsText(versionsObj) {
   const ordered = buildOrderedEntries(versionsObj);
   const parts = [];
-  parts.push('✅ Εκδόσεις Modules :');
+  parts.push('Εκδόσεις Modules :');
 
   let i = 0;
   while (i < ordered.length) {
@@ -247,7 +248,7 @@ domReady().then(function () {
       const txt = renderVersionsText(versions);
       const dt = performance.now() - t0;
 
-      log('🏷️ VersionReporter → Ready (' + fmtMs(dt) + ') / ' + totalModules(versions));
+      log(`🏷️ ${mID} VersionReporter → Ready (${fmtMs(dt)}) / ${totalModules(versions)}`);
       //log(txt);
     },
     50,

@@ -1,5 +1,5 @@
 // --- lists.js ---
-const VERSION = 'v4.19.2';
+const VERSION = 'v4.22.3';
 /*
 Περιγραφή: Φόρτωση λιστών video IDs από local/remote πηγές, 
 με parsing, sanitization, logging και fallback. 
@@ -18,10 +18,11 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { makeLogger, isDefined, isString, isNonEmptyArray, isNumber, anyTrue, allTrue, formatMs, retry } from './utils.js';
+import { makeLogger, isDefined, isString, isNonEmptyArray, isNumber, anyTrue, allTrue, formatMs, retry, getPlayerScope } from './utils.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
+const mID = getPlayerScope();
 
 /* ========================= Helpers ========================= */
 /**
@@ -88,9 +89,9 @@ function sanitizeList(arr, tag) {
   }
 
   const after = out.length;
-  log(`🧹 Sanitize (${tag}) — Πριν:${before} → Μετά:${after}`);
+  log(`🧹 ${mID} Sanitize → (${tag}) — Πριν:${before} / Μετά:${after}`);
   if (allTrue([after < 1]) === true) {
-    log(`❌ System Error → Lists: Sanitize — Result= Empty / Tag= ${String(tag)}`);
+    log(`❌ ${mID} Error → Lists: Sanitize — Result= Empty / Tag= ${String(tag)}`);
   }
 
   return out;
@@ -202,11 +203,11 @@ async function loadVideoListWithMeta() {
           srcLabel = 'local';
           break;
       }
-      log(`✅ Main List Loaded [Source:${srcLabel}] → ${clean.length} Items`);
+      log(`✅ ${mID} Main List → Loaded [Source: ${srcLabel}]: ${clean.length} Items`);
       return { list: clean, source: srcLabel };
     }
   } catch (err) {
-    log(`❌ System Error → Lists: Github — Attempts= ${ret.attempts} / Last= ${ret.error}`);
+    log(`❌ ${mID} Error → Main List: Attempts= ${ret.attempts} — ${ret.error}`);
   }
 
   // 2) Remote GitHub (με retry)
@@ -220,11 +221,11 @@ async function loadVideoListWithMeta() {
 
         const okRemote = anyTrue([isDefined(listRemote) === true]);
         if (okRemote !== true) {
-          throw new Error('[LS] Empty Or Non-OK GitHub Response');
+          log(`❌ ${mID} Error → Main List: Empty Or Non—OK Github Response`);
         }
 
         const clean = sanitizeList(listRemote, 'Main:Github');
-        log(`🌐 GitHub Fetch Ok In ${formatMs(dt)} → ${clean.length} Items`);
+        log(`🌐 ${mID} Main List → Github Fetch Ok In ${formatMs(dt)}: ${clean.length} Items`);
         return clean;
       },
       3, // attempts
@@ -236,12 +237,12 @@ async function loadVideoListWithMeta() {
 
     const okRet = allTrue([ret.ok === true]);
     if (okRet === true) {
-      log(`✅ Main List Loaded [Source:GitHub] → ${ret.value.length} Items`);
+      log(`✅ ${mID} Main List → Loaded [Source:Github]: ${ret.value.length} Items`);
       return { list: ret.value, source: 'github' };
     }
-    log(`⚠️ GitHub List Load Failed After ${ret.attempts} Attempts → ${ret.error}`);
+    log(`❌ ${mID} Error → Main List: Github Attempts= ${ret.attempts} — ${ret.error}`);
   } catch (err) {
-    log(`⚠️ GitHub List Load Error → ${err}`);
+    log(`❌ ${mID} Error → Main List: Github — ${err}`);
   }
 
   // 3) Internal fallback
@@ -258,7 +259,7 @@ async function loadVideoListWithMeta() {
       break;
   }
 
-  log(`❌ Using Internal Fallback [Source:${srcLabel}] → ${clean.length} Items`);
+  log(`❌ ${mID} Error → Main List: Internal Fallback — [Source:${srcLabel}]: ${clean.length} Items`);
   return { list: clean, source: srcLabel };
 }
 
@@ -283,15 +284,15 @@ async function loadAltListWithMeta() {
           break;
       }
 
-      log(`✅ Alt List Loaded [Source:${srcLabel}] → ${clean.length} Items`);
+      log(`✅ ${mID} Alt List → Loaded [Source: ${srcLabel}]: ${clean.length} Items`);
       return { list: clean, source: srcLabel };
     }
   } catch (err) {
-    log(`⚠️ Alt List Load Failed → ${err}`);
+    log(`❌ ${mID} Error → Alt List: Load Failed — ${err}`);
   }
 
   // Empty alt list fallback
-  log('❌ System Error → Lists: AltEmpty — Using [] / Source= none');
+  log(`❌ ${mID} Error → Alt List: Empty — Using [] / Source= none`);
   return { list: [], source: 'none' };
 }
 
@@ -325,7 +326,7 @@ export async function reloadList() {
   const mainList = mainMeta.list;
   const altList = altMeta.list;
 
-  log(`🔄 Lists Reloaded → Main:${mainList.length} (Source:${mainMeta.source}) Alt:${altList.length} (Source:${altMeta.source})`);
+  log(`🔄 ${mID} Lists Reloaded → Main:${mainList.length} (Source:${mainMeta.source}) — Alt:${altList.length} (Source:${altMeta.source})`);
   return { mainList, altList, meta: { mainSource: mainMeta.source, altSource: altMeta.source } };
 }
 

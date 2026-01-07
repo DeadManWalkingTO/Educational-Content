@@ -1,5 +1,5 @@
 // --- consoleFilter.js ---
-const VERSION = 'v3.9.2';
+const VERSION = 'v3.10.4';
 /*
  * Τυποποιημένο wrapping της global console με state-machine και tagging.
  * Προωθεί non-critical logs (error/warn/info/log) σε επιλεγμένο level με prefix tag,
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { isDefined, isNonEmptyArray, isString, anyTrue, allTrue, safeJsonStringify, makeLogger } from './utils.js';
+import { isDefined, isNonEmptyArray, isString, anyTrue, allTrue, safeJsonStringify, makeLogger, getPlayerScope } from './utils.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -88,6 +88,7 @@ function safeToString(x) {
 
 /** true αν κάποιο arg ταιριάζει σε κάποιο RegExp. */
 function matchAnyArg(args, regexList) {
+  const mID = getPlayerScope();
   const hasList = isNonEmptyArray(regexList);
   const partsList = [];
   partsList.push(hasList === true);
@@ -111,13 +112,14 @@ function matchAnyArg(args, regexList) {
       i = i + 1;
     }
   } catch (err) {
-    log(`❌ ConsoleFilter → Error ${err}`);
+    log(`❌ ${mID} ConsoleFilter → Error ${err}`);
   }
   return false;
 }
 
 /** true αν υπάρχουν hints από Error.stack. */
 function matchSourceHints(args, sources) {
+  const mID = getPlayerScope();
   const hasList = isNonEmptyArray(sources);
   const partsList = [];
   partsList.push(hasList === true);
@@ -150,7 +152,7 @@ function matchSourceHints(args, sources) {
       i = i + 1;
     }
   } catch (err) {
-    log(`❌ ConsoleFilter → Error ${err}`);
+    log(`❌ ${mID} ConsoleFilter → Error ${err}`);
   }
   return false;
 }
