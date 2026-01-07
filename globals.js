@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v5.8.2';
+const VERSION = 'v6.2.2';
 /*
  * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
  * - Νέα counters: stats.wtSignals (WTBus emits) και stats.softBackpressureHits (soft-task gate reschedules).
@@ -91,6 +91,13 @@ export const WATCHDOG_RATE = secToMs(120);
 
 /** Controllers registry (γεμίζει από main.js) */
 export const controllers = [];
+
+/** --- HumanModeInitFinish --- */
+export let HUMAN_MODE_INIT_FINISH = false;
+export function setHumanModeInitFinish(flag) {
+  HUMAN_MODE_INIT_FINISH = flag === true ? true : false;
+  log(`👤 ${mID} HumanModeInitFinish → ${HUMAN_MODE_INIT_FINISH}`);
+}
 
 /** --- Lists state --- */
 let _mainList = [];

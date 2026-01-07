@@ -1,18 +1,22 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v5.0.21';
+const VERSION = 'v5.2.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * - WTBus emit: όταν πιαστεί το required watch-time, εκπέμπουμε 'wt:reached' (primary).
  * - Διατηρούμε guard flags: ctrl.watchtimeFired / ctrl.autoNextScheduled.
  */
+
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
+
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
+
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
+
 /* ========================= Imports ========================= */
 import { makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, scheduleSafe, rndInt, once, getPlayerScope, isSchedulerHalted, groupCancel } from './utils.js';
 import { stats, isStopping } from './globals.js';
@@ -24,6 +28,7 @@ import { scheduleQualityChanges, resetPlaybackQuality } from './autoQuality.js';
 import { scheduleRateChanges, resetPlaybackRate } from './autoRate.js';
 import { applyInitSeek } from './autoSeek.js';
 import { scheduleUnmute } from './autoUnmute.js';
+
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
 

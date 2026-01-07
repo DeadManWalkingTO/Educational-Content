@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v7.25.21';
+const VERSION = 'v8.2.2';
 /*
  * Controller: λεπτό wrapper για YT events με delegation στο PlayerStateEngine.
  * - Soft-task back-pressure meta: softTaskMinGapMs, lastSoftTaskMs, softFreezeUntilMs.

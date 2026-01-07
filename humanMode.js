@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-const VERSION = 'v5.9.4';
+const VERSION = 'v6.2.2';
 /*
  * Περιγραφή: Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς playback.
  * Στόχος: duration-aware start, ρεαλιστικές παύσεις/seek/ένταση/ποιότητα/ρυθμός.
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, stats, hasUserGesture } from './globals.js';
+import { controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, stats, hasUserGesture, setIsStopping, HUMAN_MODE_INIT_FINISH, setHumanModeInitFinish } from './globals.js';
 import { rndInt, randomFloat, sleep, allTrue, anyTrue, isDefined, makeLogger, scheduleSafe, getPlayerScope } from './utils.js';
 import { PlayerController } from './playerController.js';
 import { pickVideoId } from './videoPicker.js';
@@ -127,11 +127,11 @@ function logProfile(pidx, profile) {
 /* Αρχικοποίηση players με ρεαλιστικές καθυστερήσεις */
 export async function initPlayersSequentially(mainList, altList) {
   const mID = getPlayerScope();
+
+  setHumanModeInitFinish(false);
+
   try {
-    const partsGesture = [];
-    partsGesture.push(hasUserGesture === true);
-    const okGesture = allTrue(partsGesture);
-    if (okGesture !== true) {
+    if (hasUserGesture !== true) {
       log(`⚠️ ${mID} HumanMode → Αναβολή Init (No User Gesture)`);
       return;
     }
@@ -170,10 +170,9 @@ export async function initPlayersSequentially(mainList, altList) {
   while (i < PLAYER_COUNT) {
     const safePlayerCount = `Player ${i + 1}`;
     const mID = getPlayerScope(safePlayerCount);
+
     // --- 🔒 Early StopAll Gate: κόβει ΟΛΗ τη loop (όχι continue) ---
-    const partsStop = [];
-    partsStop.push(isStopping === true);
-    if (allTrue(partsStop) === true) {
+    if (isStopping === true) {
       log(`👤 ${mID} HumanMode → Παράκαμψη Init (Stop All)`);
       break; // Τερματίζουμε τη σειριακή αρχικοποίηση
     }
@@ -188,18 +187,14 @@ export async function initPlayersSequentially(mainList, altList) {
     const shownSec = Math.round(playbackDelay / 1000);
 
     // Gate πριν από "Scheduled" & pre-warm: αν σταματάμε, μην προχωράς
-    const preGate = [];
-    preGate.push(isStopping !== true);
-    if (allTrue(preGate) === true) {
+    if (isStopping !== true) {
       log(`⏳ ${mID} HumanMode Scheduled → Start After ${shownSec}s`);
 
       // Pre-warm με defensive gate ΜΕΣΑ στο callback (αν «ξυπνήσει» μετά από StopAll)
       scheduleSafe(
         () => {
           try {
-            const stopNow = [];
-            stopNow.push(isStopping === true);
-            if (allTrue(stopNow) === true) {
+            if (isStopping === true) {
               log(`⏹️ ${mID} StopAll Gate → abort pre-warm`);
               return;
             }
@@ -216,9 +211,7 @@ export async function initPlayersSequentially(mainList, altList) {
     await sleep(rndInt(400, 600));
 
     // Αν έχει StopAll πριν ξεκινήσει ο «μεγάλος» χρόνος, σταμάτα εδώ.
-    const stopEarly = [];
-    stopEarly.push(isStopping === true);
-    if (allTrue(stopEarly) === true) {
+    if (isStopping === true) {
       log(`👤 ${mID} HumanMode → Παράκαμψη Init (Stop All)`);
       break;
     }
@@ -227,9 +220,7 @@ export async function initPlayersSequentially(mainList, altList) {
     await sleep(playbackDelay);
 
     // StopAll gate (εκ νέου) πριν το πραγματικό init
-    const stopBeforeInit = [];
-    stopBeforeInit.push(isStopping === true);
-    if (allTrue(stopBeforeInit) === true) {
+    if (isStopping === true) {
       log(`👤 ${mID} HumanMode → Παράκαμψη Init (Stop All)`);
       break;
     }
@@ -244,7 +235,6 @@ export async function initPlayersSequentially(mainList, altList) {
       i = i + 1;
       continue;
     }
-
     const videoId = pick.id;
 
     // Controller reuse/construct
@@ -291,6 +281,16 @@ export async function initPlayersSequentially(mainList, altList) {
   }
 
   log(`✅ ${mID} HumanMode → Sequential Initialization Completed`);
+
+  setHumanModeInitFinish(true);
+
+  try {
+    if (typeof document !== 'undefined') {
+      document.dispatchEvent(new CustomEvent('humanmode:init:completed'));
+    }
+  } catch (_) {
+    // no-op: αν δεν υπάρχει DOM (π.χ. σε headless)
+  }
 }
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης */

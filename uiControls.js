@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-const VERSION = 'v4.15.8';
+const VERSION = 'v5.2.2';
 /*
  * Κεντρικό χειριστήριο UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
  * - StopAll (Hard): Σειριακό clearTimers/stopVideo/destroy με αντίστροφη σειρά και ίδια χρονοκαθυστέρηση.
@@ -18,7 +18,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList } from './globals.js';
+import { controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList, HUMAN_MODE_INIT_FINISH } from './globals.js';
 import {
   rndInt,
   makeLogger,
@@ -136,8 +136,8 @@ export function setControlsEnabled(enabled) {
   return touched;
 }
 
-/* ========================= Stop All (Hard) ========================= */
-function stopAll() {
+/* =========================  playersStopAndClean ========================= */
+function playersStopAndClean(MinDelayMS = 30000, MaxDelayMS = 60000) {
   const mID = getPlayerScope();
   setIsStopping(true);
   clearStopTimers();
@@ -149,7 +149,7 @@ function stopAll() {
   while (i < reversed.length) {
     const c = reversed[i];
     const mIDc = getPlayerScope(c.index);
-    const randomDelay = rndInt(30000, 60000);
+    const randomDelay = rndInt(MinDelayMS, MaxDelayMS);
     totalDelay += randomDelay;
 
     const id = scheduleSafe(
@@ -168,12 +168,12 @@ function stopAll() {
             c.currentRate = 1.0;
             c.freezeSoftTasks = false;
 
-            log(`⏹️ ${mIDc} [StopAll:Hard] Destroyed & Reset`);
+            log(`🔴 ${mIDc} Stop → Destroyed & Reset`);
           } catch {
-            log(`❌ ${mIDc} Error → HardStop Destroy/Reset`);
+            log(`❌ ${mIDc} Error → Stop Destroy/Reset`);
           }
         } else {
-          log(`❌ ${mIDc} Stop Skipped → Not Initialized`);
+          log(`❌ ${mIDc} Error → Stop Skipped: Not Initialized`);
         }
       },
       totalDelay,
@@ -186,38 +186,110 @@ function stopAll() {
   }
 
   enableSchedulerHalt();
-  log(`🛠️ ${mID} [StopAll:Hard] Scheduled → ${reversed.length} Players — Συνολική Εκτίμηση ~${Math.round(totalDelay / 1000)}s`);
+  log(`🚨 ${mID} Stop Scheduled → ${reversed.length} Players — Συνολική Εκτίμηση ~${Math.round(totalDelay / 1000)}s`);
 }
 
-/* ========================= Restart All ========================= */
-function restartAll() {
-  const mID = getPlayerScope();
-  disableSchedulerHalt();
-  setIsStopping(false);
+/**
+ * Καθαρίζει πλήρως όλους τους ενεργούς players και μηδενίζει βασικά στατιστικά/flags.
+ * Απλή έκδοση: δεν πειράζει λίστες, δεν αγγίζει scheduler halt.
+ * @returns {number} Πλήθος καταστραμμένων players.
+ */
+export function playersCleanStats() {
+  let destroyedCount = 0;
 
-  // Quick cleanup για υπολείμματα
   controllers.forEach((c) => {
-    const mID = getPlayerScope(c?.player);
-    if (isDefined(c?.player)) {
-      try {
-        c.clearTimers();
-        if (isFunction(c.player.stopVideo)) c.player.stopVideo();
-        if (isFunction(c.player.destroy)) c.player.destroy();
+    try {
+      const mID = getPlayerScope(isDefined(c?.index) === true ? c.index : '?');
 
-        c.player = null;
-        c.initialPlayScheduled = false;
-        c.autoNextScheduled = false;
-        c.watchtimeFired = false;
-        c.playingStart = null;
-        c.currentRate = 1.0;
-        c.freezeSoftTasks = false;
-
-        log(`🧹 ${mID} [Restart] Residual Cleanup → Destroyed & Reset`);
-      } catch {
-        log(`❌ ${mID} Error → Restart Cleanup`);
+      // 1) Clear timers (ό,τι υπάρχει)
+      if (isFunction(c?.clearTimers) === true) {
+        try {
+          c.clearTimers();
+        } catch (_) {}
       }
+
+      // 2) Stop & Destroy YT player (αν υπάρχει)
+      let didDestroy = false;
+      if (isDefined(c?.player) === true) {
+        try {
+          if (isFunction(c.player?.stopVideo) === true) {
+            c.player.stopVideo();
+          }
+          if (isFunction(c.player?.destroy) === true) {
+            c.player.destroy();
+            didDestroy = true;
+          }
+        } catch (_) {}
+      }
+      if (didDestroy === true) {
+        destroyedCount = destroyedCount + 1;
+        log(`🧹 ${mID} [Clean] Destroyed YT Player`);
+      } else {
+        log(`⚠️ ${mID} [Clean] Destroy Skipped → Player Not Initialized`);
+      }
+
+      // 3) Reset βασικά flags/state
+      try {
+        c.player = null;
+      } catch (_) {}
+      try {
+        c.initialPlayScheduled = false;
+      } catch (_) {}
+      try {
+        c.autoNextScheduled = false;
+      } catch (_) {}
+      try {
+        c.watchtimeFired = false;
+      } catch (_) {}
+      try {
+        c.playingStart = null;
+      } catch (_) {}
+      try {
+        c.readyAt = null;
+      } catch (_) {}
+      try {
+        c.currentRate = 1.0;
+      } catch (_) {}
+      try {
+        c.freezeSoftTasks = false;
+      } catch (_) {}
+      try {
+        c.lastSeekAt = null;
+      } catch (_) {}
+      try {
+        c.lastPausedStart = null;
+      } catch (_) {}
+
+      log(`✅ ${mID} Clean → Reset Flags & State`);
+    } catch (err) {
+      const mID = getPlayerScope('?');
+      log(`❌ ${mID} Error → PlayersCleanStats: ${String(err)}`);
     }
   });
+
+  log(`🚨 PlayersCleanStats → Destroyed=${destroyedCount}`);
+  return destroyedCount;
+}
+
+/* ========================= Stop All (Hard) ========================= */
+function stopAll() {
+  const mID = getPlayerScope();
+  const MinDelayMS = 30000;
+  const MaxDelayMS = 60000;
+  log(`⛔ ${mID} StopAll Scheduled → Start`);
+  playersStopAndClean(MinDelayMS, MaxDelayMS);
+  log(`⛔ ${mID} StopAll Scheduled → End`);
+}
+
+/* ========================= Restart Helper ========================= */
+function ifHumanModeFinish() {
+  try {
+    const destroyed = playersCleanStats();
+    log(`✅ Destroyed → players: ${destroyed}`);
+  } catch (error) {}
+
+  setIsStopping(false);
+  disableSchedulerHalt();
 
   /* HumanMode: πλήρης επανεκκίνηση */
   scheduleSafe(
@@ -228,6 +300,34 @@ function restartAll() {
     400,
     'RestartFlow',
     'resume-seq'
+  );
+}
+
+/* ========================= Restart All ========================= */
+function restartAll() {
+  const mID = getPlayerScope();
+  const MinDelayMS = 5000;
+  const MaxDelayMS = 10000;
+
+  log(`🔄 ${mID} RestartAll Scheduled → Start`);
+  playersStopAndClean(MinDelayMS, MaxDelayMS);
+  playersCleanStats();
+  playersStopAndClean(MinDelayMS, MaxDelayMS);
+  playersCleanStats();
+  playersStopAndClean(MinDelayMS, MaxDelayMS);
+  log(`🔄 ${mID} RestartAll Scheduled → End`);
+
+  if (HUMAN_MODE_INIT_FINISH === true) {
+    log(`👤 ${mID} HumanMode initialization → Prepare New`);
+    ifHumanModeFinish();
+  }
+  document.addEventListener(
+    'humanmode:init:completed',
+    () => {
+      log(`👤 ${mID} HumanMode initialization → Prepare New`);
+      ifHumanModeFinish();
+    },
+    { once: true } // ώστε να μη διπλοτρέξει
   );
 
   log(`🔄 ${mID} RestartAll → Completed`);
