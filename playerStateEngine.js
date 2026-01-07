@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v4.21.21';
+const VERSION = 'v5.0.21';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * - WTBus emit: όταν πιαστεί το required watch-time, εκπέμπουμε 'wt:reached' (primary).
@@ -14,8 +14,8 @@ const FILENAME = import.meta.url.split('/').pop();
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 /* ========================= Imports ========================= */
-import { makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, scheduleSafe, rndInt, once, getPlayerScope } from './utils.js';
-import { stats } from './globals.js';
+import { makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, scheduleSafe, rndInt, once, getPlayerScope, isSchedulerHalted, groupCancel } from './utils.js';
+import { stats, isStopping } from './globals.js';
 import { getBehaviorPlan } from './policies.js';
 import { emitWatchtimeReached } from './wtBus.js';
 import { autoNextAfterWatchtime, autoNextAfterError } from './autoNext.js';
@@ -46,9 +46,31 @@ function _can(obj, methodName) {
   parts.push(isFunction(fn) === true);
   return allTrue(parts);
 }
+
+// ------------------------- Gates helper -------------------------
+function gateStopOrHalt(ctrl, label) {
+  const stopPolicy = allTrue([isStopping === true]) === true;
+  const halted = allTrue([isSchedulerHalted() === true]) === true;
+  if (anyTrue([stopPolicy === true, halted === true]) === true) {
+    try {
+      if (isFunction(ctrl?.clearTimers) === true) ctrl.clearTimers();
+    } catch (_) {}
+    const mID = getPlayerScope(ctrl.index);
+    log(`⛔ ${mID} ${label} → Gated (Stop/Halt)`);
+    return true;
+  }
+  return false;
+}
+
 /* ========================= External API (wired από PlayerController) ========================= */
 export function onReadyExternal(ctrl, e) {
   const mID = getPlayerScope(ctrl.index);
+  /* --- 🛑 Early gate --- */
+  if (gateStopOrHalt(ctrl, 'READY') === true) {
+    //log(`🟣 ${mID} → READY - Halt`);
+    return;
+  }
+
   try {
     const p = ctrl?.player;
     const parts = [];
@@ -270,6 +292,12 @@ export function onStateChangeExternal(ctrl, e) {
     const state = p.getPlayerState();
     /*------------------------------ PLAYING ------------------------------*/
     if (state === YT.PlayerState.PLAYING) {
+      /* --- 🛑 Early gate --- */
+      if (gateStopOrHalt(ctrl, 'PLAYING') === true) {
+        //log(`🟢 ${mID} → PLAYING - Halt`);
+        return;
+      }
+
       if (ctrl.playingStart === null) {
         ctrl.playingStart = Date.now();
       }
@@ -390,6 +418,12 @@ export function onStateChangeExternal(ctrl, e) {
     }
     /*------------------------------ ENDED ------------------------------*/
     if (state === YT.PlayerState.ENDED) {
+      /* --- 🛑 Early gate --- */
+      if (gateStopOrHalt(ctrl, 'ENDED') === true) {
+        //log(`🔵 ${mID} → ENDED - Halt`);
+        return;
+      }
+
       log(`🔵 ${mID} → ENDED`);
       if (ctrl.deferAutoNextUntilEnded === true) {
         try {
@@ -406,7 +440,18 @@ export function onStateChangeExternal(ctrl, e) {
       }
     }
     /*------------------------------ Άλλα States ------------------------------*/
+
+    /*------------------------------ PAUSED ------------------------------*/
     if (state === YT.PlayerState.PAUSED) {
+      /* 🛑 Early gate: Stop/Halt → μην προγραμματίσεις resume, κάνε soft-cleanup */
+      if (gateStopOrHalt(ctrl, 'PAUSED') === true) {
+        //log(`🟡 ${mID} → PAUSED - Halt`);
+        try {
+          // Ακύρωσε τυχόν προγραμματισμένους 'pause-guard' timers
+          if (isFunction(groupCancel) === true) groupCancel(ctrl._group('pause-guard'));
+        } catch (_) {}
+        return;
+      }
       log(`🟡 ${mID} → PAUSED`);
       ctrl.lastPausedStart = Date.now();
       try {
@@ -428,9 +473,34 @@ export function onStateChangeExternal(ctrl, e) {
         }
       } catch (_) {}
     }
+    /*------------------------------ BUFFERING ------------------------------*/
     if (state === YT.PlayerState.BUFFERING) {
+      /* 🛑 Early gate: Stop/Halt → μόνο ενημέρωσε timestamp και return */
+      if (gateStopOrHalt(ctrl, 'BUFFERING') === true) {
+        //log(`🟠 ${mID} → BUFFERING - Halt`);
+        ctrl.lastBufferingStart = Date.now();
+        return;
+      }
       log(`🟠 ${mID} → BUFFERING`);
       ctrl.lastBufferingStart = Date.now();
+    }
+    /*------------------------------ UNSTARTED ------------------------------*/
+    if (state === YT.PlayerState.UNSTARTED) {
+      /* 🛑 Early gate: Stop/Halt → μόνο ενημέρωσε timestamp και return */
+      if (gateStopOrHalt(ctrl, 'UNSTARTED') === true) {
+        //log(`🔘 ${mID} → UNSTARTED - Halt`);
+        ctrl.lastBufferingStart = Date.now();
+        return;
+      }
+    }
+    /*------------------------------ CUED ------------------------------*/
+    if (state === YT.PlayerState.CUED) {
+      /* 🛑 Early gate: Stop/Halt → μόνο ενημέρωσε timestamp και return */
+      if (gateStopOrHalt(ctrl, 'CUED') === true) {
+        //log(`⚫ ${mID} → CUED - Halt`);
+        ctrl.lastBufferingStart = Date.now();
+        return;
+      }
     }
   } catch (err) {
     log(`❌ ${mID} Error → onStateChangeExternal — Detail= ${err}`);
@@ -438,6 +508,12 @@ export function onStateChangeExternal(ctrl, e) {
 }
 export function onErrorExternal(ctrl, e) {
   const mID = getPlayerScope(ctrl.index);
+  /* --- 🛑 Early gate --- */
+  if (gateStopOrHalt(ctrl, 'ERROR') === true) {
+    log(`❌ ${mID} → ERROR`);
+    return;
+  }
+
   try {
     log(`❌ ${mID} Error → State: OnError — Detail= ${String(e)}`);
     autoNextAfterError(ctrl);

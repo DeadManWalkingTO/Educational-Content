@@ -1,5 +1,5 @@
 // --- utils.js ---
-const VERSION = 'v4.5.4';
+const VERSION = 'v4.7.2';
 /*
  * Περιγραφή: Ενιαίο module βοηθητικών συναρτήσεων (λογική, τύποι, χρόνος, μορφοποίηση, JSON, DOM, γεγονότα, logging, scheduler).
  * Αλλαγές: Προσθήκη κοινού helper whenPlayingAndUnmuted(player, ctrl, attemptTask, retryMinMs, retryMaxMs, group, tag)
@@ -15,6 +15,9 @@ const FILENAME = import.meta.url.split('/').pop();
 
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
+
+/* ========================= Logger ========================= */
+const log = makeLogger(FILENAME);
 
 /** 
 - Ενότητες:
@@ -398,7 +401,7 @@ export function subsystemIconInfo(urlOrFileName) {
   return { icon: rec.icon, tag: rec.tag, pascalName: rec.pascalName };
 }
 // Απλό log: κονσόλα + app event (χωρίς imports)
-export function log(msg) {
+export function logSimple(msg) {
   const s = String(msg);
   const time = typeof ts === 'function' ? ts() : new Date().toLocaleTimeString();
   const icon = iconForFilename(import.meta.url.split('/').pop());
@@ -638,6 +641,25 @@ export function getPlayerScope(input, globalLabel = 'System') {
 }
 
 /* ======================= (F) Scheduler API (χωρίς imports) ======================= */
+
+/** Global kill-switch state (χωρίς underscores, σαφής πρόθεση) */
+let schedulerHaltEnabled = false;
+
+/** Ενεργοποιεί το halt: μπλοκάρει νέα scheduleSafe/delay/repeat (όπου εφαρμόζεται). */
+export function enableSchedulerHalt() {
+  schedulerHaltEnabled = true;
+}
+
+/** Απενεργοποιεί το halt: επιτρέπει νέα schedules. */
+export function disableSchedulerHalt() {
+  schedulerHaltEnabled = false;
+}
+
+/** Προαιρετικό: ελέγχει αν ο scheduler είναι σε halt (για logs/diagnostics). */
+export function isSchedulerHalted() {
+  return schedulerHaltEnabled === true;
+}
+
 const _jobs = new Map();
 let _nextId = 1;
 const _stats = { created: 0, canceled: 0, paused: 0, resumed: 0, ran: 0 };
@@ -647,6 +669,11 @@ function _newId() {
   return id;
 }
 export function delay(fn, ms, group) {
+  /* Kill-Switch: αν είναι ενεργό, μπλοκάρουμε νέα tasks */
+  if (schedulerHaltEnabled === true) {
+    /* επιστρέφουμε "Νο-id" (-1) ώστε clearTimers να μην προσπαθήσει cancel */
+    return -1;
+  }
   const id = _newId();
   const info = { type: 'timeout', fn, ms: Number(ms), timerId: null, group: isDefined(group) ? group : null, paused: false, createdAt: nowMs() };
   const handler = () => {
@@ -663,6 +690,11 @@ export function delay(fn, ms, group) {
   return id;
 }
 export function repeat(fn, ms, group) {
+  /* Kill-Switch: αν είναι ενεργό, μπλοκάρουμε νέα tasks */
+  if (schedulerHaltEnabled === true) {
+    /* επιστρέφουμε "Νο-id" (-1) ώστε clearTimers να μην προσπαθήσει cancel */
+    return -1;
+  }
   const id = _newId();
   const info = { type: 'interval', fn, ms: Number(ms), timerId: null, group: isDefined(group) ? group : null, paused: false, createdAt: nowMs() };
   const handler = () => {
@@ -868,8 +900,14 @@ export async function retry(fnAsync, attempts, baseMs, factor, maxMs, jitterRati
   }
   return { ok: false, value: null, error: lastErr, attempts: maxAttempts };
 }
-// Τρέξε τη συνάρτηση μου μετά από Χ ms, με try/catch, λογόραψε τα σφάλματα και βάλε την εργασία σε named group
+/** Τρέξε τη συνάρτηση μου μετά από Χ ms, με try/catch, λογόραψε τα σφάλματα και βάλε την εργασία σε named group */
 export function scheduleSafe(fn, ms, group, label) {
+  /* Kill-Switch: αν είναι ενεργό, μπλοκάρουμε νέα tasks */
+  if (schedulerHaltEnabled === true) {
+    /* επιστρέφουμε "Νο-id" (-1) ώστε clearTimers να μην προσπαθήσει cancel */
+    return -1;
+  }
+
   const name = isDefined(label) ? String(label) : 'scheduleSafe';
   const delayMs = Math.floor(Number(ms));
   const grp = isDefined(group) ? group : null;
@@ -881,8 +919,9 @@ export function scheduleSafe(fn, ms, group, label) {
         }
       } catch (err) {
         try {
+          const mID = getPlayerScope();
           const msg = err instanceof Error ? err.message : String(err);
-          log('❌ ' + name + ' Error ' + msg);
+          log(`❌ ${mID} Error → ${name} — Detail= ${msg}`);
         } catch (_) {
           /* no-op */
         }

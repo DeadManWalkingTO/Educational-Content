@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-const VERSION = 'v4.9.21';
+const VERSION = 'v4.11.2';
 /*
  * Κεντρικό χειριστήριο UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
  * - Stop All: χρήση utils.scheduleSafe αντί για native setTimeout (ενοποίηση timers).
@@ -19,7 +19,22 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { controllers, MAIN_PROBABILITY, setIsStopping, clearStopTimers, pushStopTimer, getMainList, getAltList, setMainList, setAltList } from './globals.js';
-import { rndInt, makeLogger, allTrue, anyTrue, isDefined, isNonEmptyArray, safeAddEvent, domReady, debounce, isFunction, scheduleSafe, getPlayerScope } from './utils.js';
+import {
+  rndInt,
+  makeLogger,
+  allTrue,
+  anyTrue,
+  isDefined,
+  isNonEmptyArray,
+  safeAddEvent,
+  domReady,
+  debounce,
+  isFunction,
+  scheduleSafe,
+  getPlayerScope,
+  enableSchedulerHalt,
+  disableSchedulerHalt,
+} from './utils.js';
 import { reloadList as reloadListsFromSource } from './lists.js';
 
 /* ========================= Logger ========================= */
@@ -165,10 +180,16 @@ function stopAll() {
       `stopall-${step}`
     );
 
-    // Αποθήκευση ID για μελλοντική ακύρωση μέσω clearStopTimers()
-    pushStopTimer(id);
+    // ΜΟΝΟ αν δημιουργήθηκε πραγματικός timer (id>0), αποθήκευσε το id για μελλοντική ακύρωση μέσω clearStopTimers()
+    if (id > 0) {
+      pushStopTimer(id);
+    }
+
     i = i + 1;
   }
+
+  /** ➤ Φάση-2: Αφού προγραμματίστηκαν ΟΛΑ τα stop timers, ενεργοποίησε Kill-Switch */
+  enableSchedulerHalt();
 
   log(`⏹️ ${mID} [StopAll] Scheduled → ${shuffled.length} Players — Συνολική Εκτίμηση ~${Math.round(totalDelay / 1000)}s`);
 }
@@ -176,6 +197,10 @@ function stopAll() {
 /** Restart All με hygiene: όπου απαιτείται, stop/destroy πριν από re-init. */
 function restartAll() {
   const mID = getPlayerScope();
+  // Kill-Switch OFF πριν από νέα schedules
+  disableSchedulerHalt();
+  setIsStopping(false);
+
   const mainList = getMainList();
   const altList = getAltList();
 
