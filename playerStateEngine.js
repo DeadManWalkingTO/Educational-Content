@@ -242,7 +242,7 @@ export function onReadyExternal(ctrl, e) {
         log(`ℹ️ ${mID} Play → Info: Initial AlreadyScheduled (Skip)`);
       } else {
         ctrl.initialPlayScheduled = true;
-        const startDelay = rndInt(500, 1000);
+        const startDelay = rndInt(5000, 10000);
         let attempts = 0;
         const maxAttempts = 12; //12
         const tryStart = () => {
