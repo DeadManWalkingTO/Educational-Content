@@ -1,9 +1,9 @@
 // --- humanMode.js ---
-const VERSION = 'v7.1.2';
+const VERSION = 'v7.2.2';
 /*
  * Περιγραφή: Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς playback.
- * Στόχος: duration-aware start, ρεαλιστικές παύσεις/seek/ένταση/ποιότητα/ρυθμός.
- * Χρήση: Ανεξάρτητοι players με παραμετρικά profiles, συμβατά με τα νέα schedulers (freeze-aware).
+ * Refactor: Δεν εφαρμόζουμε/μεταφέρουμε λίστες από εδώ. Το SSoT είναι στο lists.js.
+ * Τα IDs επιλέγονται μέσω pickVideoId() χωρίς παραμέτρους (prob από globals.MAIN_PROBABILITY).
  */
 
 // --- Export Version ---
@@ -11,14 +11,22 @@ export function getVersion() {
   return VERSION;
 }
 
+/* ========================= Περιγραφή =========================
+ *
+ * Περιγραφή: Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς playback.
+ * Refactor: Δεν εφαρμόζουμε/μεταφέρουμε λίστες από εδώ. Το SSoT είναι στο lists.js.
+ * Τα IDs επιλέγονται μέσω pickVideoId() χωρίς παραμέτρους (prob από globals.MAIN_PROBABILITY).
+ * Παραμένουν: duration-aware start, profiles, sequential init, freeze-aware schedulers.
+ */
+
 /* Όνομα αρχείου για logging */
 const FILENAME = import.meta.url.split('/').pop();
 
-/* Ενημέρωση για Εκκίνηση Φόρτωσης */
+/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { controllers, PLAYER_COUNT, MAIN_PROBABILITY, isStopping, setMainList, setAltList, stats, hasUserGesture, setIsStopping, HUMAN_MODE_INIT_FINISH, setHumanModeInitFinish } from './globals.js';
+import { controllers, PLAYER_COUNT, isStopping, hasUserGesture, HUMAN_MODE_INIT_FINISH, setHumanModeInitFinish } from './globals.js';
 import { rndInt, randomFloat, sleep, allTrue, anyTrue, isDefined, makeLogger, scheduleSafe, getPlayerScope } from './utils.js';
 import { PlayerController } from './playerController.js';
 import { pickVideoId } from './videoPicker.js';
@@ -27,21 +35,19 @@ import { pickVideoId } from './videoPicker.js';
 const log = makeLogger(FILENAME);
 
 /* ========================= Module Code ========================= */
-/* Προφίλ συμπεριφοράς (βάσει πιθανοτήτων ανά scheduler) */
+/* Προφίλ συμπεριφοράς (βάσει πιθανοτήτων ανά κατηγορία scheduler) */
 const BEHAVIOR_PROFILES = [
   { name: 'Explorer', pauseChance: 0.5, qualityChangeChance: 0.35, volumeChangeChance: 0.35, rateChangeChanceShort: 0.18, rateChangeChanceLong: 0.22 },
   { name: 'Casual', pauseChance: 0.3, qualityChangeChance: 0.3, volumeChangeChance: 0.25, rateChangeChanceShort: 0.12, rateChangeChanceLong: 0.15 },
   { name: 'Focused', pauseChance: 0.2, qualityChangeChance: 0.2, volumeChangeChance: 0.2, rateChangeChanceShort: 0.08, rateChangeChanceLong: 0.1 },
 ];
 
-/* Δημιουργία τυχαίου config ανά προφίλ (συμβατό με autoVolume/autoQuality/autoRate) */
+/* Δημιουργία τυχαίου config ανά profile (συμβατό με autoVolume/autoQuality/autoRate) */
 function createRandomPlayerConfig(profile) {
   const profName = isDefined(profile) === true ? profile.name : 'Casual';
-
   let v1 = rndInt(5, 15);
   let v2 = rndInt(20, 40);
-
-  // Ασφάλεια: clamp και swap αν χρειαστεί (χωρίς ||/&&)
+  // Ασφάλεια: clamp και swap αν χρειαστεί (χωρίς &&/||)
   v1 = Math.max(0, Math.min(100, v1));
   v2 = Math.max(0, Math.min(100, v2));
   const needSwap = [];
@@ -52,14 +58,11 @@ function createRandomPlayerConfig(profile) {
     v2 = t;
   }
   const volumeRange = [v1, v2];
-
-  // Πιθανότητες από το profile (0..1)
   const pauseChance = isDefined(profile) === true ? profile.pauseChance : 0.3;
   const qChance = isDefined(profile) === true ? profile.qualityChangeChance : 0.3;
   const vChance = isDefined(profile) === true ? profile.volumeChangeChance : 0.25;
   const rateShort = isDefined(profile) === true ? profile.rateChangeChanceShort : 0.12;
   const rateLong = isDefined(profile) === true ? profile.rateChangeChanceLong : 0.15;
-
   return {
     profileName: profName,
     volumeRange,
@@ -71,7 +74,7 @@ function createRandomPlayerConfig(profile) {
   };
 }
 
-/* Προσθήκη logging για profile (switch-case αντί για πολλαπλά if) */
+/* Προθήκη logging για το profile (switch-case) */
 function logProfile(pidx, profile) {
   const mID = getPlayerScope(pidx);
   let name = 'casual';
@@ -79,7 +82,6 @@ function logProfile(pidx, profile) {
     const raw = String(profile?.name ?? '').toLowerCase();
     name = raw.length > 0 ? raw : 'casual';
   } catch (_) {}
-
   switch (name) {
     case 'explorer':
       log(`🧭 ${mID} Προφίλ → Explorer (περισσότερες παύσεις, περισσότερο seek)`);
@@ -93,73 +95,48 @@ function logProfile(pidx, profile) {
   }
 }
 
-/* Αρχικοποίηση players με ρεαλιστικές καθυστερήσεις */
-export async function initPlayersSequentially(mainList, altList) {
-  const mID = getPlayerScope();
-
+/*
+ * Sequential initialization των players.
+ * Σημείωση: Τα main/alt lists ΔΕΝ εφαρμόζονται εδώ. Το pickVideoId() τραβά SSoT (lists.js) on-demand.
+ * Υπογραφή παραμένει συμβατή (παράμετροι αγνοούνται για backward-compat από main.js).
+ */
+export async function initPlayersSequentially(_mainListIgnored, _altListIgnored) {
+  const mID0 = getPlayerScope();
   setHumanModeInitFinish(false);
-
   try {
     if (hasUserGesture !== true) {
-      log(`⚠️ ${mID} HumanMode → Αναβολή Init (No User Gesture)`);
+      log(`⚠️ ${mID0} HumanMode → Αναβολή Init (No User Gesture)`);
       return;
     }
   } catch (err) {
-    log(`❌ ${mID} HumanMode → hasUserGesture Check Error ${err}`);
+    log(`❌ ${mID0} HumanMode → hasUserGesture Check Error ${err}`);
   }
 
-  // Συγχρονισμός global λιστών (μόνο αν είναι arrays)
-  const partsLists = [];
-  partsLists.push(Array.isArray(mainList) === true);
-  partsLists.push(Array.isArray(altList) === true);
-  const okLists = allTrue(partsLists);
-  if (okLists === true) {
-    try {
-      setMainList(mainList);
-    } catch (_) {}
-    try {
-      setAltList(altList);
-    } catch (_) {}
-  }
-
-  // Διαθεσιμότητα
-  const lenMain = isDefined(mainList?.length) === true ? mainList.length : 0;
-  const lenAlt = isDefined(altList?.length) === true ? altList.length : 0;
-
-  const partsAvailNone = [];
-  partsAvailNone.push(lenMain === 0);
-  partsAvailNone.push(lenAlt === 0);
-  const noAvail = allTrue(partsAvailNone);
-  if (noAvail === true) {
-    log(`❌ ${mID} Error → Lists: Empty — Main=0 / Alt=0`);
-    return;
-  }
+  // Διαθεσιμότητα: Δεν ελέγχουμε λίστες εδώ (pull-only). Το pickVideoId() χειρίζεται empty cases.
 
   let i = 0;
   while (i < PLAYER_COUNT) {
-    const safePlayerCount = `Player ${i + 1}`;
-    const mID = getPlayerScope(safePlayerCount);
+    const safePlayerLabel = `Player ${i + 1}`;
+    const mID = getPlayerScope(safePlayerLabel);
 
-    // --- 🔒 Early StopAll Gate: κόβει ΟΛΗ τη loop (όχι continue) ---
+    // --- 🔒 Early StopAll Gate ---
     if (isStopping === true) {
       log(`👤 ${mID} HumanMode → Παράκαμψη Init (Stop All)`);
-      break; // Τερματίζουμε τη σειριακή αρχικοποίηση
+      break;
     }
 
-    // Τυχαίος νέος player config
+    // Τυχαίο profile & config
     const profileIndex = rndInt(0, BEHAVIOR_PROFILES.length - 1);
     const profile = BEHAVIOR_PROFILES[profileIndex];
     const config = createRandomPlayerConfig(profile);
 
-    // Καθυστέρηση έναρξης (μοτίβο «ανθρώπινης» εκκίνησης)
+    // Καθυστέρηση εκκίνησης ανά player (πιο ανθρώπινο)
     const playbackDelay = i === 0 ? 0 : rndInt(30, 180) * 1000;
     const shownSec = Math.round(playbackDelay / 1000);
 
-    // Gate πριν από "Scheduled" & pre-warm: αν σταματάμε, μην προχωράς
+    // Προ-warm (αμυντικά)
     if (isStopping !== true) {
       log(`⏳ ${mID} HumanMode Scheduled → Start After ${shownSec}s`);
-
-      // Pre-warm με defensive gate ΜΕΣΑ στο callback (αν «ξυπνήσει» μετά από StopAll)
       scheduleSafe(
         () => {
           try {
@@ -176,26 +153,24 @@ export async function initPlayersSequentially(mainList, altList) {
       );
     }
 
-    // Μικρή jitter καθυστέρηση για ρεαλισμό
+    // Μικρό jitter πριν το init για ρεαλισμό
     await sleep(rndInt(400, 600));
 
-    // Αν έχει StopAll πριν ξεκινήσει ο «μεγάλος» χρόνος, σταμάτα εδώ.
     if (isStopping === true) {
       log(`👤 ${mID} HumanMode → Παράκαμψη Init (Stop All)`);
       break;
     }
 
-    // Αναμονή μέχρι την «προγραμματισμένη» εκκίνηση
+    // Αναμονή μέχρι να έρθει η ώρα εκκίνησης του συγκεκριμένου player
     await sleep(playbackDelay);
 
-    // StopAll gate (εκ νέου) πριν το πραγματικό init
     if (isStopping === true) {
       log(`👤 ${mID} HumanMode → Παράκαμψη Init (Stop All)`);
       break;
     }
 
-    // Επιλογή βίντεο
-    const pick = pickVideoId(mainList, altList, MAIN_PROBABILITY);
+    // Επιλογή βίντεο: pull-only μέσω pickVideoId() (χωρίς παραμέτρους)
+    const pick = pickVideoId();
     const partsPick = [];
     partsPick.push(isDefined(pick?.id) === true);
     const canPick = allTrue(partsPick);
@@ -211,9 +186,8 @@ export async function initPlayersSequentially(mainList, altList) {
     const partsHasCtrl = [];
     partsHasCtrl.push(isDefined(controller) === true);
     const hasCtrl = allTrue(partsHasCtrl);
-
     if (hasCtrl !== true) {
-      controller = new PlayerController(i, mainList, altList, config);
+      controller = new PlayerController(i, /* main/alt ignored */ [], [], config);
       controllers.push(controller);
     } else {
       controller.config = config;
@@ -223,46 +197,38 @@ export async function initPlayersSequentially(mainList, altList) {
     // Logging profile
     logProfile(controller.index, profile);
 
-    // Μικρή καθυστέρηση πριν το init για ρεαλισμό
+    // Μικρό jitter πριν το init για ρεαλισμό
     await sleep(rndInt(150, 300));
 
     // Init
     controller.init(videoId);
 
-    // Logging baseline παύσεων από policy + session sampling
+    // Logging baseline παύσεων από policy (αν είναι διαθέσιμο μετά το init)
     let baselinePauses = '-';
     try {
       const partsBase = [];
       partsBase.push(isDefined(controller?.plan?.pauses?.count) === true);
       if (allTrue(partsBase) === true) baselinePauses = controller.plan.pauses.count;
     } catch (_) {}
-
-    log(`📋 ${mID} Pause Plan → Pre-Baseline=${baselinePauses} (ProfileChance=${config.pauseChance})`);
-
-    const session = {
-      pauseChance: config.pauseChance,
-      qualityChangeChance: config.qualityChangeChance,
-      volumeChangeChance: config.volumeChangeChance,
-    };
+    const session = { pauseChance: config.pauseChance, qualityChangeChance: config.qualityChangeChance, volumeChangeChance: config.volumeChangeChance };
     log(`👤 ${mID} HumanMode Init → Session=${JSON.stringify(session)}`);
+    log(`📋 ${mID} Pause Plan → Pre-Baseline=${baselinePauses} (ProfileChance=${config.pauseChance})`);
 
     i = i + 1;
   }
 
-  log(`✅ ${mID} HumanMode → Sequential Initialization Completed`);
-
+  log(`✅ ${mID0} HumanMode → Sequential Initialization Completed`);
   setHumanModeInitFinish(true);
-
   try {
     if (typeof document !== 'undefined') {
       document.dispatchEvent(new CustomEvent('humanmode:init:completed'));
     }
   } catch (_) {
-    // no-op: αν δεν υπάρχει DOM (π.χ. σε headless)
+    /* no-op for headless */
   }
 }
 
-/* Ενημέρωση για Ολοκλήρωση Φόρτωσης */
+/* Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---

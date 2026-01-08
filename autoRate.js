@@ -1,15 +1,23 @@
 // --- autoRate.js ---
-const VERSION = 'v1.11.3';
+const VERSION = 'v1.12.3';
 /*
- * Περιγραφή: Σπάνιες αλλαγές ταχύτητας αναπαραγωγής (rate).
- * - Back-pressure gate: σέβεται softFreezeUntilMs και softTaskMinGapMs ανά controller.
- * - Καταμέτρηση stats.softBackpressureHits σε κάθε reschedule λόγω back-pressure. Verify σε reset & scheduled changes (100–200 ms), επαναφορά αν αποκλίνει.
+ * Περιγραφή: Σπάνιες αλλαγές ταχύτητας αναπαραγωγής (rate) με back-pressure gates.
+ *  - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
+ *  - Καμία εξάρτηση από λίστες (συμβατό με SSoT/pull-only).
  */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
+
+/* ========================= Περιγραφή =========================
+ *
+ * Περιγραφή: Σπάνιες αλλαγές ταχύτητας αναπαραγωγής (rate) με back-pressure gates.
+ * Refactor:
+ *  - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
+ *  - Καμία εξάρτηση από λίστες (συμβατό με SSoT/pull-only).
+ */
 
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
@@ -25,6 +33,17 @@ import { stats } from './globals.js';
 const log = makeLogger(FILENAME);
 
 /* ========================= Helpers ========================= */
+function resolveGroup(ctrl, suffix, fallback) {
+  try {
+    const ok = [];
+    ok.push(isFunction(ctrl?._group) === true);
+    if (allTrue(ok) === true) {
+      return ctrl._group(suffix);
+    }
+  } catch (_) {}
+  return typeof fallback === 'string' ? fallback : `pc:${suffix}`;
+}
+
 /** Επιστρέφει διαθέσιμους ρυθμούς (YT API ή fallback). */
 function _getAvailableRates(p) {
   try {
@@ -46,11 +65,9 @@ function _getAvailableRates(p) {
 /** Εκτέλεση task μόνο όταν ο player είναι σε PLAYING και δεν υπάρχει back-pressure. */
 function _whenPlaying(ctrl, task, retryMinMs, retryMaxMs, group, tag) {
   let p = null;
-
   const attempt = () => {
     try {
       p = isDefined(ctrl?.player) === true ? ctrl.player : null;
-
       // Guards για player/state API
       const guards = [];
       guards.push(isDefined(p) === true);
@@ -62,7 +79,6 @@ function _whenPlaying(ctrl, task, retryMinMs, retryMaxMs, group, tag) {
         scheduleSafe(attempt, d1, group, `${tag}-retry-player`);
         return;
       }
-
       // Respect soft freeze + min gap
       const now = Date.now();
       const partsBP = [];
@@ -80,8 +96,7 @@ function _whenPlaying(ctrl, task, retryMinMs, retryMaxMs, group, tag) {
         return;
       }
     } catch (_) {}
-
-    // Έλεγχος PLAYING (μέσω controller helper, αν υπάρχει)
+    // Έλεγχος PLAYING
     let playing = false;
     try {
       const partsPlay = [];
@@ -95,34 +110,28 @@ function _whenPlaying(ctrl, task, retryMinMs, retryMaxMs, group, tag) {
         }
       }
     } catch (_) {}
-
     if (playing !== true) {
       const d2 = rndInt(retryMinMs, retryMaxMs);
       scheduleSafe(attempt, d2, group, `${tag}-retry-not-playing`);
       return;
     }
-
     try {
       task();
     } catch (_) {}
   };
-
   attempt();
 }
 
-/* ΝΕΟ: Verify rate (καθυστερημένη ανάγνωση + επαναφορά στην τιμή-στόχο) */
+/** Verify rate (καθυστερημένη ανάγνωση + επαναφορά αν mismatch). */
 function _verifyRate(p, target, ctrl = null, group = 'pc:rate') {
-  const mID = getPlayerScope(ctrl.index);
+  const mID = getPlayerScope(ctrl?.index);
   try {
     const canGet = isFunction(p?.getPlaybackRate) === true;
     const canSet = isFunction(p?.setPlaybackRate) === true;
-
-    // Απαίτηση: και τα δύο διαθέσιμα
     const partsReq = [];
     partsReq.push(canGet === true);
     partsReq.push(canSet === true);
     if (allTrue(partsReq) !== true) return;
-
     const delay = rndInt(100, 200);
     const verifyTask = () => {
       try {
@@ -136,26 +145,20 @@ function _verifyRate(p, target, ctrl = null, group = 'pc:rate') {
           if (allTrue(partsMismatch) === true) {
             p.setPlaybackRate(Number(target));
           }
-
           log(`✅ ${mID} Rate → Verify: Target=x${String(target)} / Now=x${String(cur)}`);
         }
       } catch (_) {}
     };
-
-    const grpParts = [];
-    grpParts.push(isFunction(ctrl?._group) === true);
-    const grp = allTrue(grpParts) === true ? ctrl._group('rate') : group;
-
+    const grp = resolveGroup(ctrl, 'rate', group);
     scheduleSafe(verifyTask, delay, grp, 'rate-verify');
   } catch (_) {}
 }
 
-/** Εφαρμογή αλλαγής rate με closing/opening PLAYING παραθύρου και verify. */
+/** Εφαρμογή αλλαγής rate με κλείσιμο/άνοιγμα PLAYING παραθύρου και verify. */
 function _applyRateChange(ctrl, targetRate) {
   const mID = getPlayerScope(ctrl.index);
   try {
     const p = ctrl?.player;
-
     // Guards για setPlaybackRate
     const guards = [];
     guards.push(isDefined(p) === true);
@@ -163,7 +166,6 @@ function _applyRateChange(ctrl, targetRate) {
     guards.push(isFunction(p?.setPlaybackRate) === true);
     const ok = allTrue(guards);
     if (ok !== true) return;
-
     // 1) Κλείσιμο τρέχοντος PLAYING παραθύρου με παλιό rate
     const canClose = [];
     canClose.push(isNumber(ctrl?.playingStart) === true);
@@ -177,7 +179,6 @@ function _applyRateChange(ctrl, targetRate) {
         ctrl.totalPlayTime = base + addSec;
       } catch (_) {}
     }
-
     // 2) Εφαρμογή νέου ρυθμού (αν επιτρέπεται)
     let desired = Number(targetRate);
     const partsNaN = [];
@@ -185,7 +186,6 @@ function _applyRateChange(ctrl, targetRate) {
     if (allTrue(partsNaN) === true) {
       desired = 1.0;
     }
-
     const rates = _getAvailableRates(p);
     let allowed = false;
     let i = 0;
@@ -198,13 +198,11 @@ function _applyRateChange(ctrl, targetRate) {
       }
       i = i + 1;
     }
-
     const partsAllowed = [];
     partsAllowed.push(allowed === true);
     if (allTrue(partsAllowed) !== true) {
       desired = 1.0;
     }
-
     try {
       p.setPlaybackRate(desired);
       if (isNumber(stats.rateChanges) === true) {
@@ -213,21 +211,15 @@ function _applyRateChange(ctrl, targetRate) {
         stats.rateChanges = 1;
       }
     } catch (_) {}
-
     // 3) Άνοιγμα νέου PLAYING παραθύρου με νέο ρυθμό
     ctrl.currentRate = desired;
     ctrl.playingStart = Date.now();
-
     try {
       if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
     } catch (_) {}
-
     log(`⚡ ${mID} Rate → Apply: Value=x${String(desired)}`);
-
-    // ΝΕΟ: verify της αλλαγής
-    const grpParts = [];
-    grpParts.push(isFunction(ctrl?._group) === true);
-    const grp = allTrue(grpParts) === true ? ctrl._group('rate') : 'pc:rate';
+    // Verify
+    const grp = resolveGroup(ctrl, 'rate', 'pc:rate');
     _verifyRate(p, desired, ctrl, grp);
   } catch (_) {}
 }
@@ -242,18 +234,13 @@ export function resetPlaybackRate(ctrl) {
     guards.push(p !== null);
     guards.push(isFunction(p?.setPlaybackRate) === true);
     const ok = allTrue(guards);
-
     if (ok === true) {
       try {
         p.setPlaybackRate(1.0);
       } catch (_) {}
-      // ΝΕΟ: verify του reset
-      const grpParts = [];
-      grpParts.push(isFunction(ctrl?._group) === true);
-      const grp = allTrue(grpParts) === true ? ctrl._group('rate') : 'pc:rate';
+      const grp = resolveGroup(ctrl, 'rate', 'pc:rate');
       _verifyRate(p, 1.0, ctrl, grp);
     }
-
     ctrl.currentRate = 1.0;
     log(`⚙️ ${mID} Rate → Reset: Value=x1`);
   } catch (_) {}
@@ -264,7 +251,6 @@ export function scheduleRateChanges(ctrl) {
   const mID = getPlayerScope(ctrl.index);
   try {
     const p = ctrl?.player;
-
     // Guards για duration
     const guards = [];
     guards.push(isDefined(p) === true);
@@ -272,27 +258,23 @@ export function scheduleRateChanges(ctrl) {
     guards.push(isFunction(p?.getDuration) === true);
     const ok = allTrue(guards);
     if (ok !== true) return;
-
+    // Λήψη duration
     let durationSec = 0;
     try {
       const d = p.getDuration();
       if (isNumber(d) === true) durationSec = d;
     } catch (_) {}
-
     const partsDurPos = [];
     partsDurPos.push(durationSec > 0);
     if (allTrue(partsDurPos) !== true) return;
-
-    // Παράθυρο βάσει required watch time (αν υπάρχει) ή duration (switch-case)
+    // Παράθυρο βάσει requiredWatchTime ή duration
     let windowSec = 0;
     try {
       const req = ctrl?.plan?.watch?.requiredWatchTimeSec;
       if (isNumber(req) === true) windowSec = req;
     } catch (_) {}
-
     let fromSec = 0;
     let toSec = 0;
-
     switch (true) {
       case allTrue([windowSec > 0]) === true: {
         const lo = Math.floor(windowSec * 0.1);
@@ -309,11 +291,9 @@ export function scheduleRateChanges(ctrl) {
         break;
       }
     }
-
-    // Πιθανότητες (switch-case για short/long)
+    // Πιθανότητα (short/long) από config
     const isShort = durationSec < 300;
     let chance = 0.15;
-
     switch (true) {
       case allTrue([isShort === true]) === true: {
         chance = 0.12;
@@ -333,8 +313,7 @@ export function scheduleRateChanges(ctrl) {
         break;
       }
     }
-
-    // Roll και απόφαση προγραμματισμού
+    // Roll & απόφαση προγραμματισμού
     const roll = randomFloat(0, 1);
     let planned = 0;
     const partsPlan = [];
@@ -342,17 +321,15 @@ export function scheduleRateChanges(ctrl) {
     if (allTrue(partsPlan) === true) {
       planned = 1;
     }
-
     if (planned === 0) {
       const pct = Math.floor(chance * 100);
       log(`ℹ️ ${mID} Rate → Scheduled: None (Chance=${pct}%)`);
       return;
     }
-
+    // Χρονισμός
     const delaySec = rndInt(fromSec, toSec);
     const delayMs = delaySec * 1000;
-
-    // Επιλογή target rate (switch-case)
+    // Στόχος ρυθμού (short→0.5x, long→2x)
     let targetRate = 1.0;
     switch (true) {
       case allTrue([isShort === true]) === true:
@@ -362,9 +339,8 @@ export function scheduleRateChanges(ctrl) {
         targetRate = 2.0;
         break;
     }
-
-    scheduleSafe(() => _whenPlaying(ctrl, () => _applyRateChange(ctrl, targetRate), 800, 2000, ctrl._group?.('rate'), 'rate-change'), delayMs, ctrl._group?.('rate'), 'rate-change');
-
+    const grp = resolveGroup(ctrl, 'rate', 'pc:rate');
+    scheduleSafe(() => _whenPlaying(ctrl, () => _applyRateChange(ctrl, targetRate), 800, 2000, grp, 'rate-change'), delayMs, grp, 'rate-change');
     log(`⏳ ${mID} Rate → Scheduled: In ~${delaySec}s (Window=${fromSec}-${toSec}s) Target=x${String(targetRate)}`);
   } catch (_) {}
 }

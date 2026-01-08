@@ -1,14 +1,25 @@
 // --- autoNext.js ---
-const VERSION = 'v1.23.21';
+const VERSION = 'v1.24.2';
 /*
  * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR/Watchtime + scheduler.
- * - ΜΟΝΟ-READY στρατηγική: Καταργήθηκε το early re-plan μετά το loadVideoById.
- *   Ο υπολογισμός WT/plan γίνεται αποκλειστικά στο onReadyExternal() (State Engine), όταν το YouTube API έχει διαθέσιμα metadata (duration > 0).
+ * Refactor (SSoT/pull-only):
+ * - Δεν χρησιμοποιούμε ctrl.mainList/altList ούτε περνάμε lists στο pick.
  */
+
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
+
+/* ========================= Περιγραφή =========================
+ *
+ * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR/Watchtime + scheduler.
+ * Refactor (SSoT/pull-only):
+ * - Δεν χρησιμοποιούμε ctrl.mainList/altList ούτε περνάμε lists στο pick.
+ * - Η επιλογή βίντεο γίνεται με pickVideoId() χωρίς παραμέτρους (prob από globals.MAIN_PROBABILITY).
+ * - Οι έλεγχοι/πληρότητα λιστών γίνονται αποκλειστικά στο lists.js.
+ */
+
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
@@ -16,10 +27,9 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, makeLogger, rndInt, randomFloat, isDefined, isNumber, allTrue, anyTrue, isFunction, isNonEmptyArray, getPlayerScope } from './utils.js';
-import { AUTO_NEXT_LIMIT_PER_PLAYER, stats, MAIN_PROBABILITY } from './globals.js';
+import { scheduleSafe, makeLogger, rndInt, randomFloat, isDefined, isNumber, allTrue, anyTrue, isFunction, getPlayerScope } from './utils.js';
+import { AUTO_NEXT_LIMIT_PER_PLAYER, stats } from './globals.js';
 import { pickVideoId } from './videoPicker.js';
-// ⚠️ Καταργήθηκε το import getBehaviorPlan: ο υπολογισμός γίνεται στο playerStateEngine.js
 import { schedulePauses } from './autoPause.js';
 
 /* ========================= Logger ========================= */
@@ -68,10 +78,11 @@ export function incAutoNext(playerIndex) {
   autoNextCounter = autoNextCounter + 1;
   autoNextPerPlayer[idx] = autoNextPerPlayer[idx] + 1;
 }
+
 /* ========================= Context helpers ========================= */
 function buildCtx(ctrl, trigger) {
   const p = isDefined(ctrl?.player) === true ? ctrl.player : null;
-  // Duration (safe snapshot — δεν χρησιμοποιείται πλέον για re-plan εδώ)
+  // Duration (safe snapshot)
   let durationSec = 0;
   if (p !== null) {
     const partsDur = [];
@@ -86,21 +97,14 @@ function buildCtx(ctrl, trigger) {
       }
     }
   }
-  // Lists presence
-  const hasMainList = isNonEmptyArray(ctrl?.mainList) === true;
-  const hasAltList = isNonEmptyArray(ctrl?.altList) === true;
-  const hasLists = anyTrue([hasMainList, hasAltList]);
   return {
     index: isNumber(ctrl?.index) === true ? ctrl.index : -1,
     durationSec,
     totalPlaySec: Math.round(isNumber(ctrl?.totalPlayTime) === true ? ctrl.totalPlayTime : 0),
-    hasLists,
-    mainList: Array.isArray(ctrl?.mainList) === true ? ctrl.mainList : [],
-    altList: Array.isArray(ctrl?.altList) === true ? ctrl.altList : [],
-    mainProbability: isNumber(MAIN_PROBABILITY) === true ? MAIN_PROBABILITY : 0.5,
     trigger,
   };
 }
+
 /* ========================= Gates & Decisions ========================= */
 function shouldAutoNext(ctx) {
   const partsValid = [];
@@ -116,15 +120,10 @@ function shouldAutoNext(ctx) {
   if (limitOk !== true) {
     return { allow: false, reason: `limit-${AUTO_NEXT_LIMIT_PER_PLAYER}/h` };
   }
-  const partsLists = [];
-  partsLists.push(isDefined(ctx?.hasLists) === true);
-  partsLists.push(ctx.hasLists === true);
-  const okLists = allTrue(partsLists);
-  if (okLists !== true) {
-    return { allow: false, reason: 'no-list' };
-  }
+  // Δεν κάνουμε list checks εδώ — SSoT/pull-only: pickVideoId() θα χειριστεί empty cases.
   return { allow: true, reason: 'ok' };
 }
+
 /* ========================= Pacing ========================= */
 function computeAutoNextDelay(ctx) {
   const trig = String(isDefined(ctx?.trigger) === true ? ctx.trigger : '');
@@ -137,6 +136,7 @@ function computeAutoNextDelay(ctx) {
       return rndInt(15000, 60000);
   }
 }
+
 /* ========================= Finalize ========================= */
 function finalizeAutoNext(ctrl, picked) {
   const mID = getPlayerScope(ctrl.index);
@@ -167,8 +167,8 @@ function finalizeAutoNext(ctrl, picked) {
     ctrl.autoNextScheduled = false;
   } catch (_) {}
   try {
-    ctrl.initialPlayScheduled = false; // θα τεθεί ξανά στο READY
-    ctrl.deferAutoNextUntilEnded = false; // θα τεθεί ξανά στο READY με βάση τη νέα διάρκεια
+    ctrl.initialPlayScheduled = false;
+    ctrl.deferAutoNextUntilEnded = false;
   } catch (_) {}
   // Logging
   try {
@@ -189,11 +189,14 @@ function finalizeAutoNext(ctrl, picked) {
     ctrl.scheduleMidSeek();
   } catch (_) {}
 }
+
 /* ========================= Runner ========================= */
 function runAutoNext(ctrl, ctx, label) {
   const mID = getPlayerScope(ctrl.index);
-  const picked = pickVideoId(ctx.mainList, ctx.altList, ctx.mainProbability);
-  // Guard: δυνατότητα φόρτωσης βίντεο
+  // Επιλογή επόμενου βίντεο (SSoT/pull-only)
+  const picked = pickVideoId();
+
+  // Guard: διαθέσιμη φόρτωση βίντεο
   const partsLoad = [];
   partsLoad.push(isDefined(ctrl?.player) === true);
   partsLoad.push(ctrl.player !== null);
@@ -203,21 +206,24 @@ function runAutoNext(ctrl, ctx, label) {
     log(`❌ ${mID} AutoNext Aborted → Player/LoadVideoById Unavailable`);
     return;
   }
-  if (picked.id === null) {
+  if (isDefined(picked?.id) !== true || picked.id === null) {
     log(`❌ ${mID} AutoNext Aborted → No Available List`);
     return;
   }
-  // Φόρτωση επόμενου βίντεο
-  ctrl.player.loadVideoById(picked.id);
-  try {
-    ctrl.guardPlay(ctrl.player);
-  } catch (_) {}
-  // ΜΟΝΟ-READY: δεν γίνεται re-plan εδώ.
-  // Το plan/WT θα υπολογιστούν στο onReadyExternal() όταν το YouTube API δώσει duration>0.
 
-  log(`ℹ️ ${mID} AutoNext → Re-plan deferred to READY (State Engine)`);
-  finalizeAutoNext(ctrl, picked);
+  // Φόρτωση επόμενου βίντεο
+  try {
+    ctrl.player.loadVideoById(picked.id);
+    try {
+      ctrl.guardPlay(ctrl.player);
+    } catch (_) {}
+    log(`ℹ️ ${mID} AutoNext → Re-plan deferred to READY (State Engine)`);
+    finalizeAutoNext(ctrl, picked);
+  } catch (e) {
+    log(`❌ ${mID} Error → LoadNext — Detail= ${e}`);
+  }
 }
+
 /* ========================= Scheduler (Generic) ========================= */
 function scheduleAutoNext(ctrl, trigger) {
   const mID = getPlayerScope(ctrl.index);
@@ -273,6 +279,7 @@ function scheduleAutoNext(ctrl, trigger) {
     label
   );
 }
+
 /* ========================= Public API (Named Exports) ========================= */
 export function autoNextAfterEnded(ctrl) {
   scheduleAutoNext(ctrl, 'ended');
@@ -281,10 +288,9 @@ export function autoNextAfterError(ctrl) {
   scheduleAutoNext(ctrl, 'error');
 }
 export function autoNextAfterWatchtime(ctrl) {
-  // Primary WT emit γίνεται στο State Engine. Εδώ μόνο το scheduling.
   scheduleAutoNext(ctrl, 'watchtime');
 }
-/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
+/* Ολοκλήρωση Φόρτωσης Αρχείου */
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 // --- End Of File ---

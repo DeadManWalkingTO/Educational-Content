@@ -1,9 +1,9 @@
 // --- playerController.js ---
-const VERSION = 'v8.2.2';
+const VERSION = 'v8.3.2';
 /*
  * Controller: λεπτό wrapper για YT events με delegation στο PlayerStateEngine.
- * - Soft-task back-pressure meta: softTaskMinGapMs, lastSoftTaskMs, softFreezeUntilMs.
- * - (Παραμένει) clearTimers(): συνεπές groupCancel για όλα τα γνωστά groups.
+ * Refactor (SSoT/pull-only):
+ *
  */
 
 // --- Export Version ---
@@ -11,15 +11,26 @@ export function getVersion() {
   return VERSION;
 }
 
-/* Όνομα αρχείου για logging. */
+/* ========================= Περιγραφή =========================
+ *
+ * Controller: λεπτό wrapper για YT events με delegation στο PlayerStateEngine.
+ * Refactor (SSoT/pull-only):
+ * - Αφαιρέθηκαν τα τοπικά this.mainList/this.altList (λίστες ανήκουν στο lists.js).
+ * - Αφαιρέθηκε ο listener στο παλιό event 'lists:updated' (το μοντέλο είναι pull-only).
+ * - Η υπογραφή του constructor παραμένει συμβατή (οι λίστες αγνοούνται),
+ *   ώστε παλιές κλήσεις να μη «σπάσουν».
+ * - Διατηρούνται soft-task back-pressure meta, groups & helpers.
+ */
+
+/* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, cancel, groupCancel, jitter, makeLogger, rndInt, allTrue, anyTrue, isNumber, isDefined, isFunction, safeAddEvent, deepClone, getPlayerScope } from './utils.js';
-import { MAIN_PROBABILITY, getOrigin, getYouTubeEmbedHost, stats, getMainList, getAltList, MIN_WATCH_TIME } from './globals.js';
+import { scheduleSafe, cancel, groupCancel, makeLogger, rndInt, allTrue, anyTrue, isNumber, isDefined, isFunction, safeAddEvent, getPlayerScope } from './utils.js';
+import { getOrigin, getYouTubeEmbedHost, stats, MIN_WATCH_TIME } from './globals.js';
 import { getBehaviorPlan } from './policies.js';
 import { onStateChangeExternal, onReadyExternal, onErrorExternal } from './playerStateEngine.js';
 import { autoNextAfterError, autoNextAfterEnded } from './autoNext.js';
@@ -30,15 +41,13 @@ const log = makeLogger(FILENAME);
 
 /* ========================= Module Code ========================= */
 export class PlayerController {
-  constructor(index, mainList, altList, config = null) {
+  constructor(index, /* mainListIgnored */ _mainList, /* altListIgnored */ _altList, config = null) {
     this.index = index;
-    this.mainList = Array.isArray(mainList) ? mainList : [];
-    this.altList = Array.isArray(altList) ? altList : [];
+    // Λίστες: δεν διατηρούμε πλέον τοπικά snapshots (SSoT στο lists.js)
     this.player = null;
     this.timers = { midSeek: null, pauseTimers: [], progressCheck: null };
     this.config = config;
     this.profileName = typeof config?.profileName === 'string' ? config.profileName : 'Unknown';
-
     // Accumulators / meta
     this.playingStart = null;
     this.currentRate = 1.0;
@@ -46,21 +55,16 @@ export class PlayerController {
     this.lastBufferingStart = null;
     this.lastPausedStart = null;
     this.expectedPauseMs = 0;
-
     // Seek defaults & meta
     this.seekDefaults = { minGapSec: 90, maxSeeks: 3, nearEndPct: 0.05, fromPct: 0.2, toPct: 0.6 };
     this.seekMeta = { lastMs: 0, count: 0 };
-
     // Behavior plan
     this.plan = null;
-
     // Volume meta
     this.volumeMeta = { scheduledIds: [], changesPlanned: 0 };
-
     // Unmute flags
     this.pendingUnmute = true;
     this.unmuteScheduled = false;
-
     // Watch-time & autonext state
     this.lastSeekAt = null;
     this.lastKnownCT = 0;
@@ -68,90 +72,27 @@ export class PlayerController {
     this.autoNextScheduled = false;
     this.cooldowns = { seekMs: 1500, pauseMs: 800 };
     this.continuity = { minPlaySec: 4 };
-
     // Freeze soft tasks κοντά στο threshold
     this.freezeSoftTasks = false;
-
     // Soft-task back-pressure (ΝΕΑ ΠΕΔΙΑ)
     this.softTaskMinGapMs = 2500; // default min gap μεταξύ soft tasks
     this.lastSoftTaskMs = 0; // timestamp τελευταίας soft-task
     this.softFreezeUntilMs = 0; // freeze window μετά από AutoNext/READY
-
     // Public watch-time API (per-video)
     this.videoRequiredWatchTime = 0; // s
     this.videoTotalPlayTime = 0; // s (cache για UI/logs)
-
     // Initial play flag
     this.initialPlayScheduled = false;
-
     // Defer AutoNext until ENDED
     this.deferAutoNextUntilEnded = false;
-
     // Ready timestamp
     this.readyAt = null;
-
     const mID = getPlayerScope(this.index);
-
-    // Listener για 'lists:updated'
-    try {
-      if (typeof document !== 'undefined') {
-        const handler = (_e) => {
-          try {
-            const mainGlobal = getMainList();
-            const altGlobal = getAltList();
-
-            const partsMain = [];
-            partsMain.push(Array.isArray(mainGlobal) === true);
-            if (allTrue(partsMain) === true) this.mainList = deepClone(mainGlobal);
-
-            const partsAlt = [];
-            partsAlt.push(Array.isArray(altGlobal) === true);
-            if (allTrue(partsAlt) === true) this.altList = deepClone(altGlobal);
-
-            const partsActive = [];
-            partsActive.push(this.isPlayingActive === true);
-            const active = allTrue(partsActive);
-
-            if (active === true) {
-              log(`🧑‍🤝‍🧑 ${mID} Lists Updated → Active (Future Picks Use New Lists)`);
-            } else {
-              this.clearTimers();
-
-              try {
-                const p = this.player;
-                let durationNow = 0;
-                const canDur = [];
-                canDur.push(this._can(p, 'getDuration') === true);
-                if (allTrue(canDur) === true) {
-                  const dtmp = p.getDuration();
-                  if (isNumber(dtmp) === true) durationNow = dtmp;
-                }
-                const ctx = { durationSec: durationNow, profileName: this.profileName, isFirstVideo: false, playerIndex: this.index };
-                this.plan = getBehaviorPlan(ctx);
-              } catch (_ee) {}
-
-              try {
-                const req = this.plan?.watch?.requiredWatchTimeSec;
-                this.videoRequiredWatchTime = isNumber(req) === true ? Math.max(0, Math.floor(req)) : 15;
-              } catch (_p) {
-                this.videoRequiredWatchTime = 15;
-              }
-
-              this.freezeSoftTasks = false;
-              log(`🧭 ${mID} Lists Updated → Idle (Plan Refreshed)`);
-            }
-          } catch (err) {
-            log(`❌ ${mID} Error → Lists Update ${err}`);
-          }
-        };
-        safeAddEvent(document, 'lists:updated', handler);
-      }
-    } catch (_e) {}
+    // ΣΗΜΑΝΤΙΚΟ: Ο παλιός listener 'lists:updated' αφαιρέθηκε (pull-only).
   }
 
   _group(suffix = '') {
     const base = `pc:${this.index}`;
-    // χρήση switch-case για καθαρό έλεγχο κενής κατάληξης
     switch (allTrue([suffix === '']) === true) {
       case true:
         return base;
@@ -166,7 +107,6 @@ export class PlayerController {
     guards.push(obj !== null);
     const okObj = allTrue(guards);
     if (okObj !== true) return false;
-
     const fn = obj[methodName];
     const parts = [];
     parts.push(typeof fn === 'function');
@@ -186,14 +126,13 @@ export class PlayerController {
     parts.push(this._ytDefined() === true);
     parts.push(this._can(p, 'getPlayerState') === true);
     const canCheck = allTrue(parts);
-
     if (canCheck === true) {
       try {
         const st = p.getPlayerState();
         const isPlay = [];
         isPlay.push(st === YT.PlayerState.PLAYING);
         if (allTrue(isPlay) === true) playing = true;
-      } catch (_e) {}
+      } catch (_) {}
     }
     return playing;
   }
@@ -208,7 +147,7 @@ export class PlayerController {
         const isM = [];
         isM.push(m === true);
         if (allTrue(isM) === true) muted = true;
-      } catch (_e) {}
+      } catch (_) {}
     }
     return muted;
   }
@@ -227,7 +166,6 @@ export class PlayerController {
         const partsP = [];
         partsP.push(isDefined(p) === true);
         if (allTrue(partsP) !== true) return;
-
         // Respect soft freeze + min gap για soft tasks
         try {
           const now = Date.now();
@@ -241,7 +179,6 @@ export class PlayerController {
             return;
           }
         } catch (_) {}
-
         // Pending unmute gate
         const pend = [];
         pend.push(this.pendingUnmute === true);
@@ -250,7 +187,6 @@ export class PlayerController {
           scheduleSafe(attempt, d, this._group(groupSuffix), `${tag}-retry-pending`);
           return;
         }
-
         // Muted gate
         const isM = [];
         isM.push(this._isMuted(p) === true);
@@ -259,7 +195,6 @@ export class PlayerController {
           scheduleSafe(attempt, d, this._group(groupSuffix), `${tag}-retry-muted`);
           return;
         }
-
         // Playing gate
         const partsPlay = [];
         partsPlay.push(this._isPlaying(p) === true);
@@ -269,14 +204,12 @@ export class PlayerController {
           scheduleSafe(attempt, d, this._group(groupSuffix), `${tag}-retry-not-playing`);
           return;
         }
-
         // Εκτέλεση
         try {
           taskFn();
-          // Ενημέρωση soft-task timestamp
           this.lastSoftTaskMs = Date.now();
-        } catch (_e) {}
-      } catch (_eOuter) {}
+        } catch (_) {}
+      } catch (_) {}
     };
     attempt();
   }
@@ -290,7 +223,6 @@ export class PlayerController {
       playerVars: { enablejsapi: 1, playsinline: 1, origin: getOrigin() },
       events: { onReady: (e) => this.onReady(e), onStateChange: (e) => this.onStateChange(e), onError: () => this.onError() },
     });
-
     log(`ℹ️ ${mID} YT PlayerVars → Origin: ${getOrigin()} / Host: ${getYouTubeEmbedHost()}`);
     log(`👤 ${mID} Initialized → Profile ${this.profileName} and ID=${videoId}`);
   }
@@ -298,11 +230,9 @@ export class PlayerController {
   onReady(e) {
     onReadyExternal(this, e);
   }
-
   onStateChange(e) {
     onStateChangeExternal(this, e);
   }
-
   onError(e) {
     onErrorExternal(this, e);
   }
@@ -310,10 +240,12 @@ export class PlayerController {
   scheduleMidSeek() {
     try {
       scheduleMidSeekExternal(this);
-    } catch (_e) {}
+    } catch (_) {}
   }
 
-  /** Συνεπές clearTimers: ακύρωση groups + συγκεκριμένα timers. */
+  /**
+   * Συνεπές clearTimers: ακύρωση groups + συγκεκραμμένα timers.
+   */
   clearTimers() {
     try {
       groupCancel(this._group());
@@ -354,12 +286,10 @@ export class PlayerController {
     try {
       groupCancel(this._group('unmute'));
     } catch (_) {}
-
     try {
       for (const id of this.timers.pauseTimers) cancel(id);
     } catch (_) {}
     this.timers.pauseTimers = [];
-
     if (typeof this.timers.midSeek === 'number') {
       cancel(this.timers.midSeek);
       this.timers.midSeek = null;
@@ -368,7 +298,6 @@ export class PlayerController {
       cancel(this.timers.progressCheck);
       this.timers.progressCheck = null;
     }
-
     try {
       const hasArr = Array.isArray(this.volumeMeta?.scheduledIds);
       const partsArr = [];
@@ -378,7 +307,6 @@ export class PlayerController {
         this.volumeMeta.scheduledIds = [];
       }
     } catch (_) {}
-
     this.expectedPauseMs = 0;
   }
 
@@ -394,18 +322,15 @@ export class PlayerController {
       const parts = [];
       parts.push(this._can(p, 'getCurrentTime') === true);
       if (allTrue(parts) !== true) return;
-
       const ct = p.getCurrentTime();
       const prevIsNum = isNumber(this.lastKnownCT) === true;
       const prev = prevIsNum === true ? this.lastKnownCT : 0;
-
       const delta = Math.abs(ct - prev);
       const guards = [];
       guards.push(delta >= 3);
       if (allTrue(guards) === true) this.lastSeekAt = Date.now();
-
       this.lastKnownCT = ct;
-    } catch (_e) {}
+    } catch (_) {}
   }
 
   guardPlay(p) {
@@ -428,20 +353,17 @@ export class PlayerController {
   getPlayedSec() {
     const base = isNumber(this.totalPlayTime) === true ? this.totalPlayTime : 0;
     let extra = 0;
-
     const parts = [];
     parts.push(isNumber(this.currentRate) === true);
     parts.push(this.playingStart !== null);
     const canExtra = allTrue(parts);
-
     if (canExtra === true) {
       let playingNow = false;
       try {
         const partsFn = [];
         partsFn.push(isFunction(this._isPlaying) === true);
         if (allTrue(partsFn) === true) playingNow = this._isPlaying(this.player) === true;
-      } catch (_e) {}
-
+      } catch (_) {}
       const shouldAdd = [];
       shouldAdd.push(playingNow === true);
       if (allTrue(shouldAdd) === true) {
@@ -452,14 +374,13 @@ export class PlayerController {
         extra = 0;
       }
     }
-
     const total = Math.max(0, Math.floor(base + extra));
     this.videoTotalPlayTime = total;
     return total;
   }
 }
 
-/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
+/* Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---

@@ -1,9 +1,9 @@
 // --- globals.js ---
-const VERSION = 'v6.3.2';
+const VERSION = 'v6.4.2';
 /*
- * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, λίστες, stop-all state, UI logging).
- * - Νέα counters: stats.wtSignals (WTBus emits) και stats.softBackpressureHits (soft-task gate reschedules).
- * - Εμφάνιση των counters στο statsPanel (UI).
+ * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, stop-all state, UI logging).
+ * Σημείωση: Όλη η λογική/SSoT των λιστών έχει μεταφερθεί στο lists.js (pull-only getters).
+ * Παραμένουν εδώ: counters, σταθερές εφαρμογής, helpers για YouTube origin/hosts, flags/χειρισμός StopAll, user-gesture, και UI (stats panel + activity panel binding).
  */
 
 // --- Export Version ---
@@ -11,20 +11,28 @@ export function getVersion() {
   return VERSION;
 }
 
+/* ========================= Περιγραφή =========================
+ *
+ * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, stop-all state, UI logging).
+ * Σημείωση: Όλη η λογική/SSoT των λιστών έχει μεταφερθεί στο lists.js (pull-only getters).
+ * Παραμένουν εδώ: counters, σταθερές εφαρμογής, helpers για YouTube origin/hosts,
+ * flags/χειρισμός StopAll, user-gesture, και UI (stats panel + activity panel binding).
+ */
+
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
-/* Εκκίνηση Φόρτωσης Αρχείου */
+/* Εγκατάσταση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { makeLogger, ts, isDefined, isNonEmptyArray, deepClone, cancel, secToMs, anyTrue, allTrue, getPlayerScope } from './utils.js';
+import { makeLogger, isDefined, cancel, secToMs, anyTrue, allTrue, getPlayerScope } from './utils.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
 const mID = getPlayerScope();
 
-/** --- Console Filter (external) Early Install - Start --- */
+/* --- Console Filter (external) Early Install - Start --- */
 /*
  Configuration για εξωτερικό console-filter.
  Σκοπός: μείωση θορύβου, μη-κρίσιμων μηνυμάτων (κυρίως από YouTube API/ads).
@@ -44,9 +52,9 @@ export const consoleFilterConfig = {
   sources: [/www\-widgetapi\.js/i, /googleads\.g\.doubleclick\.net/i, /pagead\/viewthroughconversion/i],
   tag: '[YouTubeAPI][non-critical]',
 };
-/** --- Console Filter (external) Early Install - End --- */
+/* --- Console Filter (external) Early Install - End --- */
 
-/** --- YouTube API Helpers --- */
+/* --- YouTube API Helpers --- */
 export function getOrigin() {
   try {
     const parts = [];
@@ -69,7 +77,7 @@ export function getYouTubeEmbedHost() {
   }
 }
 
-/** --- Στατιστικά για την εφαρμογή --- */
+/* --- Στατιστικά για την εφαρμογή --- */
 export const stats = {
   autoNext: 0,
   pauses: 0,
@@ -83,64 +91,31 @@ export const stats = {
   softBackpressureHits: 0, // πόσες φορές gate-άραμε soft task λόγω freeze/min-gap
 };
 
-/** --- Σταθερές εφαρμογής --- */
+/* --- Σταθερές εφαρμογής --- */
 export const PLAYER_COUNT = 4;
 export const MAIN_PROBABILITY = 0.5;
 export const AUTO_NEXT_LIMIT_PER_PLAYER = 50;
 export const WATCHDOG_RATE = secToMs(120);
 export const MIN_WATCH_TIME = 60;
 
-/** Controllers registry (γεμίζει από main.js) */
+/* --- Controllers registry (γεμίζει από main.js) --- */
 export const controllers = [];
 
-/** --- HumanModeInitFinish --- */
+/* --- HumanMode Init Finish flag --- */
 export let HUMAN_MODE_INIT_FINISH = false;
 export function setHumanModeInitFinish(flag) {
   HUMAN_MODE_INIT_FINISH = flag === true ? true : false;
   log(`👤 ${mID} HumanModeInitFinish → ${HUMAN_MODE_INIT_FINISH}`);
 }
 
-/** --- Lists state --- */
-let _mainList = [];
-let _altList = [];
-
-export function getMainList() {
-  return _mainList;
-}
-
-export function getAltList() {
-  return _altList;
-}
-
-export function setMainList(list) {
-  const okArr = allTrue([Array.isArray(list) === true]);
-  const next = okArr === true ? deepClone(list) : [];
-  _mainList = next;
-  log(`📂 ${mID} Main List Applied → ${_mainList.length} Videos`);
-}
-
-export function setAltList(list) {
-  const okArr = allTrue([Array.isArray(list) === true]);
-  const next = okArr === true ? deepClone(list) : [];
-  _altList = next;
-  log(`📂 ${mID} Alt List Applied → ${_altList.length} Videos`);
-}
-
-export function hasArrayWithItems(arr) {
-  return isNonEmptyArray(arr);
-}
-
-/** --- Stop All state & helpers --- */
+/* --- Stop All state & helpers --- */
 export let isStopping = false;
-
 const stopTimers = [];
-
 export function setIsStopping(flag) {
   // Αποφεύγουμε !! — ρητός ορισμός boolean
   isStopping = flag === true ? true : false;
   log(`⏹️ ${mID} isStopping → ${isStopping}`);
 }
-
 export function pushStopTimer(timerId) {
   const parts = [];
   parts.push(isDefined(timerId) === true);
@@ -148,7 +123,6 @@ export function pushStopTimer(timerId) {
     stopTimers.push(timerId);
   }
 }
-
 export function clearStopTimers() {
   while (stopTimers.length > 0) {
     const id = stopTimers.pop();
@@ -161,21 +135,20 @@ export function clearStopTimers() {
   log(`🧯 ${mID} Stop Timers → Cleared`);
 }
 
-/** --- User gesture flag --- */
+/* --- User gesture flag --- */
 export let hasUserGesture = false;
 export function setUserGesture() {
   hasUserGesture = true;
   log(`💻 ${mID} Αλληλεπίδραση Χρήστη`);
 }
 
-/** --- UI Utilities (stats panel binding) --- */
+/* --- UI Utilities (stats panel binding) --- */
 function updateStats() {
   const canDOM = [];
   canDOM.push(typeof document !== 'undefined');
   if (allTrue(canDOM) !== true) {
     return;
   }
-
   let el = document.getElementById('statsPanel');
   const needCreate = [];
   needCreate.push(el === null);
@@ -185,19 +158,17 @@ function updateStats() {
     el.className = 'stats';
     document.body.appendChild(el);
   }
-
   el.textContent = `📊 Stats — AutoNext:${stats.autoNext} - Pauses:${stats.pauses} - Seeks:${stats.seeks} - VolumeChanges:${stats.volumeChanges} - QualityChanges:${stats.qualityChanges} - RateChanges:${stats.rateChanges} - Errors:${stats.errors} - WTSignals:${stats.wtSignals} - SoftBP:${stats.softBackpressureHits}`;
 }
 
 /* ========================= Listener για app:log (Activity Panel + updateStats) ========================= */
-
 if (typeof document !== 'undefined') {
   document.addEventListener('app:log', (ev) => {
     // Αυξάνει το stats.errors αν η πλήρης γραμμή περιέχει '❌'
     try {
       // 1) Ανάκτηση full (ολόκληρη γραμμή με emoji/timestamp)
       let fullStr = '';
-      const detailDefined = typeof ev.detail !== 'undefined' && ev.detail !== null ? true : false;
+      const detailDefined = typeof ev.detail !== 'undefined' ? true : false;
       if (detailDefined === true) {
         const f = ev.detail.full;
         const fIsStr = typeof f === 'string' ? true : false;
@@ -205,7 +176,6 @@ if (typeof document !== 'undefined') {
           fullStr = f;
         }
       }
-
       // 2) Έλεγχος παρουσίας του χαρακτήρα '❌'
       const canCheck = fullStr.length > 0 ? true : false;
       if (canCheck === true) {
@@ -218,7 +188,6 @@ if (typeof document !== 'undefined') {
         } catch (_) {
           hasErrorEmoji = false;
         }
-
         // 3) Αύξηση counter με ασφαλή τύπο
         if (hasErrorEmoji === true) {
           const isNum = typeof stats.errors === 'number' ? true : false;

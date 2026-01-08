@@ -1,8 +1,8 @@
 // --- autoPause.js ---
-const VERSION = 'v1.8.2';
+const VERSION = 'v1.9.2';
 /*
  * Περιγραφή: Κεντρικοποίηση λογικής παύσεων.
- * - schedulePauses(controller): Προγραμματίζει παύσεις βάσει plan/config.
+ * - schedulePauses(controller): Προγραμματίζει παύσεις βάσει plan/config, με ασφαλή groups.
  * - restartPauseGuard(controller): Guard που επαναφέρει από PAUSED σε PLAYING.
  */
 
@@ -10,6 +10,12 @@ const VERSION = 'v1.8.2';
 export function getVersion() {
   return VERSION;
 }
+
+/* ========================= Περιγραφή =========================
+ * Περιγραφή: Κεντρικοποίηση λογικής παύσεων.
+ * - schedulePauses(controller): Προγραμματίζει παύσεις βάσει plan/config, με ασφαλή groups.
+ * - restartPauseGuard(controller): Guard που επαναφέρει από PAUSED σε PLAYING.
+ */
 
 /* Όνομα αρχείου για logging */
 const FILENAME = import.meta.url.split('/').pop();
@@ -24,6 +30,18 @@ import { stats } from './globals.js';
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
 
+/* ========================= Helpers ========================= */
+function resolveGroup(ctrl, suffix) {
+  try {
+    const ok = [];
+    ok.push(isFunction(ctrl?._group) === true);
+    if (allTrue(ok) === true) {
+      return ctrl._group(suffix);
+    }
+  } catch (_) {}
+  return `pc:${suffix}`;
+}
+
 /* ========================= Public API ========================= */
 /**
  * Προγραμματισμός παύσεων βάσει πολιτικής και προφίλ.
@@ -33,39 +51,31 @@ const log = makeLogger(FILENAME);
 export function schedulePauses(controller) {
   const p = controller.player;
   const mID = getPlayerScope(controller.index);
-
   // --- Guards για δυνατότητες player ---
   const guards = [];
   guards.push(isDefined(p) === true);
   guards.push(p !== null);
   guards.push(isFunction(p?.getDuration) === true);
-
   const canDur = allTrue(guards);
   if (canDur !== true) {
     return;
   }
-
   // Πολιτική: χρησιμοποιούμε το required watch seconds
   const duration = controller.getRequiredWatchSec();
   if (duration <= 0) {
     return;
   }
-
   const planFromPolicy = controller.plan?.pauses;
-
   // Chance από config (fallback 0.3)
   const hasPauseChance = isNumber(controller.config?.pauseChance) === true;
   const pauseChance = hasPauseChance === true ? controller.config.pauseChance : 0.3;
-
   // Ελάχιστο count από πολιτική
   let count = isNumber(planFromPolicy?.count) === true ? planFromPolicy.count : 0;
-
-  // Προσαρμογή βάσει προφίλ (μόνο αύξηση, ποτέ μείωση κάτω από baseline)
+  // Προσαρμογή βάσει προφίλ (μόνο αύξηση, ποτέ κάτω από baseline)
   if (pauseChance > 0.5) {
     const extra = Math.floor(count * (pauseChance - 0.5));
     count = count + extra;
   }
-
   // Logging για διαφάνεια
   const baseCountShown = isNumber(planFromPolicy?.count) === true ? planFromPolicy.count : '-';
   log(`😴 ${mID} Pause Plan → Baseline=${baseCountShown}, Final=${count}, Profile=${controller.profileName}`);
@@ -75,10 +85,10 @@ export function schedulePauses(controller) {
     const fromSec = Math.floor(duration * 0.1);
     const toSec = Math.floor(duration * 0.8);
     const delayMs = rndInt(fromSec, toSec) * 1000;
-
     const minRange = isNumber(planFromPolicy?.minSec) === true ? planFromPolicy.minSec : 6;
     const maxRange = isNumber(planFromPolicy?.maxSec) === true ? planFromPolicy.maxSec : 15;
     const pauseLen = rndInt(minRange, maxRange) * 1000;
+    const groupPause = resolveGroup(controller, 'pause');
 
     const id = scheduleSafe(
       function () {
@@ -86,42 +96,39 @@ export function schedulePauses(controller) {
         const canPlayParts = [];
         canPlayParts.push(isFunction(p?.getPlayerState) === true);
         const canCheckState = allTrue(canPlayParts);
-
         const stOK = canCheckState === true ? p.getPlayerState() === YT.PlayerState.PLAYING : false;
-
         if (stOK === true) {
           try {
             if (isFunction(p?.pauseVideo) === true) {
               p.pauseVideo();
             }
           } catch (_) {}
-
-          stats.pauses = (stats.pauses ?? 0) + 1;
+          // stats
+          try {
+            stats.pauses = (isNumber(stats.pauses) === true ? stats.pauses : 0) + 1;
+          } catch (_) {}
           controller.expectedPauseMs = pauseLen;
-
           log(`⏸️ ${mID} Pause → ${Math.round(pauseLen / 1000)}s`);
-
           // Προγραμματισμός resume μετά από pauseLen
+          const groupGuard = resolveGroup(controller, 'pause-guard');
           scheduleSafe(
             function () {
               controller.guardPlay(p);
               controller.expectedPauseMs = 0;
             },
             pauseLen,
-            controller._group?.('pause'),
+            groupGuard,
             'pause-resume'
           );
         }
       },
       delayMs,
-      controller._group?.('pause'),
+      groupPause,
       'pause-schedule'
     );
-
     try {
       controller.timers.pauseTimers.push(id);
     } catch (_) {}
-
     i = i + 1;
   }
 }
@@ -136,10 +143,8 @@ export function restartPauseGuard(ctrl) {
       cancel(ctrl.pauseGuardTimer);
     }
   } catch (_) {}
-
   (function (self) {
     let basePause = 2000;
-
     // Χρήση allTrue αντί για &&
     const partsExp = [];
     partsExp.push(isNumber(self.expectedPauseMs) === true);
@@ -147,23 +152,17 @@ export function restartPauseGuard(ctrl) {
     if (allTrue(partsExp) === true) {
       basePause = self.expectedPauseMs;
     }
-
     const slack = 250;
-
     const doGuard = function () {
       try {
         const p2 = self.player;
-
         const partsCheck = [];
         partsCheck.push(isDefined(p2) === true);
         partsCheck.push(p2 !== null);
         partsCheck.push(isFunction(p2?.getPlayerState) === true);
-
         const canCheck = allTrue(partsCheck);
-
         if (canCheck === true) {
           const st = p2.getPlayerState();
-
           switch (st) {
             case YT.PlayerState.PAUSED:
               try {
@@ -173,10 +172,8 @@ export function restartPauseGuard(ctrl) {
                   p2.playVideo();
                 }
               } catch (_) {}
-
-              self.pauseGuardTimer = scheduleSafe(doGuard, basePause + slack, self._group?.('pause-guard'), 'pause-guard');
+              self.pauseGuardTimer = scheduleSafe(doGuard, basePause + slack, resolveGroup(self, 'pause-guard'), 'pause-guard');
               return;
-
             default:
               try {
                 self.pauseRechecks = 0;
@@ -185,8 +182,7 @@ export function restartPauseGuard(ctrl) {
         }
       } catch (_) {}
     };
-
-    self.pauseGuardTimer = scheduleSafe(doGuard, basePause + slack, self._group?.('pause-guard'), 'pause-guard');
+    self.pauseGuardTimer = scheduleSafe(doGuard, basePause + slack, resolveGroup(self, 'pause-guard'), 'pause-guard');
   })(ctrl);
 }
 

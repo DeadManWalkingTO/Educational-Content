@@ -1,15 +1,23 @@
 // --- autoSeek.js ---
-const VERSION = 'v2.7.21';
+const VERSION = 'v2.8.3';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, mid-seek scheduler, init-seek).
- * Στόχοι: Start-Seek awareness + Adaptive timing εντός WT παραθύρου + late/short stop.
- *
+ * - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
+ * - Ενσωματώθηκε back-pressure gate (softFreezeUntilMs/minGap) στα mid-seeks.
  */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
+
+/* ========================= Περιγραφή =========================
+ *
+ * Περιγραφή: Εξωτερικό module για seek (safeSeek, mid-seek scheduler, init-seek).
+ * Refactor:
+ * - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
+ * - Ενσωματώθηκε back-pressure gate (softFreezeUntilMs/minGap) στα mid-seeks.
+ */
 
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
@@ -18,19 +26,23 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { scheduleSafe, makeLogger, rndInt, anyTrue, allTrue, isFunction, isNumber, clamp, getPlayerScope } from './utils.js';
+import { scheduleSafe, makeLogger, rndInt, anyTrue, allTrue, isFunction, isNumber, clamp, getPlayerScope, isDefined } from './utils.js';
 import { stats } from './globals.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
 
-/*
- * Αλλαγές:
- * - cur = max(getCurrentTime(), initTargetSec) στον 1ο υπολογισμό (_getWindowMeta).
- * - Πρώτο tick: στόχευση στη mid-zone (from..to) με ασφαλές fallback σε 25–45% του timeLeft.
- * - Late/short stop: αν wm.short === true ή wm.timeLeft ≤ 0, δεν γίνεται fallback σε intervalMs → log & return.
- * - Plan log annotation: “(intervalMs acts as fallback/upper-bound; first tick is adaptive)”.
- */
+/* ========================= Helpers (Group Resolve) ========================= */
+function resolveGroup(ctrl, suffix, fallback) {
+  try {
+    const ok = [];
+    ok.push(isFunction(ctrl?._group) === true);
+    if (allTrue(ok) === true) {
+      return ctrl._group(suffix);
+    }
+  } catch (_) {}
+  return typeof fallback === 'string' ? fallback : `pc:${suffix}`;
+}
 
 /* ========================= Basic Constants ========================= */
 const ShortGuard = 75; // δευτερόλεπτα
@@ -91,10 +103,9 @@ function _computeFirstDelayMs(ctrl) {
   const mid = Math.floor((from + to) / 2);
   const safetySec = 4;
   let dSec = Math.floor(mid - wm.cur - safetySec);
-  // Αν η mid-zone είναι πίσω από το cur, γύρνα στην adaptive εναλλακτική (25–45% του timeLeft)
   const needFrac = anyTrue([dSec <= safetySec]);
   if (needFrac === true) {
-    const frac = rndInt(25, 45) / 100; // 0.25..0.45
+    const frac = rndInt(25, 45) / 100;
     dSec = Math.floor(frac * wm.timeLeft);
   }
   if (dSec < safetySec) dSec = safetySec;
@@ -153,6 +164,9 @@ export function safeSeek(ctrl, seconds) {
       } catch (_) {}
     }
     stats.seeks = (stats.seeks ?? 0) + 1;
+    try {
+      if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
+    } catch (_) {}
   } catch (err) {
     log(`❌ ${mID} Error → Seek: Apply — Message=${String(err?.message ?? err)}`);
   }
@@ -185,13 +199,13 @@ export function applyInitSeek(ctrl, targetSec) {
       } catch (_) {}
     },
     delayMs,
-    ctrl._group('init-seek'),
+    resolveGroup(ctrl, 'init-seek', 'pc:init-seek'),
     'init-seek-repeat'
   );
 }
 
 /* ========================= Mid-Seek Core ========================= */
-/** Εσωτερικό: ένα mid-seek εντός WT-window (όπως πριν). */
+/** Εσωτερικό: ένα mid-seek εντός WT-window (όπως πριν), με ενημέρωση soft-task timestamp. */
 function _doMidSeekOnce(ctrl) {
   const mID = getPlayerScope(ctrl?.index);
   try {
@@ -227,8 +241,11 @@ function _doMidSeekOnce(ctrl) {
     const now = Date.now();
     ctrl.seekMeta.lastMs = now;
     ctrl.seekMeta.count = (ctrl.seekMeta.count ?? 0) + 1;
+    try {
+      if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = now;
+    } catch (_) {}
   } catch (_) {
-    // no-op
+    /* no-op */
   }
 }
 
@@ -236,7 +253,7 @@ function _doMidSeekOnce(ctrl) {
 /**
  * Προγραμματισμός mid-seeks βάσει policy & runtime metas (με guards).
  * Προσαρμοστικό timing:
- * - Αν υπάρχει overrideMs → το χρησιμοποιεί ως delay για το συγκεκριμένο tick.
+ * - Αν υπάρχει overrideMs → το χρησιμοποιούμε ως delay για το συγκεκριμένο tick.
  * - Αλλιώς → υπολογίζει firstDelayMs από mid-zone/timeLeft, ή κάνει fallback στο intervalMs.
  */
 export function scheduleMidSeek(ctrl, overrideMs) {
@@ -247,7 +264,8 @@ export function scheduleMidSeek(ctrl, overrideMs) {
     log(`⏭️ ${mID} ScheduleMidSeek → Skipped (Short Or Disabled)`);
     return;
   }
-  // Plan log annotation: δείξε καθαρά ότι το intervalMs λειτουργεί ως fallback/upper-bound
+
+  // Plan log annotation
   try {
     let longmsg = '';
     longmsg = ` IntervalMs=${mid.intervalMs} MinGapSec=${mid.minGapSec} MaxSeeks=${mid.maxSeeks}`;
@@ -255,7 +273,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
     log(`ℹ️ ${mID} Seek → Policy: Mid-Seek Plan — Enabled=${mid.enabled}` + longmsg);
   } catch (_) {}
 
-  // Guard: αν υπάρχει ήδη ενεργός timer, μην ξαναπρογραμματίζεις
+  // Guard: αν υπάρχει ήδη ενεργός timer
   try {
     const alreadyScheduled = allTrue([isNumber(ctrl?.timers?.midSeek) === true]);
     if (alreadyScheduled === true) {
@@ -264,7 +282,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
     }
   } catch {}
 
-  // Defaults από το plan (όπως πριν)
+  // Defaults από το plan
   ctrl.seekDefaults = {
     minGapSec: Number(mid.minGapSec),
     maxSeeks: Number(mid.maxSeeks),
@@ -274,20 +292,18 @@ export function scheduleMidSeek(ctrl, overrideMs) {
   };
   const intervalMs = Number(mid.intervalMs);
 
-  // Diagnostic: first-meta πριν την απόφαση για delay
+  // Diagnostic meta (πριν την απόφαση για delay)
   let wmFirst = null;
   try {
     wmFirst = _getWindowMeta(ctrl);
     log(`ℹ️ ${mID} Seek → Info: Mid-Seek Meta (Cur=${Math.floor(wmFirst.cur)}s, NearEnd=${Math.floor(wmFirst.nearEndSec)}s, TimeLeft=${Math.floor(wmFirst.timeLeft)}s)`);
   } catch (_) {}
 
-  // ── Late/short stop (νέα πολιτική): αν short ή timeLeft ≤ 0 → ΜΗΝ κάνεις fallback σε intervalMs
+  // Late/short stop (αν short ή timeLeft ≤ 0 → δεν κάνουμε fallback σε intervalMs)
   try {
     const isShort = wmFirst !== null ? wmFirst.short === true : false;
     const isLate = wmFirst !== null ? isNumber(wmFirst.timeLeft) === true && wmFirst.timeLeft <= 0 : false;
-
     const shouldStop = anyTrue([isShort === true, isLate === true]);
-
     if (shouldStop === true) {
       let reasonTag = '-';
       switch (true) {
@@ -306,7 +322,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
     }
   } catch (_) {}
 
-  // Επιλογή delay: override (αν δόθηκε) ή adaptive first, ή fallback στο interval
+  // Επιλογή delay: override, adaptive first, fallback στο interval
   let delayMs = 0;
   const hasOverride = allTrue([isNumber(overrideMs) === true, overrideMs > 0]);
   if (hasOverride === true) {
@@ -314,13 +330,8 @@ export function scheduleMidSeek(ctrl, overrideMs) {
   } else {
     const firstMs = _computeFirstDelayMs(ctrl);
     const hasFirst = allTrue([isNumber(firstMs) === true, firstMs > 0]);
-    if (hasFirst === true) {
-      delayMs = Math.floor(firstMs);
-    } else {
-      delayMs = intervalMs;
-    }
+    delayMs = hasFirst === true ? Math.floor(firstMs) : intervalMs;
   }
-
   try {
     log(`⏳ ${mID} Seek → Scheduled: Mid-Seek In ${(delayMs / 1000).toFixed(2)}s`);
   } catch (_) {}
@@ -334,12 +345,11 @@ export function scheduleMidSeek(ctrl, overrideMs) {
         dNow = p.getDuration();
       }
       const canPlayNow = allTrue([dNow > 0, ctrl._isPlaying(p) === true]);
-
       log(`▶️ ${mID} Seek → Executed: Mid-Seek (Dur=${Math.floor(dNow)}s, Playing=${canPlayNow})`);
-
       if (canPlayNow === true) {
-        // Gap / maxSeeks guards
+        // Soft gate + Gap/Max guards
         const now = Date.now();
+        const softOK = allTrue([now >= (ctrl?.softFreezeUntilMs ?? 0), now - (ctrl?.lastSoftTaskMs ?? 0) >= (ctrl?.softTaskMinGapMs ?? 0)]);
         let blockByGap = false;
         const hadLast = allTrue([ctrl.seekMeta.lastMs > 0]);
         if (hadLast === true) {
@@ -348,20 +358,17 @@ export function scheduleMidSeek(ctrl, overrideMs) {
           blockByGap = allTrue([diff < minGapMs]);
         }
         const reachedMax = allTrue([(ctrl.seekMeta.count ?? 0) >= Number(ctrl.seekDefaults.maxSeeks)]);
-        const allowSeek = allTrue([blockByGap === false, reachedMax === false]);
-
+        const allowSeek = allTrue([softOK === true, blockByGap === false, reachedMax === false]);
         try {
           const leftGapMs = hadLast === true ? Math.max(0, Number(ctrl.seekDefaults.minGapSec) * 1000 - (now - ctrl.seekMeta.lastMs)) : 0;
           const leftGapS = (leftGapMs / 1000).toFixed(2);
           let longmsg = '';
-          longmsg = `GapBlock=${blockByGap}, Left=${leftGapS}s, ReachedMax=${reachedMax},`;
+          longmsg = `SoftOK=${softOK}, GapBlock=${blockByGap}, Left=${leftGapS}s, ReachedMax=${reachedMax},`;
           longmsg = longmsg + ` Count=${ctrl.seekMeta.count ?? 0}/${Number(ctrl.seekDefaults.maxSeeks)}`;
-
           log(`ℹ️ ${mID} Seek → Info: Mid-Seek Guards (Allow=${allowSeek}, ` + longmsg);
         } catch (_) {}
-
         if (allowSeek === true) {
-          // Προ-εκτίμηση (short / near-end) μόνο για logging; την εκτέλεση την αναλαμβάνει _doMidSeekOnce
+          // Preview log & execute once
           try {
             const wm = _getWindowMeta(ctrl);
             if (wm.short === true) {
@@ -379,12 +386,10 @@ export function scheduleMidSeek(ctrl, overrideMs) {
               log(`⏳ ${mID} Seek → Scheduled: Mid-Seek In ${countdownS}s (WTWindow=${Math.floor(wm.windowSec)}s) Target=${targetPreview}s`);
             }
           } catch (_) {}
-          // Πραγματική εκτέλεση (guards/targets όπως πριν)
           _doMidSeekOnce(ctrl);
         }
       }
-
-      // Adaptive re-schedule (υπολογισμός επόμενου delay)
+      // Adaptive re-schedule
       ctrl.timers.midSeek = null;
       let nextDelayMs = _computeNextDelayMs(ctrl, intervalMs);
       const hasNext = allTrue([isNumber(nextDelayMs) === true, nextDelayMs > 0]);
@@ -392,15 +397,13 @@ export function scheduleMidSeek(ctrl, overrideMs) {
         try {
           log(`⏳ ${mID} Seek → Scheduled: Mid-Seek In ${(nextDelayMs / 1000).toFixed(2)}s (Next)`);
         } catch (_) {}
-        // Αναδρομικά: προγραμματίζουμε το επόμενο tick με overrideMs (adaptive)
         scheduleMidSeek(ctrl, nextDelayMs);
       } else {
-        // Τερματισμός κύκλου (late/short/no remaining)
         log(`ℹ️ ${mID} Seek → Info: Mid-Seek Stop (Reason=late/short/no-remaining)`);
       }
     },
     delayMs,
-    ctrl._group('midseek'),
+    resolveGroup(ctrl, 'midseek', 'pc:midseek'),
     hasOverride === true ? 'midseek-next' : 'midseek-first'
   );
 }

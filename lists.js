@@ -1,15 +1,24 @@
 // --- lists.js ---
-const VERSION = 'v4.22.3';
+const VERSION = 'v5.0.2';
 /*
-Περιγραφή: Φόρτωση λιστών video IDs από local/remote πηγές, 
-με parsing, sanitization, logging και fallback. 
-Επιστρέφει arrays για συμβατότητα, ενώ το reload() παρέχει meta.
-*/
+ * Περιγραφή: Single Source of Truth (SSoT) για λίστες YouTube IDs (Main/Alt).
+ * Ροή: Local → (fallback) GitHub → (fallback) Internal, ανεξάρτητα για Main & Alt.
+ * Μετά τη φόρτωση: Sanitize (dedup + regex) και πλήρες Fisher–Yates shuffle. API (exports): getMainList(), getAltList(), reloadAndApply().
+ */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
+
+/* ========================= Περιγραφή =========================
+ *
+ * Περιγραφή: Single Source of Truth (SSoT) για λίστες YouTube IDs (Main/Alt).
+ * Ροή: Local → (fallback) GitHub → (fallback) Internal, ανεξάρτητα για Main & Alt.
+ * Μετά τη φόρτωση: Sanitize (dedup + regex) και πλήρες Fisher–Yates shuffle.
+ * API (exports): getMainList(), getAltList(), reloadAndApply().
+ *
+ */
 
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
@@ -18,17 +27,45 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { makeLogger, isDefined, isString, isNonEmptyArray, isNumber, anyTrue, allTrue, formatMs, retry, getPlayerScope } from './utils.js';
+import { makeLogger, isDefined, isString, isNonEmptyArray, anyTrue, allTrue, formatMs, retry, rndInt, getPlayerScope } from './utils.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
 const mID = getPlayerScope();
 
+/* ========================= Παραμετροποίηση πηγών (επικεφαλίδα) ========================= */
+const mainListLocal = 'list.txt';
+const altListLocal = 'random.txt';
+const mainListUrl = 'https://raw.githubusercontent.com/DeadManWalkingTO/Educational-Content/main/list.txt';
+const altListUrl = 'https://raw.githubusercontent.com/DeadManWalkingTO/Educational-Content/main/random.txt';
+
+const internalList = [
+  'ibfVWogZZhU',
+  'mYn9JUxxi0M',
+  'sWCTs_rQNy8',
+  'JFweOaiCoj4',
+  'U6VWEuOFRLQ',
+  'ARn8J7N1hIQ',
+  '3nd2812IDA4',
+  'RFO0NWk-WPw',
+  'biwbtfnq9JI',
+  '3EXSD6DDCrU',
+  'WezZYKX7AAY',
+  'AhRR2nQ71Eg',
+  'xIQBnFvFTfg',
+  'ZWbRPcCbZA8',
+  'YsdWYiPlEsE',
+];
+
+/* ========================= SSoT (Εσωτερική Κατάσταση) ========================= */
+let storedMainList = [];
+let storedAltList = [];
+
 /* ========================= Helpers ========================= */
 /**
- * Ασφαλής μετατροπή σε γραμμές (split+trim+non-empty).
+ * Ασφαλής parsing σε non-empty γραμμές.
  * @param {string} text
- * @returns {string[]} Μη-κενές γραμμές
+ * @returns {string[]}
  */
 function parseNonEmptyLines(text) {
   const okStr = allTrue([isString(text) === true]);
@@ -53,53 +90,59 @@ function parseNonEmptyLines(text) {
 const YT_ID_RE = /^[A-Za-z0-9_-]{11}$/;
 
 /**
- * Sanitize λίστας: dedup + regex φίλτρο + logs (πλήθος πριν/μετά).
+ * Sanitize: dedup + regex filter + logs.
  * @param {string[]} arr
- * @param {string} tag - περιγραφή (main|alt|remote|local|internal)
- * @returns {string[]} καθαρισμένη λίστα
+ * @param {string} tag
+ * @returns {string[]}
  */
 function sanitizeList(arr, tag) {
-  const isArr = [];
-  isArr.push(Array.isArray(arr) === true);
-  const before = isArr === true ? arr.length : Array.isArray(arr) === true ? arr.length : 0;
-
-  // Αντιγραφή εισόδου μόνο όταν είναι array, αλλιώς []
+  const before = Array.isArray(arr) === true ? arr.length : 0;
   const tmp = Array.isArray(arr) === true ? arr.slice() : [];
-
-  // Dedup
   const set = new Set();
   let i = 0;
   while (i < tmp.length) {
-    const v = tmp[i];
-    set.add(v);
+    set.add(tmp[i]);
     i = i + 1;
   }
   const deduped = Array.from(set.values());
-
-  // Regex filter
   const out = [];
   let j = 0;
   while (j < deduped.length) {
     const v = deduped[j];
-    const okId = allTrue([YT_ID_RE.test(v) === true]);
+    const okId = allTrue([YT_ID_RE.test(String(v)) === true]);
     if (okId === true) {
       out.push(v);
     }
     j = j + 1;
   }
-
   const after = out.length;
   log(`🧹 ${mID} Sanitize → (${tag}) — Πριν:${before} / Μετά:${after}`);
   if (allTrue([after < 1]) === true) {
     log(`❌ ${mID} Error → Lists: Sanitize — Result= Empty / Tag= ${String(tag)}`);
   }
-
   return out;
 }
 
 /**
- * Fetch που επιστρέφει text, με προαιρετικό timeout.
- * Σε μη-OK HTTP status επιστρέφει null.
+ * Πλήρες Fisher–Yates shuffle (χρήση rndInt από utils.js).
+ * @param {string[]} arr
+ * @returns {string[]}
+ */
+function shuffleFisherYates(arr) {
+  const a = Array.isArray(arr) === true ? arr.slice() : [];
+  let i = a.length - 1;
+  while (i > 0) {
+    const j = rndInt(0, i);
+    const t = a[i];
+    a[i] = a[j];
+    a[j] = t;
+    i = i - 1;
+  }
+  return a;
+}
+
+/**
+ * Fetch text με προαιρετικό timeout (AbortController).
  * @param {string} url
  * @param {number|undefined} timeoutMs
  * @returns {Promise<string|null>}
@@ -118,11 +161,9 @@ async function fetchText(url, timeoutMs) {
         } catch (_) {}
       }, Number(timeoutMs));
     }
-
-    const useOptions = [];
-    useOptions.push(isDefined(ctrl) === true);
-    const options = allTrue(useOptions) === true ? { signal: ctrl.signal } : undefined;
-
+    const useOptionsParts = [];
+    useOptionsParts.push(isDefined(ctrl) === true);
+    const options = allTrue(useOptionsParts) === true ? { signal: ctrl.signal } : undefined;
     const res = await fetch(url, options);
     const okRes = allTrue([res?.ok === true]);
     if (okRes === true) {
@@ -140,7 +181,7 @@ async function fetchText(url, timeoutMs) {
 }
 
 /**
- * Προσπάθεια φόρτωσης από URL → μετατροπή σε λίστα.
+ * Φόρτωση λίστας από URL → parse lines.
  * @param {string} url
  * @param {number|undefined} timeoutMs
  * @returns {Promise<string[]|null>}
@@ -159,72 +200,43 @@ async function tryLoadListFromUrl(url, timeoutMs) {
   return list;
 }
 
-/*
-Internal fallback list (hardcoded).
-Last-resort safety net: ενεργοποιείται όταν αποτύχουν local + GitHub.
-*/
-const internalList = [
-  'ibfVWogZZhU',
-  'mYn9JUxxi0M',
-  'sWCTs_rQNy8',
-  'JFweOaiCoj4',
-  'U6VWEuOFRLQ',
-  'ARn8J7N1hIQ',
-  '3nd2812IDA4',
-  'RFO0NWk-WPw',
-  'biwbtfnq9JI',
-  '3EXSD6DDCrU',
-  'WezZYKX7AAY',
-  'AhRR2nQ71Eg',
-  'xIQBnFvFTfg',
-  'ZWbRPcCbZA8',
-  'YsdWYiPlEsE',
-];
+/* ========================= Loaders (Local/GitHub/Internal) ========================= */
 
-/* ====== Wrappers με meta (source) ====== */
 /**
- * Main list load με meta (source).
- * @returns {Promise<{list:string[], source:string}>}
+ * Local loader.
+ * @param {string} fileName
+ * @returns {Promise<string[]|null>}
  */
-async function loadVideoListWithMeta() {
-  // 1) Local
+async function loadListFromLocal(fileName) {
   try {
-    const listLocal = await tryLoadListFromUrl('list.txt');
-    const hasLocal = anyTrue([isDefined(listLocal) === true]);
-    if (hasLocal === true) {
-      const clean = sanitizeList(listLocal, 'main:local');
-      // switch-case για τυποποίηση source label (επεκτάσιμο)
-      let srcLabel = 'local';
-      switch (srcLabel) {
-        case 'local':
-          srcLabel = 'local';
-          break;
-        default:
-          srcLabel = 'local';
-          break;
-      }
-      log(`✅ ${mID} Main List → Loaded [Source: ${srcLabel}]: ${clean.length} Items`);
-      return { list: clean, source: srcLabel };
+    const listLocal = await tryLoadListFromUrl(fileName);
+    const ok = anyTrue([isDefined(listLocal) === true]);
+    if (ok === true) {
+      return listLocal;
     }
-  } catch (err) {
-    log(`❌ ${mID} Error → Main List: Attempts= ${ret.attempts} — ${ret.error}`);
-  }
+  } catch (_) {}
+  return null;
+}
 
-  // 2) Remote GitHub (με retry)
+/**
+ * GitHub loader με retry/backoff/jitter και λεπτομερή logs.
+ * @param {string} url
+ * @returns {Promise<string[]|null>}
+ */
+async function loadListFromGithub(url) {
   try {
-    const githubUrl = 'https://raw.githubusercontent.com/DeadManWalkingTO/Educational-Content/main/list.txt';
     const ret = await retry(
       async function () {
         const t0 = Date.now();
-        const listRemote = await tryLoadListFromUrl(githubUrl, 4000);
+        const listRemote = await tryLoadListFromUrl(url, 4000);
         const dt = Date.now() - t0;
-
-        const okRemote = anyTrue([isDefined(listRemote) === true]);
-        if (okRemote !== true) {
-          log(`❌ ${mID} Error → Main List: Empty Or Non—OK Github Response`);
+        const okRemoteParts = [];
+        okRemoteParts.push(isDefined(listRemote) === true);
+        if (allTrue(okRemoteParts) !== true) {
+          log(`❌ ${mID} Error → Main List: Empty Or Non-OK Github Response`);
+          return Promise.reject(new Error('Empty or non-OK GitHub response'));
         }
-
-        const clean = sanitizeList(listRemote, 'Main:Github');
+        const clean = sanitizeList(listRemote, 'Github/raw');
         log(`🌐 ${mID} Main List → Github Fetch Ok In ${formatMs(dt)}: ${clean.length} Items`);
         return clean;
       },
@@ -234,103 +246,138 @@ async function loadVideoListWithMeta() {
       2000, // maxMs
       0.15 // jitterRatio
     );
-
-    const okRet = allTrue([ret.ok === true]);
+    const okRet = allTrue([ret?.ok === true]);
     if (okRet === true) {
       log(`✅ ${mID} Main List → Loaded [Source:Github]: ${ret.value.length} Items`);
-      return { list: ret.value, source: 'github' };
+      return ret.value;
     }
-    log(`❌ ${mID} Error → Main List: Github Attempts= ${ret.attempts} — ${ret.error}`);
+    log(`❌ ${mID} Error → Main List: Attempts= ${ret.attempts} - ${ret.error}`);
+    return null;
   } catch (err) {
-    log(`❌ ${mID} Error → Main List: Github — ${err}`);
+    log(`❌ ${mID} Error → Main List: Github - ${err}`);
+    return null;
   }
-
-  // 3) Internal fallback
-
-  const clean = sanitizeList(internalList, 'main:internal');
-
-  let srcLabel = 'internal';
-  switch (srcLabel) {
-    case 'internal':
-      srcLabel = 'internal';
-      break;
-    default:
-      srcLabel = 'internal';
-      break;
-  }
-
-  log(`❌ ${mID} Error → Main List: Internal Fallback — [Source:${srcLabel}]: ${clean.length} Items`);
-  return { list: clean, source: srcLabel };
 }
 
 /**
- * Alt list load με meta (source).
+ * Internal fallback (σταθερή λίστα).
+ * @param {'main'|'alt'} kind
+ * @returns {string[]}
+ */
+function loadListFromInternalList(kind) {
+  const k = String(kind);
+  const clean = sanitizeList(internalList, `${k}:internal`);
+  const parts = [];
+  parts.push(clean.length > 0);
+  let srcLabel = 'internal';
+  if (allTrue(parts) !== true) {
+    srcLabel = 'none';
+  }
+  log(`❌ ${mID} Error → Main List: Internal Fallback - [Source:${srcLabel}]: ${clean.length} Items`);
+  return clean;
+}
+
+/**
+ * Ενιαία αλυσίδα φόρτωσης για μία λίστα (Local → Github → Internal).
+ * Ανεξάρτητη μεταξύ Main και Alt.
+ * @param {string} localName
+ * @param {string} githubUrl
+ * @param {'main'|'alt'} internalKind
+ * @param {'Main'|'Alt'} tagLabel
  * @returns {Promise<{list:string[], source:string}>}
  */
-async function loadAltListWithMeta() {
+async function loadOneListChain(localName, githubUrl, internalKind, tagLabel) {
+  // 1) Local
   try {
-    const listAlt = await tryLoadListFromUrl('random.txt');
-    const hasAlt = anyTrue([isDefined(listAlt) === true]);
-    if (hasAlt === true) {
-      const clean = sanitizeList(listAlt, 'alt:local');
-
-      let srcLabel = 'local';
-      switch (srcLabel) {
-        case 'local':
-          srcLabel = 'local';
-          break;
-        default:
-          srcLabel = 'local';
-          break;
-      }
-
-      log(`✅ ${mID} Alt List → Loaded [Source: ${srcLabel}]: ${clean.length} Items`);
-      return { list: clean, source: srcLabel };
+    const listLocal = await loadListFromLocal(localName);
+    const hasLocal = anyTrue([isDefined(listLocal) === true]);
+    if (hasLocal === true) {
+      const clean = sanitizeList(listLocal, `${tagLabel.toLowerCase()}:local`);
+      // Shuffle (πλήρες Fisher–Yates)
+      const shuffled = shuffleFisherYates(clean);
+      log(`✅ ${mID} ${tagLabel} List → Loaded [Source: local]: ${shuffled.length} Items`);
+      return { list: shuffled, source: 'local' };
     }
-  } catch (err) {
-    log(`❌ ${mID} Error → Alt List: Load Failed — ${err}`);
+  } catch (errLocal) {
+    log(`❌ ${mID} Error → ${tagLabel} List: Load Failed - ${errLocal}`);
   }
 
-  // Empty alt list fallback
-  log(`❌ ${mID} Error → Alt List: Empty — Using [] / Source= none`);
-  return { list: [], source: 'none' };
+  // 2) GitHub
+  try {
+    const githubClean = await loadListFromGithub(githubUrl);
+    const okGithub = anyTrue([isDefined(githubClean) === true]);
+    if (okGithub === true) {
+      // Shuffle (πλήρες Fisher–Yates)
+      const shuffled = shuffleFisherYates(githubClean);
+      log(`✅ ${mID} ${tagLabel} List → Loaded [Source: Github]: ${shuffled.length} Items`);
+      return { list: shuffled, source: 'github' };
+    }
+  } catch (errGh) {
+    log(`❌ ${mID} Error → ${tagLabel} List: Github - ${errGh}`);
+  }
+
+  // 3) Internal fallback (τελευταία επιλογή)
+  const cleanInternal = loadListFromInternalList(internalKind);
+  const shuffledInternal = shuffleFisherYates(cleanInternal);
+  // Σημείωση: κρατάμε το log μορφοποιημένο όπως ζητήθηκε:
+  // "❌ ... Internal Fallback - [Source:${srcLabel}]: ${clean.length} Items"
+  // Το έχουμε ήδη κατά τη sanitize μέσα στο loadListFromInternalList.
+  return { list: shuffledInternal, source: 'internal' };
 }
 
+/* ========================= Public API ========================= */
 /**
- * (Διατήρηση συμβατότητας) Παλιά API: επιστρέφει μόνο array (χωρίς meta).
- * @returns {Promise<string[]>}
+ * Ενιαίο reload & apply για Main/Alt (ανεξάρτητα).
+ * - Φόρτωση: Local→Github→Internal
+ * - Sanitize: ήδη μέσα στους loaders
+ * - Shuffle: πλήρες Fisher–Yates (ήδη εφαρμοσμένο πριν επιστρέψουν)
+ * - Apply: SSoT (storedMainList/storedAltList)
+ * @returns {Promise<{ mainCount:number, altCount:number, meta:{ main:string, alt:string } }>}
  */
-export async function loadVideoList() {
-  const ret = await loadVideoListWithMeta();
-  return ret.list;
-}
+export async function reloadAndApply() {
+  const both = await Promise.all([loadOneListChain(mainListLocal, mainListUrl, 'main', 'Main'), loadOneListChain(altListLocal, altListUrl, 'alt', 'Alt')]);
 
-/**
- * (Διατήρηση συμβατότητας) Παλιά API: επιστρέφει μόνο array (χωρίς meta).
- * @returns {Promise<string[]>}
- */
-export async function loadAltList() {
-  const ret = await loadAltListWithMeta();
-  return ret.list;
-}
-
-/**
- * Reload δύο λιστών παράλληλα — τώρα επιστρέφει και meta (source).
- * @returns {Promise<{mainList:string[], altList:string[], meta:{mainSource:string, altSource:string}}>}
- */
-export async function reloadList() {
-  const both = await Promise.all([loadVideoListWithMeta(), loadAltListWithMeta()]);
   const mainMeta = both[0];
   const altMeta = both[1];
 
-  const mainList = mainMeta.list;
-  const altList = altMeta.list;
+  const mainList = Array.isArray(mainMeta?.list) === true ? mainMeta.list : [];
+  const altList = Array.isArray(altMeta?.list) === true ? altMeta.list : [];
 
-  log(`🔄 ${mID} Lists Reloaded → Main:${mainList.length} (Source:${mainMeta.source}) — Alt:${altList.length} (Source:${altMeta.source})`);
-  return { mainList, altList, meta: { mainSource: mainMeta.source, altSource: altMeta.source } };
+  storedMainList = mainList;
+  storedAltList = altList;
+
+  const mainCount = storedMainList.length;
+  const altCount = storedAltList.length;
+
+  log(`📦 ${mID} Applied → Main=${mainCount} — Alt=${altCount} (Source: main=${mainMeta?.source ?? '-'}, alt=${altMeta?.source ?? '-'})`);
+
+  return {
+    mainCount,
+    altCount,
+    meta: {
+      main: String(mainMeta?.source ?? 'unknown'),
+      alt: String(altMeta?.source ?? 'unknown'),
+    },
+  };
 }
 
-/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
+/**
+ * Pull-only getter: επιστρέφει τρέχον snapshot Main.
+ * @returns {string[]}
+ */
+export function getMainList() {
+  return Array.isArray(storedMainList) === true ? storedMainList : [];
+}
+
+/**
+ * Pull-only getter: επιστρέφει τρέχον snapshot Alt.
+ * @returns {string[]}
+ */
+export function getAltList() {
+  return Array.isArray(storedAltList) === true ? storedAltList : [];
+}
+
+/* Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---

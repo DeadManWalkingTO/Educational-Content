@@ -1,15 +1,22 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v5.2.2';
+const VERSION = 'v5.3.4';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
- * - WTBus emit: όταν πιαστεί το required watch-time, εκπέμπουμε 'wt:reached' (primary).
- * - Διατηρούμε guard flags: ctrl.watchtimeFired / ctrl.autoNextScheduled.
+ * Refactor (SSoT/pull-only): Καμία εξάρτηση από events λιστών· τα picks γίνονται downstream από AutoNext/pickVideoId().
+ * Παραμένουν: WTBus emit, guards (Stop/Halt), policies (rate/quality/volume/pauses/init-seek/unmute), delays.
  */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
+
+/* ========================= Περιγραφή =========================
+ *
+ * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
+ * Refactor (SSoT/pull-only): Καμία εξάρτηση από events λιστών· τα picks γίνονται downstream από AutoNext/pickVideoId().
+ * Παραμένουν: WTBus emit, guards (Stop/Halt), policies (rate/quality/volume/pauses/init-seek/unmute), delays.
+ */
 
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
@@ -28,16 +35,11 @@ import { scheduleQualityChanges, resetPlaybackQuality } from './autoQuality.js';
 import { scheduleRateChanges, resetPlaybackRate } from './autoRate.js';
 import { applyInitSeek } from './autoSeek.js';
 import { scheduleUnmute } from './autoUnmute.js';
+// Προσθήκη: helpers για volume & micro-adjust (αντίστοιχα modules)
+import { scheduleVolumeChanges, scheduleMicroAdjust } from './autoVolume.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
-
-/*
- * - ΜΟΝΟ-READY στρατηγική: Ο υπολογισμός Behavior Plan (WT, pauses, mid-seek, unmute)
- *   γίνεται αποκλειστικά στο READY (και όχι από AutoNext).
- * - Διάκριση πρώτου βίντεο vs επόμενα μέσω ctrl._firstVideoHandled.
- *
- */
 
 /* ========================= Helpers ========================= */
 function _can(obj, methodName) {
@@ -52,7 +54,6 @@ function _can(obj, methodName) {
   return allTrue(parts);
 }
 
-// ------------------------- Gates helper -------------------------
 function gateStopOrHalt(ctrl, label) {
   const stopPolicy = allTrue([isStopping === true]) === true;
   const halted = allTrue([isSchedulerHalted() === true]) === true;
@@ -72,7 +73,6 @@ export function onReadyExternal(ctrl, e) {
   const mID = getPlayerScope(ctrl.index);
   /* --- 🛑 Early gate --- */
   if (gateStopOrHalt(ctrl, 'READY') === true) {
-    //log(`🟣 ${mID} → READY - Halt`);
     return;
   }
 
@@ -83,7 +83,8 @@ export function onReadyExternal(ctrl, e) {
     parts.push(p !== null);
     const ok = allTrue(parts);
     if (ok !== true) return;
-    /* Plan (duration-aware) */
+
+    // Duration-aware plan
     let durationNow = 0;
     try {
       const can = _can(p, 'getDuration') === true;
@@ -94,7 +95,8 @@ export function onReadyExternal(ctrl, e) {
         if (isNumber(d) === true) durationNow = d;
       }
     } catch (_) {}
-    /* Small-duration rule (defer auto-next until ENDED) */
+
+    // Μικρή διάρκεια: defer AutoNext μέχρι ENDED
     try {
       const partsSmall = [];
       partsSmall.push(isNumber(durationNow) === true);
@@ -104,7 +106,8 @@ export function onReadyExternal(ctrl, e) {
       ctrl.deferAutoNextUntilEnded = isSmall === true;
       log(`ℹ️ ${mID} Ready → Duration=${Math.floor(durationNow)}s (deferAutoNextUntilEnded=${ctrl.deferAutoNextUntilEnded})`);
     } catch (_) {}
-    /* Διάκριση πρώτου βίντεο vs επόμενα (ΜΟΝΟ-READY): */
+
+    // Πρώτο βίντεο vs επόμενο (one-shot flag)
     try {
       if (typeof ctrl._firstVideoHandled !== 'boolean') ctrl._firstVideoHandled = false;
     } catch (_) {}
@@ -113,45 +116,45 @@ export function onReadyExternal(ctrl, e) {
       const partsFirst = [];
       partsFirst.push(typeof ctrl._firstVideoHandled === 'boolean');
       const hasFlag = allTrue(partsFirst);
-      if (hasFlag === true) {
-        isFirst = ctrl._firstVideoHandled !== true;
-      } else {
-        isFirst = true;
-      }
+      isFirst = hasFlag === true ? ctrl._firstVideoHandled !== true : true;
     } catch (_) {}
     const ctx = { durationSec: durationNow, profileName: ctrl.profileName, isFirstVideo: isFirst, playerIndex: ctrl.index };
     ctrl.plan = getBehaviorPlan(ctx);
     try {
       ctrl._firstVideoHandled = true;
     } catch (_) {}
-    /* one-shot flags */
+
+    // One-shot flags για rate/quality
     if (typeof ctrl._rateAppliedForThisVideo !== 'boolean') ctrl._rateAppliedForThisVideo = false;
     if (typeof ctrl._qualityAutoAppliedForThisVideo !== 'boolean') ctrl._qualityAutoAppliedForThisVideo = false;
-    /* Reset playback rate (READY) */
+
+    // Reset playback rate & quality (READY)
     try {
       resetPlaybackRate(ctrl);
     } catch (_) {}
-    /* Reset playback quality (READY) */
     try {
       resetPlaybackQuality(ctrl);
     } catch (_) {}
-    /* MidSeek plan log */
+
+    // MidSeek plan log
     try {
       const ms = ctrl?.plan?.midSeek ?? { enabled: false };
-      let msmsg = '';
+      let msmsg = ``;
       msmsg = msmsg + `intervalMs=${ms.intervalMs ?? '-'} minGapSec=${ms.minGapSec ?? '-'} maxSeeks=${ms.maxSeeks ?? '-'}`;
       msmsg = msmsg + ` fromPct=${ms.fromPct ?? '-'} toPct=${ms.toPct ?? '-'} nearEndPct=${ms.nearEndPct ?? '-'}`;
       log(`🎯 ${mID} MidSeek Plan → Enabled=${ms.enabled} (${msmsg})`);
     } catch (_) {}
-    /* Required watch time (READY-only) */
+
+    // Required watch time (READY-only)
     try {
       const req = ctrl.plan?.watch?.requiredWatchTimeSec;
       ctrl.videoRequiredWatchTime = isNumber(req) === true ? Math.max(0, Math.floor(req)) : 15;
       log(`⚖️ ${mID} WT → READY: Required=${ctrl.videoRequiredWatchTime}s`);
-    } catch (_p) {
+    } catch (_) {
       ctrl.videoRequiredWatchTime = 15;
     }
-    /* Init seek (policy-driven) */
+
+    // Init seek (policy-driven)
     try {
       const t = ctrl.plan?.startSeek?.targetSec ?? 0;
       const partsInit = [];
@@ -161,7 +164,8 @@ export function onReadyExternal(ctrl, e) {
         applyInitSeek(ctrl, t);
       }
     } catch (_) {}
-    /* Soft tasks schedules (respect back-pressure) */
+
+    // Soft tasks schedules (respect back-pressure)
     try {
       scheduleRateChanges(ctrl);
     } catch (_) {}
@@ -175,8 +179,10 @@ export function onReadyExternal(ctrl, e) {
     try {
       scheduleMicroAdjust(p, durationNow, ctrl._group('volume'), ctrl);
     } catch (_) {}
+
     log(`✅ ${mID} READY → Plan Required WT=${ctrl.videoRequiredWatchTime}s`);
-    /* Initial mute at READY */
+
+    // Initial mute at READY
     try {
       const pp = ctrl?.player;
       const canMute = isFunction(pp?.mute) === true;
@@ -203,7 +209,8 @@ export function onReadyExternal(ctrl, e) {
         ctrl.unmuteScheduled = false;
       }
     } catch (_) {}
-    /* Logging / Pause scheduling */
+
+    // Logging / Pause scheduling
     try {
       const baselinePauses = ctrl?.plan?.pauses?.count ?? '-';
       log(`📋 ${mID} Pause Plan → Baseline=${baselinePauses}, ProfileChance=${ctrl?.config?.pauseChance ?? '?'}`);
@@ -225,7 +232,8 @@ export function onReadyExternal(ctrl, e) {
       );
       log(`⏳ ${mID} Pause → Scheduled: Ready (Muted-Friendly)`);
     } catch (_) {}
-    // --- Initial play scheduling (βελτιωμένο: pendingUnmute gate όπως ήταν) ---
+
+    // Initial play scheduling (pendingUnmute gate, retries με jitter)
     try {
       try {
         groupCancel(ctrl._group('play'));
@@ -236,7 +244,7 @@ export function onReadyExternal(ctrl, e) {
         ctrl.initialPlayScheduled = true;
         const startDelay = rndInt(200, 600);
         let attempts = 0;
-        const maxAttempts = 20; // αυξημένο από 12 → 20
+        const maxAttempts = 20; // από 12 → 20
         const tryStart = () => {
           try {
             const p3 = ctrl?.player;
@@ -259,7 +267,7 @@ export function onReadyExternal(ctrl, e) {
               log(`ℹ️ ${mID} Play → Info: Initial AlreadyPlaying (StopRetries)`);
               return;
             }
-            // 🔓 Αφαίρεση guard: Επιτρέπουμε initial play ενώ pendingUnmute === true (όπως πριν).
+            // Ασφαλής guard: trials για play (pendingUnmute gate όπως ήταν)
             ctrl.guardPlay(ctrl.player);
             attempts = attempts + 1;
             if (allTrue([attempts < maxAttempts]) === true) {
@@ -283,7 +291,7 @@ export function onReadyExternal(ctrl, e) {
     } catch (_) {}
   } catch (_) {}
 }
-/** Παρακολούθηση PLAYING και fire watch-time όταν πιαστεί το threshold. */
+
 export function onStateChangeExternal(ctrl, e) {
   const mID = getPlayerScope(ctrl.index);
   try {
@@ -295,35 +303,34 @@ export function onStateChangeExternal(ctrl, e) {
     const ok = allTrue(parts);
     if (ok !== true) return;
     const state = p.getPlayerState();
+
     /*------------------------------ PLAYING ------------------------------*/
     if (state === YT.PlayerState.PLAYING) {
       /* --- 🛑 Early gate --- */
       if (gateStopOrHalt(ctrl, 'PLAYING') === true) {
-        //log(`🟢 ${mID} → PLAYING - Halt`);
         return;
       }
-
       if (ctrl.playingStart === null) {
         ctrl.playingStart = Date.now();
       }
-      // one-shot flags (αν δεν υπάρχουν)
       if (typeof ctrl._rateAppliedForThisVideo !== 'boolean') ctrl._rateAppliedForThisVideo = false;
       if (typeof ctrl._qualityAutoAppliedForThisVideo !== 'boolean') ctrl._qualityAutoAppliedForThisVideo = false;
-      // 1) RESET RATE στο πρώτο PLAYING κάθε βίντεο
+      // 1) RESET RATE στο πρώτο PLAYING αν χρειάζεται
       if (ctrl._rateAppliedForThisVideo !== true) {
         try {
           resetPlaybackRate(ctrl);
           ctrl._rateAppliedForThisVideo = true;
         } catch (_) {}
       }
-      // 2) RESET QUALITY (auto default) στο πρώτο PLAYING
+      // 2) RESET QUALITY (auto default)
       if (ctrl._qualityAutoAppliedForThisVideo !== true) {
         try {
           resetPlaybackQuality(ctrl);
           ctrl._qualityAutoAppliedForThisVideo = true;
         } catch (_) {}
       }
-      /* Καταγραφή PLAYING event */
+
+      // Καταγραφή PLAYING
       try {
         const pp = ctrl?.player;
         const quality = isFunction(pp?.getPlaybackQuality) === true ? pp.getPlaybackQuality() ?? '?' : '?';
@@ -340,7 +347,6 @@ export function onStateChangeExternal(ctrl, e) {
             }
           }
         } catch (_) {}
-        // Raw volume
         let vol = '?';
         try {
           const partsVol = [];
@@ -360,7 +366,8 @@ export function onStateChangeExternal(ctrl, e) {
       } catch (_) {
         log(`🟢 ${mID} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)}, Quality=?, Vol=?, Played=?s, Required=?s)`);
       }
-      // AutoUnmute scheduling (μόλις μπούμε PLAYING)
+
+      // AutoUnmute scheduling
       try {
         const g = [];
         g.push(ctrl?.pendingUnmute === true);
@@ -370,6 +377,7 @@ export function onStateChangeExternal(ctrl, e) {
           scheduleUnmute(ctrl, true);
         }
       } catch (_) {}
+
       // WT check
       const checkWT = () => {
         try {
@@ -394,7 +402,7 @@ export function onStateChangeExternal(ctrl, e) {
             if (within === true) {
               if (ctrl.freezeSoftTasks !== true) {
                 ctrl.freezeSoftTasks = true;
-                log(`🧚 ${mID} Soft-Freeze Enabled (≤${guardSec}s To Threshold)`);
+                log(`🧊 ${mID} Soft-Freeze Enabled (≤${guardSec}s To Threshold)`);
               }
             }
           }
@@ -408,7 +416,6 @@ export function onStateChangeExternal(ctrl, e) {
               if (isFunction(ctrl.clearTimers)) ctrl.clearTimers();
             } catch (_) {}
             ctrl.autoNextScheduled = true;
-            // reset one-shot flag για το επόμενο βίντεο (rate)
             try {
               ctrl._rateAppliedForThisVideo = false;
             } catch (_) {}
@@ -421,15 +428,14 @@ export function onStateChangeExternal(ctrl, e) {
       };
       scheduleSafe(checkWT, rndInt(800, 1500), ctrl._group('wt'), 'wt-check');
     }
+
     /*------------------------------ ENDED ------------------------------*/
+    /* --- 🛑 Early gate --- */
     if (state === YT.PlayerState.ENDED) {
-      /* --- 🛑 Early gate --- */
       if (gateStopOrHalt(ctrl, 'ENDED') === true) {
-        //log(`🔵 ${mID} → ENDED - Halt`);
         return;
       }
-
-      log(`🔵 ${mID} → ENDED`);
+      log(`🟣 ${mID} → ENDED`);
       if (ctrl.deferAutoNextUntilEnded === true) {
         try {
           ctrl._rateAppliedForThisVideo = false;
@@ -444,15 +450,13 @@ export function onStateChangeExternal(ctrl, e) {
         autoNextAfterWatchtime(ctrl);
       }
     }
+
     /*------------------------------ Άλλα States ------------------------------*/
 
     /*------------------------------ PAUSED ------------------------------*/
     if (state === YT.PlayerState.PAUSED) {
-      /* 🛑 Early gate: Stop/Halt → μην προγραμματίσεις resume, κάνε soft-cleanup */
       if (gateStopOrHalt(ctrl, 'PAUSED') === true) {
-        //log(`🟡 ${mID} → PAUSED - Halt`);
         try {
-          // Ακύρωσε τυχόν προγραμματισμένους 'pause-guard' timers
           if (isFunction(groupCancel) === true) groupCancel(ctrl._group('pause-guard'));
         } catch (_) {}
         return;
@@ -478,31 +482,28 @@ export function onStateChangeExternal(ctrl, e) {
         }
       } catch (_) {}
     }
+
     /*------------------------------ BUFFERING ------------------------------*/
     if (state === YT.PlayerState.BUFFERING) {
-      /* 🛑 Early gate: Stop/Halt → μόνο ενημέρωσε timestamp και return */
       if (gateStopOrHalt(ctrl, 'BUFFERING') === true) {
-        //log(`🟠 ${mID} → BUFFERING - Halt`);
         ctrl.lastBufferingStart = Date.now();
         return;
       }
-      log(`🟠 ${mID} → BUFFERING`);
+      log(`🔵 ${mID} → BUFFERING`);
       ctrl.lastBufferingStart = Date.now();
     }
+
     /*------------------------------ UNSTARTED ------------------------------*/
     if (state === YT.PlayerState.UNSTARTED) {
-      /* 🛑 Early gate: Stop/Halt → μόνο ενημέρωσε timestamp και return */
       if (gateStopOrHalt(ctrl, 'UNSTARTED') === true) {
-        //log(`🔘 ${mID} → UNSTARTED - Halt`);
         ctrl.lastBufferingStart = Date.now();
         return;
       }
     }
+
     /*------------------------------ CUED ------------------------------*/
     if (state === YT.PlayerState.CUED) {
-      /* 🛑 Early gate: Stop/Halt → μόνο ενημέρωσε timestamp και return */
       if (gateStopOrHalt(ctrl, 'CUED') === true) {
-        //log(`⚫ ${mID} → CUED - Halt`);
         ctrl.lastBufferingStart = Date.now();
         return;
       }
@@ -511,14 +512,14 @@ export function onStateChangeExternal(ctrl, e) {
     log(`❌ ${mID} Error → onStateChangeExternal — Detail= ${err}`);
   }
 }
+
+/*------------------------------ ERROR ------------------------------*/
 export function onErrorExternal(ctrl, e) {
   const mID = getPlayerScope(ctrl.index);
-  /* --- 🛑 Early gate --- */
   if (gateStopOrHalt(ctrl, 'ERROR') === true) {
     log(`❌ ${mID} → ERROR`);
     return;
   }
-
   try {
     log(`❌ ${mID} Error → State: OnError — Detail= ${String(e)}`);
     autoNextAfterError(ctrl);
@@ -526,7 +527,7 @@ export function onErrorExternal(ctrl, e) {
     log(`❌ ${mID} Error → onErrorExternal — Detail= ${err}`);
   }
 }
-/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
-console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
+/* Ολοκλήρωση Φόρτωσης Αρχείου */
+console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 // --- End Of File ---

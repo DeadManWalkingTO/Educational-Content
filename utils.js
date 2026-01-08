@@ -1,5 +1,5 @@
 // --- utils.js ---
-const VERSION = 'v5.3.2';
+const VERSION = 'v5.4.2';
 /*
  * Περιγραφή: Ενιαίο module βοηθητικών συναρτήσεων (λογική, τύποι, χρόνος, μορφοποίηση, JSON, DOM, γεγονότα, logging, scheduler).
  * Αλλαγές: Προσθήκη κοινού helper whenPlayingAndUnmuted(player, ctrl, attemptTask, retryMinMs, retryMaxMs, group, tag)
@@ -18,6 +18,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
+const mID = getPlayerScope();
 
 /** 
 - Ενότητες:
@@ -649,11 +650,13 @@ let schedulerHaltEnabled = false;
 /** Ενεργοποιεί το halt: μπλοκάρει νέα scheduleSafe/delay/repeat (όπου εφαρμόζεται). */
 export function enableSchedulerHalt() {
   schedulerHaltEnabled = true;
+  log(`⛔ ${mID} schedulerHaltEnabled → ${schedulerHaltEnabled}`);
 }
 
 /** Απενεργοποιεί το halt: επιτρέπει νέα schedules. */
 export function disableSchedulerHalt() {
   schedulerHaltEnabled = false;
+  log(`⛔ ${mID} schedulerHaltEnabled → ${schedulerHaltEnabled}`);
 }
 
 /** Προαιρετικό: ελέγχει αν ο scheduler είναι σε halt (για logs/diagnostics). */
@@ -920,7 +923,6 @@ export function scheduleSafe(fn, ms, group, label) {
         }
       } catch (err) {
         try {
-          const mID = getPlayerScope();
           const msg = err instanceof Error ? err.message : String(err);
           log(`❌ ${mID} Error → ${name} — Detail= ${msg}`);
         } catch (_) {

@@ -1,5 +1,5 @@
 // --- wtBus.js ---
-const VERSION = 'v1.4.2';
+const VERSION = 'v1.5.2';
 /*
  * Event bus για watch-time:
  * - emitWatchtimeReached(index): εκπέμπει 'wt:reached' και αυξάνει stats.wtSignals.
@@ -11,9 +11,18 @@ export function getVersion() {
   return VERSION;
 }
 
+/* ========================= Περιγραφή =========================
+ *
+ * Event bus για watch-time:
+ * - emitWatchtimeReached(index): εκπέμπει 'wt:reached' και αυξάνει stats.wtSignals.
+ * - onWatchtimeReached(handler): subscribe με disposer.
+ * Refactor:
+ * - Operator-free guards (χωρίς &&/|| — μόνο allTrue/anyTrue).
+ * - Ασφαλής πρόσβαση σε document (DOM-aware) και καθαρά logs.
+ */
+
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
-
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
@@ -25,6 +34,13 @@ import { stats } from './globals.js';
 const log = makeLogger(FILENAME);
 const mID = getPlayerScope();
 
+/* ========================= Helpers ========================= */
+function _hasDom() {
+  const parts = [];
+  parts.push(typeof document !== 'undefined');
+  return allTrue(parts) === true;
+}
+
 /* ========================= Module Code ========================= */
 /**
  * Εκπέμπει γεγονός 'wt:reached' για τον συγκεκριμένο player index
@@ -32,27 +48,26 @@ const mID = getPlayerScope();
  */
 export function emitWatchtimeReached(index) {
   try {
-    // Guard για index (χωρίς λογικούς τελεστές)
+    // Guard για index
     const okIndex = allTrue([isDefined(index) === true]);
     if (okIndex !== true) return;
-
-    // Ασφαλής αύξηση μετρητή wtSignals
+    // Ασφαλής αύξηση wtSignals
     try {
       stats.wtSignals = (stats.wtSignals ?? 0) + 1;
     } catch (_) {}
-
-    // Διαθεσιμότητα DOM με switch-case (χωρίς λογικούς τελεστές)
-    const domAvail = allTrue([typeof document !== 'undefined']) === true;
+    // DOM-aware dispatch
+    const domAvail = _hasDom();
     switch (domAvail) {
       case true: {
-        const ev = new CustomEvent('wt:reached', { detail: { index: Number(index) } });
-        document.dispatchEvent(ev);
-        log(`📣 ${mID} WTBus Emit → WT:Reached (index=${Number(index)})`);
+        try {
+          const ev = new CustomEvent('wt:reached', { detail: { index: Number(index) } });
+          document.dispatchEvent(ev);
+          log(`📣 ${mID} WTBus Emit → WT:Reached (index=${Number(index)})`);
+        } catch (_) {}
         break;
       }
       default:
-        // no-op: περιβάλλον χωρίς DOM
-        break;
+        break; // no-op: περιβάλλον χωρίς DOM
     }
   } catch (_) {}
 }
@@ -65,12 +80,11 @@ export function emitWatchtimeReached(index) {
 export function onWatchtimeReached(handler) {
   let disposer = function () {};
   try {
-    // Guard για handler (χωρίς λογικούς τελεστές)
+    // Guard για handler
     const okHandler = allTrue([isFunction(handler) === true]);
     if (okHandler !== true) return disposer;
-
-    // Ελάχιστος έλεγχος περιβάλλοντος με anyTrue (χρήση helpers κατά προδιαγραφή)
-    const envOk = anyTrue([typeof document !== 'undefined']) === true;
+    // Περιβάλλον DOM
+    const envOk = _hasDom();
     switch (envOk) {
       case true: {
         const wrapped = (ev) => {
@@ -88,8 +102,7 @@ export function onWatchtimeReached(handler) {
         break;
       }
       default:
-        // no-op: περιβάλλον χωρίς DOM
-        break;
+        break; // no-op: περιβάλλον χωρίς DOM
     }
   } catch (_) {}
   return disposer;

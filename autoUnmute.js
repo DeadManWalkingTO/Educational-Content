@@ -1,5 +1,5 @@
 // --- autoUnmute.js ---
-const VERSION = 'v2.22.21';
+const VERSION = 'v2.23.0';
 /*
  * scheduleUnmute(ctrl, stateIsPlaying): parsing plan.unmute (base/extra/grace), debounce, flags, scheduling.
  * applyUnmute(player, plan, ctrl): unMute + setVolume + delayed verify (+ micro-adjust), baseline update.
@@ -11,7 +11,17 @@ export function getVersion() {
   return VERSION;
 }
 
-/* Όνομα αρχείου για logging.*/
+/* ========================= Περιγραφή =========================
+ *
+ * scheduleUnmute(ctrl, stateIsPlaying): parsing plan.unmute (base/extra/grace), debounce, flags, scheduling.
+ * applyUnmute(player, plan, ctrl): unMute + setVolume + delayed verify (+ micro-adjust), baseline update.
+ * ensureUnmuteMeta(ctrl): init meta { lastMs, minGapMs }.
+ * Refactor:
+ * - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
+ * - Ενοποίηση logs/guards και σεβασμός soft back-pressure (softFreezeUntilMs/minGap).
+ */
+
+/* Όνομα αρχείου για logging.*/
 const FILENAME = import.meta.url.split('/').pop();
 
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
@@ -23,8 +33,7 @@ import { stats } from './globals.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
-
-// Εσωτερικό helper: 1-based index για logging.
+/* Helper: 1-based index για logging. */
 function _shownIndex(ctrl) {
   try {
     const base = Number(ctrl?.index);
@@ -36,15 +45,24 @@ function _shownIndex(ctrl) {
   } catch (_) {}
   return '#';
 }
-
-// Meta για debounce
-function ensureUnmuteMeta(ctrl) {
+/* Group resolve helper */
+function resolveGroup(ctrl, suffix, fallback) {
+  try {
+    const ok = [];
+    ok.push(isFunction(ctrl?._group) === true);
+    if (allTrue(ok) === true) {
+      return ctrl._group(suffix);
+    }
+  } catch (_) {}
+  return typeof fallback === 'string' ? fallback : `pc:${suffix}`;
+}
+/* Meta για debounce */
+export function ensureUnmuteMeta(ctrl) {
   const needsInit = typeof ctrl?.unmuteMeta === 'undefined' ? true : ctrl.unmuteMeta === null ? true : false;
   if (needsInit === true) {
     ctrl.unmuteMeta = { lastMs: 0, minGapMs: 800 };
   }
 }
-
 /**
  * Καθαρή πράξη unmute + setVolume (με delayed verification).
  */
@@ -58,7 +76,6 @@ export function applyUnmute(player, plan, ctrl = null) {
     if (apiOk !== true) {
       return;
     }
-
     // Εύρος έντασης από plan (defaults 10..30)
     let lo = 10;
     let hi = 30;
@@ -82,14 +99,12 @@ export function applyUnmute(player, plan, ctrl = null) {
       lo = hi;
       hi = tmp;
     }
-
-    // Πράξη unmute + αρχική τιμή-στόχος
+    // Πράξη unmute + setVolume
     player.unMute();
     const target = rndInt(Math.floor(lo), Math.floor(hi));
     player.setVolume(target);
-
-    // Καθυστερημένη επαλήθευση (για να αποφύγουμε "Current=100%" αμέσως μετά το setVolume)
-    const verifyDelay = rndInt(100, 200); // 100–200 ms
+    // Delayed verify (100–200 ms)
+    const verifyDelay = rndInt(100, 200);
     const verifyFn = () => {
       try {
         const canGetVol = isFunction(player?.getVolume);
@@ -100,25 +115,26 @@ export function applyUnmute(player, plan, ctrl = null) {
             const diff = Math.abs(cur - target);
             const mismatch = allTrue([diff >= 5]);
             if (mismatch === true) {
-              // Επαναφορά στην τιμή-στόχο αν αποκλίνει αισθητά
               player.setVolume(target);
             }
             log(`✅ ${mID} Unmute → Verify: Target=${target}% / Now=${String(cur)}%`);
           }
         }
       } catch (_) {}
+      // soft-task timestamp
+      try {
+        if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
+      } catch (_) {}
     };
-    const grp = isFunction(ctrl?._group) === true ? ctrl._group('unmute') : `pc:${String(ctrl?.index ?? '0')}:unmute`;
+    const grp = resolveGroup(ctrl, 'unmute', `pc:${String(ctrl?.index ?? '0')}:unmute`);
     scheduleSafe(verifyFn, verifyDelay, grp, 'unmute-verify');
-
     // Logging & stats
     try {
       stats.volumeChanges = (stats.volumeChanges ?? 0) + 1;
     } catch (_) {}
-    log(`🔕 ${mID} Unmute → Apply: Value=${String(target)}% (Unmute)`);
+    log(`🔓 ${mID} Unmute → Apply: Value=${String(target)}% (Unmute)`);
   } catch (_) {}
 }
-
 /**
  * Προγραμματισμός unmute (PLAYING-only gate + retry window).
  * @param {any} ctrl - PlayerController
@@ -128,7 +144,6 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
   const mID = getPlayerScope(ctrl?.index);
   try {
     ensureUnmuteMeta(ctrl);
-
     // Μη διπλό scheduling
     let alreadyScheduled = false;
     if (typeof ctrl?.unmuteScheduled !== 'undefined') {
@@ -139,7 +154,6 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
     if (alreadyScheduled === true) {
       return;
     }
-
     // Πύλες: PLAYING trigger + pendingUnmute
     const guards = [];
     guards.push(stateIsPlaying === true);
@@ -148,7 +162,6 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
     if (readyToPlan !== true) {
       return;
     }
-
     // Parse από plan
     let baseSec = 5;
     let extraMin = 0;
@@ -192,8 +205,7 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
         }
       }
     } catch (_) {}
-
-    // Τυχαίες συνιστώσες
+    // Τυχαιές συνιστώσες
     let extraSec = 0;
     const partsExtra = [];
     partsExtra.push(extraMax >= extraMin);
@@ -202,7 +214,6 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
         extraSec = rndInt(extraMin, extraMax);
       } catch (_) {}
     }
-
     let graceMs = 0;
     const partsGrace = [];
     partsGrace.push(gMax >= gMin);
@@ -211,11 +222,9 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
         graceMs = rndInt(gMin, gMax);
       } catch (_) {}
     }
-
     // Τελικός χρόνος αναμονής
     const totalDelayMs = Math.max(0, (baseSec + extraSec) * 1000);
     const finalDelayMs = totalDelayMs + graceMs;
-
     // Debounce vs previous unmute
     const now = Date.now();
     const sinceLast = now - (ctrl.unmuteMeta.lastMs ?? 0);
@@ -228,22 +237,19 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
           scheduleUnmute(ctrl, stateIsPlaying);
         },
         retryDelay,
-        ctrl._group('unmute'),
+        resolveGroup(ctrl, 'unmute', `pc:${String(ctrl?.index ?? '0')}:unmute`),
         'delayed-unmute-retry-gap'
       );
       return;
     }
-
-    // Schedule με PLAYING gate
+    // Schedule με PLAYING + Soft-gate
     ctrl.unmuteScheduled = true;
     const totalSecShown = Math.round(finalDelayMs / 1000);
     log(`⏳ ${mID} Unmute → Scheduled: In ${String(totalSecShown)}s`);
-
     const attemptApply = () => {
       // Soft-gate: freeze + min-gap
       const nowMs = Date.now();
       const softOK = allTrue([nowMs >= (ctrl?.softFreezeUntilMs ?? 0), nowMs - (ctrl?.lastSoftTaskMs ?? 0) >= (ctrl?.softTaskMinGapMs ?? 0)]);
-
       // PLAYING gate
       const p = ctrl?.player;
       let playing = false;
@@ -259,8 +265,7 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
           playing = allTrue(partsIs) === true;
         }
       } catch (_) {}
-
-      // Απόφαση retry με switch-case για λόγο αποτυχίας
+      // Απόφαση retry
       const needRetry = anyTrue([softOK !== true, playing !== true]);
       if (needRetry === true) {
         let reason = 'unknown';
@@ -276,10 +281,9 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
             break;
         }
         const d = rndInt(800, 2000);
-        scheduleSafe(attemptApply, d, ctrl._group('unmute'), `unmute-apply-retry-${reason}`);
+        scheduleSafe(attemptApply, d, resolveGroup(ctrl, 'unmute', `pc:${String(ctrl?.index ?? '0')}:unmute`), `unmute-apply-retry-${reason}`);
         return;
       }
-
       // Εφαρμογή unmute
       try {
         applyUnmute(ctrl.player, ctrl.plan, ctrl);
@@ -288,11 +292,9 @@ export function scheduleUnmute(ctrl, stateIsPlaying) {
         ctrl.unmuteMeta.lastMs = Date.now();
       } catch (_) {}
     };
-
-    scheduleSafe(attemptApply, finalDelayMs, ctrl._group('unmute'), 'delayed-unmute');
+    scheduleSafe(attemptApply, finalDelayMs, resolveGroup(ctrl, 'unmute', `pc:${String(ctrl?.index ?? '0')}:unmute`), 'delayed-unmute');
   } catch (_) {}
 }
-
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 

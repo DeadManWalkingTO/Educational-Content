@@ -1,5 +1,5 @@
 // --- youtubeReady.js ---
-const VERSION = 'v1.15.2';
+const VERSION = 'v1.16.2';
 /*
  * Σκοπός: Ready gate για το YouTube IFrame Player API με timeout,
  * ασφαλές injection του script, global callback (once) και polling fallback.
@@ -10,6 +10,13 @@ const VERSION = 'v1.15.2';
 export function getVersion() {
   return VERSION;
 }
+
+/* ========================= Περιγραφή =========================
+ *
+ * Σκοπός: Ready gate για το YouTube IFrame Player API με timeout,
+ * ασφαλές injection του script, global callback (once) και polling fallback.
+ * Εξαρτήσεις (utils.js): isDefined, isFunction, log, domReady, scheduleSafe, delay, cancel, fmtMs, once, allTrue, anyTrue.
+ */
 
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();

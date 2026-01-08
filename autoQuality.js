@@ -1,15 +1,23 @@
 // --- autoQuality.js ---
-const VERSION = 'v1.14.21';
+const VERSION = 'v1.15.3';
 /*
- * Περιγραφή: Τυχαίες αλλαγές ποιότητας (YouTube Iframe API) με guards.
- * - Ενημέρωση ctrl.lastSoftTaskMs μετά από επιτυχή αλλαγή ποιότητας. Καταμέτρηση stats.softBackpressureHits.
- * - resetPlaybackQuality(ctrl): επαναφορά ποιότητας σε 'default' (auto). verify σε reset & scheduled changes (100–200 ms), επαναφορά στην τιμή-στόχο όπου απαιτείται.
+ * Περιγραφή: Τυχαιές αλλαγές ποιότητας (YouTube Iframe API) με guards & back-pressure.
+ * - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
+ * - Καμία εξάρτηση από λίστες (SSoT/pull-only συμβατό).
  */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
+
+/* ========================= Περιγραφή =========================
+ *
+ * Περιγραφή: Τυχαιές αλλαγές ποιότητας (YouTube Iframe API) με guards & back-pressure.
+ * Refactor:
+ * - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
+ * - Καμία εξάρτηση από λίστες (SSoT/pull-only συμβατό).
+ */
 
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
@@ -36,20 +44,16 @@ function _can(obj, methodName) {
   const fn = obj[methodName];
   return isFunction(fn) === true;
 }
-
 function _pickQuality(player, preferredOrder) {
   try {
     const parts = [];
     parts.push(_can(player, 'getAvailableQualityLevels') === true);
     const canGet = allTrue(parts);
     if (canGet !== true) return null;
-
     const levels = player.getAvailableQualityLevels();
     if (isNonEmptyArray(levels) !== true) return null;
-
     const available = levels.slice();
     let choice = null;
-
     let i = 0;
     while (i < preferredOrder.length) {
       const q = preferredOrder[i];
@@ -61,7 +65,6 @@ function _pickQuality(player, preferredOrder) {
       }
       i = i + 1;
     }
-
     if (choice === null) {
       const partsAvail = [];
       partsAvail.push(available.length > 0);
@@ -70,34 +73,26 @@ function _pickQuality(player, preferredOrder) {
         choice = available[r];
       }
     }
-
     return choice;
   } catch (_) {
     return null;
   }
 }
-
-/* ΝΕΟ: Verify quality (καθυστερημένη ανάγνωση + επαναφορά στην τιμή-στόχο όπου απαιτείται)
-   ΣΗΜ: Για στόχο 'default' (auto) κάνουμε μόνο logging της πραγματικής ποιότητας. */
 function _verifyQuality(player, targetQuality, ctrl = null, group = 'pc:quality') {
-  const mID = getPlayerScope(ctrl.index);
+  const mID = getPlayerScope(ctrl?.index);
   try {
     const canGet = _can(player, 'getPlaybackQuality') === true;
     const canSet = _can(player, 'setPlaybackQuality') === true;
     if (canGet !== true) return;
-
     const delay = rndInt(100, 200);
     const verifyTask = () => {
       try {
         const cur = player.getPlaybackQuality();
         log(`📺 ${mID} Quality → Verify: ${String(cur)} (target=${String(targetQuality)})`);
-
-        // Αν ο στόχος είναι συγκεκριμένο level (όχι 'default'), και διαφέρει, επαναφορά
         const isDefault = String(targetQuality) === 'default';
         const partsSetBack = [];
         partsSetBack.push(isDefault !== true);
         partsSetBack.push(canSet === true);
-
         if (allTrue(partsSetBack) === true) {
           const curOk = typeof cur === 'string';
           const mismatch = curOk === true ? cur !== String(targetQuality) : true;
@@ -107,51 +102,41 @@ function _verifyQuality(player, targetQuality, ctrl = null, group = 'pc:quality'
         }
       } catch (_) {}
     };
-
-    const grp = isDefined(ctrl?._group) === true ? ctrl._group('quality') : group;
+    const grp = resolveGroup(ctrl, 'quality', group);
     scheduleSafe(verifyTask, delay, grp, 'quality-verify');
   } catch (_) {}
 }
-
 function _applyQuality(player, quality, tag, ctrl = null) {
-  const mID = getPlayerScope(ctrl.index);
+  const mID = getPlayerScope(ctrl?.index);
   try {
     const parts = [];
     parts.push(_can(player, 'setPlaybackQuality') === true);
     parts.push(isDefined(quality) === true);
     const ok = allTrue(parts);
     if (ok !== true) return;
-
     player.setPlaybackQuality(quality);
-
     // stats
     if (isNumber(stats.qualityChanges) === true) {
       stats.qualityChanges = stats.qualityChanges + 1;
     } else {
       stats.qualityChanges = 1;
     }
-
     log(`📺 ${mID} Quality → ${String(quality)}`);
-
-    // ενημέρωση soft-task timestamp
+    // soft-task timestamp
     try {
       if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
     } catch (_) {}
-
-    // ΝΕΟ: verify της αλλαγής
-    const grp = isDefined(ctrl?._group) === true ? ctrl._group('quality') : 'pc:quality';
+    // verify
+    const grp = resolveGroup(ctrl, 'quality', 'pc:quality');
     _verifyQuality(player, quality, ctrl, grp);
   } catch (_) {}
 }
-
 function _gateOrReschedule(ctrl, group, tag, taskFn, retryMinMs = 800, retryMaxMs = 2000) {
   try {
     const now = Date.now();
-
     const parts = [];
     parts.push(now >= (ctrl?.softFreezeUntilMs ?? 0));
     parts.push(now - (ctrl?.lastSoftTaskMs ?? 0) >= (ctrl?.softTaskMinGapMs ?? 0));
-
     const ok = allTrue(parts);
     if (ok === true) {
       try {
@@ -159,18 +144,25 @@ function _gateOrReschedule(ctrl, group, tag, taskFn, retryMinMs = 800, retryMaxM
       } catch (_) {}
       return;
     }
-
     const d = rndInt(retryMinMs, retryMaxMs);
-
-    // Μετρητής back-pressure hits
+    // back-pressure hits
     if (isNumber(stats.softBackpressureHits) === true) {
       stats.softBackpressureHits = stats.softBackpressureHits + 1;
     } else {
       stats.softBackpressureHits = 1;
     }
-
     scheduleSafe(() => _gateOrReschedule(ctrl, group, tag, taskFn, retryMinMs, retryMaxMs), d, group, `${tag}-retry-softgap`);
   } catch (_) {}
+}
+function resolveGroup(ctrl, suffix, fallback) {
+  try {
+    const ok = [];
+    ok.push(isFunction(ctrl?._group) === true);
+    if (allTrue(ok) === true) {
+      return ctrl._group(suffix);
+    }
+  } catch (_) {}
+  return typeof fallback === 'string' ? fallback : `pc:${suffix}`;
 }
 
 /* ========================= Public API ========================= */
@@ -206,7 +198,6 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
           break;
         }
         default:
-          /* no-op */
           break;
       }
     } catch (_) {}
@@ -216,8 +207,10 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
   // Διάρκεια/παράθυρο
   let d = 0;
   if (isNumber(durationSec) === true) d = durationSec;
+  let windowSec = 0;
+  if (isNumber(requiredWatchSec) === true) windowSec = requiredWatchSec;
 
-  // Επιλογή σειράς ποιότητας (switch-case με συνθήκη)
+  // Επιλογή σειράς ποιοτήτων (switch-case)
   let preferredOrder = ['small', 'medium', 'large'];
   switch (true) {
     case allTrue([d < 300]) === true:
@@ -228,33 +221,28 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
       break;
   }
 
-  // Παράθυρο χρονοπρογραμματισμού (σε sec)
-  let windowSec = 0;
-  if (isNumber(requiredWatchSec) === true) windowSec = requiredWatchSec;
-
-  // Βασικός αριθμός αλλαγών βάσει παραθύρου
+  // Πλήθος αλλαγών βάσει παραθύρου
   let baseCount = 1;
   if (allTrue([windowSec >= 300]) === true) baseCount = 2;
   if (allTrue([windowSec >= 900]) === true) baseCount = 3;
 
   // Πιθανότητα από config
   let chance = 0.3;
-  if (isNumber(config?.qualityChangeChance) === true) chance = config.qualityChangeChance;
+  if (isNumber(config?.qualityChangeChance) === true) {
+    chance = config.qualityChangeChance;
+  }
   if (chance < 0) chance = 0;
   if (chance > 1) chance = 1;
 
-  // Προγραμματισμένες αλλαγές
   let planned = Math.floor(baseCount * chance);
   if (planned < 1) {
     const partsMin = [];
     partsMin.push(chance > 0);
     if (allTrue(partsMin) === true) planned = 1;
   }
-
   try {
     log(`🧪 ${mID} QualityScheduler → Planned=${String(planned)} Window=${String(windowSec)}s Dur=${String(d)}s`);
   } catch (_) {}
-
   if (planned === 0) {
     try {
       log(`🧪 ${mID} QualityScheduler → No Tasks Scheduled (BaseCount Or Chance Too Low)`);
@@ -262,10 +250,9 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
     return;
   }
 
-  // Χρονικά όρια προγραμματισμού (ms) με switch-case
+  // Χρονικά όρια αλλαγών (ms)
   let fromMs = 20000;
   let toMs = 120000;
-
   switch (true) {
     case allTrue([windowSec > 0]) === true: {
       const lo = Math.floor(windowSec * 0.1);
@@ -291,7 +278,6 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
   while (i < planned) {
     const delaySec = rndInt(Math.floor(fromMs / 1000), Math.floor(toMs / 1000));
     const delayMs = delaySec * 1000;
-
     try {
       const ord = isNonEmptyArray(preferredOrder) === true ? preferredOrder.join('>') : '-';
       const longmsg = `${String(Math.round(delayMs / 1000))}s (Order=${ord})`;
@@ -304,16 +290,16 @@ export function scheduleQualityChanges(player, durationSec, config = null, group
       if (q !== null) _applyQuality(player, q, tag, ctrlParam);
     };
 
+    const ctrl = typeof ctrlOrIndex === 'object' ? ctrlOrIndex : null;
+    const grp = resolveGroup(ctrl, 'quality', group);
     scheduleSafe(
       () => {
-        const ctrl = typeof ctrlOrIndex === 'object' ? ctrlOrIndex : null;
-        _gateOrReschedule(ctrl, group, 'quality-change', () => whenPlayingAndUnmuted(player, ctrl, task, 800, 2000, group, 'quality-change'), 800, 2000);
+        _gateOrReschedule(ctrl, grp, 'quality-change', () => whenPlayingAndUnmuted(player, ctrl, task, 800, 2000, grp, 'quality-change'), 800, 2000);
       },
       delayMs,
-      group,
+      grp,
       'quality-change'
     );
-
     i = i + 1;
   }
 }
@@ -329,12 +315,9 @@ export function resetPlaybackQuality(ctrl) {
     const p = ctrl?.player;
     const canSet = _can(p, 'setPlaybackQuality') === true;
     const canGet = _can(p, 'getPlaybackQuality') === true;
-
     if (canSet !== true) return false;
-
     // Εφαρμογή auto ('default')
     p.setPlaybackQuality('default');
-
     // Προαιρετική ανάγνωση για logging/διαφάνεια
     let afterQ = 'default';
     try {
@@ -347,19 +330,15 @@ export function resetPlaybackQuality(ctrl) {
         if (allTrue(partsStr) === true) afterQ = q;
       }
     } catch (_) {}
-
-    // Ενημέρωση soft-task timestamp
+    // soft-task timestamp
     try {
       if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
     } catch (_) {}
-
     // Log
     log(`⚙️ ${mID} Quality → Reset: Auto (default) [Now=${afterQ}]`);
-
-    // ΝΕΟ: verify του reset (μόνο logging για 'default')
-    const grp = isDefined(ctrl?._group) === true ? ctrl._group('quality') : 'pc:quality';
+    // verify 'default'
+    const grp = resolveGroup(ctrl, 'quality', 'pc:quality');
     _verifyQuality(p, 'default', ctrl, grp);
-
     return true;
   } catch (_) {
     return false;
