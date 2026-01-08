@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v4.5.2';
+const VERSION = 'v4.6.2';
 /*
  * Περιγραφή:
  * Συγκεντρώνει εκδόσεις όλων των modules και του HTML. Ελαφρύς renderer για panel/κείμενο,
@@ -26,6 +26,7 @@ import { getVersion as getAutoSeekVersion } from './autoSeek.js';
 import { getVersion as getAutoUnmuteVersion } from './autoUnmute.js';
 import { getVersion as getAutoVolumeVersion } from './autoVolume.js';
 import { getVersion as getConsoleFilterVersion } from './consoleFilter.js';
+import { getVersion as getContainersVersion } from './containers.js';
 import { getVersion as getGlobalsVersion } from './globals.js';
 import { getVersion as getHumanModeVersion } from './humanMode.js';
 import { getVersion as getListsVersion } from './lists.js';
@@ -96,6 +97,7 @@ export function reportAllVersions() {
     AutoQuality: getAutoQualityVersion(),
     AutoRate: getAutoRateVersion(),
     WtBus: getWtBusVersion(),
+    Containers: getContainersVersion(),
     VersionReporter: VERSION,
   };
 

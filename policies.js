@@ -1,5 +1,5 @@
 // --- policies.js ---
-const VERSION = 'v1.24.2';
+const VERSION = 'v1.25.2';
 /*
  * Περιγραφή: Module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
  *
@@ -19,6 +19,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { rndInt, randomFloat, clamp, isFiniteNumber, isString, makeLogger, allTrue, anyTrue, getPlayerScope } from './utils.js';
+import { MIN_WATCH_TIME } from './globals.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -64,9 +65,9 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown', pidex
   const valid = allTrue([isFiniteNumber(durationSec) === true, durationSec > 0]);
   if (valid !== true) {
     try {
-      log(`🧮 ${mID} Required → 15s (Fallback), Duration=${String(durationSec)} (Invalid)`);
+      log(`🧮 ${mID} Required → ${MIN_WATCH_TIME}s (Fallback), Duration=${String(durationSec)} (Invalid)`);
     } catch (_) {}
-    return 15;
+    return MIN_WATCH_TIME;
   }
 
   const d = Math.floor(Number(durationSec));
@@ -99,7 +100,7 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown', pidex
   }
 
   // Μικρά βίντεο: WT = D+1 (ώστε να μην πιαστεί πριν το ENDED)
-  if (allTrue([d < 60]) === true) {
+  if (allTrue([d < MIN_WATCH_TIME]) === true) {
     const req = d + 1;
     try {
       log(`🧮 ${mID} Required → ${req}s (Small-Video rule, D=${d}s > return D+1)`);
@@ -118,8 +119,9 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown', pidex
   if (allTrue([required > capSec]) === true) {
     required = capSec;
   }
-  if (allTrue([required < 15]) === true) {
-    required = 15;
+
+  if (allTrue([required < MIN_WATCH_TIME]) === true) {
+    required = MIN_WATCH_TIME;
   }
 
   try {

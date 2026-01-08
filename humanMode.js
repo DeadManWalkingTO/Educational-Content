@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-const VERSION = 'v6.2.2';
+const VERSION = 'v7.1.2';
 /*
  * Περιγραφή: Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς playback.
  * Στόχος: duration-aware start, ρεαλιστικές παύσεις/seek/ένταση/ποιότητα/ρυθμός.
@@ -33,37 +33,6 @@ const BEHAVIOR_PROFILES = [
   { name: 'Casual', pauseChance: 0.3, qualityChangeChance: 0.3, volumeChangeChance: 0.25, rateChangeChanceShort: 0.12, rateChangeChanceLong: 0.15 },
   { name: 'Focused', pauseChance: 0.2, qualityChangeChance: 0.2, volumeChangeChance: 0.2, rateChangeChanceShort: 0.08, rateChangeChanceLong: 0.1 },
 ];
-
-/* Δημιουργία containers για players */
-export function createPlayerContainers() {
-  const mID = getPlayerScope();
-  const container = document.getElementById('playersContainer');
-
-  const parts = [];
-  parts.push(isDefined(container) === true);
-  const canMake = allTrue(parts);
-
-  if (canMake !== true) {
-    log(`❌ ${mID} Error → UI: Container — Missing #playersContainer`);
-    return;
-  }
-
-  try {
-    container.innerHTML = '';
-  } catch (_) {}
-
-  let i = 0;
-  while (i < PLAYER_COUNT) {
-    const div = document.createElement('div');
-    try {
-      div.id = `player${i + 1}`;
-      div.className = 'player-box';
-      container.appendChild(div);
-    } catch (_) {}
-    i = i + 1;
-  }
-  log(`✅ ${mID} Δημιουργία → ${PLAYER_COUNT} Player Containers`);
-}
 
 /* Δημιουργία τυχαίου config ανά προφίλ (συμβατό με autoVolume/autoQuality/autoRate) */
 function createRandomPlayerConfig(profile) {

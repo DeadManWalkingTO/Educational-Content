@@ -19,7 +19,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { scheduleSafe, cancel, groupCancel, jitter, makeLogger, rndInt, allTrue, anyTrue, isNumber, isDefined, isFunction, safeAddEvent, deepClone, getPlayerScope } from './utils.js';
-import { MAIN_PROBABILITY, getOrigin, getYouTubeEmbedHost, stats, getMainList, getAltList } from './globals.js';
+import { MAIN_PROBABILITY, getOrigin, getYouTubeEmbedHost, stats, getMainList, getAltList, MIN_WATCH_TIME } from './globals.js';
 import { getBehaviorPlan } from './policies.js';
 import { onStateChangeExternal, onReadyExternal, onErrorExternal } from './playerStateEngine.js';
 import { autoNextAfterError, autoNextAfterEnded } from './autoNext.js';
@@ -422,7 +422,7 @@ export class PlayerController {
   }
 
   getRequiredWatchSec() {
-    return isNumber(this.videoRequiredWatchTime) === true ? this.videoRequiredWatchTime : 15;
+    return isNumber(this.videoRequiredWatchTime) === true ? this.videoRequiredWatchTime : MIN_WATCH_TIME;
   }
 
   getPlayedSec() {

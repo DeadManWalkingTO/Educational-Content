@@ -1,5 +1,5 @@
 // --- utils.js ---
-const VERSION = 'v5.2.2';
+const VERSION = 'v5.3.2';
 /*
  * Περιγραφή: Ενιαίο module βοηθητικών συναρτήσεων (λογική, τύποι, χρόνος, μορφοποίηση, JSON, DOM, γεγονότα, logging, scheduler).
  * Αλλαγές: Προσθήκη κοινού helper whenPlayingAndUnmuted(player, ctrl, attemptTask, retryMinMs, retryMaxMs, group, tag)
@@ -341,27 +341,28 @@ const __SUBSYS_DATA = [
   { file: 'HTML', icon: '🌐', tag: 'GL' },
   { file: 'Utilities', icon: '🧩', tag: 'GL' },
   /*{ file: 'utils.js', icon: '🧩', tag: 'UT' },*/
-  { file: 'globals.js', icon: '🌍', tag: 'GL' },
-  { file: 'lists.js', icon: '📋', tag: 'LS' },
-  { file: 'humanMode.js', icon: '🤖', tag: 'HM' },
-  { file: 'playerController.js', icon: '🎮', tag: 'PC' },
-  { file: 'uiControls.js', icon: '🛠️', tag: 'UI' },
-  { file: 'watchdog.js', icon: '🐶', tag: 'WD' },
-  { file: 'consoleFilter.js', icon: '🔍', tag: 'CF' },
-  { file: 'youtubeReady.js', icon: '⭐', tag: 'YR' },
-  { file: 'versionReporter.js', icon: '📦', tag: 'VR' },
-  { file: 'policies.js', icon: '⚖️', tag: 'PL' },
-  { file: 'playerStateEngine.js', icon: '💠', tag: 'PS' },
   { file: 'autoNext.js', icon: '🔜', tag: 'AN' },
-  { file: 'autoUnmute.js', icon: '🔔', tag: 'AU' },
-  { file: 'autoVolume.js', icon: '📢', tag: 'AV' },
-  { file: 'autoSeek.js', icon: '🎯', tag: 'AS' },
   { file: 'autoPause.js', icon: '✋', tag: 'AP' },
-  { file: 'videoPicker.js', icon: '🎦', tag: 'VP' },
   { file: 'autoQuality.js', icon: '🏅', tag: 'AQ' },
   { file: 'autoRate.js', icon: '⚡', tag: 'AR' },
+  { file: 'autoSeek.js', icon: '🎯', tag: 'AS' },
+  { file: 'autoUnmute.js', icon: '🔔', tag: 'AU' },
+  { file: 'autoVolume.js', icon: '📢', tag: 'AV' },
+  { file: 'consoleFilter.js', icon: '🔍', tag: 'CF' },
+  { file: 'containers.js', icon: '📚', tag: 'CN' },
+  { file: 'globals.js', icon: '🌍', tag: 'GL' },
+  { file: 'humanMode.js', icon: '🤖', tag: 'HM' },
+  { file: 'lists.js', icon: '📋', tag: 'LS' },
   { file: 'main.js', icon: '🏛️', tag: 'MN' },
+  { file: 'playerController.js', icon: '🎮', tag: 'PC' },
+  { file: 'playerStateEngine.js', icon: '💠', tag: 'PS' },
+  { file: 'policies.js', icon: '⚖️', tag: 'PL' },
+  { file: 'uiControls.js', icon: '🛠️', tag: 'UI' },
+  { file: 'videoPicker.js', icon: '🎦', tag: 'VP' },
+  { file: 'versionReporter.js', icon: '📦', tag: 'VR' },
+  { file: 'watchdog.js', icon: '🐶', tag: 'WD' },
   { file: 'wtBus.js', icon: '🕰️', tag: 'MN' },
+  { file: 'youtubeReady.js', icon: '⭐', tag: 'YR' },
 ];
 
 /** Κατασκευάζουμε ΜΙΑ φορά λεξικά byFilename/byPascal */

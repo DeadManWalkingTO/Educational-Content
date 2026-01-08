@@ -64,19 +64,6 @@ function isReadyController(c) {
   return allTrue(parts);
 }
 
-function shuffleControllers(list) {
-  const a = Array.isArray(list) === true ? list.slice() : [];
-  let i = a.length - 1;
-  while (i > 0) {
-    const j = rndInt(0, i);
-    const tmp = a[i];
-    a[i] = a[j];
-    a[j] = tmp;
-    i = i - 1;
-  }
-  return a;
-}
-
 function pickRandomId(source) {
   const ok = [];
   ok.push(isNonEmptyArray(source) === true);

@@ -1,5 +1,5 @@
 // --- main.js ---
-const VERSION = 'v4.9.2';
+const VERSION = 'v4.10.2';
 /*
 Περιγραφή: Entry point με εκτεταμένη χρήση utils.js (domReady, safeAddEvent, once, log, retry, scheduleSafe).
 Start gate με user gesture & ασφαλές fallback, readiness του YouTube API με exponential backoff + jitter,
@@ -22,11 +22,12 @@ import { installConsoleFilter } from './consoleFilter.js';
 import { makeLogger, domReady, safeAddEvent, once, isDefined, retry, allTrue, anyTrue, getPlayerScope } from './utils.js';
 import { setUserGesture, WATCHDOG_RATE } from './globals.js';
 import { loadVideoList, loadAltList } from './lists.js';
-import { createPlayerContainers, initPlayersSequentially } from './humanMode.js';
+import { initPlayersSequentially } from './humanMode.js';
 import { reportAllVersions, renderVersionsPanel, renderVersionsText } from './versionReporter.js';
 import { bindUiEvents, setControlsEnabled } from './uiControls.js';
 import { youtubeReady } from './youtubeReady.js';
 import { startWatchdog } from './watchdog.js';
+import { createPlayerContainers } from './containers.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
