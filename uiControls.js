@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-const VERSION = 'v5.2.2';
+const VERSION = 'v5.3.2';
 /*
  * Κεντρικό χειριστήριο UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
  * - StopAll (Hard): Σειριακό clearTimers/stopVideo/destroy με αντίστροφη σειρά και ίδια χρονοκαθυστέρηση.
@@ -135,7 +135,7 @@ function playersStopAndClean(MinDelayMS = 30000, MaxDelayMS = 60000) {
 
   while (i < reversed.length) {
     const c = reversed[i];
-    const mIDc = getPlayerScope(c.index);
+    const mID = getPlayerScope(c.index);
     const randomDelay = rndInt(MinDelayMS, MaxDelayMS);
     totalDelay += randomDelay;
 
@@ -155,12 +155,12 @@ function playersStopAndClean(MinDelayMS = 30000, MaxDelayMS = 60000) {
             c.currentRate = 1.0;
             c.freezeSoftTasks = false;
 
-            log(`🔴 ${mIDc} Stop → Destroyed & Reset`);
+            log(`🔴 ${mID} Stop → Destroyed & Reset`);
           } catch {
-            log(`❌ ${mIDc} Error → Stop Destroy/Reset`);
+            log(`❌ ${mID} Error → Stop Destroy/Reset`);
           }
         } else {
-          log(`❌ ${mIDc} Error → Stop Skipped: Not Initialized`);
+          log(`❌ ${mID} Error → Stop Skipped: Not Initialized`);
         }
       },
       totalDelay,

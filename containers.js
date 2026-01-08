@@ -1,5 +1,5 @@
 // --- containers.js ---
-const VERSION = 'v1.2.2';
+const VERSION = 'v1.3.2';
 /*
  Περιγραφή:
  - Δημιουργεί δυναμικά containers για YouTube players.
@@ -16,11 +16,12 @@ export function getVersion() {
 const FILENAME = import.meta.url.split('/').pop();
 
 /* ========================= Imports ========================= */
-import { makeLogger, isDefined, allTrue } from './utils.js';
+import { makeLogger, isDefined, allTrue, getPlayerScope } from './utils.js';
 import { PLAYER_COUNT } from './globals.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
+const mID = getPlayerScope();
 
 /* =========================  Περιγραφή =========================
  - Αποκλειστική ευθύνη: Δημιουργία/καταστροφή/αναφορά των DOM containers για τους YouTube players.
@@ -58,7 +59,7 @@ function ensureHost() {
   hasHost.push(host !== null);
 
   if (allTrue(hasHost) === true) {
-    log('✅ Host Found → #playersContainer');
+    log(`✅ ${mID} Host Found → #playersContainer`);
     return host;
   }
 
@@ -76,9 +77,9 @@ function ensureHost() {
     host.style.gridTemplateColumns = 'repeat(auto-fit, minmax(280px, 1fr))';
     host.style.gap = '12px';
     document.body.appendChild(host);
-    log('⚠️ Fallback Host Created → #playersWrapper');
+    log(`⚠️ ${mID} Fallback Host Created → #playersWrapper`);
   } else {
-    log('ℹ️ Fallback Host Reused → #playersWrapper');
+    log(`ℹ️ ${mID}Fallback Host Reused → #playersWrapper`);
   }
 
   return host;
@@ -113,9 +114,9 @@ function ensureContainer(parent, id) {
     div.style.overflow = 'hidden';
     div.setAttribute('aria-label', `YouTube Player ${id}`);
     parent.appendChild(div);
-    log(`🎬 Container Created → #${id}`);
+    log(`🎬 ${mID} Container Created → #${id}`);
   } else {
-    log(`♻️ Container Reused → #${id}`);
+    log(`♻️ ${mID} Container Reused → #${id}`);
   }
 
   return div;
@@ -125,7 +126,7 @@ function ensureContainer(parent, id) {
 
 export function createPlayerContainers() {
   if (typeof document === 'undefined') {
-    log('❌ Document not available → Skipping container creation');
+    log(`❌ ${mID} Document not available → Skipping container creation`);
     containerIds = [];
     return containerIds;
   }
@@ -167,13 +168,13 @@ export function createPlayerContainers() {
   }
 
   containerIds = ids.slice(0);
-  log(`📦 Containers Ready → ${JSON.stringify(containerIds)}`);
+  log(`📦 ${mID} Containers Ready → ${JSON.stringify(containerIds)}`);
   return containerIds;
 }
 
 export function destroyPlayerContainers() {
   if (typeof document === 'undefined') {
-    log('❌ Document not available → Skipping destroy');
+    log(`❌ ${mID} Document not available → Skipping destroy`);
     return 0;
   }
 
@@ -193,7 +194,7 @@ export function destroyPlayerContainers() {
           if (allTrue(ok) === true) {
             el.remove();
             removed = removed + 1;
-            log(`🗑️ Container Removed → #${id}`);
+            log(`🗑️ ${mID} Container Removed → #${id}`);
           }
         } catch (_) {
           /* no-op */
