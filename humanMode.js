@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-const VERSION = 'v7.2.2';
+const VERSION = 'v7.2.3';
 /*
  * Περιγραφή: Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς playback.
  * Refactor: Δεν εφαρμόζουμε/μεταφέρουμε λίστες από εδώ. Το SSoT είναι στο lists.js.
@@ -131,7 +131,7 @@ export async function initPlayersSequentially(_mainListIgnored, _altListIgnored)
     const config = createRandomPlayerConfig(profile);
 
     // Καθυστέρηση εκκίνησης ανά player (πιο ανθρώπινο)
-    const playbackDelay = i === 0 ? 0 : rndInt(30, 180) * 1000;
+    const playbackDelay = i === 0 ? 0 : rndInt(45, 180) * 1000;
     const shownSec = Math.round(playbackDelay / 1000);
 
     // Προ-warm (αμυντικά)
@@ -147,14 +147,14 @@ export async function initPlayersSequentially(_mainListIgnored, _altListIgnored)
             log(`🛠️ ${mID} Safe → Pre-warm`);
           } catch (_) {}
         },
-        rndInt(100, 300),
+        rndInt(250, 500),
         'HumanInit',
         `P${i + 1} Pre-warm`
       );
     }
 
     // Μικρό jitter πριν το init για ρεαλισμό
-    await sleep(rndInt(400, 600));
+    await sleep(rndInt(600, 900));
 
     if (isStopping === true) {
       log(`👤 ${mID} HumanMode → Παράκαμψη Init (Stop All)`);

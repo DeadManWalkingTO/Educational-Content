@@ -1,5 +1,5 @@
 // --- main.js ---
-const VERSION = 'v4.11.2';
+const VERSION = 'v4.11.3';
 /*
 Περιγραφή: Entry point με εκτεταμένη χρήση utils.js (domReady, safeAddEvent, once, log, retry, scheduleSafe).
 Start gate με user gesture, readiness του YouTube API με exponential backoff+jitter,
@@ -154,11 +154,11 @@ function setupDomGate() {
       return;
     }
     default: {
-      // Fallback: δεν υπάρχει start button → ενεργοποιεί controls & ξεκινά
-      setControlsEnabled(true);
-      startOnce();
-      return;
-    }
+    // Strict mode: Λείπει το start button → δεν ξεκινά αυτόματα
+    log(`⚠️ ${mID} Start Gate → Missing #btnStartSession (Strict). Waiting for user gesture.`);
+    setControlsEnabled(false);
+    return;
+  }
   }
 }
 // DOM readiness μέσω utils.domReady()

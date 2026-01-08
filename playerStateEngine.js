@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v5.3.4';
+const VERSION = 'v5.3.6';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * Refactor (SSoT/pull-only): Καμία εξάρτηση από events λιστών· τα picks γίνονται downstream από AutoNext/pickVideoId().
@@ -242,9 +242,9 @@ export function onReadyExternal(ctrl, e) {
         log(`ℹ️ ${mID} Play → Info: Initial AlreadyScheduled (Skip)`);
       } else {
         ctrl.initialPlayScheduled = true;
-        const startDelay = rndInt(200, 600);
+        const startDelay = rndInt(500, 1000);
         let attempts = 0;
-        const maxAttempts = 20; // από 12 → 20
+        const maxAttempts = 12; //12
         const tryStart = () => {
           try {
             const p3 = ctrl?.player;
@@ -271,7 +271,7 @@ export function onReadyExternal(ctrl, e) {
             ctrl.guardPlay(ctrl.player);
             attempts = attempts + 1;
             if (allTrue([attempts < maxAttempts]) === true) {
-              const dRetry = rndInt(300, 800); // jitter 300–800 ms
+              const dRetry = rndInt(500, 1500); // jitter 500–1500 ms
               scheduleSafe(tryStart, dRetry, ctrl._group('play'), 'initial-play-retry');
             } else {
               try {
