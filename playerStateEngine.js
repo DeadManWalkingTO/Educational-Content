@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v5.5.2';
+const VERSION = 'v5.6.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * Refactor (SSoT/pull-only): Καμία εξάρτηση από events λιστών· τα picks γίνονται downstream από AutoNext/pickVideoId().
@@ -42,7 +42,7 @@ import { scheduleVolumeChanges, scheduleMicroAdjust } from './autoVolume.js';
 const log = makeLogger(FILENAME);
 
 /* ========================= Settings ========================= */
-const StartSeekMinValueSec = 5
+const StartSeekMinValueSec = 5;
 
 /* ========================= Helpers ========================= */
 function _can(obj, methodName) {
@@ -130,14 +130,6 @@ export function onReadyExternal(ctrl, e) {
     // One-shot flags για rate/quality
     if (typeof ctrl._rateAppliedForThisVideo !== 'boolean') ctrl._rateAppliedForThisVideo = false;
     if (typeof ctrl._qualityAutoAppliedForThisVideo !== 'boolean') ctrl._qualityAutoAppliedForThisVideo = false;
-
-    // Reset playback rate & quality (READY)
-    try {
-      resetPlaybackRate(ctrl);
-    } catch (_) {}
-    try {
-      resetPlaybackQuality(ctrl);
-    } catch (_) {}
 
     // MidSeek plan log
     try {
@@ -293,7 +285,7 @@ export function onStateChangeExternal(ctrl, e) {
           ctrl._rateAppliedForThisVideo = true;
         } catch (_) {}
       }
-      // 2) RESET QUALITY (auto default)
+      // 2) RESET QUALITY
       if (ctrl._qualityAutoAppliedForThisVideo !== true) {
         try {
           resetPlaybackQuality(ctrl);
