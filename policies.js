@@ -1,5 +1,5 @@
 // --- policies.js ---
-const VERSION = 'v1.25.2';
+const VERSION = 'v1.26.2';
 /*
  * Περιγραφή: Module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
  *
@@ -159,6 +159,8 @@ export function getPausePlan(durationSec) {
 }
 
 /* ========================= Start-Seek (με ποικιλία ανά profile) ========================= */
+// Συνάρτηση υπολογισμού αρχικού seek (start-seek) με threshold κανόνα:
+// Αν ο στόχος που προκύπτει είναι <= 5 s, επιστρέφουμε 0 (δηλ. δεν κάνουμε init-seek).
 export function getStartSeek(durationSec, profileName) {
   const valid = allTrue([isFiniteNumber(durationSec) === true, durationSec > 0]);
   if (valid !== true) {
@@ -167,6 +169,7 @@ export function getStartSeek(durationSec, profileName) {
 
   const d = Math.floor(Number(durationSec));
 
+  // Μέγιστο ποσοστό βάσει διάρκειας
   let baseMaxPct = 0.1;
   switch (true) {
     case allTrue([d < 120]) === true:
@@ -186,6 +189,7 @@ export function getStartSeek(durationSec, profileName) {
       break;
   }
 
+  // Προσαρμογές ανά προφίλ
   let name = 'unknown';
   if (allTrue([isString(profileName) === true]) === true) {
     name = String(profileName).toLowerCase();
@@ -206,9 +210,13 @@ export function getStartSeek(durationSec, profileName) {
       break;
   }
 
+  // Τυχαίο ποσοστό στο [0, maxPct]
   const pct = clamp(randomFloat(0, maxPct), 0, 1);
+
+  // Μετατροπή σε δευτερόλεπτα
   let target = Math.floor(d * pct);
 
+  // Ασφαλές pad 2 s από το τέλος + μη-αρνητικός στόχος
   const pad = 2;
   const maxTarget = Math.max(0, Math.floor(d - pad));
   if (allTrue([target > maxTarget]) === true) {
@@ -217,6 +225,14 @@ export function getStartSeek(durationSec, profileName) {
   if (allTrue([target < 0]) === true) {
     target = 0;
   }
+
+  // --- ΝΕΟ: Threshold κανόνας ---
+  // Αν ο στόχος είναι <= 5 s, μηδενίζουμε ώστε να μην εκτελεστεί init-seek.
+  const MIN_START_SEEK_SEC = 5;
+  if (allTrue([target <= MIN_START_SEEK_SEC]) === true) {
+    return 0;
+  }
+
   return target;
 }
 
