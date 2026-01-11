@@ -1,5 +1,5 @@
 // --- autoQuality.js ---
-const VERSION = 'v1.15.3';
+const VERSION = 'v1.17.2';
 /*
  * Περιγραφή: Τυχαιές αλλαγές ποιότητας (YouTube Iframe API) με guards & back-pressure.
  * - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
@@ -31,6 +31,9 @@ import { stats } from './globals.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
+
+/* ========================= Settings ========================= */
+const resetQualityValue = 'medium';
 
 /* ========================= Helpers ========================= */
 function _can(obj, methodName) {
@@ -316,29 +319,50 @@ export function resetPlaybackQuality(ctrl) {
     const canSet = _can(p, 'setPlaybackQuality') === true;
     const canGet = _can(p, 'getPlaybackQuality') === true;
     if (canSet !== true) return false;
-    // Εφαρμογή auto ('default')
-    p.setPlaybackQuality('default');
-    // Προαιρετική ανάγνωση για logging/διαφάνεια
-    let afterQ = 'default';
-    try {
-      const partsGet = [];
-      partsGet.push(canGet === true);
-      if (allTrue(partsGet) === true) {
+
+    // 1) Διαβάζουμε την τρέχουσα ποιότητα (αν είναι διαθέσιμη)
+    let beforeQ = null;
+    if (canGet === true) {
+      try {
         const q = p.getPlaybackQuality();
-        const partsStr = [];
-        partsStr.push(typeof q === 'string');
-        if (allTrue(partsStr) === true) afterQ = q;
-      }
-    } catch (_) {}
-    // soft-task timestamp
+        if (typeof q === 'string') beforeQ = q;
+      } catch (_) {}
+    }
+
+    // 2) Στόχος και απόφαση
+    const targetQ = String(resetQualityValue); // 'medium'
+    const needsChange = typeof beforeQ === 'string' ? beforeQ !== targetQ : true;
+
+    // 3) Εφαρμογή μόνο αν διαφέρει
+    if (needsChange === true) {
+      p.setPlaybackQuality(targetQ);
+    }
+
+    // 4) Ανάγνωση μετά την (πιθανή) αλλαγή για logging
+    let afterQ = beforeQ ?? 'unknown';
+    if (canGet === true) {
+      try {
+        const q2 = p.getPlaybackQuality();
+        if (typeof q2 === 'string') afterQ = q2;
+      } catch (_) {}
+    }
+
+    // 5) soft-task timestamp
     try {
       if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
     } catch (_) {}
-    // Log
-    log(`⚙️ ${mID} Quality → Reset: Auto (default) [Now=${afterQ}]`);
-    // verify 'default'
+
+    // 6) Log — διαφοροποίηση μηνύματος
+    if (needsChange === true) {
+      log(`⚙️ ${mID} Quality → Reset: ${targetQ} [Now=${afterQ}]`);
+    } else {
+      log(`⚙️ ${mID} Quality → Reset: Already at ${targetQ} [Now=${afterQ}]`);
+    }
+
+    // 7) Verify προς την ίδια τιμή resetQualityValue ('medium')
     const grp = resolveGroup(ctrl, 'quality', 'pc:quality');
-    _verifyQuality(p, 'default', ctrl, grp);
+    _verifyQuality(p, targetQ, ctrl, grp);
+
     return true;
   } catch (_) {
     return false;
