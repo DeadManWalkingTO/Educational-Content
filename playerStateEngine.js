@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v5.4.2';
+const VERSION = 'v5.5.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * Refactor (SSoT/pull-only): Καμία εξάρτηση από events λιστών· τα picks γίνονται downstream από AutoNext/pickVideoId().
@@ -40,6 +40,9 @@ import { scheduleVolumeChanges, scheduleMicroAdjust } from './autoVolume.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
+
+/* ========================= Settings ========================= */
+const StartSeekMinValueSec = 5
 
 /* ========================= Helpers ========================= */
 function _can(obj, methodName) {
@@ -154,17 +157,6 @@ export function onReadyExternal(ctrl, e) {
       ctrl.videoRequiredWatchTime = 15;
     }
 
-    // Init seek (policy-driven)
-    try {
-      const t = ctrl.plan?.startSeek?.targetSec ?? 0;
-      const partsInit = [];
-      partsInit.push(isNumber(t) === true);
-      partsInit.push(t > 0);
-      if (allTrue(partsInit) === true) {
-        applyInitSeek(ctrl, t);
-      }
-    } catch (_) {}
-
     // Soft tasks schedules (respect back-pressure)
     try {
       scheduleRateChanges(ctrl);
@@ -225,61 +217,48 @@ export function onReadyExternal(ctrl, e) {
       log(`⏳ ${mID} Pause → Scheduled: Ready (Muted-Friendly)`);
     } catch (_) {}
 
-    // Initial play scheduling (pendingUnmute gate, retries με jitter)
+    // Init seek (policy-driven) με καθυστέρηση 2–12 s
     try {
-      try {
-        groupCancel(ctrl._group('play'));
-      } catch (_) {}
-      if (ctrl.initialPlayScheduled === true) {
-        log(`ℹ️ ${mID} Play → Info: Initial AlreadyScheduled (Skip)`);
-      } else {
-        ctrl.initialPlayScheduled = true;
-        const startDelay = rndInt(5000, 10000);
-        let attempts = 0;
-        const maxAttempts = 12; //12
-        const tryStart = () => {
+      const t = ctrl.plan?.startSeek?.targetSec ?? 0;
+      const partsInit = [];
+      partsInit.push(isNumber(t) === true);
+      partsInit.push(t > 0);
+      if (allTrue(partsInit) === true) {
+        const delayMs = rndInt(2000, 12000); // 2–12 s
+
+        // Ειδική περίπτωση: targetSec < StartSeekMinValueSec s → να γίνει play (αντί για seek)
+        const isLessThanOne = allTrue([t < StartSeekMinValueSec]);
+        if (isLessThanOne === true) {
+          scheduleSafe(
+            function () {
+              try {
+                ctrl.guardPlay(ctrl.player);
+              } catch (_) {}
+            },
+            delayMs,
+            ctrl._group('init-seek'),
+            'init-seek-delayed-play'
+          );
           try {
-            const p3 = ctrl?.player;
-            const canStateParts = [];
-            canStateParts.push(typeof YT !== 'undefined');
-            canStateParts.push(isFunction(p3?.getPlayerState) === true);
-            const canState = allTrue(canStateParts);
-            let isPlayingNow = false;
-            if (allTrue([canState === true]) === true) {
-              const st = p3.getPlayerState();
-              if (allTrue([st === YT.PlayerState.PLAYING]) === true) {
-                isPlayingNow = true;
-              }
-            }
-            if (isPlayingNow === true) {
-              try {
-                groupCancel(ctrl._group('play'));
-              } catch (_) {}
-              ctrl.initialPlayScheduled = false;
-              log(`ℹ️ ${mID} Play → Info: Initial AlreadyPlaying (StopRetries)`);
-              return;
-            }
-            // Ασφαλής guard: trials για play (pendingUnmute gate όπως ήταν)
-            ctrl.guardPlay(ctrl.player);
-            attempts = attempts + 1;
-            if (allTrue([attempts < maxAttempts]) === true) {
-              const dRetry = rndInt(500, 1500); // jitter 500–1500 ms
-              scheduleSafe(tryStart, dRetry, ctrl._group('play'), 'initial-play-retry');
-            } else {
-              try {
-                groupCancel(ctrl._group('play'));
-              } catch (_) {}
-              ctrl.initialPlayScheduled = false;
-              log(`❌ ${mID} Error → Play: Initial — GaveUpAfter=${attempts}Attempts`);
-            }
+            log(`⏳ ${mID} Init → Scheduled: Play after ${(delayMs / 1000).toFixed(1)}s (Target<1s)`);
           } catch (_) {}
-        };
-        scheduleSafe(tryStart, startDelay, ctrl._group('play'), 'initial-play');
-        log(`⏳ ${mID} Play → Scheduled: Initial In ${Math.round(startDelay / 100) / 10}s`);
+        } else {
+          // Κανονική περίπτωση: κάνε init-seek μετά από 2–12 s
+          scheduleSafe(
+            function () {
+              try {
+                applyInitSeek(ctrl, t);
+              } catch (_) {}
+            },
+            delayMs,
+            ctrl._group('init-seek'),
+            'init-seek-delayed'
+          );
+          try {
+            log(`⏳ ${mID} Seek → Scheduled: Init after ${(delayMs / 1000).toFixed(1)}s (Target=${t}s)`);
+          } catch (_) {}
+        }
       }
-      try {
-        ctrl.readyAt = Date.now();
-      } catch (_) {}
     } catch (_) {}
   } catch (_) {}
 }
