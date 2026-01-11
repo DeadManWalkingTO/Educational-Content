@@ -1,5 +1,5 @@
 // --- autoRate.js ---
-const VERSION = 'v1.12.3';
+const VERSION = 'v1.14.2';
 /*
  * Περιγραφή: Σπάνιες αλλαγές ταχύτητας αναπαραγωγής (rate) με back-pressure gates.
  *  - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
@@ -31,6 +31,9 @@ import { stats } from './globals.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
+
+/* ========================= Settings ========================= */
+const resetRateValue = 1.0;
 
 /* ========================= Helpers ========================= */
 function resolveGroup(ctrl, suffix, fallback) {
@@ -233,16 +236,36 @@ export function resetPlaybackRate(ctrl) {
     guards.push(isDefined(p) === true);
     guards.push(p !== null);
     guards.push(isFunction(p?.setPlaybackRate) === true);
+    guards.push(isFunction(p?.getPlaybackRate) === true);
     const ok = allTrue(guards);
+
     if (ok === true) {
+      // 1) Ανάγνωση τρέχοντος rate
+      let cur = null;
       try {
-        p.setPlaybackRate(1.0);
+        cur = p.getPlaybackRate();
       } catch (_) {}
-      const grp = resolveGroup(ctrl, 'rate', 'pc:rate');
-      _verifyRate(p, 1.0, ctrl, grp);
+
+      // 2) Σύγκριση ΧΩΡΙΣ ανοχή
+      const target = Number(resetRateValue);
+      const isNum = typeof cur === 'number';
+      const needsChange = isNum ? cur !== target : true;
+
+      if (needsChange === true) {
+        // 3) Εφαρμογή μόνο αν διαφέρει ακριβώς
+        try {
+          p.setPlaybackRate(target);
+        } catch (_) {}
+        const grp = resolveGroup(ctrl, 'rate', 'pc:rate');
+        _verifyRate(p, target, ctrl, grp); // verify επειδή έγινε αλλαγή
+        ctrl.currentRate = target;
+        log(`⚙️ ${mID} Rate → Reset: Applied x${String(target)}`);
+      } else {
+        // 4) No-op: ήδη στο ζητούμενο rate
+        ctrl.currentRate = cur;
+        log(`⚙️ ${mID} Rate → Reset: No-op (Already x${String(cur)})`);
+      }
     }
-    ctrl.currentRate = 1.0;
-    log(`⚙️ ${mID} Rate → Reset: Value=x1`);
   } catch (_) {}
 }
 
