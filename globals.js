@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v6.4.2';
+const VERSION = 'v6.5.6';
 /*
  * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, stop-all state, UI logging).
  * Σημείωση: Όλη η λογική/SSoT των λιστών έχει μεταφερθεί στο lists.js (pull-only getters).
@@ -55,18 +55,48 @@ export const consoleFilterConfig = {
 /* --- Console Filter (external) Early Install - End --- */
 
 /* --- YouTube API Helpers --- */
+
+/**
+ * Επιστρέφει το πλήρες origin της τρέχουσας σελίδας (scheme + host + port, αν υπάρχει).
+ * - Προτιμά window.location.origin.
+ * - Αν λείπει, το συνθέτει από protocol/hostname/port.
+ * - Fallback (dev): επιστρέφει ρητά 'https://localhost:4443' για συνέπεια με το περιβάλλον.
+ */
+
 export function getOrigin() {
   try {
-    const parts = [];
-    parts.push(typeof window !== 'undefined');
-    parts.push(isDefined(window?.location) === true);
-    parts.push(isDefined(window?.location?.origin) === true);
-    const ok = allTrue(parts);
-    if (ok === true) {
-      return window.location.origin;
+    // 1) Γρήγοροι έλεγχοι για πρόσβαση στο window/location
+    const winOk = allTrue([typeof window !== 'undefined', isDefined(window), isDefined(window.location)]);
+    if (winOk === true) {
+      // 2) Αν υπάρχει έτοιμο το origin, χρησιμοποίησέ το
+      if (isDefined(window.location.origin)) {
+        return String(window.location.origin);
+      }
+
+      // 3) Σύνθεση origin από protocol / hostname / port (όπου το origin μπορεί να μην υποστηρίζεται)
+      const protoOk = isDefined(window.location.protocol);
+      const hostOk = isDefined(window.location.hostname);
+
+      const canCompose = allTrue([protoOk === true, hostOk === true]);
+      if (canCompose === true) {
+        // protocol: περιλαμβάνει το ':'
+        const protocol = String(window.location.protocol || 'https:');
+        const hostname = String(window.location.hostname || 'localhost');
+        const portVal = isDefined(window.location.port) ? String(window.location.port) : '';
+
+        // Αν υπάρχει port και δεν είναι κενό, πρόσθεσέ το
+        const portPart = portVal.length > 0 ? `:${portVal}` : '';
+
+        return `${protocol}//${hostname}${portPart}`;
+      }
     }
-  } catch (_) {}
-  return 'https://localhost';
+  } catch (_) {
+    // no-op → θα πέσουμε στο fallback
+  }
+
+  // 4) Ρητό, σταθερό fallback για dev ώστε να μην αλλάζει το origin αθόρυβα
+  //    Προσαρμόσ’ το αν αλλάξει το τοπικό port.
+  return 'https://localhost:4443';
 }
 
 export function getYouTubeEmbedHost() {
@@ -92,7 +122,7 @@ export const stats = {
 };
 
 /* --- Σταθερές εφαρμογής --- */
-export const PLAYER_COUNT = 4;
+export const PLAYER_COUNT = 2;
 export const MAIN_PROBABILITY = 0.5;
 export const AUTO_NEXT_LIMIT_PER_PLAYER = 50;
 export const WATCHDOG_RATE = secToMs(120);
