@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v5.9.2';
+const VERSION = 'v5.23.38';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * Refactor (SSoT/pull-only): Καμία εξάρτηση από events λιστών· τα picks γίνονται downstream από AutoNext/pickVideoId().
@@ -25,7 +25,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, scheduleSafe, rndInt, once, getPlayerScope, isSchedulerHalted, groupCancel } from './utils.js';
+import { makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, scheduleSafe, rndInt, once, getPlayerScope, isSchedulerHalted, groupCancel, msToSec } from './utils.js';
 import { stats, isStopping, START_SEEK_MIN_VALUE_SEC, PLAY_MIN_DELAY_MS, PLAY_MAX_DELAY_MS } from './globals.js';
 import { getBehaviorPlan } from './policies.js';
 import { emitWatchtimeReached } from './wtBus.js';
@@ -156,10 +156,10 @@ export function onReadyExternal(ctrl, e) {
       const baseGateMs = isNumber(p?.StartDelayMS) === true ? p.StartDelayMS : 0;
 
       // Μικρό jitter για πιο φυσική διασπορά εκκινήσεων (προσαρμόσιμο)
-      const softJitterRateMs = rndInt(4000, 5000);
-      const softJitterQualityMs = rndInt(3000, 4000);
-      const softJitterVolumeMs = rndInt(1000, 2000);
-      const softJitterMicroMs = rndInt(2000, 3000);
+      const softJitterRateMs = rndInt(5000, 10000);
+      const softJitterQualityMs = rndInt(5000, 10000);
+      const softJitterVolumeMs = rndInt(5000, 10000);
+      const softJitterMicroMs = rndInt(5000, 10000);
 
       // 1) Rate
       scheduleSafe(
@@ -241,8 +241,8 @@ export function onReadyExternal(ctrl, e) {
       const baselinePauses = ctrl?.plan?.pauses?.count ?? '-';
       log(`📋 ${mID} Pause Plan → Baseline=${baselinePauses}, ProfileChance=${ctrl?.config?.pauseChance ?? '?'}`);
     } catch (_) {}
+    const sceduleJitterPauseMS = rndInt(5000, 10000);
     try {
-      const d = rndInt(1200, 2400);
       scheduleSafe(
         () => {
           try {
@@ -252,54 +252,54 @@ export function onReadyExternal(ctrl, e) {
             restartPauseGuard(ctrl);
           } catch (_) {}
         },
-        d,
+        sceduleJitterPauseMS,
         ctrl._group('pause'),
         'pause-plan'
       );
       log(`⏳ ${mID} Pause → Scheduled: Ready (Muted-Friendly)`);
     } catch (_) {}
 
-    // Init seek (policy-driven) με καθυστέρηση PLAY_MIN_DELAY_MS – PLAY_MAX_DELAY_MS
+    // ==== Init-seek / Play (policy-driven) — ΠΡΙΝ από schedulePauses ====
+    // Χρήση helpers από utils.js: allTrue, isNumber, scheduleSafe, msToSec
     try {
       const t = ctrl.plan?.startSeek?.targetSec ?? 0;
       const partsInit = [];
       partsInit.push(isNumber(t) === true);
       partsInit.push(t > 0);
+      // Ελάχιστο entered-log για επιβεβαίωση εκτέλεσης του μπλοκ
+      try {
+        log(`🔶 ${mID} Init → Entered READY Init-Seek block (StartDelay=${msToSec(StartDelayMS).toFixed(1)}s) and (Target=${t}s)`);
+      } catch (_) {}
+
       if (allTrue(partsInit) === true) {
-        // Ειδική περίπτωση: targetSec < StartSeekMinValueSec s → να γίνει play (αντί για seek)
-        const isLessThanOne = allTrue([t < StartSeekMinValueSec]);
-        if (isLessThanOne === true) {
-          scheduleSafe(
-            function () {
-              try {
-                ctrl.guardPlay(ctrl.player);
-              } catch (_) {}
-            },
-            StartDelayMS,
-            ctrl._group('init-seek'),
-            'init-seek-delayed-play'
-          );
-          try {
-            log(`⏳ ${mID} Init → Scheduled: Play after ${(delayMs / 1000).toFixed(1)}s (${Target < StartSeekMinValueSec}s)`);
-          } catch (_) {}
-        } else {
-          // Κανονική περίπτωση: κάνε init-seek μετά από delayMs
-          scheduleSafe(
-            function () {
-              try {
-                applyInitSeek(ctrl, t);
-              } catch (_) {}
-            },
-            StartDelayMS,
-            ctrl._group('init-seek'),
-            'init-seek-delayed'
-          );
-          try {
-            log(`⏳ ${mID} Seek → Scheduled: Init after ${(delayMs / 1000).toFixed(1)}s (Target=${t}s)`);
-          } catch (_) {}
-        }
+        log(`🔶 ${mID} Seek → Scheduled: Init after ${msToSec(StartDelayMS).toFixed(1)}s (Target=${t}s)`);
+
+        scheduleSafe(
+          function () {
+            try {
+              applyInitSeek(ctrl, t);
+            } catch (_) {}
+          },
+          StartDelayMS,
+          ctrl._group('init-seek'),
+          'init-seek-delayed'
+        );
+      } else {
+        log(`🔶 ${mID} Init → Scheduled: Play after ${msToSec(StartDelayMS).toFixed(1)}s (Target=${t}s)`);
+
+        scheduleSafe(
+          function () {
+            try {
+              ctrl.guardPlay(ctrl.player);
+            } catch (_) {}
+          },
+          StartDelayMS,
+          ctrl._group('init-seek'),
+          'init-seek-delayed-play-fallback'
+        );
       }
     } catch (_) {}
+    // ==== τέλος μπλοκ ====
   } catch (_) {}
 }
 
