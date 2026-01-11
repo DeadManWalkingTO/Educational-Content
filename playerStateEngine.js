@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v5.6.2';
+const VERSION = 'v5.9.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * Refactor (SSoT/pull-only): Καμία εξάρτηση από events λιστών· τα picks γίνονται downstream από AutoNext/pickVideoId().
@@ -26,7 +26,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, scheduleSafe, rndInt, once, getPlayerScope, isSchedulerHalted, groupCancel } from './utils.js';
-import { stats, isStopping } from './globals.js';
+import { stats, isStopping, START_SEEK_MIN_VALUE_SEC, PLAY_MIN_DELAY_MS, PLAY_MAX_DELAY_MS } from './globals.js';
 import { getBehaviorPlan } from './policies.js';
 import { emitWatchtimeReached } from './wtBus.js';
 import { autoNextAfterWatchtime, autoNextAfterError } from './autoNext.js';
@@ -42,7 +42,8 @@ import { scheduleVolumeChanges, scheduleMicroAdjust } from './autoVolume.js';
 const log = makeLogger(FILENAME);
 
 /* ========================= Settings ========================= */
-const StartSeekMinValueSec = 5;
+const StartSeekMinValueSec = START_SEEK_MIN_VALUE_SEC;
+const StartDelayMS = rndInt(PLAY_MIN_DELAY_MS, PLAY_MAX_DELAY_MS); // PLAY_MIN_DELAY_MS – PLAY_MAX_DELAY_MS
 
 /* ========================= Helpers ========================= */
 function _can(obj, methodName) {
@@ -151,17 +152,66 @@ export function onReadyExternal(ctrl, e) {
 
     // Soft tasks schedules (respect back-pressure)
     try {
-      scheduleRateChanges(ctrl);
-    } catch (_) {}
-    try {
-      scheduleQualityChanges(p, durationNow, ctrl.config, ctrl._group('quality'), ctrl.videoRequiredWatchTime, ctrl);
-    } catch (_) {}
-    try {
-      const volCfg = { volumeChangeChance: ctrl?.config?.volumeChangeChance ?? 0.25, volumeRange: ctrl?.config?.volumeRange ?? [10, 30] };
-      scheduleVolumeChanges(p, volCfg, durationNow, ctrl._group('volume'), ctrl);
-    } catch (_) {}
-    try {
-      scheduleMicroAdjust(p, durationNow, ctrl._group('volume'), ctrl);
+      // Καθολικό gate: όλες οι soft-tasks να ξεκινούν >= StartDelayMS
+      const baseGateMs = isNumber(p?.StartDelayMS) === true ? p.StartDelayMS : 0;
+
+      // Μικρό jitter για πιο φυσική διασπορά εκκινήσεων (προσαρμόσιμο)
+      const softJitterRateMs = rndInt(4000, 5000);
+      const softJitterQualityMs = rndInt(3000, 4000);
+      const softJitterVolumeMs = rndInt(1000, 2000);
+      const softJitterMicroMs = rndInt(2000, 3000);
+
+      // 1) Rate
+      scheduleSafe(
+        function () {
+          try {
+            scheduleRateChanges(ctrl);
+          } catch (_) {}
+        },
+        Math.max(baseGateMs, softJitterRateMs),
+        ctrl._group('rate'),
+        'rate-init'
+      );
+
+      // 2) Quality
+      scheduleSafe(
+        function () {
+          try {
+            scheduleQualityChanges(p, durationNow, ctrl.config, ctrl._group('quality'), ctrl.videoRequiredWatchTime, ctrl);
+          } catch (_) {}
+        },
+        Math.max(baseGateMs, softJitterQualityMs),
+        ctrl._group('quality'),
+        'quality-init'
+      );
+
+      // 3) Volume (macro)
+      const volCfg = {
+        volumeChangeChance: ctrl?.config?.volumeChangeChance ?? 0.25,
+        volumeRange: ctrl?.config?.volumeRange ?? [10, 30],
+      };
+      scheduleSafe(
+        function () {
+          try {
+            scheduleVolumeChanges(p, volCfg, durationNow, ctrl._group('volume'), ctrl);
+          } catch (_) {}
+        },
+        Math.max(baseGateMs, softJitterVolumeMs),
+        ctrl._group('volume'),
+        'volume-init'
+      );
+
+      // 4) Micro-Adjust (volume micro)
+      scheduleSafe(
+        function () {
+          try {
+            scheduleMicroAdjust(p, durationNow, ctrl._group('volume'), ctrl);
+          } catch (_) {}
+        },
+        Math.max(baseGateMs, softJitterMicroMs),
+        ctrl._group('volume'),
+        'volume-micro-init'
+      );
     } catch (_) {}
 
     log(`✅ ${mID} READY → Plan Required WT=${ctrl.videoRequiredWatchTime}s`);
@@ -209,15 +259,13 @@ export function onReadyExternal(ctrl, e) {
       log(`⏳ ${mID} Pause → Scheduled: Ready (Muted-Friendly)`);
     } catch (_) {}
 
-    // Init seek (policy-driven) με καθυστέρηση 2–12 s
+    // Init seek (policy-driven) με καθυστέρηση PLAY_MIN_DELAY_MS – PLAY_MAX_DELAY_MS
     try {
       const t = ctrl.plan?.startSeek?.targetSec ?? 0;
       const partsInit = [];
       partsInit.push(isNumber(t) === true);
       partsInit.push(t > 0);
       if (allTrue(partsInit) === true) {
-        const delayMs = rndInt(2000, 12000); // 2–12 s
-
         // Ειδική περίπτωση: targetSec < StartSeekMinValueSec s → να γίνει play (αντί για seek)
         const isLessThanOne = allTrue([t < StartSeekMinValueSec]);
         if (isLessThanOne === true) {
@@ -227,22 +275,22 @@ export function onReadyExternal(ctrl, e) {
                 ctrl.guardPlay(ctrl.player);
               } catch (_) {}
             },
-            delayMs,
+            StartDelayMS,
             ctrl._group('init-seek'),
             'init-seek-delayed-play'
           );
           try {
-            log(`⏳ ${mID} Init → Scheduled: Play after ${(delayMs / 1000).toFixed(1)}s (Target<1s)`);
+            log(`⏳ ${mID} Init → Scheduled: Play after ${(delayMs / 1000).toFixed(1)}s (${Target < StartSeekMinValueSec}s)`);
           } catch (_) {}
         } else {
-          // Κανονική περίπτωση: κάνε init-seek μετά από 2–12 s
+          // Κανονική περίπτωση: κάνε init-seek μετά από delayMs
           scheduleSafe(
             function () {
               try {
                 applyInitSeek(ctrl, t);
               } catch (_) {}
             },
-            delayMs,
+            StartDelayMS,
             ctrl._group('init-seek'),
             'init-seek-delayed'
           );

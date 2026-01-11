@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v2.9.2';
+const VERSION = 'v2.9.6';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, mid-seek scheduler, init-seek).
  * - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).

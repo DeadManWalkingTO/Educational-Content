@@ -1,5 +1,5 @@
 // --- policies.js ---
-const VERSION = 'v1.26.2';
+const VERSION = 'v1.26.6';
 /*
  * Περιγραφή: Module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
  *
@@ -19,7 +19,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { rndInt, randomFloat, clamp, isFiniteNumber, isString, makeLogger, allTrue, anyTrue, getPlayerScope } from './utils.js';
-import { MIN_WATCH_TIME } from './globals.js';
+import { MIN_WATCH_TIME, START_SEEK_MIN_VALUE_SEC } from './globals.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -160,7 +160,7 @@ export function getPausePlan(durationSec) {
 
 /* ========================= Start-Seek (με ποικιλία ανά profile) ========================= */
 // Συνάρτηση υπολογισμού αρχικού seek (start-seek) με threshold κανόνα:
-// Αν ο στόχος που προκύπτει είναι <= 5 s, επιστρέφουμε 0 (δηλ. δεν κάνουμε init-seek).
+// Αν ο στόχος που προκύπτει είναι <= START_SEEK_MIN_VALUE_SEC s, επιστρέφουμε 0 (δηλ. δεν κάνουμε init-seek).
 export function getStartSeek(durationSec, profileName) {
   const valid = allTrue([isFiniteNumber(durationSec) === true, durationSec > 0]);
   if (valid !== true) {
@@ -227,8 +227,8 @@ export function getStartSeek(durationSec, profileName) {
   }
 
   // --- ΝΕΟ: Threshold κανόνας ---
-  // Αν ο στόχος είναι <= 5 s, μηδενίζουμε ώστε να μην εκτελεστεί init-seek.
-  const MIN_START_SEEK_SEC = 5;
+  // Αν ο στόχος είναι <= START_SEEK_MIN_VALUE_SEC, μηδενίζουμε ώστε να μην εκτελεστεί init-seek.
+  const MIN_START_SEEK_SEC = START_SEEK_MIN_VALUE_SEC;
   if (allTrue([target <= MIN_START_SEEK_SEC]) === true) {
     return 0;
   }

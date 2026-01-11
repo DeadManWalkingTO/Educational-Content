@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v8.3.4';
+const VERSION = 'v8.3.8';
 /*
  * Controller: λεπτό wrapper για YT events με delegation στο PlayerStateEngine.
  * Refactor (SSoT/pull-only):
@@ -87,6 +87,7 @@ export class PlayerController {
     this.deferAutoNextUntilEnded = false;
     // Ready timestamp
     this.readyAt = null;
+
     const mID = getPlayerScope(this.index);
     // ΣΗΜΑΝΤΙΚΟ: Ο παλιός listener 'lists:updated' αφαιρέθηκε (pull-only).
   }
