@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v2.8.3';
+const VERSION = 'v2.8.4';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, mid-seek scheduler, init-seek).
  * - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
@@ -32,6 +32,9 @@ import { stats } from './globals.js';
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
 
+/* ========================= Settings ========================= */
+const ShortGuard = 75; // δευτερόλεπτα
+
 /* ========================= Helpers (Group Resolve) ========================= */
 function resolveGroup(ctrl, suffix, fallback) {
   try {
@@ -43,9 +46,6 @@ function resolveGroup(ctrl, suffix, fallback) {
   } catch (_) {}
   return typeof fallback === 'string' ? fallback : `pc:${suffix}`;
 }
-
-/* ========================= Basic Constants ========================= */
-const ShortGuard = 75; // δευτερόλεπτα
 
 /* ========================= Helpers (Window/CT) ========================= */
 /** Συγκεντρώνει μεταδεδομένα παραθύρου WT και χρόνους. */
