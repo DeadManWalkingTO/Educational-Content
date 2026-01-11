@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v8.3.2';
+const VERSION = 'v8.3.4';
 /*
  * Controller: λεπτό wrapper για YT events με delegation στο PlayerStateEngine.
  * Refactor (SSoT/pull-only):
@@ -63,7 +63,7 @@ export class PlayerController {
     // Volume meta
     this.volumeMeta = { scheduledIds: [], changesPlanned: 0 };
     // Unmute flags
-    this.pendingUnmute = true;
+    this.pendingUnmute = false; // πριν ήταν true — θα ρυθμιστεί στο READY βάσει isMuted()
     this.unmuteScheduled = false;
     // Watch-time & autonext state
     this.lastSeekAt = null;

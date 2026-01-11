@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v5.3.6';
+const VERSION = 'v5.4.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * Refactor (SSoT/pull-only): Καμία εξάρτηση από events λιστών· τα picks γίνονται downstream από AutoNext/pickVideoId().
@@ -182,32 +182,24 @@ export function onReadyExternal(ctrl, e) {
 
     log(`✅ ${mID} READY → Plan Required WT=${ctrl.videoRequiredWatchTime}s`);
 
-    // Initial mute at READY
+    // Initial mute handling at READY (new logic: don't force mute; set pendingUnmute only if already muted)
     try {
       const pp = ctrl?.player;
-      const canMute = isFunction(pp?.mute) === true;
       const canIsMuted = isFunction(pp?.isMuted) === true;
       let isMutedNow = false;
-      const partsCheckMuted = [];
-      partsCheckMuted.push(canIsMuted === true);
-      if (allTrue(partsCheckMuted) === true) {
+
+      if (allTrue([canIsMuted === true]) === true) {
         const m = pp.isMuted();
-        const isBool = typeof m === 'boolean';
-        if (allTrue([isBool === true]) === true) {
+        if (allTrue([typeof m === 'boolean']) === true) {
           isMutedNow = m === true;
         }
       }
-      const cond1 = [];
-      cond1.push(canMute === true);
-      const cond2 = [];
-      cond2.push(canIsMuted !== true);
-      cond2.push(isMutedNow !== true);
-      const shouldMute = allTrue([cond1[0] === true, anyTrue(cond2) === true]);
-      if (shouldMute === true) {
-        pp.mute();
-        ctrl.pendingUnmute = true;
-        ctrl.unmuteScheduled = false;
-      }
+
+      // ΝΕΑ ΛΟΓΙΚΗ:
+      // - Αν είναι ήδη muted ⇒ pendingUnmute = true (ώστε στο PLAYING να προγραμματιστεί unmute)
+      // - Αν είναι unmuted ⇒ δεν κάνουμε τίποτα επιπλέον
+      ctrl.pendingUnmute = isMutedNow === true;
+      ctrl.unmuteScheduled = false;
     } catch (_) {}
 
     // Logging / Pause scheduling
