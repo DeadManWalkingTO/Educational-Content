@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v1.16.4';
+const VERSION = 'v1.19.2';
 /*
  * Περιγραφή: Watchdog για "required watch time" ανά PlayerController.
  * - Ασφαλή groups με resolveGroup().
@@ -18,25 +18,28 @@ export function getVersion() {
  * - Stop/Halt gates (isStopping / isSchedulerHalted).
  */
 
+/* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
+
+/* Εγκατάσταση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
-// ========================= Imports =========================
+/* ========================= Imports ========================= */
 import { repeat, cancel, makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, nowMs, msToSec, fmtMs, scheduleSafe, getPlayerScope, isSchedulerHalted } from './utils.js';
-import { controllers, stats, isStopping } from './globals.js';
+import { controllers, stats, isStopping, WATCHDOG_BUFFERING_RULE_MS } from './globals.js';
 import { autoNextAfterEnded, autoNextAfterWatchtime } from './autoNext.js';
 import { onWatchtimeReached } from './wtBus.js';
 
-// ========================= Logger =========================
+/* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
 
-// ========================= State =========================
+/* ========================= State ========================= */
 let watchdogTimerId = null;
 const wtSeen = {}; // WTBus cache (index → lastMs)
 const WT_FALLBACK_GRACE_MS = 8000;
 let wtBusDisposer = null;
 
-// ========================= Helpers =========================
+/* ========================= Helpers ========================= */
 function resolveGroup(ctrl, suffix, fallback) {
   try {
     const ok = [];
@@ -170,9 +173,9 @@ function skipByWtBus(ctrl) {
   return false;
 }
 
-// ========================= Core =========================
+/* ========================= Core ========================= */
 function checkController(ctrl) {
-  // Stop/Halt gates
+  /* Stop/Halt gates */
   const halted = allTrue([isSchedulerHalted() === true]) === true;
   const stopped = allTrue([isStopping === true]) === true;
   if (anyTrue([halted === true, stopped === true]) === true) return;
@@ -181,7 +184,7 @@ function checkController(ctrl) {
   let required = 0;
   let played = 0;
   try {
-    // Base plan/required
+    /* Base plan/required */
     let hasPlan = false;
     const p1 = [];
     p1.push(isDefined(ctrl?.plan) === true);
@@ -199,7 +202,7 @@ function checkController(ctrl) {
         return;
       }
     }
-    // Played
+    /* Played */
     if (isFunction(ctrl?.getPlayedSec) === true) played = ctrl.getPlayedSec();
     else played = computePlayedSoFarSec(ctrl);
     log(`⏱️ ${mID} Progress → Played=${played}s / Required=${required}s`);
@@ -209,7 +212,7 @@ function checkController(ctrl) {
       log(`⏭️ ${mID} WD: Small-Video Mode → Skip AutoNext (WT/fallback) Until ENDED`);
       return;
     }
-    // READY for >10s without PLAYING → retry guardPlay once per check
+    /* READY for >10s without PLAYING → retry guardPlay once per check */
     try {
       const parts = [];
       parts.push(isNumber(ctrl?.readyAt) === true);
@@ -228,7 +231,7 @@ function checkController(ctrl) {
     } catch (_) {}
   } catch (_) {}
 
-  // Near-threshold soft-freeze
+  /* Near-threshold soft-freeze */
   try {
     const nearParts = [];
     nearParts.push(isNumber(played) === true);
@@ -245,7 +248,7 @@ function checkController(ctrl) {
     }
   } catch (_) {}
 
-  // 1) Watch-time trigger (primary) → WTBus aware
+  /* 1) Watch-time trigger (primary) → WTBus aware */
   if (ctrl?.watchtimeFired !== true) {
     const canWT = canFireOnWatchtime(ctrl, required, played);
     if (canWT === true) {
@@ -265,7 +268,7 @@ function checkController(ctrl) {
       return;
     }
   }
-  // 2) Fallback: κλασική λογική (ENDED pacing)
+  /* 2) Fallback: κλασική λογική (ENDED pacing) */
   const canFire = canFireAutoNext(ctrl, required, played);
   if (canFire === true) {
     if (ctrl?.watchtimeFired !== true) {
@@ -284,6 +287,63 @@ function checkController(ctrl) {
       log(`✅ ${mID} Watch-Time Met → AutoNext Scheduled (ENDED pacing)`);
     }
   }
+
+  /* === ΝΕΟΣ ΚΑΝΟΝΑΣ: Buffering > WATCHDOG_BUFFERING_RULE_MS λεπτά === */
+  try {
+    const p = ctrl?.player;
+    const parts = [];
+    parts.push(isFunction(p?.getPlayerState) === true);
+    parts.push(isFunction(p?.getVideoLoadedFraction) === true);
+    if (allTrue(parts) === true) {
+      const state = p.getPlayerState();
+      const fraction = p.getVideoLoadedFraction();
+      const lastBufStart = isNumber(ctrl?.lastBufferingStart) ? ctrl.lastBufferingStart : 0;
+      const elapsed = nowMs() - lastBufStart;
+
+      const stalled = allTrue([
+        state === YT.PlayerState.BUFFERING,
+        elapsed >= WATCHDOG_BUFFERING_RULE_MS, // WATCHDOG_BUFFERING_RULE_MS
+        fraction < 0.05,
+      ]);
+
+      if (stalled === true) {
+        const mID = getPlayerScope(ctrl.index);
+        log(`🛑 ${mID} WD: Buffering >2min → Full Recreate`);
+
+        const picked = pickVideoId(); // ή ίδιο video
+        const nextId = isDefined(picked?.id) ? picked.id : ctrl.player?.getVideoData?.().video_id ?? null;
+
+        if (isDefined(nextId)) {
+          const cooldown = rndInt(800, 1500);
+          scheduleSafe(
+            () => {
+              try {
+                ctrl.clearTimers();
+              } catch (_) {}
+              try {
+                if (isFunction(ctrl.player?.stopVideo)) ctrl.player.stopVideo();
+                if (isFunction(ctrl.player?.destroy)) ctrl.player.destroy();
+              } catch (_) {}
+              ctrl.player = null;
+
+              scheduleSafe(
+                () => {
+                  ctrl.recreatePlayer(nextId);
+                  log(`🔄 ${mID} WD: Full Recreate executed for ID=${nextId}`);
+                },
+                cooldown,
+                resolveGroup(ctrl, 'recreate', 'wd:recreate'),
+                'full-recreate-exec'
+              );
+            },
+            0,
+            resolveGroup(ctrl, 'recreate', 'wd:recreate'),
+            'full-recreate-buffering'
+          );
+        }
+      }
+    }
+  } catch (_) {}
 }
 
 // ========================= Public API =========================

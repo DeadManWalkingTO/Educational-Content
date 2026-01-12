@@ -1,5 +1,5 @@
 // --- containers.js ---
-const VERSION = 'v1.3.2';
+const VERSION = 'v1.4.2';
 /*
  Περιγραφή:
  - Δημιουργεί δυναμικά containers για YouTube players.
@@ -11,17 +11,6 @@ const VERSION = 'v1.3.2';
 export function getVersion() {
   return VERSION;
 }
-
-/* Όνομα αρχείου για logging. */
-const FILENAME = import.meta.url.split('/').pop();
-
-/* ========================= Imports ========================= */
-import { makeLogger, isDefined, allTrue, getPlayerScope } from './utils.js';
-import { PLAYER_COUNT } from './globals.js';
-
-/* ========================= Logger ========================= */
-const log = makeLogger(FILENAME);
-const mID = getPlayerScope();
 
 /* =========================  Περιγραφή =========================
  - Αποκλειστική ευθύνη: Δημιουργία/καταστροφή/αναφορά των DOM containers για τους YouTube players.
@@ -38,6 +27,20 @@ const mID = getPlayerScope();
     * Header πρότυπο, getVersion(), ESM imports, semicolons, single quotes, χωρίς || και &&.
     * Τελευταία γραμμή: // --- End Of File ---.
 */
+
+/* Όνομα αρχείου για logging. */
+const FILENAME = import.meta.url.split('/').pop();
+
+/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
+console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
+
+/* ========================= Imports ========================= */
+import { makeLogger, isDefined, allTrue, getPlayerScope } from './utils.js';
+import { PLAYER_COUNT } from './globals.js';
+
+/* ========================= Logger ========================= */
+const log = makeLogger(FILENAME);
+const mID = getPlayerScope();
 
 /* ========================= Internal State ========================= */
 let containerIds = [];
@@ -216,7 +219,7 @@ export function getContainerIds() {
   return containerIds.slice(0);
 }
 
-/* ========================= Epilogue ========================= */
+/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---
