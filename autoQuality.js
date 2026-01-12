@@ -1,5 +1,5 @@
 // --- autoQuality.js ---
-const VERSION = 'v1.17.2';
+const VERSION = 'v1.18.2';
 /*
  * Περιγραφή: Τυχαιές αλλαγές ποιότητας (YouTube Iframe API) με guards & back-pressure.
  * - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
@@ -109,31 +109,103 @@ function _verifyQuality(player, targetQuality, ctrl = null, group = 'pc:quality'
     scheduleSafe(verifyTask, delay, grp, 'quality-verify');
   } catch (_) {}
 }
+
 function _applyQuality(player, quality, tag, ctrl = null) {
   const mID = getPlayerScope(ctrl?.index);
   try {
+    // Guards
     const parts = [];
     parts.push(_can(player, 'setPlaybackQuality') === true);
     parts.push(isDefined(quality) === true);
     const ok = allTrue(parts);
-    if (ok !== true) return;
-    player.setPlaybackQuality(quality);
-    // stats
-    if (isNumber(stats.qualityChanges) === true) {
-      stats.qualityChanges = stats.qualityChanges + 1;
-    } else {
-      stats.qualityChanges = 1;
+    if (ok !== true) {
+      return;
     }
-    log(`📺 ${mID} Quality → ${String(quality)}`);
+
+    // Διαβάζω τρέχουσα ποιότητα (αν γίνεται)
+    let cur = null;
+    const canGet = _can(player, 'getPlaybackQuality') === true;
+    if (canGet === true) {
+      try {
+        const q = player.getPlaybackQuality();
+        if (typeof q === 'string') {
+          cur = q;
+        }
+      } catch (_) {}
+    }
+
+    // Έλεγχος διαθεσιμότητας στόχου
+    let availableOk = true;
+    const canLevels = _can(player, 'getAvailableQualityLevels') === true;
+    if (canLevels === true) {
+      try {
+        const levels = player.getAvailableQualityLevels();
+        let hasLevels = false;
+        if (Array.isArray(levels) === true) {
+          hasLevels = true;
+        }
+        if (hasLevels === true) {
+          let i = 0;
+          let found = false;
+          const targetStr = String(quality);
+          while (i < levels.length) {
+            const eq = String(levels[i]) === targetStr;
+            if (eq === true) {
+              found = true;
+              break;
+            }
+            i = i + 1;
+          }
+          availableOk = found === true;
+        } else {
+          availableOk = true;
+        }
+      } catch (_) {
+        availableOk = true;
+      }
+    }
+
+    // Έλεγχος mismatch
+    let mismatch = true;
+    if (typeof cur === 'string') {
+      mismatch = cur !== String(quality);
+    }
+
+    // Εφαρμογή μόνο αν υπάρχει mismatch ΚΑΙ είναι διαθέσιμο
+    if (availableOk === true) {
+      if (mismatch === true) {
+        try {
+          player.setPlaybackQuality(quality);
+        } catch (_) {}
+
+        // stats: increment μόνο σε πραγματική αλλαγή
+        if (isNumber(stats.qualityChanges) === true) {
+          stats.qualityChanges = stats.qualityChanges + 1;
+        } else {
+          stats.qualityChanges = 1;
+        }
+
+        log(`📺 ${mID} Quality → ${String(quality)} (prev=${String(cur)})`);
+      } else {
+        log(`ℹ️ ${mID} Quality → No-op (target=${String(quality)} / cur=${String(cur)} / available=true)`);
+      }
+    } else {
+      log(`ℹ️ ${mID} Quality → No-op (target=${String(quality)} / cur=${String(cur)} / available=false)`);
+    }
+
     // soft-task timestamp
     try {
-      if (isDefined(ctrl) === true) ctrl.lastSoftTaskMs = Date.now();
+      if (isDefined(ctrl) === true) {
+        ctrl.lastSoftTaskMs = Date.now();
+      }
     } catch (_) {}
-    // verify
+
+    // verify (παραμένει ίδιο)
     const grp = resolveGroup(ctrl, 'quality', 'pc:quality');
     _verifyQuality(player, quality, ctrl, grp);
   } catch (_) {}
 }
+
 function _gateOrReschedule(ctrl, group, tag, taskFn, retryMinMs = 800, retryMaxMs = 2000) {
   try {
     const now = Date.now();
