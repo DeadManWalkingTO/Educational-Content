@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v5.35.2';
+const VERSION = 'v6.2.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * CUED-only στρατηγική (READY‑centric)
@@ -96,6 +96,47 @@ function _shouldResetOnce(ctrl, kind) {
     return true;
   }
   return false;
+}
+
+function calcWTimeEndPause(ctrl) {
+  // (ήταν σε PLAYING αν το playingStart είναι αριθμός ΚΑΙ δεν είναι null)
+  const partsPlaying = [];
+  partsPlaying.push(isNumber(ctrl?.playingStart) === true);
+  partsPlaying.push(isDefined(ctrl?.playingStart) === true);
+  const wasPlaying = allTrue(partsPlaying) === true;
+
+  if (wasPlaying === true) {
+    // Διαφορά χρόνου από την έναρξη του PLAYING
+    const ms = Date.now() - ctrl.playingStart;
+
+    // Επιβεβαίωση/ανάκτηση ρυθμού (rate) χωρίς ternary
+    const partsRate = [];
+    partsRate.push(isNumber(ctrl?.currentRate) === true);
+    const rateOk = allTrue(partsRate) === true;
+    let rate = 1.0;
+    if (rateOk === true) {
+      rate = ctrl.currentRate;
+    }
+
+    // Προσθήκη στον αθροιστικό χρόνο (totalPlayTime) χωρίς ternary
+    const addSec = Math.max(0, Math.floor((ms / 1000) * rate));
+
+    const partsBase = [];
+    partsBase.push(isNumber(ctrl?.totalPlayTime) === true);
+    const baseOk = allTrue(partsBase) === true;
+    let base = 0;
+    if (baseOk === true) {
+      base = ctrl.totalPlayTime;
+    }
+
+    ctrl.totalPlayTime = base + addSec;
+
+    // Καθαρισμός playingStart (πάγια πρακτική στην μετάβαση PAUSED/ENDED)
+    ctrl.playingStart = null;
+
+    // Προαιρετικό: ευθυγράμμιση cache για UI/logs
+    ctrl.videoTotalPlayTime = ctrl.totalPlayTime;
+  }
 }
 
 function gateStopOrHalt(ctrl, label) {
@@ -502,6 +543,7 @@ export function onStateChangeExternal(ctrl, e) {
         } catch (_) {}
         autoNextAfterWatchtime(ctrl);
       }
+      calcWTimeEndPause(ctrl);
     }
 
     /* ---------------------------- PAUSED ---------------------------- */
@@ -532,6 +574,7 @@ export function onStateChangeExternal(ctrl, e) {
           );
         }
       } catch (_) {}
+      calcWTimeEndPause(ctrl);
     }
 
     /* ---------------------------- BUFFERING ---------------------------- */
@@ -542,62 +585,6 @@ export function onStateChangeExternal(ctrl, e) {
       }
       log(`🟣 ${mID} → BUFFERING`);
       ctrl.lastBufferingStart = Date.now();
-
-      // Optional: μικρό REPLAN αν δεν έχει ξεκινήσει χρόνος αναπαραγωγής ακόμη (κρατάμε ως είχε)
-      try {
-        const partsNeed = [];
-        partsNeed.push(isDefined(ctrl?.watchtimeFired) === true);
-        partsNeed.push(ctrl.watchtimeFired === false);
-        partsNeed.push(isNumber(ctrl?.totalPlayTime) === true);
-        partsNeed.push(ctrl.totalPlayTime === 0);
-        const flagDefined = isDefined(ctrl?._replannedForThisVideo) === true;
-        const flagOK = flagDefined === true ? ctrl._replannedForThisVideo !== true : true;
-        partsNeed.push(flagOK === true);
-        const needReplan = allTrue(partsNeed);
-        if (needReplan === true) {
-          let durationNow = 0;
-          try {
-            const partsCanDur = [];
-            partsCanDur.push(isDefined(p) === true);
-            partsCanDur.push(p !== null);
-            partsCanDur.push(isFunction(p?.getDuration) === true);
-            const canDur = allTrue(partsCanDur);
-            if (canDur === true) {
-              const d = p.getDuration();
-              const partsD = [];
-              partsD.push(isNumber(d) === true);
-              partsD.push(d > 0);
-              const okD = allTrue(partsD);
-              if (okD === true) {
-                durationNow = Math.floor(Number(d));
-              }
-            }
-          } catch (_) {}
-          const partsDo = [];
-          partsDo.push(isNumber(durationNow) === true);
-          partsDo.push(durationNow > 0);
-          const doReplan = allTrue(partsDo);
-          if (doReplan === true) {
-            const ctx2 = { durationSec: durationNow, profileName: ctrl.profileName, isFirstVideo: false, playerIndex: ctrl.index };
-            ctrl.plan = getBehaviorPlan(ctx2);
-            try {
-              const req = ctrl.plan?.watch?.requiredWatchTimeSec;
-              const okReq = [];
-              okReq.push(isNumber(req) === true);
-              const useReq = allTrue(okReq);
-              ctrl.videoRequiredWatchTime = useReq === true ? Math.max(0, Math.floor(Number(req))) : MIN_WATCH_TIME;
-            } catch (_) {
-              ctrl.videoRequiredWatchTime = MIN_WATCH_TIME;
-            }
-            try {
-              ctrl._replannedForThisVideo = true;
-            } catch (_) {}
-            try {
-              log(`⚖️ ${mID} WT → REPLAN (BUFFERING): Required=${ctrl.videoRequiredWatchTime}s (D=${durationNow}s)`);
-            } catch (_) {}
-          }
-        }
-      } catch (_) {}
     }
 
     /* ---------------------------- UNSTARTED ---------------------------- */

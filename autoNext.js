@@ -1,5 +1,5 @@
 // --- autoNext.js ---
-const VERSION = 'v1.27.0';
+const VERSION = 'v1.27.2';
 /*
  * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR/Watchtime + scheduler.
  *
@@ -133,7 +133,7 @@ function computeAutoNextDelay(ctx) {
     case 'error':
       return rndInt(250, 1000);
     case 'watchtime':
-      return rndInt(2000, 5000);
+      return rndInt(5000, 15000);
     default:
       return rndInt(15000, 60000);
   }
