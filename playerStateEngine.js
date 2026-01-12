@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v5.33.2';
+const VERSION = 'v5.35.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * CUED-only στρατηγική (READY‑centric)
@@ -596,41 +596,6 @@ export function onStateChangeExternal(ctrl, e) {
               log(`⚖️ ${mID} WT → REPLAN (BUFFERING): Required=${ctrl.videoRequiredWatchTime}s (D=${durationNow}s)`);
             } catch (_) {}
           }
-        }
-      } catch (_) {}
-
-      // Αν παραμένει σε BUFFERING και δεν έχει παίξει καθόλου, κάνε pause → play
-      try {
-        const needKick = allTrue([isNumber(ctrl?.totalPlayTime) === true, ctrl.totalPlayTime === 0]) === true;
-
-        if (needKick === true) {
-          // Πρώτα pause μετά από 0.5s
-          scheduleSafe(
-            () => {
-              try {
-                if (isFunction(ctrl?.player?.pauseVideo)) {
-                  ctrl.player.pauseVideo();
-                  log(`⏸️ ${mID} Pause (BUFFERING fallback)`);
-                }
-              } catch (_) {}
-
-              // Μετά από ~2s, ξαναπαίξε
-              scheduleSafe(
-                () => {
-                  try {
-                    ctrl.guardPlay(ctrl.player);
-                    log(`▶️ ${mID} Resume after buffering pause`);
-                  } catch (_) {}
-                },
-                2000,
-                ctrl._group('play'),
-                'buffering-play-after-pause'
-              );
-            },
-            500,
-            ctrl._group('play'),
-            'buffering-pause-then-play'
-          );
         }
       } catch (_) {}
     }

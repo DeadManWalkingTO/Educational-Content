@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v2.12.2';
+const VERSION = 'v2.14.2';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, mid-seek scheduler, init-seek).
  * - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
@@ -180,38 +180,18 @@ export function safeSeek(ctrl, seconds) {
 export function applyInitSeek(ctrl, targetSec) {
   const mID = getPlayerScope(ctrl?.index);
   try {
+    // Ενημέρωση meta για init-seek
     ctrl.seekMeta = ctrl.seekMeta ?? { lastMs: 0, count: 0 };
     ctrl.seekMeta.initTargetSec = targetSec;
     ctrl.seekMeta.initAppliedMs = Date.now();
   } catch (_) {}
 
-  const delayMs = 800;
+  const delayMs = 800; // μικρή καθυστέρηση πριν το seek
   scheduleSafe(
     () => {
       try {
         safeSeek(ctrl, targetSec);
         log(`⏩ ${mID} Seek → Executed: Target=${targetSec}s`);
-
-        // --- NEW: Pause → Play cycle ---
-        try {
-          if (isFunction(ctrl?.player?.pauseVideo)) {
-            ctrl.player.pauseVideo();
-            log(`⏸️ ${mID} Pause after init-seek`);
-          }
-        } catch (_) {}
-
-        // Μετά από ~2s, ξαναπαίξε
-        scheduleSafe(
-          () => {
-            try {
-              ctrl.guardPlay(ctrl.player);
-              log(`▶️ ${mID} Resume after pause`);
-            } catch (_) {}
-          },
-          2000,
-          resolveGroup(ctrl, 'init-seek', 'pc:init-seek'),
-          'init-seek-play-after-pause'
-        );
       } catch (_) {}
     },
     delayMs,
