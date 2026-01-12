@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v6.5.8';
+const VERSION = 'v6.7.2';
 /*
  * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, stop-all state, UI logging).
  * Σημείωση: Όλη η λογική/SSoT των λιστών έχει μεταφερθεί στο lists.js (pull-only getters).

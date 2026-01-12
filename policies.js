@@ -1,5 +1,5 @@
 // --- policies.js ---
-const VERSION = 'v1.26.6';
+const VERSION = 'v1.28.2';
 /*
  * Περιγραφή: Module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
  *
@@ -10,6 +10,10 @@ const VERSION = 'v1.26.6';
 export function getVersion() {
   return VERSION;
 }
+
+/* ========================= Περιγραφή =========================
+ *
+ */
 
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();

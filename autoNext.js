@@ -1,9 +1,9 @@
 // --- autoNext.js ---
-const VERSION = 'v1.26.2';
+const VERSION = 'v1.27.0';
 /*
  * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR/Watchtime + scheduler.
- * Refactor (SSoT/pull-only):
- * - Δεν χρησιμοποιούμε ctrl.mainList/altList ούτε περνάμε lists στο pick.
+ *
+ *
  */
 
 // --- Export Version ---
@@ -13,14 +13,12 @@ export function getVersion() {
 
 /* ========================= Περιγραφή =========================
  *
- * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR/Watchtime + scheduler.
- * Refactor (SSoT/pull-only):
- * - Δεν χρησιμοποιούμε ctrl.mainList/altList ούτε περνάμε lists στο pick.
- * - Η επιλογή γίνεται με pickVideoId() χωρίς side-effects (prob από globals.MAIN_PROBABILITY).
- * - Οι έλεγχοι/πληρότητα λιστών γίνονται αποκλειστικά στο lists.js.
- * - [ΝΕΟ] Το finalizeAutoNext δεν εκκινεί soft-tasks (pauses/mid-seek). Το per-video scheduling
- *         μεταφέρεται στο PLAYING (βλ. playerStateEngine.js).
- */
+ * CUED-only στρατηγική:
+ * - Επιλογή επόμενου video μέσω pickVideoId() (SSoT/pull-only από lists.js).
+ * - ΠΑΝΤΑ recreatePlayer(newId) αντί για loadVideoById (καθαρό READY lifecycle ανά βίντεο).
+ * - Το per-video scheduling γίνεται στη φάση READY (βλ. playerStateEngine.js).
+ *
+ * */
 
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
@@ -39,6 +37,7 @@ const log = makeLogger(FILENAME);
 let autoNextCounter = 0;
 let lastResetTime = Date.now();
 let autoNextPerPlayer = [];
+
 function ensureArraySize(idx) {
   const need = idx + 1;
   const has = autoNextPerPlayer.length;
@@ -50,6 +49,7 @@ function ensureArraySize(idx) {
     }
   }
 }
+
 function resetAutoNextCountersIfNeeded() {
   const now = Date.now();
   const diff = now - lastResetTime;
@@ -65,6 +65,7 @@ function resetAutoNextCountersIfNeeded() {
     log(`🔄 ${mID} AutoNext Counters → Reset (Hourly)`);
   }
 }
+
 export function canAutoNext(playerIndex) {
   resetAutoNextCountersIfNeeded();
   const idx = Number(playerIndex);
@@ -72,6 +73,7 @@ export function canAutoNext(playerIndex) {
   const cur = autoNextPerPlayer[idx];
   return cur < AUTO_NEXT_LIMIT_PER_PLAYER;
 }
+
 export function incAutoNext(playerIndex) {
   const idx = Number(playerIndex);
   ensureArraySize(idx);
@@ -141,18 +143,23 @@ function computeAutoNextDelay(ctx) {
 function finalizeAutoNext(ctrl, picked) {
   const mID = getPlayerScope(ctrl.index);
   incAutoNext(ctrl.index);
+
   // Stats
-  if (isNumber(stats?.autoNext) === true) {
-    stats.autoNext = stats.autoNext + 1;
-  } else {
-    stats.autoNext = 1;
-  }
+  try {
+    if (isNumber(stats?.autoNext) === true) {
+      stats.autoNext = stats.autoNext + 1;
+    } else {
+      stats.autoNext = 1;
+    }
+  } catch (_) {}
+
   // Freeze window για soft tasks (π.χ. 6s)
   try {
     const now = Date.now();
     const freezeMs = 6000;
     ctrl.softFreezeUntilMs = now + freezeMs;
   } catch (_) {}
+
   // Reset per-video accumulators
   ctrl.totalPlayTime = 0;
   ctrl.playingStart = null;
@@ -170,6 +177,7 @@ function finalizeAutoNext(ctrl, picked) {
     ctrl.initialPlayScheduled = false;
     ctrl.deferAutoNextUntilEnded = false;
   } catch (_) {}
+
   // Logging
   try {
     let pid = '-';
@@ -181,10 +189,7 @@ function finalizeAutoNext(ctrl, picked) {
     log(`⏭️ ${mID} AutoNext → ${pid} (Source:${src}, size:${size})`);
   } catch (_) {}
 
-  // [ΑΦΑΙΡΕΘΗΚΕ] Προγραμματισμός παύσεων / mid-seek από εδώ.
-  // Ο σχεδιασμός των soft-tasks γίνεται πλέον αποκλειστικά στο PLAYING (state engine).
-
-  // ΝΕΟ: Per-Video Serial & Planning Flag
+  // Per-Video Serial & Planning Flag
   try {
     if (typeof ctrl._videoSerial !== 'number') {
       ctrl._videoSerial = 0;
@@ -195,28 +200,25 @@ function finalizeAutoNext(ctrl, picked) {
     ctrl._plannedForSerial = typeof ctrl._plannedForSerial === 'number' ? ctrl._plannedForSerial : -1;
   } catch (_) {}
   try {
-    ctrl.needsPerVideoPlanning = true;
+    ctrl.needsPerVideoPlanning = true; // READY θα το καθαρίσει
   } catch (_) {}
-  // Προαιρετικό log
   try {
     log(`🆕 ${mID} NewVideo Serial → ${String(ctrl._videoSerial)} (planning-needed=true)`);
   } catch (_) {}
 }
 
-/* ========================= Runner ========================= */
+/* ========================= Runner (CUED-only) ========================= */
 function runAutoNext(ctrl, ctx, label) {
   const mID = getPlayerScope(ctrl.index);
   // Επιλογή επόμενου βίντεο (SSoT/pull-only)
   const picked = pickVideoId();
-
-  // Guard: διαθέσιμη φόρτωση βίντεο
-  const partsLoad = [];
-  partsLoad.push(isDefined(ctrl?.player) === true);
-  partsLoad.push(ctrl.player !== null);
-  partsLoad.push(isFunction(ctrl.player?.loadVideoById) === true);
-  const canLoad = allTrue(partsLoad);
-  if (canLoad !== true) {
-    log(`❌ ${mID} AutoNext Aborted → Player/LoadVideoById Unavailable`);
+  // Guard: διαθέσιμη αναδημιουργία player
+  const partsCtrl = [];
+  partsCtrl.push(isDefined(ctrl) === true);
+  partsCtrl.push(ctrl !== null);
+  const okCtrl = allTrue(partsCtrl);
+  if (okCtrl !== true) {
+    log(`❌ ${mID} AutoNext Aborted → Ctrl unavailable`);
     return;
   }
   const partsPicked = [];
@@ -228,14 +230,11 @@ function runAutoNext(ctrl, ctx, label) {
     return;
   }
 
-  // Φόρτωση επόμενου βίντεο
+  // CUED-only path: finalize state & recreate player
   try {
-    ctrl.player.loadVideoById(picked.id);
-    try {
-      ctrl.guardPlay(ctrl.player);
-    } catch (_) {}
-    log(`ℹ️ ${mID} AutoNext → Re-plan deferred to READY (State Engine)`);
     finalizeAutoNext(ctrl, picked);
+    ctrl.recreatePlayer(picked.id);
+    log(`ℹ️ ${mID} AutoNext → CUED-only: RecreatePlayer; READY will schedule all`);
   } catch (e) {
     log(`❌ ${mID} Error → LoadNext — Detail= ${e}`);
   }
@@ -263,7 +262,6 @@ function scheduleAutoNext(ctrl, trigger) {
     log(`⛔ ${mID} AutoNext Blocked → (${kind}) — ${why}`);
     return;
   }
-
   const delayMs = computeAutoNextDelay(ctx);
   let kind = 'ENDED';
   switch (trigger) {
@@ -302,9 +300,11 @@ function scheduleAutoNext(ctrl, trigger) {
 export function autoNextAfterEnded(ctrl) {
   scheduleAutoNext(ctrl, 'ended');
 }
+
 export function autoNextAfterError(ctrl) {
   scheduleAutoNext(ctrl, 'error');
 }
+
 export function autoNextAfterWatchtime(ctrl) {
   scheduleAutoNext(ctrl, 'watchtime');
 }

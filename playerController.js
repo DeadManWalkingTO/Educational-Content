@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v8.3.8';
+const VERSION = 'v8.6.2';
 /*
  * Controller: λεπτό wrapper για YT events με delegation στο PlayerStateEngine.
  * Refactor (SSoT/pull-only):
@@ -226,6 +226,37 @@ export class PlayerController {
     });
     log(`ℹ️ ${mID} YT PlayerVars → Origin: ${getOrigin()} / Host: ${getYouTubeEmbedHost()}`);
     log(`👤 ${mID} Initialized → Profile ${this.profileName} and ID=${videoId}`);
+  }
+
+  /**
+   * Recreate the underlying YT.Player with a fresh instance (destroy → init).
+   * Χρήσιμο για Selective CUED ώστε να ξαναπεράσουμε από READY lifecycle “καθαρά”.
+   */
+  recreatePlayer(newVideoId) {
+    const mID = getPlayerScope(this.index);
+    try {
+      // 1) Προληπτικός καθαρισμός χρονοπρογραμματισμών
+      this.clearTimers();
+    } catch (_) {}
+    try {
+      // 2) Ασφαλής καταστροφή τρέχοντος player (αν υπάρχει)
+      if (this.player && this._can(this.player, 'stopVideo')) {
+        try {
+          this.player.stopVideo();
+        } catch (_) {}
+      }
+      if (this.player && this._can(this.player, 'destroy')) {
+        try {
+          this.player.destroy();
+        } catch (_) {}
+      }
+    } catch (_) {}
+    try {
+      this.player = null;
+    } catch (_) {}
+    // 3) Fresh init (νέος YT.Player) → θα πυροδοτήσει onReady → READY-centric plan
+    this.init(newVideoId);
+    log(`🧪 ${mID} RecreatePlayer → New ID=${newVideoId}`);
   }
 
   onReady(e) {

@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v2.9.6';
+const VERSION = 'v2.12.2';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, mid-seek scheduler, init-seek).
  * - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
@@ -176,33 +176,45 @@ export function safeSeek(ctrl, seconds) {
 /** Αρχικό seek: τώρα + επανάληψη στα 800 ms για σταθερότητα (+ awareness). */
 
 // --- applyInitSeek (single-shot delayed) ---
+
 export function applyInitSeek(ctrl, targetSec) {
   const mID = getPlayerScope(ctrl?.index);
   try {
-    // Awareness για scheduling / early CT fallback (χρήσιμο και για logs / guards downstream)
     ctrl.seekMeta = ctrl.seekMeta ?? { lastMs: 0, count: 0 };
     ctrl.seekMeta.initTargetSec = targetSec;
     ctrl.seekMeta.initAppliedMs = Date.now();
   } catch (_) {}
 
-  // Καθυστέρηση εκτέλεσης για σταθερότητα player (duration/CT/quality)
   const delayMs = 800;
-
-  // Single-shot: εκτέλεση ΜΟΝΟ μία φορά μετά από delayMs
   scheduleSafe(
-    function () {
+    () => {
       try {
-        // Ασφαλές seek με clamp (pad έως dur - 5%, ελάχιστο 3s)
         safeSeek(ctrl, targetSec);
+        log(`⏩ ${mID} Seek → Executed: Target=${targetSec}s`);
 
-        // Log εκτέλεσης
+        // --- NEW: Pause → Play cycle ---
         try {
-          log(`⏩ ${mID} Seek → Executed: Target=${targetSec}s`);
+          if (isFunction(ctrl?.player?.pauseVideo)) {
+            ctrl.player.pauseVideo();
+            log(`⏸️ ${mID} Pause after init-seek`);
+          }
         } catch (_) {}
+
+        // Μετά από ~2s, ξαναπαίξε
+        scheduleSafe(
+          () => {
+            try {
+              ctrl.guardPlay(ctrl.player);
+              log(`▶️ ${mID} Resume after pause`);
+            } catch (_) {}
+          },
+          2000,
+          resolveGroup(ctrl, 'init-seek', 'pc:init-seek'),
+          'init-seek-play-after-pause'
+        );
       } catch (_) {}
     },
     delayMs,
-    // Χρήση resolveGroup για συνεπές labeling (πέφτει πίσω σε 'pc:init-seek' αν δεν υπάρχει ctrl._group)
     resolveGroup(ctrl, 'init-seek', 'pc:init-seek'),
     'init-seek-once'
   );
