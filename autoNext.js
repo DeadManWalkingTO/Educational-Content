@@ -1,5 +1,5 @@
 // --- autoNext.js ---
-const VERSION = 'v1.25.2';
+const VERSION = 'v1.26.2';
 /*
  * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR/Watchtime + scheduler.
  * Refactor (SSoT/pull-only):
@@ -16,13 +16,14 @@ export function getVersion() {
  * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR/Watchtime + scheduler.
  * Refactor (SSoT/pull-only):
  * - Δεν χρησιμοποιούμε ctrl.mainList/altList ούτε περνάμε lists στο pick.
- * - Η επιλογή βίντεο γίνεται με pickVideoId() χωρίς παραμέτρους (prob από globals.MAIN_PROBABILITY).
+ * - Η επιλογή γίνεται με pickVideoId() χωρίς side-effects (prob από globals.MAIN_PROBABILITY).
  * - Οι έλεγχοι/πληρότητα λιστών γίνονται αποκλειστικά στο lists.js.
+ * - [ΝΕΟ] Το finalizeAutoNext δεν εκκινεί soft-tasks (pauses/mid-seek). Το per-video scheduling
+ *         μεταφέρεται στο PLAYING (βλ. playerStateEngine.js).
  */
 
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
-
 /* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
@@ -30,7 +31,6 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 import { scheduleSafe, makeLogger, rndInt, randomFloat, isDefined, isNumber, allTrue, anyTrue, isFunction, getPlayerScope } from './utils.js';
 import { AUTO_NEXT_LIMIT_PER_PLAYER, stats } from './globals.js';
 import { pickVideoId } from './videoPicker.js';
-import { schedulePauses } from './autoPause.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -138,25 +138,21 @@ function computeAutoNextDelay(ctx) {
 }
 
 /* ========================= Finalize ========================= */
-
 function finalizeAutoNext(ctrl, picked) {
   const mID = getPlayerScope(ctrl.index);
   incAutoNext(ctrl.index);
-
   // Stats
   if (isNumber(stats?.autoNext) === true) {
     stats.autoNext = stats.autoNext + 1;
   } else {
     stats.autoNext = 1;
   }
-
   // Freeze window για soft tasks (π.χ. 6s)
   try {
     const now = Date.now();
     const freezeMs = 6000;
     ctrl.softFreezeUntilMs = now + freezeMs;
   } catch (_) {}
-
   // Reset per-video accumulators
   ctrl.totalPlayTime = 0;
   ctrl.playingStart = null;
@@ -174,7 +170,6 @@ function finalizeAutoNext(ctrl, picked) {
     ctrl.initialPlayScheduled = false;
     ctrl.deferAutoNextUntilEnded = false;
   } catch (_) {}
-
   // Logging
   try {
     let pid = '-';
@@ -186,31 +181,22 @@ function finalizeAutoNext(ctrl, picked) {
     log(`⏭️ ${mID} AutoNext → ${pid} (Source:${src}, size:${size})`);
   } catch (_) {}
 
-  // Προγραμματισμός παύσεων (μετά το AutoNext)
-  try {
-    schedulePauses(ctrl);
-  } catch (_) {}
-  // Mid-seek (μέσω controller wrapper)
-  try {
-    ctrl.scheduleMidSeek();
-  } catch (_) {}
+  // [ΑΦΑΙΡΕΘΗΚΕ] Προγραμματισμός παύσεων / mid-seek από εδώ.
+  // Ο σχεδιασμός των soft-tasks γίνεται πλέον αποκλειστικά στο PLAYING (state engine).
 
-  // --- ΝΕΟ: Per-Video Serial & Planning Flag ---
+  // ΝΕΟ: Per-Video Serial & Planning Flag
   try {
     if (typeof ctrl._videoSerial !== 'number') {
       ctrl._videoSerial = 0;
     }
     ctrl._videoSerial = ctrl._videoSerial + 1;
   } catch (_) {}
-
   try {
     ctrl._plannedForSerial = typeof ctrl._plannedForSerial === 'number' ? ctrl._plannedForSerial : -1;
   } catch (_) {}
-
   try {
     ctrl.needsPerVideoPlanning = true;
   } catch (_) {}
-
   // Προαιρετικό log
   try {
     log(`🆕 ${mID} NewVideo Serial → ${String(ctrl._videoSerial)} (planning-needed=true)`);
@@ -233,7 +219,11 @@ function runAutoNext(ctrl, ctx, label) {
     log(`❌ ${mID} AutoNext Aborted → Player/LoadVideoById Unavailable`);
     return;
   }
-  if (isDefined(picked?.id) !== true || picked.id === null) {
+  const partsPicked = [];
+  partsPicked.push(isDefined(picked?.id) === true);
+  partsPicked.push(picked?.id !== null);
+  const okPicked = allTrue(partsPicked);
+  if (okPicked !== true) {
     log(`❌ ${mID} AutoNext Aborted → No Available List`);
     return;
   }
@@ -273,6 +263,7 @@ function scheduleAutoNext(ctrl, trigger) {
     log(`⛔ ${mID} AutoNext Blocked → (${kind}) — ${why}`);
     return;
   }
+
   const delayMs = computeAutoNextDelay(ctx);
   let kind = 'ENDED';
   switch (trigger) {
