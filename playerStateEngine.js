@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v5.27.2';
+const VERSION = 'v5.28.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * Refactor (SSoT/pull-only): Ορχήστρα policies + soft-tasks και ΝΕΟ per-video planning/scheduling.
@@ -46,6 +46,57 @@ function _can(obj, methodName) {
   const parts = [];
   parts.push(isFunction(fn) === true);
   return allTrue(parts);
+}
+
+function _shouldResetOnce(ctrl, kind) {
+  // kind: 'rate' | 'quality'
+  let serial = 0;
+  try {
+    if (typeof ctrl?._videoSerial === 'number') {
+      serial = ctrl._videoSerial;
+    }
+  } catch (_) {}
+
+  // pick fields
+  let flagApplied = false;
+  let lastSerial = -1;
+  let serialField = '';
+  let flagField = '';
+
+  try {
+    if (kind === 'rate') {
+      flagApplied = ctrl?._rateAppliedForThisVideo === true;
+      lastSerial = typeof ctrl?._rateResetSerial === 'number' ? ctrl._rateResetSerial : -1;
+      serialField = '_rateResetSerial';
+      flagField = '_rateAppliedForThisVideo';
+    } else {
+      flagApplied = ctrl?._qualityAutoAppliedForThisVideo === true;
+      lastSerial = typeof ctrl?._qualityResetSerial === 'number' ? ctrl._qualityResetSerial : -1;
+      serialField = '_qualityResetSerial';
+      flagField = '_qualityAutoAppliedForThisVideo';
+    }
+  } catch (_) {}
+
+  // already applied for this video?
+  const partsApplied = [];
+  partsApplied.push(flagApplied === true);
+  if (allTrue(partsApplied) === true) {
+    return false;
+  }
+
+  // serial same as last reset?
+  const partsSerial = [];
+  partsSerial.push(lastSerial !== serial);
+  const needBySerial = allTrue(partsSerial) === true;
+
+  if (needBySerial === true) {
+    try {
+      ctrl[serialField] = serial;
+    } catch (_) {}
+    return true;
+  }
+
+  return false;
 }
 
 function gateStopOrHalt(ctrl, label) {
@@ -338,6 +389,15 @@ export function onStateChangeExternal(ctrl, e) {
 
     /* ------------------------------- PLAYING ------------------------------- */
     if (state === YT.PlayerState.PLAYING) {
+      /* --- 🛑 Early gate --- */
+      if (gateStopOrHalt(ctrl, 'PLAYING') === true) {
+        return;
+      }
+
+      if (ctrl.playingStart === null) {
+        ctrl.playingStart = Date.now();
+      }
+
       /* Per-Video planning (μία φορά ανά νέο video, πριν από τα resets) */
       try {
         // Προαιρετική θωράκιση baseline
@@ -369,30 +429,22 @@ export function onStateChangeExternal(ctrl, e) {
         }
       } catch (_) {}
 
-      /* --- 🛑 Early gate --- */
-      if (gateStopOrHalt(ctrl, 'PLAYING') === true) {
-        return;
-      }
-
-      if (ctrl.playingStart === null) {
-        ctrl.playingStart = Date.now();
-      }
       if (typeof ctrl._rateAppliedForThisVideo !== 'boolean') ctrl._rateAppliedForThisVideo = false;
       if (typeof ctrl._qualityAutoAppliedForThisVideo !== 'boolean') ctrl._qualityAutoAppliedForThisVideo = false;
 
-      // 1) RESET RATE στο πρώτο PLAYING αν χρειάζεται
-      if (ctrl._rateAppliedForThisVideo !== true) {
+      // 1) RESET RATE μόνο-μία-φορά
+      if (_shouldResetOnce(ctrl, 'rate') === true) {
         try {
-          resetPlaybackRate(ctrl);
-          ctrl._rateAppliedForThisVideo = true;
+          resetPlaybackRate(ctrl); // from autoRate.js
+          ctrl._rateAppliedForThisVideo = true; // lock flag
         } catch (_) {}
       }
 
-      // 2) RESET QUALITY
-      if (ctrl._qualityAutoAppliedForThisVideo !== true) {
+      // 2) RESET QUALITY μόνο-μία-φορά
+      if (_shouldResetOnce(ctrl, 'quality') === true) {
         try {
-          resetPlaybackQuality(ctrl);
-          ctrl._qualityAutoAppliedForThisVideo = true;
+          resetPlaybackQuality(ctrl); // from autoQuality.js
+          ctrl._qualityAutoAppliedForThisVideo = true; // lock flag
         } catch (_) {}
       }
 
@@ -503,7 +555,7 @@ export function onStateChangeExternal(ctrl, e) {
       if (gateStopOrHalt(ctrl, 'ENDED') === true) {
         return;
       }
-      log(`🟣 ${mID} → ENDED`);
+      log(`🔵 ${mID} → ENDED`);
       if (ctrl.deferAutoNextUntilEnded === true) {
         try {
           ctrl._rateAppliedForThisVideo = false;
@@ -555,7 +607,7 @@ export function onStateChangeExternal(ctrl, e) {
         ctrl.lastBufferingStart = Date.now();
         return;
       }
-      log(`🔵 ${mID} → BUFFERING`);
+      log(`🟣 ${mID} → BUFFERING`);
       ctrl.lastBufferingStart = Date.now();
 
       // RE-PLAN σε BUFFERING (νωρίς, 0s played, χωρίς επαν-προγραμματισμό soft-tasks)
