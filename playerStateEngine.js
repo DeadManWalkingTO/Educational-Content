@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v5.25.2';
+const VERSION = 'v5.25.10';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * Refactor (SSoT/pull-only): Καμία εξάρτηση από events λιστών· τα picks γίνονται downstream από AutoNext/pickVideoId().
@@ -26,7 +26,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, scheduleSafe, rndInt, once, getPlayerScope, isSchedulerHalted, groupCancel, msToSec } from './utils.js';
-import { stats, isStopping, START_SEEK_MIN_VALUE_SEC, PLAY_MIN_DELAY_MS, PLAY_MAX_DELAY_MS, MIN_WATCH_TIME } from './globals.js';
+import { stats, isStopping, START_SEEK_MIN_VALUE_SEC, START_PLAY_MIN_DELAY_MS, START_PLAY_MAX_DELAY_MS, MIN_WATCH_TIME } from './globals.js';
 import { getBehaviorPlan } from './policies.js';
 import { emitWatchtimeReached } from './wtBus.js';
 import { autoNextAfterWatchtime, autoNextAfterError } from './autoNext.js';
@@ -42,8 +42,7 @@ import { scheduleVolumeChanges, scheduleMicroAdjust } from './autoVolume.js';
 const log = makeLogger(FILENAME);
 
 /* ========================= Settings ========================= */
-const StartSeekMinValueSec = START_SEEK_MIN_VALUE_SEC;
-const StartDelayMS = rndInt(PLAY_MIN_DELAY_MS, PLAY_MAX_DELAY_MS); // PLAY_MIN_DELAY_MS – PLAY_MAX_DELAY_MS
+const StartDelayMS = rndInt(START_PLAY_MIN_DELAY_MS, START_PLAY_MAX_DELAY_MS); // PLAY_MIN_DELAY_MS – PLAY_MAX_DELAY_MS
 
 /* ========================= Helpers ========================= */
 function _can(obj, methodName) {
@@ -152,9 +151,6 @@ export function onReadyExternal(ctrl, e) {
 
     // Soft tasks schedules (respect back-pressure)
     try {
-      // Καθολικό gate: όλες οι soft-tasks να ξεκινούν >= StartDelayMS
-      const baseGateMs = isNumber(p?.StartDelayMS) === true ? p.StartDelayMS : 0;
-
       // Μικρό jitter για πιο φυσική διασπορά εκκινήσεων (προσαρμόσιμο)
       const softJitterRateMs = rndInt(5000, 10000);
       const softJitterQualityMs = rndInt(5000, 10000);
@@ -168,7 +164,7 @@ export function onReadyExternal(ctrl, e) {
             scheduleRateChanges(ctrl);
           } catch (_) {}
         },
-        Math.max(baseGateMs, softJitterRateMs),
+        Math.max(StartDelayMS, softJitterRateMs),
         ctrl._group('rate'),
         'rate-init'
       );
@@ -180,7 +176,7 @@ export function onReadyExternal(ctrl, e) {
             scheduleQualityChanges(p, durationNow, ctrl.config, ctrl._group('quality'), ctrl.videoRequiredWatchTime, ctrl);
           } catch (_) {}
         },
-        Math.max(baseGateMs, softJitterQualityMs),
+        Math.max(StartDelayMS, softJitterQualityMs),
         ctrl._group('quality'),
         'quality-init'
       );
@@ -196,7 +192,7 @@ export function onReadyExternal(ctrl, e) {
             scheduleVolumeChanges(p, volCfg, durationNow, ctrl._group('volume'), ctrl);
           } catch (_) {}
         },
-        Math.max(baseGateMs, softJitterVolumeMs),
+        Math.max(StartDelayMS, softJitterVolumeMs),
         ctrl._group('volume'),
         'volume-init'
       );
@@ -208,7 +204,7 @@ export function onReadyExternal(ctrl, e) {
             scheduleMicroAdjust(p, durationNow, ctrl._group('volume'), ctrl);
           } catch (_) {}
         },
-        Math.max(baseGateMs, softJitterMicroMs),
+        Math.max(StartDelayMS, softJitterMicroMs),
         ctrl._group('volume'),
         'volume-micro-init'
       );

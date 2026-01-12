@@ -128,8 +128,8 @@ export const AUTO_NEXT_LIMIT_PER_PLAYER = 50;
 export const WATCHDOG_RATE = secToMs(120);
 export const MIN_WATCH_TIME = 60;
 export const START_SEEK_MIN_VALUE_SEC = 5;
-export const PLAY_MIN_DELAY_MS = 2000;
-export const PLAY_MAX_DELAY_MS = 12000;
+export const START_PLAY_MIN_DELAY_MS = 2000;
+export const START_PLAY_MAX_DELAY_MS = 12000;
 
 /* --- Controllers registry (γεμίζει από main.js) --- */
 export const controllers = [];
