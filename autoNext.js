@@ -1,5 +1,5 @@
 // --- autoNext.js ---
-const VERSION = 'v1.24.2';
+const VERSION = 'v1.25.2';
 /*
  * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR/Watchtime + scheduler.
  * Refactor (SSoT/pull-only):
@@ -138,21 +138,25 @@ function computeAutoNextDelay(ctx) {
 }
 
 /* ========================= Finalize ========================= */
+
 function finalizeAutoNext(ctrl, picked) {
   const mID = getPlayerScope(ctrl.index);
   incAutoNext(ctrl.index);
+
   // Stats
   if (isNumber(stats?.autoNext) === true) {
     stats.autoNext = stats.autoNext + 1;
   } else {
     stats.autoNext = 1;
   }
+
   // Freeze window για soft tasks (π.χ. 6s)
   try {
     const now = Date.now();
     const freezeMs = 6000;
     ctrl.softFreezeUntilMs = now + freezeMs;
   } catch (_) {}
+
   // Reset per-video accumulators
   ctrl.totalPlayTime = 0;
   ctrl.playingStart = null;
@@ -170,6 +174,7 @@ function finalizeAutoNext(ctrl, picked) {
     ctrl.initialPlayScheduled = false;
     ctrl.deferAutoNextUntilEnded = false;
   } catch (_) {}
+
   // Logging
   try {
     let pid = '-';
@@ -180,6 +185,7 @@ function finalizeAutoNext(ctrl, picked) {
     if (isNumber(picked?.size) === true) size = picked.size;
     log(`⏭️ ${mID} AutoNext → ${pid} (Source:${src}, size:${size})`);
   } catch (_) {}
+
   // Προγραμματισμός παύσεων (μετά το AutoNext)
   try {
     schedulePauses(ctrl);
@@ -187,6 +193,27 @@ function finalizeAutoNext(ctrl, picked) {
   // Mid-seek (μέσω controller wrapper)
   try {
     ctrl.scheduleMidSeek();
+  } catch (_) {}
+
+  // --- ΝΕΟ: Per-Video Serial & Planning Flag ---
+  try {
+    if (typeof ctrl._videoSerial !== 'number') {
+      ctrl._videoSerial = 0;
+    }
+    ctrl._videoSerial = ctrl._videoSerial + 1;
+  } catch (_) {}
+
+  try {
+    ctrl._plannedForSerial = typeof ctrl._plannedForSerial === 'number' ? ctrl._plannedForSerial : -1;
+  } catch (_) {}
+
+  try {
+    ctrl.needsPerVideoPlanning = true;
+  } catch (_) {}
+
+  // Προαιρετικό log
+  try {
+    log(`🆕 ${mID} NewVideo Serial → ${String(ctrl._videoSerial)} (planning-needed=true)`);
   } catch (_) {}
 }
 
