@@ -1,5 +1,5 @@
 // --- main.js ---
-const VERSION = 'v4.11.3';
+const VERSION = 'v4.11.4';
 /*
 Περιγραφή: Entry point με εκτεταμένη χρήση utils.js (domReady, safeAddEvent, once, log, retry, scheduleSafe).
 Start gate με user gesture, readiness του YouTube API με exponential backoff+jitter,
@@ -42,6 +42,7 @@ const log = makeLogger(FILENAME);
 const mID = getPlayerScope();
 
 /* --------------- Console filter (defensive) --------------- */
+/* Remove - Start
 (function safeInstallConsoleFilter() {
   try {
     installConsoleFilter();
@@ -50,6 +51,8 @@ const mID = getPlayerScope();
     log(`❌ ${mID} Error → Console Filter — Αποτυχία Εγκατάστασης: ${e}`);
   }
 })();
+
+Remove - End */
 
 /* --------------- Versions report (UI + fallback) --------------- */
 const versions = reportAllVersions();
@@ -154,11 +157,11 @@ function setupDomGate() {
       return;
     }
     default: {
-    // Strict mode: Λείπει το start button → δεν ξεκινά αυτόματα
-    log(`⚠️ ${mID} Start Gate → Missing #btnStartSession (Strict). Waiting for user gesture.`);
-    setControlsEnabled(false);
-    return;
-  }
+      // Strict mode: Λείπει το start button → δεν ξεκινά αυτόματα
+      log(`⚠️ ${mID} Start Gate → Missing #btnStartSession (Strict). Waiting for user gesture.`);
+      setControlsEnabled(false);
+      return;
+    }
   }
 }
 // DOM readiness μέσω utils.domReady()
