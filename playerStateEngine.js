@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v5.23.38';
+const VERSION = 'v5.24.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * Refactor (SSoT/pull-only): Καμία εξάρτηση από events λιστών· τα picks γίνονται downstream από AutoNext/pickVideoId().
@@ -26,7 +26,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, scheduleSafe, rndInt, once, getPlayerScope, isSchedulerHalted, groupCancel, msToSec } from './utils.js';
-import { stats, isStopping, START_SEEK_MIN_VALUE_SEC, PLAY_MIN_DELAY_MS, PLAY_MAX_DELAY_MS } from './globals.js';
+import { stats, isStopping, START_SEEK_MIN_VALUE_SEC, PLAY_MIN_DELAY_MS, PLAY_MAX_DELAY_MS, MIN_WATCH_TIME } from './globals.js';
 import { getBehaviorPlan } from './policies.js';
 import { emitWatchtimeReached } from './wtBus.js';
 import { autoNextAfterWatchtime, autoNextAfterError } from './autoNext.js';
@@ -510,6 +510,91 @@ export function onStateChangeExternal(ctrl, e) {
         ctrl.lastBufferingStart = Date.now();
         return;
       }
+      log(`⚪ ${mID} → UNSTARTED`);
+
+      // === RE-PLAN σε BUFFERING (duration-aware) ===
+      try {
+        // Συνθήκη: νέο video αμέσως μετά από AutoNext (δείκτες reset) και δεν έχει γίνει re-plan ακόμη
+        const partsNeed = [];
+        partsNeed.push(isDefined(ctrl?.watchtimeFired) === true);
+        partsNeed.push(ctrl.watchtimeFired === false);
+        partsNeed.push(isNumber(ctrl?.totalPlayTime) === true);
+        partsNeed.push(ctrl.totalPlayTime === 0);
+        // replan flag: αν δεν υπάρχει ή δεν είναι true, θεωρούμε ότι χρειάζεται re-plan
+        const flagDefined = isDefined(ctrl?._replannedForThisVideo) === true;
+        const flagOK = flagDefined === true ? ctrl._replannedForThisVideo !== true : true;
+        partsNeed.push(flagOK === true);
+
+        const needReplan = allTrue(partsNeed);
+        if (needReplan === true) {
+          // Ανάκτηση νέας διάρκειας με ασφαλή guards
+          let durationNow = 0;
+          try {
+            const p = ctrl.player;
+            const partsCanDur = [];
+            partsCanDur.push(isDefined(p) === true);
+            partsCanDur.push(p !== null);
+            partsCanDur.push(isFunction(p?.getDuration) === true);
+            const canDur = allTrue(partsCanDur);
+            if (canDur === true) {
+              const d = p.getDuration();
+              const partsD = [];
+              partsD.push(isNumber(d) === true);
+              partsD.push(d > 0);
+              const okD = allTrue(partsD);
+              if (okD === true) {
+                durationNow = Math.floor(Number(d));
+              }
+            }
+          } catch (_) {
+            /* no-op */
+          }
+
+          // Re-plan μόνο αν έχουμε έγκυρη διάρκεια
+          const partsDo = [];
+          partsDo.push(isNumber(durationNow) === true);
+          partsDo.push(durationNow > 0);
+          const doReplan = allTrue(partsDo);
+          if (doReplan === true) {
+            const ctx = {
+              durationSec: durationNow,
+              profileName: ctrl.profileName,
+              isFirstVideo: false,
+              playerIndex: ctrl.index,
+            };
+            ctrl.plan = getBehaviorPlan(ctx); // policies.js
+
+            // Εξαγωγή required watch time με ασφαλή guards
+            try {
+              const req = ctrl.plan?.watch?.requiredWatchTimeSec;
+              const okReq = [];
+              okReq.push(isNumber(req) === true);
+              const useReq = allTrue(okReq);
+              ctrl.videoRequiredWatchTime = useReq === true ? Math.max(0, Math.floor(Number(req))) : MIN_WATCH_TIME;
+            } catch (_) {
+              ctrl.videoRequiredWatchTime = MIN_WATCH_TIME;
+            }
+
+            // Σημείωσε ότι έγινε re-plan για το συγκεκριμένο video
+            try {
+              ctrl._replannedForThisVideo = true;
+            } catch (_) {
+              /* no-op */
+            }
+
+            // Logging
+            try {
+              const mID = getPlayerScope(ctrl.index);
+              log(`⚖️ ${mID} WT → REPLAN (BUFFERING): Required=${ctrl.videoRequiredWatchTime}s (D=${durationNow}s)`);
+            } catch (_) {
+              /* no-op */
+            }
+          }
+        }
+      } catch (_) {
+        /* no-op */
+      }
+      // === Τέλος block re‑plan σε BUFFERING ===
     }
 
     /*------------------------------ CUED ------------------------------*/
@@ -518,6 +603,7 @@ export function onStateChangeExternal(ctrl, e) {
         ctrl.lastBufferingStart = Date.now();
         return;
       }
+      log(`⚫ ${mID} → CUED`);
     }
   } catch (err) {
     log(`❌ ${mID} Error → onStateChangeExternal — Detail= ${err}`);
