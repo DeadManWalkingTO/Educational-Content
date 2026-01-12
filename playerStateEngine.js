@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v5.24.2';
+const VERSION = 'v5.25.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * Refactor (SSoT/pull-only): Καμία εξάρτηση από events λιστών· τα picks γίνονται downstream από AutoNext/pickVideoId().
@@ -502,15 +502,6 @@ export function onStateChangeExternal(ctrl, e) {
       }
       log(`🔵 ${mID} → BUFFERING`);
       ctrl.lastBufferingStart = Date.now();
-    }
-
-    /*------------------------------ UNSTARTED ------------------------------*/
-    if (state === YT.PlayerState.UNSTARTED) {
-      if (gateStopOrHalt(ctrl, 'UNSTARTED') === true) {
-        ctrl.lastBufferingStart = Date.now();
-        return;
-      }
-      log(`⚪ ${mID} → UNSTARTED`);
 
       // === RE-PLAN σε BUFFERING (duration-aware) ===
       try {
@@ -595,6 +586,15 @@ export function onStateChangeExternal(ctrl, e) {
         /* no-op */
       }
       // === Τέλος block re‑plan σε BUFFERING ===
+    }
+
+    /*------------------------------ UNSTARTED ------------------------------*/
+    if (state === YT.PlayerState.UNSTARTED) {
+      if (gateStopOrHalt(ctrl, 'UNSTARTED') === true) {
+        ctrl.lastBufferingStart = Date.now();
+        return;
+      }
+      log(`⚪ ${mID} → UNSTARTED`);
     }
 
     /*------------------------------ CUED ------------------------------*/
