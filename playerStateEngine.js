@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v6.2.2';
+const VERSION = 'v6.6.4';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * CUED-only στρατηγική (READY‑centric)
@@ -416,6 +416,11 @@ export function onStateChangeExternal(ctrl, e) {
     if (ok !== true) return;
 
     const state = p.getPlayerState();
+
+    /* --- Δίνουμε τον χρόνο που μπήκε σε Ready --- */
+    try {
+      ctrl.readyAt = Date.now();
+    } catch (_) {}
 
     /* ---------------------------- PLAYING ---------------------------- */
     if (state === YT.PlayerState.PLAYING) {

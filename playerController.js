@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v8.6.2';
+const VERSION = 'v9.2.4';
 /*
  * Controller: λεπτό wrapper για YT events με delegation στο PlayerStateEngine.
  * Refactor (SSoT/pull-only):
@@ -216,6 +216,9 @@ export class PlayerController {
   }
 
   init(videoId) {
+    // Καθαρό baseline για inner-based recreate
+    this._innerId = null;
+
     const mID = getPlayerScope(this.index);
     const containerId = `player${this.index + 1}`;
     this.player = new YT.Player(containerId, {
@@ -232,31 +235,262 @@ export class PlayerController {
    * Recreate the underlying YT.Player with a fresh instance (destroy → init).
    * Χρήσιμο για Selective CUED ώστε να ξαναπεράσουμε από READY lifecycle “καθαρά”.
    */
+
+  /**
+   * Hard destroy & DOM αντικατάσταση με νέο inner id.
+   * Χρήση helpers από utils.js (isDefined, allTrue, isFunction, scheduleSafe, rndInt, getPlayerScope).
+   */
+
   recreatePlayer(newVideoId) {
     const mID = getPlayerScope(this.index);
+
+    // --- Serial guard (ακυρώνει παλαιά scheduled βήματα για παλιότερα recreate) ---
     try {
-      // 1) Προληπτικός καθαρισμός χρονοπρογραμματισμών
+      if (typeof this._recreateSerial !== 'number') this._recreateSerial = 0;
+      this._recreateSerial = this._recreateSerial + 1;
+    } catch (_) {}
+    const localSerial = this._recreateSerial;
+
+    // 1) Καθάρισμα schedulers/timers
+    try {
       this.clearTimers();
     } catch (_) {}
+
+    // 2) Stop & destroy παλιού YT.Player (σιωπηλά σε failure)
     try {
-      // 2) Ασφαλής καταστροφή τρέχοντος player (αν υπάρχει)
-      if (this.player && this._can(this.player, 'stopVideo')) {
-        try {
-          this.player.stopVideo();
-        } catch (_) {}
+      const canStopParts = [];
+      canStopParts.push(isDefined(this.player) === true);
+      canStopParts.push(this._can(this.player, 'stopVideo') === true);
+      const canStop = allTrue(canStopParts);
+      if (canStop === true) {
+        this.player.stopVideo();
       }
-      if (this.player && this._can(this.player, 'destroy')) {
-        try {
-          this.player.destroy();
-        } catch (_) {}
+    } catch (_) {}
+    try {
+      const canDestroyParts = [];
+      canDestroyParts.push(isDefined(this.player) === true);
+      canDestroyParts.push(this._can(this.player, 'destroy') === true);
+      const canDestroy = allTrue(canDestroyParts);
+      if (canDestroy === true) {
+        this.player.destroy();
       }
     } catch (_) {}
     try {
       this.player = null;
     } catch (_) {}
-    // 3) Fresh init (νέος YT.Player) → θα πυροδοτήσει onReady → READY-centric plan
-    this.init(newVideoId);
-    log(`🧪 ${mID} RecreatePlayer → New ID=${newVideoId}`);
+
+    // 2a) Σκληρός καθαρισμός container (αφαίρεση ΟΛΩΝ των παιδιών)
+    const containerId = `player${this.index + 1}`;
+    try {
+      const parent = document.getElementById(containerId);
+      const okParentParts = [];
+      okParentParts.push(isDefined(parent) === true);
+      const okParent = allTrue(okParentParts);
+      if (okParent === true) {
+        let passes = 0;
+        while (passes < 50) {
+          const hasChildParts = [];
+          hasChildParts.push(isDefined(parent.firstChild) === true);
+          const hasChild = allTrue(hasChildParts);
+          if (hasChild !== true) {
+            break;
+          }
+          try {
+            parent.removeChild(parent.firstChild);
+          } catch (_) {}
+          passes = passes + 1;
+        }
+      }
+    } catch (_) {}
+
+    // 2b) Double-safety: καθάρισε τυχόν παλιό inner flag
+    try {
+      this._innerId = null;
+    } catch (_) {}
+
+    // 3) PRE-WARM: δημιουργία κρυφού inner
+    const pwInnerId = `${containerId}__pw_${Date.now()}`;
+    try {
+      const parent = document.getElementById(containerId);
+      const okParent2 = allTrue([isDefined(parent) === true]);
+      if (okParent2 === true) {
+        const el = document.createElement('div');
+        el.id = pwInnerId;
+        el.className = 'yt-player-slot';
+        el.style.position = 'absolute';
+        el.style.left = '-9999px';
+        el.style.top = '0';
+        el.style.width = '1px';
+        el.style.height = '1px';
+        el.style.overflow = 'hidden';
+        parent.appendChild(el);
+      }
+    } catch (_) {}
+
+    // Meta prewarm
+    const startedAt = Date.now();
+    try {
+      this._prewarm = { innerId: pwInnerId, player: null, startedAt, serial: localSerial };
+    } catch (_) {}
+
+    // 4) Pre-warm YT.Player ΜΕ ΤΑ ΚΑΝΟΝΙΚΑ HANDLERS (σημαντικό για ENDED!)
+    let pwPlayer = null;
+    pwPlayer = new YT.Player(pwInnerId, {
+      videoId: newVideoId,
+      host: getYouTubeEmbedHost(),
+      playerVars: { enablejsapi: 1, playsinline: 1, origin: getOrigin() },
+      events: {
+        onReady: (e) => this.onReady(e),
+        onStateChange: (e) => this.onStateChange(e),
+        onError: (e) => this.onError(e),
+      },
+    });
+    try {
+      if (isDefined(this._prewarm) === true) this._prewarm.player = pwPlayer;
+    } catch (_) {}
+    log(`🧊 ${mID} Prewarm → inner=${pwInnerId}, next=${newVideoId}`);
+
+    // 5) Watchdog προώθησης (promote) ή fallback
+    const waitMs = rndInt(8000, 12000); // 8–12s: ρύθμισε κατά βούληση
+    scheduleSafe(
+      () => {
+        // Serial guard
+        try {
+          const sameSerial = allTrue([isDefined(this._recreateSerial) === true, Number(this._recreateSerial) === Number(localSerial)]);
+          if (sameSerial !== true) {
+            return;
+          }
+        } catch (_) {}
+
+        // Έλεγχος αν ο pre-warm πήρε READY: χρησιμοποιούμε ctrl.readyAt ≥ startedAt
+        let prewarmReady = false;
+        try {
+          const hasReady = allTrue([isDefined(this.readyAt) === true, Number(this.readyAt) >= Number(startedAt)]);
+          prewarmReady = hasReady === true;
+        } catch (_) {
+          prewarmReady = false;
+        }
+
+        if (prewarmReady === true) {
+          // ---- PROMOTE σε active ----
+          const activeInnerId = `${containerId}__r${Date.now()}`;
+
+          // Καθάρισε πιθανό παλιό active (θεωρητικά άδειο λόγω 2a)
+          try {
+            const hadActive = allTrue([isDefined(this._innerId) === true]);
+            if (hadActive === true) {
+              const oldActive = document.getElementById(this._innerId);
+              const okOldActive = allTrue([isDefined(oldActive) === true]);
+              if (okOldActive === true) {
+                oldActive.remove();
+              }
+              try {
+                this._innerId = null;
+              } catch (_) {}
+            }
+          } catch (_) {}
+
+          // Προώθηση pre-warm inner σε ορατό active (χωρίς αλλαγή handlers)
+          try {
+            const el = document.getElementById(pwInnerId);
+            const okEl = allTrue([isDefined(el) === true]);
+            if (okEl === true) {
+              el.id = activeInnerId;
+              el.style.position = '';
+              el.style.left = '';
+              el.style.top = '';
+              el.style.width = '100%';
+              el.style.height = '100%';
+              el.style.overflow = 'hidden';
+              this._innerId = activeInnerId;
+            }
+          } catch (_) {}
+
+          // Μεταφορά pointer παίκτη
+          try {
+            const hasPwPlayer = allTrue([isDefined(this._prewarm) === true, isDefined(this._prewarm.player) === true]);
+            if (hasPwPlayer === true) {
+              this.player = this._prewarm.player;
+            }
+          } catch (_) {}
+
+          // Καθάρισμα prewarm meta
+          try {
+            this._prewarm = null;
+          } catch (_) {}
+
+          log(`🚀 ${mID} Promote → active=${activeInnerId}, id=${newVideoId}, serial=${localSerial}`);
+          return;
+        }
+
+        // ---- Fallback: hard recreate απευθείας ως active ----
+        // Καθάρισε τυχόν pre-warm inner/instance
+        try {
+          const hasPw = allTrue([isDefined(this._prewarm) === true]);
+          if (hasPw === true) {
+            try {
+              const hadPwInner = allTrue([isDefined(this._prewarm.innerId) === true]);
+              if (hadPwInner === true) {
+                const pwEl = document.getElementById(this._prewarm.innerId);
+                const okPwEl = allTrue([isDefined(pwEl) === true]);
+                if (okPwEl === true) {
+                  pwEl.remove();
+                }
+              }
+            } catch (_) {}
+            try {
+              const canDestroyPw = allTrue([isDefined(this._prewarm.player) === true]);
+              if (canDestroyPw === true) {
+                const pp = this._prewarm.player;
+                const canD = allTrue([this._can(pp, 'destroy') === true]);
+                if (canD === true) {
+                  pp.destroy();
+                }
+              }
+            } catch (_) {}
+          }
+        } catch (_) {}
+        try {
+          this._prewarm = null;
+        } catch (_) {}
+
+        // Δημιουργία νέου active inner
+        const newInnerId = `${containerId}__r${Date.now()}`;
+        try {
+          const parent = document.getElementById(containerId);
+          const okParent3 = allTrue([isDefined(parent) === true]);
+          if (okParent3 === true) {
+            const el = document.createElement('div');
+            el.id = newInnerId;
+            el.className = 'yt-player-slot';
+            el.style.width = '100%';
+            el.style.height = '100%';
+            parent.appendChild(el);
+            this._innerId = newInnerId;
+          }
+        } catch (_) {}
+
+        // Νέος YT.Player ως active (κανονικά handlers)
+        this.player = new YT.Player(newInnerId, {
+          videoId: newVideoId,
+          host: getYouTubeEmbedHost(),
+          playerVars: { enablejsapi: 1, playsinline: 1, origin: getOrigin() },
+          events: {
+            onReady: (e) => this.onReady(e),
+            onStateChange: (e) => this.onStateChange(e),
+            onError: (e) => this.onError(e),
+          },
+        });
+
+        log(`🔁 ${mID} Fallback Recreate → active=${newInnerId}, id=${newVideoId}, serial=${localSerial}`);
+      },
+      waitMs,
+      this._group('autonext'),
+      'prewarm-check'
+    );
+
+    // Log αρχικής κλήσης
+    log(`🧬 ${mID} RecreatePlayer (prewarm) → target=${newVideoId}, serial=${localSerial}`);
   }
 
   onReady(e) {

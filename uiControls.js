@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-const VERSION = 'v5.4.2';
+const VERSION = 'v5.5.2';
 /*
  * Κεντρικό χειριστήριο UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
  * Refactor: Το reloadList() καλεί μόνο lists.reloadAndApply() (pull-only, χωρίς events/meta).
@@ -219,6 +219,21 @@ export function playersCleanStats() {
       const mIDc = getPlayerScope('?');
       log(`❌ ${mIDc} Error → PlayersCleanStats: ${String(err)}`);
     }
+
+    try {
+      // Αφαίρεση πιθανού inner wrapper που έχει κρατήσει ο controller
+      const hasInner = isDefined(c?._innerId) === true;
+      if (hasInner === true) {
+        const el = document.getElementById(c._innerId);
+        const canRemove = isDefined(el) === true;
+        if (canRemove === true) {
+          el.remove();
+        }
+        try {
+          c._innerId = null;
+        } catch (_) {}
+      }
+    } catch (_) {}
   });
   log(`🚨 PlayersCleanStats → Destroyed=${destroyedCount}`);
   return destroyedCount;
