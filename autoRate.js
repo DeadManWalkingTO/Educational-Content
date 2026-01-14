@@ -1,5 +1,5 @@
 // --- autoRate.js ---
-const VERSION = 'v1.14.2';
+const VERSION = 'v1.14.4';
 /*
  * Περιγραφή: Σπάνιες αλλαγές ταχύτητας αναπαραγωγής (rate) με back-pressure gates.
  *  - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
@@ -34,6 +34,7 @@ const log = makeLogger(FILENAME);
 
 /* ========================= Settings ========================= */
 const resetRateValue = 1.0;
+const verifyDelay = rndInt(1500, 3000);
 
 /* ========================= Helpers ========================= */
 function resolveGroup(ctrl, suffix, fallback) {
@@ -135,7 +136,6 @@ function _verifyRate(p, target, ctrl = null, group = 'pc:rate') {
     partsReq.push(canGet === true);
     partsReq.push(canSet === true);
     if (allTrue(partsReq) !== true) return;
-    const delay = rndInt(100, 200);
     const verifyTask = () => {
       try {
         const cur = p.getPlaybackRate();
@@ -153,7 +153,7 @@ function _verifyRate(p, target, ctrl = null, group = 'pc:rate') {
       } catch (_) {}
     };
     const grp = resolveGroup(ctrl, 'rate', group);
-    scheduleSafe(verifyTask, delay, grp, 'rate-verify');
+    scheduleSafe(verifyTask, verifyDelay, grp, 'rate-verify');
   } catch (_) {}
 }
 

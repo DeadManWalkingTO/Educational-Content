@@ -32,6 +32,9 @@ import { stats } from './globals.js';
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
 
+/* ========================= Settings ========================= */
+const verifyDelay = rndInt(1500, 3000);
+
 /* ========================= Helpers ========================= */
 function _can(obj, methodName) {
   const parts = [];
@@ -62,7 +65,6 @@ function _verifyVolume(player, target, ctrl = null, group = 'pc:volume') {
     req.push(canGet === true);
     req.push(canSet === true);
     if (allTrue(req) !== true) return;
-    const delay = rndInt(100, 200); // 100–200 ms
     const verifyTask = () => {
       try {
         const cur = player.getVolume();
@@ -84,7 +86,7 @@ function _verifyVolume(player, target, ctrl = null, group = 'pc:volume') {
       } catch (_) {}
     };
     const grp = resolveGroup(ctrl, 'volume', group);
-    scheduleSafe(verifyTask, delay, grp, 'volume-verify');
+    scheduleSafe(verifyTask, verifyDelay, grp, 'volume-verify');
   } catch (_) {}
 }
 /* Εφαρμογή έντασης (με ενημέρωση soft-task timestamp). */
