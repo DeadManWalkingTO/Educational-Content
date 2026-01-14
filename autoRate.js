@@ -1,5 +1,5 @@
 // --- autoRate.js ---
-const VERSION = 'v1.14.4';
+const VERSION = 'v1.14.6';
 /*
  * Περιγραφή: Σπάνιες αλλαγές ταχύτητας αναπαραγωγής (rate) με back-pressure gates.
  *  - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
@@ -127,6 +127,7 @@ function _whenPlaying(ctrl, task, retryMinMs, retryMaxMs, group, tag) {
 }
 
 /** Verify rate (καθυστερημένη ανάγνωση + επαναφορά αν mismatch). */
+
 function _verifyRate(p, target, ctrl = null, group = 'pc:rate') {
   const mID = getPlayerScope(ctrl?.index);
   try {
@@ -136,6 +137,7 @@ function _verifyRate(p, target, ctrl = null, group = 'pc:rate') {
     partsReq.push(canGet === true);
     partsReq.push(canSet === true);
     if (allTrue(partsReq) !== true) return;
+
     const verifyTask = () => {
       try {
         const cur = p.getPlaybackRate();
@@ -147,6 +149,8 @@ function _verifyRate(p, target, ctrl = null, group = 'pc:rate') {
           partsMismatch.push(diff >= 0.01);
           if (allTrue(partsMismatch) === true) {
             p.setPlaybackRate(Number(target));
+            // NEW: Log ρητά ότι έγινε "δεύτερο set" λόγω verify
+            log(`🕒 ${mID} Rate → Verify-Set (post-delay): Applied target=x${String(target)} (prev=x${String(cur)})`);
           }
           log(`✅ ${mID} Rate → Verify: Target=x${String(target)} / Now=x${String(cur)}`);
         }

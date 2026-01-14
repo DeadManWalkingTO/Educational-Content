@@ -1,5 +1,5 @@
 // --- autoQuality.js ---
-const VERSION = 'v1.18.4';
+const VERSION = 'v1.18.6';
 /*
  * Περιγραφή: Τυχαιές αλλαγές ποιότητας (YouTube Iframe API) με guards & back-pressure.
  * - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
@@ -82,12 +82,14 @@ function _pickQuality(player, preferredOrder) {
     return null;
   }
 }
+
 function _verifyQuality(player, targetQuality, ctrl = null, group = 'pc:quality') {
   const mID = getPlayerScope(ctrl?.index);
   try {
     const canGet = _can(player, 'getPlaybackQuality') === true;
     const canSet = _can(player, 'setPlaybackQuality') === true;
     if (canGet !== true) return;
+
     const verifyTask = () => {
       try {
         const cur = player.getPlaybackQuality();
@@ -101,6 +103,8 @@ function _verifyQuality(player, targetQuality, ctrl = null, group = 'pc:quality'
           const mismatch = curOk === true ? cur !== String(targetQuality) : true;
           if (mismatch === true) {
             player.setPlaybackQuality(String(targetQuality));
+            // NEW: Log ρητά ότι έγινε "δεύτερο set" λόγω verify
+            log(`🕒 ${mID} Quality → Verify-Set (post-delay): Applied target=${String(targetQuality)} (prev=${String(cur)})`);
           }
         }
       } catch (_) {}
