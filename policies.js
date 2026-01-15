@@ -1,8 +1,8 @@
 // --- policies.js ---
-const VERSION = 'v2.3.2';
+const VERSION = 'v2.4.2';
 /*
  * Περιγραφή: Module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
- * Behavior Profiles (SSOT)
+ *
  *
  */
 
@@ -20,6 +20,10 @@ export function getVersion() {
  * - Mid-Seek plan επεκτάθηκε με fromDurPct/toDurPct για παραμετροποιήσιμο duration-target.
  * - Προστέθηκαν jitterPct και παράμετροι WT-scaling (wtAlphaMin, wtAlphaMax, wtAlphaK)
  *   ώστε η χρονική απόσταση των mid-seek να εξαρτάται ρητά και ομαλά από το WT.
+ *
+ * v2.4.0:
+ * - Mid-Seek plan με presets ανά διάρκεια (S/M/L/XL): fromDurPct/toDurPct, jitterPct, wtAlphaMin/Max/K, minGapSec, maxSeeks.
+ * - Profile tuning (Explorer, Focused) πάνω στα νέα presets.
  *
  */
 
@@ -238,66 +242,101 @@ function _getMidSeekPlan(durationSec, profileName) {
     return { enabled: false, notes: 'short-video' };
   }
 
-  // Βασικές τιμές (θα προσαρμοστούν προφιλικά)
+  // Βασικές τιμές, προσαρμόζονται ανά bucket
   let intervalMs = 0;
   let minGapSec = 120;
   let maxSeeks = 2;
-  let fromPct = 0.2;
+  let fromPct = 0.2; // ιστορικό για WT-window (κρατείται για logs)
   let toPct = 0.6;
   const nearEndPct = 0.05;
 
-  // Διαστήματα & πλήθος ανά διάρκεια
-  switch (true) {
-    case allTrue([d < 600]) === true:
-      intervalMs = rndInt(4, 6) * 60000;
-      maxSeeks = rndInt(1, 2);
-      break;
-    case allTrue([d < 1800]) === true:
-      intervalMs = rndInt(6, 9) * 60000;
-      maxSeeks = rndInt(2, 3);
-      break;
-    case allTrue([d < 7200]) === true:
-      intervalMs = rndInt(8, 12) * 60000;
-      maxSeeks = rndInt(3, 5);
-      break;
-    default:
-      intervalMs = rndInt(10, 15) * 60000;
-      maxSeeks = rndInt(4, 6);
-      break;
-  }
-
-  // Παράμετροι στόχου στη ΔΙΑΡΚΕΙΑ (defaults)
+  // Προεπιλογές στόχου/τυχαιότητας/WT-scaling
   let fromDurPct = 0.8;
   let toDurPct = 0.9;
-
-  // Παράμετροι randomness & WT-scaling (defaults)
   let jitterPct = 0.15; // 0.10–0.30
   let wtAlphaMin = 0.85;
   let wtAlphaMax = 1.15;
   let wtAlphaK = 1.25;
 
-  // Προσαρμογές ανά profile
+  // --- Buckets (S/M/L/XL) για πιο φυσική συμπεριφορά ---
+  switch (true) {
+    // Small (≤ 10 λεπτά)
+    case allTrue([d <= 600]) === true: {
+      intervalMs = rndInt(4, 6) * 60000;
+      minGapSec = 90;
+      maxSeeks = rndInt(1, 2);
+      fromDurPct = 0.65;
+      toDurPct = 0.85;
+      jitterPct = 0.2;
+      wtAlphaMin = 0.9;
+      wtAlphaMax = 1.1;
+      wtAlphaK = 1.2;
+      break;
+    }
+    // Medium (≤ 30 λεπτά)
+    case allTrue([d <= 1800]) === true: {
+      intervalMs = rndInt(6, 9) * 60000;
+      minGapSec = 110;
+      maxSeeks = rndInt(2, 3);
+      fromDurPct = 0.72;
+      toDurPct = 0.88;
+      jitterPct = 0.15;
+      wtAlphaMin = 0.85;
+      wtAlphaMax = 1.15;
+      wtAlphaK = 1.25;
+      break;
+    }
+    // Large (≤ 2 ώρες)
+    case allTrue([d <= 7200]) === true: {
+      intervalMs = rndInt(8, 12) * 60000;
+      minGapSec = 120;
+      maxSeeks = rndInt(3, 5);
+      fromDurPct = 0.78;
+      toDurPct = 0.9;
+      jitterPct = 0.14;
+      wtAlphaMin = 0.85;
+      wtAlphaMax = 1.15;
+      wtAlphaK = 1.25;
+      break;
+    }
+    // XL (> 2 ώρες, με WT cap)
+    default: {
+      intervalMs = rndInt(10, 15) * 60000;
+      minGapSec = 150;
+      maxSeeks = rndInt(4, 6);
+      fromDurPct = 0.8;
+      toDurPct = 0.92;
+      jitterPct = 0.12;
+      wtAlphaMin = 0.85;
+      wtAlphaMax = 1.15;
+      wtAlphaK = 1.3;
+      break;
+    }
+  }
+
+  // Προσαρμογές ανά profile πάνω στα presets
   let n = 'unknown';
   if (allTrue([isString(profileName) === true]) === true) n = String(profileName).toLowerCase();
   switch (n) {
     case 'explorer': {
       toPct = clamp(0.62, 0, 1);
+      // πιο «τολμηρό» οπτικά: λίγο βαθύτερα, ελαφρώς πιο σφιχτά gaps, μεγαλύτερο jitter
       const mg = minGapSec - 10;
       minGapSec = mg > 90 ? mg : 90;
-
-      // Ελαφρώς πιο «τολμηρό» duration range & jitter
-      toDurPct = 0.9; // ίδιο
-      jitterPct = 0.18;
+      const deeper = clamp(toDurPct + 0.03, 0, 0.95);
+      toDurPct = deeper;
+      jitterPct = Math.min(0.3, jitterPct + 0.02);
       break;
     }
     case 'focused': {
       toPct = clamp(0.55, 0, 1);
-      minGapSec = minGapSec + 30;
+      // πιο «σταθερό»: μεγαλύτερο minGap, ένα seek λιγότερο, μικρότερο jitter, συντηρητικό βάθος
+      minGapSec = minGapSec + 10;
       const m = maxSeeks - 1;
       maxSeeks = m >= 1 ? m : 1;
-
-      // Πιο «σταθερό» μοτίβο (μικρότερο jitter)
-      jitterPct = 0.12;
+      jitterPct = Math.max(0.08, jitterPct - 0.03);
+      const safer = toDurPct - 0.05;
+      toDurPct = safer > fromDurPct ? safer : fromDurPct;
       break;
     }
     default:

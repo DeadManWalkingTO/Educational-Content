@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v3.4.2';
+const VERSION = 'v3.5.2';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, init-seek, mid-seek scheduling).
  *
@@ -16,8 +16,7 @@ export function getVersion() {
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, init-seek, mid-seek scheduler),
  * με WT-aware χρονισμό (wtTimeLeft) και duration-based στόχευση (παραμετροποιήσιμη)
  * με clamp στο video end pad ΚΑΙ σε WT-tail guard.
- *
- * Refactor:
+ *  * Refactor:
  * - Προστέθηκε resolveGroup() για ασφαλή group labeling.
  * - Προστέθηκαν playedWT/wtTimeLeft metas στο _getWindowMeta().
  * - Re-schedule μετά το init-seek.
@@ -44,6 +43,11 @@ export function getVersion() {
  * - WT-tail guard: clamp του στόχου ώστε να απομένει αρκετή ουρά για το WT που μένει.
  * - Καθαρισμός διπλού log στο re-schedule του handler (κρατάμε μόνο το log μέσα στο scheduleMidSeek).
  * - Διατήρηση όλων των guardrails: PLAY/PAUSE gate στα mid-seek, safeSeek, WT-based budget-stop.
+ *
+ *  * v3.5.0:
+ * - Δυναμικός WT-tail guard (εξαρτάται από D και WTLeft) για πιο φυσικούς clamp-στόχους.
+ * - Preview με PredictedTarget (clamp-αρισμένος) για συνέπεια Preview↔Execute στα logs.
+ * - Διατήρηση: WT-based χρονισμός (α(φ) + jitter), απόσταση/στόχος παραμετροποιήσιμα από plan.
  */
 
 /* Όνομα αρχείου για logging. */
@@ -119,10 +123,10 @@ function _getWindowMeta(ctrl) {
     nearEndPct: 0.05,
     nearEndSec: 0,
     cur: 0,
-    // --- WT-based metas (για χρονισμό) ---
+    // --- WT-based metas ---
     playedWT: 0,
     wtTimeLeft: 0,
-    // --- Ιστορικά/συμβατότητα (μη οδηγικά για χρονισμό) ---
+    // --- ιστορικά/συμβατότητα ---
     timeLeft: 0,
     short: false,
     pastNearEnd: false,
@@ -137,18 +141,18 @@ function _getWindowMeta(ctrl) {
       if (isNumber(d) === true) meta.dur = d;
     }
 
-    // WT & window (ιστορικό)
+    // WT & window
     const wtVal = isNumber(ctrl?.videoRequiredWatchTime) === true ? ctrl.videoRequiredWatchTime : 0;
     meta.wt = wtVal;
     const hasWT = allTrue([isNumber(meta.wt) === true, meta.wt > 0]);
     meta.windowSec = hasWT === true ? Math.min(meta.dur, meta.wt) : meta.dur;
 
-    // Near-end % (για συμβατότητα)
+    // Near-end
     const nearPct = isNumber(ctrl?.seekDefaults?.nearEndPct) === true ? ctrl.seekDefaults.nearEndPct : 0.05;
     meta.nearEndPct = nearPct;
     meta.nearEndSec = meta.windowSec * (1 - nearPct);
 
-    // CurrentTime + Start-Seek awareness (startBound)
+    // CurrentTime + awareness init-target (startBound)
     let ct = 0;
     const canCT = allTrue([isFunction(ctrl?.player?.getCurrentTime) === true]);
     if (canCT === true) {
@@ -164,7 +168,7 @@ function _getWindowMeta(ctrl) {
     } catch (_) {}
     meta.cur = ct;
 
-    // WT-based: playedWT = totalPlayTime (base) + extra (αν είμαστε σε PLAYING, wall-clock * rate)
+    // Played WT = base + extra (PLAYING window * rate)
     let base = 0;
     try {
       base = isNumber(ctrl?.totalPlayTime) === true ? ctrl.totalPlayTime : 0;
@@ -188,7 +192,7 @@ function _getWindowMeta(ctrl) {
     const leftWT = Math.max(0, Math.floor(reqWT - played));
     meta.wtTimeLeft = leftWT;
 
-    // Ιστορικό position-based (logs μόνο)
+    // ιστορικά
     meta.timeLeft = Math.floor(meta.nearEndSec - meta.cur);
     meta.short = anyTrue([meta.windowSec < ShortGuard]);
     meta.pastNearEnd = allTrue([meta.cur > meta.nearEndSec]);
@@ -196,7 +200,7 @@ function _getWindowMeta(ctrl) {
   return meta;
 }
 
-/** Υπολογισμός πρώτου delay (ms) για mid-seek, με βάση τον WT-χρόνο που απομένει + α(φ) + jitter. */
+/** Υπολογισμός πρώτου delay (ms) για mid-seek, με βάση WTLeft + α(φ) + jitter. */
 function _computeFirstDelayMs(ctrl) {
   const wm = _getWindowMeta(ctrl);
   const viable = allTrue([wm.short === false, isNumber(wm.wtTimeLeft) === true, wm.wtTimeLeft > 0, isNumber(wm.wt) === true, wm.wt > 0]);
@@ -239,7 +243,7 @@ function _computeNextDelayMs(ctrl, fallbackMs) {
     const guardEndSec = GUARD_END_SEC;
     let jitterPct = isNumber(ctrl?.seekDefaults?.jitterPct) === true ? ctrl.seekDefaults.jitterPct : JITTER_DEFAULT;
 
-    // Προαιρετική μικρή αύξηση jitter στα «τελευταία» ή σε πολύ μεγάλο WT
+    // Μικρό adaptive bump
     if (remainSeeks <= 2) jitterPct = Math.min(0.3, jitterPct + 0.05);
     if (wm.wtTimeLeft >= 900) jitterPct = Math.min(0.3, jitterPct + 0.05);
 
@@ -362,10 +366,10 @@ export function applyInitSeek(ctrl, targetSec) {
 /* ========================= Mid-Seek Core ========================= */
 /**
  * Εκτελεί ένα mid-seek με WT-based χρονικό gate και duration-based χωρικό στόχο:
- * - Χρονικό gate: προχωρά μόνο αν υπάρχει wtTimeLeft > 0 (WT δεν έχει ολοκληρωθεί).
+ * - Χρονικό gate: προχωρά μόνο αν υπάρχει wtTimeLeft > 0.
  * - Στόχος (χωρικά): fromDurPct..toDurPct της ΔΙΑΡΚΕΙΑΣ (από plan, αλλιώς 0.80..0.90).
- * - Clamp: startBound ≤ target ≤ min(videoEndSafe, maxTargetByWT)  όπου
- *          maxTargetByWT = D - (wtTimeLeft + guardWT) και guardWT ≈ max(10 s, 2%·D).
+ * - Clamp: startBound ≤ target ≤ min(videoEndSafe, maxTargetByWT),
+ *          όπου guardWT (για maxTargetByWT) εξαρτάται από D και WTLeft.
  * - Gate εκτέλεσης: PLAYING ή PAUSED (retry αν όχι).
  * - safeSeek στο τέλος.
  */
@@ -403,11 +407,22 @@ function _doMidSeekOnce(ctrl) {
     const padVideo = Math.max(3, Math.floor(dur * 0.05)); // video end pad (5% ή ≥3 s)
     const videoEndSafe = Math.max(0, dur - padVideo);
 
-    // WT-tail guard: κράτα ουρά ≥ (wtTimeLeft + guardWT)
-    const guardWTdyn = Math.max(10, Math.floor(dur * 0.02)); // 10 s ή 2% του D
-    const maxTargetByWT = Math.max(0, dur - Math.max(0, wm.wtTimeLeft + guardWTdyn));
+    // WT-tail guard (ΔΥΝΑΜΙΚΟΣ): κράτα ουρά ≥ (WTLeft + guardWTdyn),
+    // όπου guardWTdyn εξαρτάται από D και WTLeft (πιο φυσικό σε όλες τις διάρκειες)
+    let minGuard = 10;
+    if (allTrue([dur <= 600]) === true) {
+      minGuard = 8;
+    } else {
+      if (allTrue([dur > 7200]) === true) {
+        minGuard = 15;
+      }
+    }
+    const guardByD = Math.floor(dur * 0.03); // έως 3%·D
+    const guardByWT = Math.floor(wm.wtTimeLeft * 0.12); // έως 12% του WT που απομένει
+    const guardBlend = Math.min(guardByD, guardByWT);
+    const guardWTdyn = Math.max(minGuard, guardBlend);
 
-    // Τελικό upper bound clamp
+    const maxTargetByWT = Math.max(0, dur - Math.max(0, wm.wtTimeLeft + guardWTdyn));
     const maxAllowedTarget = Math.min(videoEndSafe, maxTargetByWT);
 
     // startBound: ποτέ πίσω από cur/initTarget
@@ -494,7 +509,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
     let longmsg = '';
     longmsg = ` IntervalMs=${mid.intervalMs} MinGapSec=${mid.minGapSec} MaxSeeks=${mid.maxSeeks}`;
     longmsg = longmsg + ` FromPct=${mid.fromPct} ToPct=${mid.toPct} NearEndPct=${mid.nearEndPct}`;
-    // ΝΕΑ: fromDurPct/toDurPct/jitter & WT-alpha παραμετροποίηση (αν υπάρχουν στο plan)
+    // Παράμετροι στόχου/τυχαιότητας/WT-scaling εάν ορίζονται στο plan
     if (isNumber(mid?.fromDurPct) === true) longmsg = longmsg + ` FromDurPct=${mid.fromDurPct}`;
     if (isNumber(mid?.toDurPct) === true) longmsg = longmsg + ` ToDurPct=${mid.toDurPct}`;
     if (isNumber(mid?.jitterPct) === true) longmsg = longmsg + ` JitterPct=${mid.jitterPct}`;
@@ -513,12 +528,12 @@ export function scheduleMidSeek(ctrl, overrideMs) {
     }
   } catch {}
 
-  // Defaults από το plan (συμπεριλαμβανομένων των fromDurPct/toDurPct & jitter & WT-alpha)
+  // Defaults από το plan
   ctrl.seekDefaults = {
     minGapSec: Number(mid.minGapSec),
     maxSeeks: Number(mid.maxSeeks),
     nearEndPct: Number(mid.nearEndPct),
-    fromPct: Number(mid.fromPct), // ιστορικό (WT-window)
+    fromPct: Number(mid.fromPct),
     toPct: Number(mid.toPct),
     fromDurPct: isNumber(mid?.fromDurPct) === true ? Number(mid.fromDurPct) : DUR_FROM_DEFAULT,
     toDurPct: isNumber(mid?.toDurPct) === true ? Number(mid.toDurPct) : DUR_TO_DEFAULT,
@@ -624,7 +639,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
       } catch (_) {}
 
       if (allowSeek === true) {
-        // Preview: duration-based στόχος με tail-guard ένδειξη
+        // Preview με PredictedTarget (clamp-αρισμένος) για συνέπεια με Execute
         try {
           const wm = _getWindowMeta(ctrl);
           if (wm.short === true) {
@@ -641,14 +656,34 @@ export function scheduleMidSeek(ctrl, overrideMs) {
 
             const padVideoPrev = Math.max(3, Math.floor((isNumber(dNow) ? dNow : 0) * 0.05));
             const videoEndSafePrev = Math.max(0, (isNumber(dNow) ? dNow : 0) - padVideoPrev);
-            const guardWTdynPrev = Math.max(10, Math.floor((isNumber(dNow) ? dNow : 0) * 0.02));
+
+            // Δυναμικός guard για Preview (ίδιος με execute)
+            let minGuardP = 10;
+            if (allTrue([dNow <= 600]) === true) {
+              minGuardP = 8;
+            } else {
+              if (allTrue([dNow > 7200]) === true) {
+                minGuardP = 15;
+              }
+            }
+            const guardByDPrev = Math.floor((isNumber(dNow) ? dNow : 0) * 0.03);
+            const guardByWTPrev = Math.floor(wm.wtTimeLeft * 0.12);
+            const guardBlendPrev = Math.min(guardByDPrev, guardByWTPrev);
+            const guardWTdynPrev = Math.max(minGuardP, guardBlendPrev);
+
             const maxTargetByWTPrev = Math.max(0, (isNumber(dNow) ? dNow : 0) - Math.max(0, wm.wtTimeLeft + guardWTdynPrev));
             const maxAllowedPreview = Math.min(videoEndSafePrev, maxTargetByWTPrev);
 
+            // startBoundPrev (όπως στο execute)
+            const initTargetPrev = Number(ctrl?.seekMeta?.initTargetSec ?? 0);
+            const startBoundPrev = Math.max(wm.cur, initTargetPrev);
+
+            const predictedTarget = clamp(targetPreview, Math.floor(startBoundPrev), Math.floor(maxAllowedPreview));
             const execLagMs = rndInt(0, 50);
             const countdownS = (execLagMs / 1000).toFixed(2);
+
             log(
-              `⏳ ${mID} Seek → Preview: Dur-based=${targetPreview}s; Clamp=videoEndSafe(${videoEndSafePrev}s) & Tail≤${Math.floor(maxAllowedPreview)}s; WTLeft=${Math.floor(
+              `⏳ ${mID} Seek → Preview: Predicted=${predictedTarget}s; Dur-based=${targetPreview}s; ClampTail≤${Math.floor(maxAllowedPreview)}s; WTLeft=${Math.floor(
                 wm.wtTimeLeft
               )}s; in ${countdownS}s`
             );
