@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v3.5.4';
+const VERSION = 'v3.5.6';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, init-seek, mid-seek scheduling).
  *
@@ -521,7 +521,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
     // Παράμετροι στόχου/τυχαιότητας/WT-scaling εάν ορίζονται στο plan
     if (isNumber(mid?.fromDurPct) === true) longmsg += ` FromDurPct=${_fmtPct(mid.fromDurPct)}`;
     if (isNumber(mid?.toDurPct) === true) longmsg = longmsg + ` ToDurPct=${_fmtPct(mid.toDurPct)}`;
-    if (isNumber(mid?.jitterPct) === true) longmsg = longmsg + ` JitterPct=${mid.jitterPct}`;
+    if (isNumber(mid?.jitterPct) === true) longmsg = longmsg + ` JitterPct=${_fmtPct(mid.jitterPct)}`;
     if (isNumber(mid?.wtAlphaMin) === true) longmsg = longmsg + ` WTαMin=${mid.wtAlphaMin}`;
     if (isNumber(mid?.wtAlphaMax) === true) longmsg = longmsg + ` WTαMax=${mid.wtAlphaMax}`;
     if (isNumber(mid?.wtAlphaK) === true) longmsg = longmsg + ` WTαK=${mid.wtAlphaK}`;
