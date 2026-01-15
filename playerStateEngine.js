@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v6.6.8';
+const VERSION = 'v6.7.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * CUED-only στρατηγική (READY‑centric)
@@ -266,10 +266,12 @@ function schedulePerVideoTasks(ctrl, durationNow, reason = 'playing') {
     restartPauseGuard(ctrl);
   } catch (_) {}
 
+  /* Εκτελείται από applyInitSeek
   // Mid-Seek (κύκλος βάσει plan/window)
   try {
     scheduleMidSeek(ctrl);
   } catch (_) {}
+   */
 }
 
 /* ========================= External API (wired από PlayerController) ========================= */
