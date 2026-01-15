@@ -1,5 +1,5 @@
 // --- playerLifecycle.js ---
-const VERSION = 'v1.6.6';
+const VERSION = 'v1.6.8';
 /*
  * Περιγραφή:
  * SSOT/DRY για κύκλο ζωής YouTube players με ισχυροποίηση origin/host.
@@ -159,7 +159,6 @@ export function resetFlags(ctrl) {
 
 /* ========================= Embed Meta Helpers (private) ========================= */
 function _resolveEmbedMeta(ctrl, label) {
-  const metaLog = makeLogger('playerLifecycle:meta');
   const mID = getPlayerScope(isDefined(ctrl?.index) === true ? ctrl.index : undefined);
 
   // Delegation στο SSoT module (HTTPS‑only origin, feature‑flag host)
@@ -167,14 +166,13 @@ function _resolveEmbedMeta(ctrl, label) {
   const status = meta.okOrigin === true ? 'ok' : 'omit-origin';
 
   try {
-    metaLog(`🔎 ${mID} EmbedMeta [${String(label)}] → origin=${String(meta.origin)}, host=${String(meta.host)} (${status})`);
+    log(`🔎 ${mID} EmbedMeta [${String(label)}] → origin=${String(meta.origin)}, host=${String(meta.host)} (${status})`);
   } catch (_) {}
 
   // Επιστρέφουμε συμβατή δομή για την υπόλοιπη ροή (ok ≙ origin valid)
   return { origin: meta.origin, host: meta.host, ok: meta.okOrigin === true ? true : false };
 }
 function _compareAndRememberEmbedMeta(ctrl, meta, label) {
-  const metaLog = makeLogger('playerLifecycle:meta');
   const mID = getPlayerScope(isDefined(ctrl?.index) === true ? ctrl.index : undefined);
 
   try {
@@ -190,7 +188,7 @@ function _compareAndRememberEmbedMeta(ctrl, meta, label) {
     // Προαιρετικό info όταν δεν άλλαξε
     if (changed !== true) {
       try {
-        metaLog(`ℹ️ ${mID} EmbedMeta stable [${String(label)}]`);
+        log(`ℹ️ ${mID} EmbedMeta stable [${String(label)}]`);
       } catch (_) {}
     }
   } catch (_) {}
@@ -294,8 +292,7 @@ export function promotePrewarm(ctrl) {
       const pw = ctrl._prewarm?._embedMeta;
       const metaMismatch = allTrue([isDefined(cur) === true, isDefined(pw) === true, String(cur.origin) !== String(pw.origin) || String(cur.host) !== String(pw.host) ? true : false]);
       if (metaMismatch === true) {
-        const metaLog = makeLogger('playerLifecycle:meta');
-        metaLog(`⚠️ ${mID} Prewarm meta differs → prewarm(origin=${String(pw.origin)}, host=${String(pw.host)}), last(origin=${String(cur.origin)}, host=${String(cur.host)})`);
+        log(`⚠️ ${mID} Prewarm meta differs → prewarm(origin=${String(pw.origin)}, host=${String(pw.host)}), last(origin=${String(cur.origin)}, host=${String(cur.host)})`);
       }
     } catch (_) {}
 
