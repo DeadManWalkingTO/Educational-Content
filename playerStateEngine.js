@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v6.6.4';
+const VERSION = 'v6.6.8';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * CUED-only στρατηγική (READY‑centric)
@@ -590,6 +590,10 @@ export function onStateChangeExternal(ctrl, e) {
       }
       log(`🟣 ${mID} → BUFFERING`);
       ctrl.lastBufferingStart = Date.now();
+      // Κλείσιμο τρέχοντος PLAYING παραθύρου στη μετάβαση σε BUFFERING
+      try {
+        calcWTimeEndPause(ctrl);
+      } catch (_) {}
     }
 
     /* ---------------------------- UNSTARTED ---------------------------- */
