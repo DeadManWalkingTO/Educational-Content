@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v4.6.4';
+const VERSION = 'v4.6.6';
 /*
  * Περιγραφή:
  * Συγκεντρώνει εκδόσεις όλων των modules και του HTML. Ελαφρύς renderer για panel/κείμενο,
@@ -40,6 +40,7 @@ import { getVersion as getWatchdogVersion } from './watchdog.js';
 import { getVersion as getWtBusVersion } from './wtBus.js';
 import { getVersion as getYoutubeReadyVersion } from './youtubeReady.js';
 import { getVersion as getPlayerLifecycleVersion } from './playerLifecycle.js';
+import { getVersion as getYoutubeEmbedMetaVersion } from './youtubeEmbedMeta.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -100,6 +101,7 @@ export function reportAllVersions() {
     WtBus: getWtBusVersion(),
     Containers: getContainersVersion(),
     PlayerLifecycle: getPlayerLifecycleVersion(),
+    YoutubeEmbedMeta: getYoutubeEmbedMetaVersion(),
     VersionReporter: VERSION,
   };
 

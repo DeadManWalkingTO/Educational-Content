@@ -1,5 +1,5 @@
 // --- playerController.js ---
-const VERSION = 'v10.4.10';
+const VERSION = 'v10.5.8';
 /*
  * Controller: λεπτό wrapper για YT events με delegation στο PlayerStateEngine.
  * Refactor (SSoT/pull-only):
@@ -10,14 +10,13 @@ const VERSION = 'v10.4.10';
 export function getVersion() {
   return VERSION;
 }
-
 /* ========================= Περιγραφή =========================
  *
  * Controller: λεπτό wrapper για YT events με delegation στο PlayerStateEngine.
  * Refactor (SSoT/pull-only):
  * - Αφαιρέθηκαν τα τοπικά this.mainList/this.altList (λίστες ανήκουν στο lists.js).
  * - Αφαιρέθηκε ο listener στο παλιό event 'lists:updated' (το μοντέλο είναι pull-only).
- * - Η υπογραφή του constructor παραμένει συμβατή (οι λίστες αγνοούνται),
+ * - Η υλοποίηση του constructor παραμένει συμβατή (οι λίστες αγνοούνται),
  *   ώστε παλιές κλήσεις να μη «σπάσουν».
  * - Διατηρούνται soft-task back-pressure meta, groups & helpers.
  */
@@ -30,7 +29,8 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { scheduleSafe, cancel, groupCancel, makeLogger, rndInt, allTrue, anyTrue, isNumber, isDefined, isFunction, safeAddEvent, getPlayerScope, secToMs } from './utils.js';
-import { getOrigin, getYouTubeEmbedHost, stats, MIN_WATCH_TIME } from './globals.js';
+import { buildPlayerVarsWithMeta } from './youtubeEmbedMeta.js';
+import { stats, MIN_WATCH_TIME } from './globals.js';
 import { getBehaviorPlan } from './policies.js';
 import { onStateChangeExternal, onReadyExternal, onErrorExternal } from './playerStateEngine.js';
 import { autoNextAfterError, autoNextAfterEnded } from './autoNext.js';
@@ -53,6 +53,7 @@ export class PlayerController {
     this.timers = { midSeek: null, pauseTimers: [], progressCheck: null };
     this.config = config;
     this.profileName = typeof config?.profileName === 'string' ? config.profileName : 'Unknown';
+
     // Accumulators / meta
     this.playingStart = null;
     this.currentRate = 1.0;
@@ -60,36 +61,48 @@ export class PlayerController {
     this.lastBufferingStart = null;
     this.lastPausedStart = null;
     this.expectedPauseMs = 0;
+
     // Seek defaults & meta
     this.seekDefaults = { minGapSec: 90, maxSeeks: 3, nearEndPct: 0.05, fromPct: 0.2, toPct: 0.6 };
     this.seekMeta = { lastMs: 0, count: 0 };
+
     // Behavior plan
     this.plan = null;
+
     // Volume meta
     this.volumeMeta = { scheduledIds: [], changesPlanned: 0 };
+
     // Unmute flags
     this.pendingUnmute = false; // πριν ήταν true — θα ρυθμιστεί στο READY βάσει isMuted()
     this.unmuteScheduled = false;
+
     // Watch-time & autonext state
     this.lastSeekAt = null;
     this.lastKnownCT = 0;
     this.watchtimeFired = false;
     this.autoNextScheduled = false;
+
     this.cooldowns = { seekMs: 1500, pauseMs: 800 };
     this.continuity = { minPlaySec: 4 };
+
     // Freeze soft tasks κοντά στο threshold
     this.freezeSoftTasks = false;
+
     // Soft-task back-pressure (ΝΕΑ ΠΕΔΙΑ)
     this.softTaskMinGapMs = 2500; // default min gap μεταξύ soft tasks
     this.lastSoftTaskMs = 0; // timestamp τελευταίας soft-task
     this.softFreezeUntilMs = 0; // freeze window μετά από AutoNext/READY
+
     // Public watch-time API (per-video)
     this.videoRequiredWatchTime = 0; // s
     this.videoTotalPlayTime = 0; // s (cache για UI/logs)
+
     // Initial play flag
     this.initialPlayScheduled = false;
-    // Defer AutoNext until ENDED
+
+    // Defer AutoNext μέχρι ENDED για μικρά βίντεο
     this.deferAutoNextUntilEnded = false;
+
     // Ready timestamp
     this.readyAt = null;
 
@@ -172,6 +185,7 @@ export class PlayerController {
         const partsP = [];
         partsP.push(isDefined(p) === true);
         if (allTrue(partsP) !== true) return;
+
         // Respect soft freeze + min gap για soft tasks
         try {
           const now = Date.now();
@@ -185,6 +199,7 @@ export class PlayerController {
             return;
           }
         } catch (_) {}
+
         // Pending unmute gate
         const pend = [];
         pend.push(this.pendingUnmute === true);
@@ -193,6 +208,7 @@ export class PlayerController {
           scheduleSafe(attempt, d, this._group(groupSuffix), `${tag}-retry-pending`);
           return;
         }
+
         // Muted gate
         const isM = [];
         isM.push(this._isMuted(p) === true);
@@ -201,6 +217,7 @@ export class PlayerController {
           scheduleSafe(attempt, d, this._group(groupSuffix), `${tag}-retry-muted`);
           return;
         }
+
         // Playing gate
         const partsPlay = [];
         partsPlay.push(this._isPlaying(p) === true);
@@ -210,6 +227,7 @@ export class PlayerController {
           scheduleSafe(attempt, d, this._group(groupSuffix), `${tag}-retry-not-playing`);
           return;
         }
+
         // Εκτέλεση
         try {
           taskFn();
@@ -223,16 +241,20 @@ export class PlayerController {
   init(videoId) {
     // Καθαρό baseline για inner-based recreate
     this._innerId = null;
-
     const mID = getPlayerScope(this.index);
     const containerId = `player${this.index + 1}`;
+
+    // === ΕΝΙΑΙΟ meta για host/origin (hardening μέσω SSoT) ===
+    const { pv, host } = buildPlayerVarsWithMeta();
+
     this.player = new YT.Player(containerId, {
       videoId,
-      host: getYouTubeEmbedHost(),
-      playerVars: { enablejsapi: 1, playsinline: 1, origin: getOrigin() },
+      host: host,
+      playerVars: pv, // origin μόνο αν είναι έγκυρο (αλλιώς παραλείπεται)
       events: { onReady: (e) => this.onReady(e), onStateChange: (e) => this.onStateChange(e), onError: () => this.onError() },
     });
-    log(`ℹ️ ${mID} YT PlayerVars → Origin: ${getOrigin()} / Host: ${getYouTubeEmbedHost()}`);
+
+    log(`ℹ️ ${mID} YT PlayerVars → Origin: ${String(pv.origin ?? '(omitted)')} / Host: ${host}`);
     log(`👤 ${mID} Initialized → Profile ${this.profileName} and ID=${videoId}`);
   }
 
@@ -241,7 +263,6 @@ export class PlayerController {
    * Χρήσιμο για Selective CUED ώστε να ξαναπεράσουμε από READY lifecycle “καθαρά”.
    * Hard destroy & DOM αντικατάσταση με νέο inner id.
    */
-
   recreatePlayer(newVideoId) {
     try {
       recreateWithPrewarm(this, newVideoId, { waitMinMs: playerPreWarmMinMS, waitMaxMs: playerPreWarmMaxMS });
@@ -251,9 +272,11 @@ export class PlayerController {
   onReady(e) {
     onReadyExternal(this, e);
   }
+
   onStateChange(e) {
     onStateChangeExternal(this, e);
   }
+
   onError(e) {
     onErrorExternal(this, e);
   }
@@ -265,7 +288,7 @@ export class PlayerController {
   }
 
   /**
-   * Συνεπές clearTimers: ακύρωση groups + συγκεκραμμένα timers.
+   * Συννέπεις clearTimers: ακύρωση groups + συγκεκραμμένα timers.
    */
   clearTimers() {
     try {
@@ -307,10 +330,12 @@ export class PlayerController {
     try {
       groupCancel(this._group('unmute'));
     } catch (_) {}
+
     try {
       for (const id of this.timers.pauseTimers) cancel(id);
     } catch (_) {}
     this.timers.pauseTimers = [];
+
     if (typeof this.timers.midSeek === 'number') {
       cancel(this.timers.midSeek);
       this.timers.midSeek = null;
@@ -319,6 +344,7 @@ export class PlayerController {
       cancel(this.timers.progressCheck);
       this.timers.progressCheck = null;
     }
+
     try {
       const hasArr = Array.isArray(this.volumeMeta?.scheduledIds);
       const partsArr = [];
@@ -328,6 +354,7 @@ export class PlayerController {
         this.volumeMeta.scheduledIds = [];
       }
     } catch (_) {}
+
     this.expectedPauseMs = 0;
   }
 
@@ -400,7 +427,6 @@ export class PlayerController {
     return total;
   }
 }
-
 /* Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 

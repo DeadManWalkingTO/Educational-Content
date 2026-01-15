@@ -1,5 +1,5 @@
 // --- utils.js ---
-const VERSION = 'v5.4.4';
+const VERSION = 'v5.4.6';
 /*
  * Περιγραφή: Ενιαίο module βοηθητικών συναρτήσεων (λογική, τύποι, χρόνος, μορφοποίηση, JSON, DOM, γεγονότα, logging, scheduler).
  * Αλλαγές: Προσθήκη κοινού helper whenPlayingAndUnmuted(player, ctrl, attemptTask, retryMinMs, retryMaxMs, group, tag)
@@ -364,6 +364,7 @@ const __SUBSYS_DATA = [
   { file: 'versionReporter.js', icon: '📦', tag: 'VR' },
   { file: 'watchdog.js', icon: '🐶', tag: 'WD' },
   { file: 'wtBus.js', icon: '🕰️', tag: 'MN' },
+  { file: 'youtubeEmbedMeta.js', icon: '🎥', tag: 'YR' },
   { file: 'youtubeReady.js', icon: '⭐', tag: 'YR' },
 ];
 

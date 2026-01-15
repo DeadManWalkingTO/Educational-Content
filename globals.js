@@ -1,11 +1,11 @@
 // --- globals.js ---
-const VERSION = 'v6.8.6';
+const VERSION = 'v6.14.2';
 /*
  * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, stop-all state, UI logging).
  * Σημείωση: Όλη η λογική/SSoT των λιστών έχει μεταφερθεί στο lists.js (pull-only getters).
- * Παραμένουν εδώ: counters, σταθερές εφαρμογής, helpers για YouTube origin/hosts, flags/χειρισμός StopAll, user-gesture, και UI (stats panel + activity panel binding).
+ * Παραμένουν εδώ: counters, σταθερές εφαρμογής, helpers για YouTube origin/hosts (πλέον delegated στο youtubeEmbedMeta.js),
+ * flags/χειρισμός StopAll, user-gesture, και UI (stats panel + activity panel binding).
  */
-
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
@@ -21,12 +21,21 @@ export function getVersion() {
 
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
-
-/* Εγκατάσταση Φόρτωσης Αρχείου */
+/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
 import { makeLogger, isDefined, cancel, secToMs, msToSec, anyTrue, allTrue, getPlayerScope } from './utils.js';
+
+/* SSoT για host/origin — delegation στο youtubeEmbedMeta.js */
+import {
+  setYouTubeEmbedMode as ssotSetYouTubeEmbedMode,
+  getYouTubeEmbedHost as ssotGetYouTubeEmbedHost,
+  getOriginForEmbed as ssotGetOriginForEmbed,
+  resolveEmbedMeta as ssotResolveEmbedMeta,
+  buildPlayerVarsWithMeta as ssotBuildPlayerVarsWithMeta,
+  compareEmbedMeta as ssotCompareEmbedMeta,
+} from './youtubeEmbedMeta.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -53,59 +62,6 @@ export const consoleFilterConfig = {
   tag: '[YouTubeAPI][non-critical]',
 };
 /* --- Console Filter (external) Early Install - End --- */
-
-/* --- YouTube API Helpers --- */
-
-/**
- * Επιστρέφει το πλήρες origin της τρέχουσας σελίδας (scheme + host + port, αν υπάρχει).
- * - Προτιμά window.location.origin.
- * - Αν λείπει, το συνθέτει από protocol/hostname/port.
- * - Fallback (dev): επιστρέφει ρητά 'https://localhost:4443' για συνέπεια με το περιβάλλον.
- */
-
-export function getOrigin() {
-  try {
-    // 1) Γρήγοροι έλεγχοι για πρόσβαση στο window/location
-    const winOk = allTrue([typeof window !== 'undefined', isDefined(window), isDefined(window.location)]);
-    if (winOk === true) {
-      // 2) Αν υπάρχει έτοιμο το origin, χρησιμοποίησέ το
-      if (isDefined(window.location.origin)) {
-        return String(window.location.origin);
-      }
-
-      // 3) Σύνθεση origin από protocol / hostname / port (όπου το origin μπορεί να μην υποστηρίζεται)
-      const protoOk = isDefined(window.location.protocol);
-      const hostOk = isDefined(window.location.hostname);
-
-      const canCompose = allTrue([protoOk === true, hostOk === true]);
-      if (canCompose === true) {
-        // protocol: περιλαμβάνει το ':'
-        const protocol = String(window.location.protocol || 'https:');
-        const hostname = String(window.location.hostname || 'localhost');
-        const portVal = isDefined(window.location.port) ? String(window.location.port) : '';
-
-        // Αν υπάρχει port και δεν είναι κενό, πρόσθεσέ το
-        const portPart = portVal.length > 0 ? `:${portVal}` : '';
-
-        return `${protocol}//${hostname}${portPart}`;
-      }
-    }
-  } catch (_) {
-    // no-op → θα πέσουμε στο fallback
-  }
-
-  // 4) Ρητό, σταθερό fallback για dev ώστε να μην αλλάζει το origin αθόρυβα
-  //    Προσαρμόσ’ το αν αλλάξει το τοπικό port.
-  return 'https://localhost:4443';
-}
-
-export function getYouTubeEmbedHost() {
-  // Δομημένη επιλογή (switch-case) — κρατάμε ασφαλές default.
-  switch ('default') {
-    default:
-      return 'https://www.youtube.com';
-  }
-}
 
 /* --- Στατιστικά για την εφαρμογή --- */
 export const stats = {
@@ -166,7 +122,7 @@ export function clearStopTimers() {
       /* no-op */
     }
   }
-  log(`🧯 ${mID} Stop Timers → Cleared`);
+  log(`🧽 ${mID} Stop Timers → Cleared`);
 }
 
 /* --- User gesture flag --- */
@@ -250,7 +206,6 @@ if (typeof document !== 'undefined') {
       }
       panel.scrollTop = panel.scrollHeight;
     }
-
     // Stats update (ως έχει)
     try {
       updateStats();
@@ -258,7 +213,7 @@ if (typeof document !== 'undefined') {
   });
 }
 
-/* Ολοκλήρωση Φόρτωσης Αρχείου */
+/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---
