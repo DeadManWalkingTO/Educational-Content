@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v2.15.4';
+const VERSION = 'v3.1.10';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, mid-seek scheduler, init-seek).
  * - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
@@ -33,7 +33,9 @@ import { stats } from './globals.js';
 const log = makeLogger(FILENAME);
 
 /* ========================= Settings ========================= */
-const ShortGuard = 75; // δευτερόλεπτα
+const ShortGuard = 75; // Τι θεωρούμε Μικρό Βίντεο (Διάρκεια σε Δευτερόλεπτα)
+const fromPct = 0.8; // Από 80% της Συνολικής Διάρκειας
+const toPct = 0.95; // Έως 95% της Συνολικής Διάρκειας
 
 /* ========================= Helpers (Group Resolve) ========================= */
 function resolveGroup(ctrl, suffix, fallback) {
@@ -221,11 +223,18 @@ export function applyInitSeek(ctrl, targetSec) {
 }
 
 /* ========================= Mid-Seek Core ========================= */
-/** Εσωτερικό: ένα mid-seek εντός WT-window (όπως πριν), με ενημέρωση soft-task timestamp. */
-
+/**
+ * Εκτελεί ένα mid-seek:
+ * - Στόχευση πάνω στη ΔΙΑΡΚΕΙΑ (80–90% του D) — όχι WT-based.
+ * - Clamp εκτέλεσης ΜΟΝΟ στο videoEndSafe (D - pad), ΟΧΙ στο WT_end.
+ * - Χρονικό gate: προχωράμε μόνο αν wm.timeLeft > 0 (να προλάβει πριν λήξει το WT).
+ * - State gate: μόνο όταν ο player είναι PLAYING ή PAUSED (retry αλλιώς).
+ * - Soft/Gap/Max guards παραμένουν εκτός (στον scheduler).
+ */
 function _doMidSeekOnce(ctrl) {
   const mID = getPlayerScope(ctrl?.index);
   try {
+    // --- Guards & metas ---
     const p = ctrl.player;
     const exists = allTrue([typeof p !== 'undefined', p !== null]);
     if (exists !== true) return;
@@ -233,50 +242,47 @@ function _doMidSeekOnce(ctrl) {
     const canDur = allTrue([isFunction(p?.getDuration) === true]);
     const dur = canDur === true ? p.getDuration() : 0;
 
-    const wm = _getWindowMeta(ctrl); // dur, wt, windowSec, nearEndPct, cur, ...
+    const wm = _getWindowMeta(ctrl); // dur, wt, windowSec, nearEndPct, cur, timeLeft, short, ...
     const partsW = [];
     partsW.push(isNumber(wm?.windowSec) === true);
     partsW.push(wm.windowSec > 0);
     const wOk = allTrue(partsW);
     if (wOk !== true) return;
 
-    // Short window
+    // Short window / late (χρονικό gate μόνο)
     const isShort = anyTrue([wm.windowSec < ShortGuard]);
     if (isShort === true) return;
+    const late = allTrue([isNumber(wm.timeLeft) === true, wm.timeLeft <= 0]);
+    if (late === true) return; // αν δεν υπάρχει χρόνος πριν λήξει το WT, μην εκτελέσεις άλλο seek
 
-    // Past near-end (WT)
-    const nearEndPct = isNumber(ctrl?.seekDefaults?.nearEndPct) === true ? ctrl.seekDefaults.nearEndPct : 0.05;
-    const WT_end = wm.windowSec * (1 - nearEndPct);
-    const pastNearEnd = allTrue([wm.cur > WT_end]);
-    if (pastNearEnd === true) return;
-
-    // Duration-based raw target
-    const fromPct = isNumber(ctrl?.seekDefaults?.fromPct) === true ? ctrl.seekDefaults.fromPct : 0.2;
-    const toPct = isNumber(ctrl?.seekDefaults?.toPct) === true ? ctrl.seekDefaults.toPct : 0.6;
+    // --- Στόχευση στη ΔΙΑΡΚΕΙΑ: 80–90% ---
+    // Αν θες να το κάνεις per-profile/bucket, μπορείς να το μεταφέρεις στο plan.
     const fromDur = Math.floor(dur * fromPct);
     const toDur = Math.floor(dur * toPct);
     let targetRaw = rndInt(fromDur, toDur);
 
-    // Clamp όρια
+    // --- Clamp μόνο στο videoEndSafe (D - pad), ΟΧΙ στο WT_end ---
     const padVideo = Math.max(3, Math.floor(dur * 0.05));
     const videoEndSafe = Math.max(0, dur - padVideo);
-    const finalAllowed = Math.min(videoEndSafe, WT_end);
+
+    // Start boundary: ποτέ πίσω από το ήδη παιγμένο/αρχικό init-seek
     const initTarget = Number(ctrl?.seekMeta?.initTargetSec ?? 0);
     const startBound = Math.max(wm.cur, initTarget);
 
-    // Last/near-last lock
+    // Near/last lock για σταθερό "κλείδωμα" κοντά στο τέλος της διάρκειας
     const remainSeeks = Math.max(0, Number(ctrl?.seekDefaults?.maxSeeks) - (ctrl?.seekMeta?.count ?? 0));
     const minGapSec = Math.max(0, Number(ctrl?.seekDefaults?.minGapSec));
-    const epsilon = 2;
-    const budget = Math.max(0, Math.floor(finalAllowed) - Math.floor(startBound));
-    const nearLast = anyTrue([remainSeeks <= 1, budget <= Math.max(minGapSec + epsilon, 5)]);
+    const epsilon = 5; // λίγο μεγαλύτερο pad για να μη "γλείφουμε" το τέλος της διάρκειας
+    const finalAllowed = videoEndSafe;
+    const budgetDur = Math.max(0, Math.floor(finalAllowed) - Math.floor(startBound));
+    const nearLast = anyTrue([remainSeeks <= 1, budgetDur <= Math.max(minGapSec + epsilon, 5)]);
     if (nearLast === true) {
       targetRaw = Math.max(Math.floor(startBound), Math.floor(finalAllowed - epsilon));
     }
 
     const target = clamp(targetRaw, Math.floor(startBound), Math.floor(finalAllowed));
 
-    // Gate: PLAYING ή PAUSED
+    // --- State gate: μόνο PLAYING ή PAUSED (retry αν όχι) ---
     const canNow = _isPlayingOrPaused(p) === true;
     if (canNow !== true) {
       const retryMs = rndInt(500, 1200);
@@ -293,10 +299,11 @@ function _doMidSeekOnce(ctrl) {
       return;
     }
 
-    // Execute
+    // --- Εκτέλεση ---
     safeSeek(ctrl, target);
-    log(`⏩ ${mID} Seek → Executed: Mid (Raw=${targetRaw}s → Target=${target}s, WT_end=${Math.floor(WT_end)}s)`);
+    log(`⏩ ${mID} Seek → Executed: Mid (Raw=${targetRaw}s → Target=${target}s, Clamp=videoEndSafe=${Math.floor(finalAllowed)}s)`);
 
+    // --- Μετρητές / soft-task timestamp ---
     const now = Date.now();
     ctrl.seekMeta.lastMs = now;
     ctrl.seekMeta.count = (ctrl.seekMeta.count ?? 0) + 1;
@@ -318,8 +325,11 @@ function _doMidSeekOnce(ctrl) {
  * - Gate εκτέλεσης σε PLAYING ή PAUSED (όχι BUFFERING) + μικρό retry όταν δεν επιτρέπεται.
  * - Preview duration-based (ευθυγραμμισμένο με _doMidSeekOnce).
  * - Budget check πριν το επόμενο schedule (early stop όταν δεν “χωράει”).
+ * Ειδικά για τη νέα λογική:
+ * - Preview: duration-based (80–90% της ΔΙΑΡΚΕΙΑΣ) + ένδειξη Clamp=videoEndSafe.
+ * - Gate εκτέλεσης: PLAYING ή PAUSED (όχι BUFFERING) + μικρό retry.
+ * - Budget check: ΜΟΝΟ χρονικό (wm.timeLeft ≥ minGapSec) πριν από κάθε re-schedule.
  */
-
 export function scheduleMidSeek(ctrl, overrideMs) {
   const mID = getPlayerScope(ctrl?.index);
   const mid = ctrl.plan?.midSeek;
@@ -329,7 +339,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
     return;
   }
 
-  // Plan log annotation
+  // Plan log annotation (κρατάμε τα policy metas για minGap/maxSeeks/nearEnd/interval)
   try {
     let longmsg = '';
     longmsg = ` IntervalMs=${mid.intervalMs} MinGapSec=${mid.minGapSec} MaxSeeks=${mid.maxSeeks}`;
@@ -346,27 +356,27 @@ export function scheduleMidSeek(ctrl, overrideMs) {
     }
   } catch {}
 
-  // Defaults από το plan
+  // Defaults από το plan (κρατάμε minGap/maxSeeks/nearEnd/interval)
   ctrl.seekDefaults = {
     minGapSec: Number(mid.minGapSec),
     maxSeeks: Number(mid.maxSeeks),
     nearEndPct: Number(mid.nearEndPct),
-    fromPct: Number(mid.fromPct),
+    fromPct: Number(mid.fromPct), // δεν χρησιμοποιούμε για στόχευση, αλλά δεν πειράζει που αποθηκεύονται
     toPct: Number(mid.toPct),
   };
   const intervalMs = Number(mid.intervalMs);
 
-  // Diagnostic meta (πριν την απόφαση για delay)
+  // Διαγνωστικά πριν το delay
   let wmFirst = null;
   try {
     wmFirst = _getWindowMeta(ctrl);
     log(`ℹ️ ${mID} Seek → Info: Mid-Seek Meta (Cur=${Math.floor(wmFirst.cur)}s, NearEnd=${Math.floor(wmFirst.nearEndSec)}s, TimeLeft=${Math.floor(wmFirst.timeLeft)}s)`);
   } catch (_) {}
 
-  // Late/short stop (αν short ή timeLeft ≤ 0 → δεν κάνουμε fallback σε intervalMs)
+  // Late/short stop: αν είναι short ή δεν υπάρχει timeLeft, μην χρονοπρογραμματίσεις
   try {
     const isShort = wmFirst !== null ? wmFirst.short === true : false;
-    const isLate = wmFirst !== null ? isNumber(wmFirst.timeLeft) === true && wmFirst.timeLeft <= 0 : false;
+    const isLate = wmFirst !== null ? allTrue([isNumber(wmFirst.timeLeft) === true, wmFirst.timeLeft <= 0]) : false;
     const shouldStop = anyTrue([isShort === true, isLate === true]);
     if (shouldStop === true) {
       let reasonTag = '-';
@@ -386,7 +396,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
     }
   } catch (_) {}
 
-  // Επιλογή delay: override, adaptive first, fallback στο interval
+  // Επιλογή delay: override, adaptive first, ή fallback στο interval
   let delayMs = 0;
   const hasOverride = allTrue([isNumber(overrideMs) === true, overrideMs > 0]);
   if (hasOverride === true) {
@@ -400,7 +410,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
     log(`⏳ ${mID} Seek → Scheduled: Mid-Seek In ${(delayMs / 1000).toFixed(2)}s`);
   } catch (_) {}
 
-  // --- Timer Handler ---
+  // --- Timer handler ---
   ctrl.timers.midSeek = scheduleSafe(
     function () {
       const p = ctrl.player;
@@ -410,7 +420,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
         dNow = p.getDuration();
       }
 
-      // (A) Gate: PLAYING ή PAUSED (όχι μόνο PLAYING) — μικρό retry αν δεν επιτρέπεται
+      // Gate: PLAYING ή PAUSED (όχι BUFFERING) — retry αν όχι
       const canSeekNow = allTrue([dNow > 0, _isPlayingOrPaused(p) === true]);
       log(`▶️ ${mID} Seek → Executed: Mid-Seek (Dur=${Math.floor(dNow)}s, Allowed=${canSeekNow})`);
       if (canSeekNow !== true) {
@@ -428,7 +438,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
         return;
       }
 
-      // Soft gate + Gap/Max guards (όπως πριν)
+      // Soft gate + Gap/Max guards (όπως έχεις)
       const now = Date.now();
       const softOK = allTrue([now >= (ctrl?.softFreezeUntilMs ?? 0), now - (ctrl?.lastSoftTaskMs ?? 0) >= (ctrl?.softTaskMinGapMs ?? 0)]);
       let blockByGap = false;
@@ -451,50 +461,40 @@ export function scheduleMidSeek(ctrl, overrideMs) {
       } catch (_) {}
 
       if (allowSeek === true) {
-        // (B) Preview: duration-based (ευθυγραμμισμένο με _doMidSeekOnce)
+        // Preview: στόχος στη ΔΙΑΡΚΕΙΑ (80–90%) + ένδειξη Clamp=videoEndSafe
         try {
           const wm = _getWindowMeta(ctrl);
           if (wm.short === true) {
             log(`⚠️ ${mID} Seek → Warning: Mid-Seek — Skip=ShortWindow (Window=${Math.floor(wm.windowSec)}s)`);
-          } else if (wm.pastNearEnd === true) {
-            log(`⚠️ ${mID} Seek → Warning: Mid-Seek — Skip=PastNearEnd (Cur=${Math.floor(wm.cur)}s, Guard=${Math.floor(wm.nearEndSec)}s)`);
+          } else if (allTrue([isNumber(wm.timeLeft) === true, wm.timeLeft <= 0]) === true) {
+            log(`⚠️ ${mID} Seek → Warning: Mid-Seek — Skip=Late (TimeLeft=${Math.floor(wm.timeLeft)}s)`);
           } else {
-            const fromPct = isNumber(ctrl?.seekDefaults?.fromPct) === true ? ctrl.seekDefaults.fromPct : 0.2;
-            const toPct = isNumber(ctrl?.seekDefaults?.toPct) === true ? ctrl.seekDefaults.toPct : 0.6;
-            const fromDur = Math.floor(dNow * fromPct);
-            const toDur = Math.floor(dNow * toPct);
+            const fromDur = Math.floor(dNow * 0.8);
+            const toDur = Math.floor(dNow * 0.9);
             const targetPreview = rndInt(fromDur, toDur);
-            const WT_end_prev = Math.floor(wm.windowSec * (1 - (ctrl.seekDefaults?.nearEndPct ?? 0.05)));
+            const padVideoPrev = Math.max(3, Math.floor((isNumber(dNow) ? dNow : 0) * 0.05));
+            const videoEndSafePrev = Math.max(0, (isNumber(dNow) ? dNow : 0) - padVideoPrev);
             const execLagMs = rndInt(0, 50);
             const countdownS = (execLagMs / 1000).toFixed(2);
-            log(`⏳ ${mID} Seek → Preview: Dur-based=${targetPreview}s; WT_end=${WT_end_prev}s; in ${countdownS}s`);
+            log(`⏳ ${mID} Seek → Preview: Dur-based=${targetPreview}s; Clamp=videoEndSafe(${videoEndSafePrev}s); in ${countdownS}s`);
           }
         } catch (_) {}
 
-        // Εκτέλεση μία φορά (duration-based → clamp σε WT/video near-end)
+        // Εκτέλεση (duration-based → clamp μόνο στο video end pad)
         _doMidSeekOnce(ctrl);
       }
 
-      // --- (C) ΠΡΙΝ ξανα-προγραμματίσουμε: Budget check (early stop) ---
+      // --- Time-based budget check ΠΡΙΝ το re-schedule ---
       ctrl.timers.midSeek = null;
-
       const wm2 = _getWindowMeta(ctrl);
-      const WT_end2 = wm2.windowSec * (1 - Number(ctrl.seekDefaults?.nearEndPct ?? 0.05));
-      const padVideo2 = Math.max(3, Math.floor((isNumber(dNow) === true ? dNow : 0) * 0.05));
-      const videoEndSafe2 = Math.max(0, (isNumber(dNow) === true ? dNow : 0) - padVideo2);
-      const finalAllowed2 = Math.min(videoEndSafe2, WT_end2);
-      const initT2 = Number(ctrl?.seekMeta?.initTargetSec ?? 0);
-      const startBound2 = Math.max(wm2.cur, initT2);
-      const budgetSec = Math.max(0, Math.floor(finalAllowed2) - Math.floor(startBound2));
       const minNeedSec = Math.max(Number(ctrl.seekDefaults.minGapSec), 5);
-
-      const enough = allTrue([budgetSec >= minNeedSec]);
-      if (enough !== true) {
-        log(`ℹ️ ${mID} Seek → Info: Mid-Seek Stop (Reason=insufficient budget; Budget=${budgetSec}s, Need≥${minNeedSec}s)`);
+      const enoughTime = allTrue([isNumber(wm2.timeLeft) === true, wm2.timeLeft >= minNeedSec]);
+      if (enoughTime !== true) {
+        log(`ℹ️ ${mID} Seek → Info: Mid-Seek Stop (Reason=insufficient timeLeft; TimeLeft=${Math.floor(wm2.timeLeft)}s, Need≥${minNeedSec}s)`);
         return;
       }
 
-      // Adaptive re-schedule (όπως πριν)
+      // Adaptive re-schedule (WT-aware όπως πριν)
       let nextDelayMs = _computeNextDelayMs(ctrl, intervalMs);
       const hasNext = allTrue([isNumber(nextDelayMs) === true, nextDelayMs > 0]);
       if (hasNext === true) {
