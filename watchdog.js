@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v1.19.2';
+const VERSION = 'v1.20.2';
 /*
  * Περιγραφή: Watchdog για "required watch time" ανά PlayerController.
  * - Ασφαλή groups με resolveGroup().
@@ -25,7 +25,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { repeat, cancel, makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, nowMs, msToSec, fmtMs, scheduleSafe, getPlayerScope, isSchedulerHalted } from './utils.js';
+import { repeat, cancel, makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, nowMs, msToSec, fmtMs, scheduleSafe, getPlayerScope, isSchedulerHalted, secToMs } from './utils.js';
 import { controllers, stats, isStopping, WATCHDOG_BUFFERING_RULE_MS } from './globals.js';
 import { autoNextAfterEnded, autoNextAfterWatchtime } from './autoNext.js';
 import { onWatchtimeReached } from './wtBus.js';
@@ -38,6 +38,7 @@ let watchdogTimerId = null;
 const wtSeen = {}; // WTBus cache (index → lastMs)
 const WT_FALLBACK_GRACE_MS = 8000;
 let wtBusDisposer = null;
+const playerMaxReadyAgeMS = secToMs(30);
 
 /* ========================= Helpers ========================= */
 function resolveGroup(ctrl, suffix, fallback) {
@@ -212,7 +213,7 @@ function checkController(ctrl) {
       log(`⏭️ ${mID} WD: Small-Video Mode → Skip AutoNext (WT/fallback) Until ENDED`);
       return;
     }
-    /* READY for >10s without PLAYING → retry guardPlay once per check */
+    /* READY for > playerMaxReadyAgeMS without PLAYING → retry guardPlay once per check */
     try {
       const parts = [];
       parts.push(isNumber(ctrl?.readyAt) === true);
@@ -220,7 +221,7 @@ function checkController(ctrl) {
       const canCheckReady = allTrue(parts);
       if (canCheckReady === true) {
         const age = nowMs() - ctrl.readyAt;
-        if (allTrue([age >= 10000]) === true) {
+        if (allTrue([age >= playerMaxReadyAgeMS]) === true) {
           try {
             ctrl.guardPlay(ctrl.player);
           } catch (_) {}
@@ -288,7 +289,7 @@ function checkController(ctrl) {
     }
   }
 
-  /* === ΝΕΟΣ ΚΑΝΟΝΑΣ: Buffering > WATCHDOG_BUFFERING_RULE_MS λεπτά === */
+  /* === ΝΕΟΣ ΚΑΝΟΝΑΣ: Buffering > WATCHDOG_BUFFERING_RULE_MS === */
   try {
     const p = ctrl?.player;
     const parts = [];
