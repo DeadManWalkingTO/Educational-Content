@@ -1,5 +1,5 @@
 // --- youtubeEmbedMeta.js ---
-const VERSION = 'v1.0.4';
+const VERSION = 'v1.0.8';
 /*
  * Περιγραφή:
  * SSoT / pull-only / DRY για YouTube embed meta (host + origin).
@@ -59,7 +59,7 @@ export function setYouTubeEmbedMode(mode) {
   const isStd = allTrue([m === 'standard']);
   const isNoCookie = allTrue([m === 'nocookie']);
 
-  // allowed = isStd OR isNoCookie (χωρίς ||) → anyTrue
+  // allowed = isStd OR isNoCookie → anyTrue
   const allowed = anyTrue([isStd === true, isNoCookie === true]);
   if (allowed !== true) {
     return;
@@ -159,7 +159,6 @@ export function getOriginForEmbed() {
 }
 
 /* ========================= SSoT (pull-only) API ========================= */
-const metaLog = makeLogger('youtubeEmbedMeta:ssot');
 const USE_EMBED_CACHE = true;
 let _EMBED_CACHE = null;
 /**
@@ -193,7 +192,7 @@ export function resolveEmbedMeta() {
   const meta = { origin, host, okOrigin };
   try {
     const status = okOrigin === true ? 'ok' : 'omit-origin';
-    metaLog(`🔎 ${mID} EmbedMeta → origin=${String(origin)}, host=${String(host)} (${status})`);
+    log(`🔎 ${mID} EmbedMeta → origin=${String(origin)}, host=${String(host)} (${status})`);
   } catch (_) {}
 
   if (USE_EMBED_CACHE === true) {
@@ -236,7 +235,7 @@ export function compareEmbedMeta(prev, next, tag = '') {
     if (changed === true) {
       const hasTag = allTrue([isString(tag) === true, tag.length > 0]);
       const suffix = hasTag === true ? ` [${tag}]` : '';
-      metaLog(`⚠️ ${mID} EmbedMeta changed${suffix} → prev(origin=${String(prev.origin)}, host=${String(prev.host)}) → now(origin=${String(next.origin)}, host=${String(next.host)})`);
+      log(`⚠️ ${mID} EmbedMeta changed${suffix} → prev(origin=${String(prev.origin)}, host=${String(prev.host)}) → now(origin=${String(next.origin)}, host=${String(next.host)})`);
     }
     return changed;
   } catch (_) {
