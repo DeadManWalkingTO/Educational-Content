@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-const VERSION = 'v5.5.2';
+const VERSION = 'v6.2.2';
 /*
  * Κεντρικό χειριστήριο UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
  * Refactor: Το reloadList() καλεί μόνο lists.reloadAndApply() (pull-only, χωρίς events/meta).
@@ -44,6 +44,7 @@ import {
 } from './utils.js';
 import { reloadAndApply } from './lists.js';
 import { initPlayersSequentially } from './humanMode.js';
+import { getContainerId, purgeContainer, hardDestroy, resetFlags, fullCleanControllerStrict } from './playerLifecycle.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -115,43 +116,66 @@ function playersStopAndClean(MinDelayMS = 30000, MaxDelayMS = 60000) {
   const mID = getPlayerScope();
   setIsStopping(true);
   clearStopTimers();
+
+  // Πάρε ασφαλές αντίγραφο (reverse) των controllers
   const reversed = Array.isArray(controllers) ? controllers.slice().reverse() : [];
   let totalDelay = 0;
+
   let i = 0;
   while (i < reversed.length) {
     const c = reversed[i];
-    const mIDc = getPlayerScope(c.index);
+    const hasIndexParts = [];
+    hasIndexParts.push(isDefined(c?.index) === true);
+    const hasIndex = allTrue(hasIndexParts);
+    const mIDc = getPlayerScope(hasIndex === true ? c.index : '?');
+
+    // Τυχαία καθυστέρηση ανά controller για ρεαλιστικό stop
     const randomDelay = rndInt(MinDelayMS, MaxDelayMS);
     totalDelay = totalDelay + randomDelay;
+
     const id = scheduleSafe(
       () => {
-        if (isDefined(c?.player)) {
+        try {
+          // SSOT: πλήρης καθαρισμός ανά controller
+          fullCleanControllerStrict(c);
+
+          // Logging: πληροφοριακά πόσοι κόμβοι υπήρχαν (προαιρετικό diagnostic)
           try {
-            c.clearTimers();
-            if (isFunction(c.player.stopVideo)) c.player.stopVideo();
-            if (isFunction(c.player.destroy)) c.player.destroy();
-            c.player = null;
-            c.initialPlayScheduled = false;
-            c.autoNextScheduled = false;
-            c.watchtimeFired = false;
-            c.playingStart = null;
-            c.currentRate = 1.0;
-            c.freezeSoftTasks = false;
-            log(`🔴 ${mIDc} Stop → Destroyed & Reset`);
-          } catch {
-            log(`❌ ${mIDc} Error → Stop Destroy/Reset`);
+            const cid = getContainerId(c);
+            const parent = typeof document !== 'undefined' ? document.getElementById(cid) : null;
+            const hasParentParts = [];
+            hasParentParts.push(isDefined(parent) === true);
+            const hasParent = allTrue(hasParentParts);
+            if (hasParent === true) {
+              const count = parent.childNodes ? parent.childNodes.length : 0;
+              log(`🔴 ${mIDc} Stop → Destroyed, Purged(#${cid} children=${count}) & Reset`);
+            } else {
+              log(`🔴 ${mIDc} Stop → Destroyed, Purged(?), Reset (no container)`);
+            }
+          } catch (_) {
+            log(`🔴 ${mIDc} Stop → Destroyed, Purged(?), Reset (diagnostic failed)`);
           }
-        } else {
-          log(`❌ ${mIDc} Error → Stop Skipped: Not Initialized`);
+        } catch (_) {
+          log(`❌ ${mIDc} Error → Stop Destroy/Reset`);
         }
       },
       totalDelay,
       'stopall',
       `stopall-hard-${i + 1}`
     );
-    if (id > 0) pushStopTimer(id);
+
+    try {
+      const idOkParts = [];
+      idOkParts.push(Number(id) > 0);
+      const idOk = allTrue(idOkParts);
+      if (idOk === true) {
+        pushStopTimer(id);
+      }
+    } catch (_) {}
+
     i = i + 1;
   }
+
   enableSchedulerHalt();
   log(`🚨 ${mID} Stop Scheduled → ${reversed.length} Players — Συνολική Εκτίμηση ~${Math.round(totalDelay / 1000)}s`);
 }
@@ -160,82 +184,11 @@ export function playersCleanStats() {
   let destroyedCount = 0;
   controllers.forEach((c) => {
     try {
-      const mIDc = getPlayerScope(isDefined(c?.index) === true ? c.index : '?');
-      if (isFunction(c?.clearTimers) === true) {
-        try {
-          c.clearTimers();
-        } catch (_) {}
-      }
-      let didDestroy = false;
-      if (isDefined(c?.player) === true) {
-        try {
-          if (isFunction(c.player?.stopVideo) === true) {
-            c.player.stopVideo();
-          }
-          if (isFunction(c.player?.destroy) === true) {
-            c.player.destroy();
-            didDestroy = true;
-          }
-        } catch (_) {}
-      }
-      if (didDestroy === true) {
-        destroyedCount = destroyedCount + 1;
-        log(`🧹 ${mIDc} [Clean] Destroyed YT Player`);
-      } else {
-        log(`⚠️ ${mIDc} [Clean] Destroy Skipped → Player Not Initialized`);
-      }
-      try {
-        c.player = null;
-      } catch (_) {}
-      try {
-        c.initialPlayScheduled = false;
-      } catch (_) {}
-      try {
-        c.autoNextScheduled = false;
-      } catch (_) {}
-      try {
-        c.watchtimeFired = false;
-      } catch (_) {}
-      try {
-        c.playingStart = null;
-      } catch (_) {}
-      try {
-        c.readyAt = null;
-      } catch (_) {}
-      try {
-        c.currentRate = 1.0;
-      } catch (_) {}
-      try {
-        c.freezeSoftTasks = false;
-      } catch (_) {}
-      try {
-        c.lastSeekAt = null;
-      } catch (_) {}
-      try {
-        c.lastPausedStart = null;
-      } catch (_) {}
-      log(`✅ ${mIDc} Clean → Reset Flags & State`);
-    } catch (err) {
-      const mIDc = getPlayerScope('?');
-      log(`❌ ${mIDc} Error → PlayersCleanStats: ${String(err)}`);
-    }
-
-    try {
-      // Αφαίρεση πιθανού inner wrapper που έχει κρατήσει ο controller
-      const hasInner = isDefined(c?._innerId) === true;
-      if (hasInner === true) {
-        const el = document.getElementById(c._innerId);
-        const canRemove = isDefined(el) === true;
-        if (canRemove === true) {
-          el.remove();
-        }
-        try {
-          c._innerId = null;
-        } catch (_) {}
-      }
+      fullCleanControllerStrict(c);
+      destroyedCount = destroyedCount + 1;
     } catch (_) {}
   });
-  log(`🚨 PlayersCleanStats → Destroyed=${destroyedCount}`);
+  log('🚨 PlayersCleanStats → Destroyed=' + String(destroyedCount));
   return destroyedCount;
 }
 

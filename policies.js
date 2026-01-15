@@ -1,8 +1,8 @@
 // --- policies.js ---
-const VERSION = 'v1.28.2';
+const VERSION = 'v2.2.4';
 /*
  * Περιγραφή: Module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
- *
+ * Behavior Profiles (SSOT)
  *
  */
 
@@ -12,6 +12,9 @@ export function getVersion() {
 }
 
 /* ========================= Περιγραφή =========================
+ *
+ * Περιγραφή: Module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
+ * Behavior Profiles (SSOT)
  *
  */
 
@@ -528,6 +531,73 @@ function _defaultPlan() {
       playingGraceMsRange: [1500, 3000],
     },
   };
+}
+
+/* === Behavior Profiles (SSOT) === */
+const BEHAVIOR_PROFILES = [
+  { name: 'Explorer', pauseChance: 0.5, qualityChangeChance: 0.35, volumeChangeChance: 0.35, rateChangeChanceShort: 0.18, rateChangeChanceLong: 0.22 },
+  { name: 'Casual', pauseChance: 0.3, qualityChangeChance: 0.3, volumeChangeChance: 0.25, rateChangeChanceShort: 0.12, rateChangeChanceLong: 0.15 },
+  { name: 'Focused', pauseChance: 0.2, qualityChangeChance: 0.2, volumeChangeChance: 0.2, rateChangeChanceShort: 0.08, rateChangeChanceLong: 0.1 },
+];
+
+export function getProfile(name) {
+  let n = 'casual';
+  try {
+    n = String(name ?? '').toLowerCase();
+  } catch (_) {}
+  let i = 0;
+  while (i < BEHAVIOR_PROFILES.length) {
+    const p = BEHAVIOR_PROFILES[i];
+    const isMatch = String(p.name ?? '').toLowerCase() === n;
+    if (isMatch === true) return p;
+    i = i + 1;
+  }
+  return BEHAVIOR_PROFILES[1]; // Casual (default)
+}
+
+export function createSessionConfig(profileName) {
+  const p = getProfile(profileName);
+  // Τυχαίο εύρος έντασης (σε %)
+  let v1 = rndInt(5, 15);
+  let v2 = rndInt(20, 40);
+  // clamp/swap
+  v1 = Math.max(0, Math.min(100, v1));
+  v2 = Math.max(0, Math.min(100, v2));
+  const needSwap = [v1 > v2];
+  if (allTrue(needSwap) === true) {
+    const t = v1;
+    v1 = v2;
+    v2 = t;
+  }
+  return {
+    profileName: p.name,
+    volumeRange: [v1, v2],
+    pauseChance: p.pauseChance,
+    qualityChangeChance: p.qualityChangeChance,
+    volumeChangeChance: p.volumeChangeChance,
+    rateChangeChanceShort: p.rateChangeChanceShort,
+    rateChangeChanceLong: p.rateChangeChanceLong,
+  };
+}
+
+export function logProfile(pidx, profileLike) {
+  const mID = getPlayerScope(pidx);
+  let name = 'casual';
+  try {
+    const raw = String(profileLike?.name ?? '').toLowerCase();
+    name = raw.length > 0 ? raw : 'casual';
+  } catch (_) {}
+  switch (name) {
+    case 'explorer':
+      log('🧭 ' + mID + ' Προφίλ → Explorer');
+      break;
+    case 'focused':
+      log('🎯 ' + mID + ' Προφίλ → Focused');
+      break;
+    default:
+      log('🙂 ' + mID + ' Προφίλ → Casual');
+      break;
+  }
 }
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
