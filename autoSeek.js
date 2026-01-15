@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v2.14.2';
+const VERSION = 'v2.15.4';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, mid-seek scheduler, init-seek).
  * - Προστέθηκε resolveGroup() για ασφαλή group labeling (χωρίς optional-call σε _group).
@@ -89,6 +89,26 @@ function _getWindowMeta(ctrl) {
     meta.pastNearEnd = allTrue([meta.cur > meta.nearEndSec]);
   } catch (_) {}
   return meta;
+}
+
+function _isPlayingOrPaused(p) {
+  try {
+    const partsYT = [];
+    partsYT.push(typeof YT !== 'undefined');
+    partsYT.push(typeof YT?.PlayerState !== 'undefined');
+    const ytOk = allTrue(partsYT);
+    if (ytOk !== true) return false;
+
+    const partsCan = [];
+    partsCan.push(isFunction(p?.getPlayerState) === true);
+    const can = allTrue(partsCan);
+    if (can !== true) return false;
+
+    const st = p.getPlayerState();
+    const allow = anyTrue([st === YT.PlayerState.PLAYING, st === YT.PlayerState.PAUSED]);
+    return allow === true;
+  } catch (_) {}
+  return false;
 }
 
 /** Υπολογισμός πρώτου delay (ms) για mid-seek με στόχευση mid-zone (fallback σε 25–45% timeLeft). */
@@ -202,38 +222,81 @@ export function applyInitSeek(ctrl, targetSec) {
 
 /* ========================= Mid-Seek Core ========================= */
 /** Εσωτερικό: ένα mid-seek εντός WT-window (όπως πριν), με ενημέρωση soft-task timestamp. */
+
 function _doMidSeekOnce(ctrl) {
   const mID = getPlayerScope(ctrl?.index);
   try {
     const p = ctrl.player;
     const exists = allTrue([typeof p !== 'undefined', p !== null]);
     if (exists !== true) return;
+
     const canDur = allTrue([isFunction(p?.getDuration) === true]);
     const dur = canDur === true ? p.getDuration() : 0;
-    const wtIsNum = isNumber(ctrl?.videoRequiredWatchTime) === true;
-    const wtPos = [];
-    wtPos.push(wtIsNum === true);
-    let wt = 0;
-    if (allTrue(wtPos) === true) wt = ctrl.videoRequiredWatchTime;
-    const hasWT = allTrue([isNumber(wt) === true, wt > 0]);
-    const windowSec = hasWT === true ? Math.min(dur, wt) : dur;
-    const shortCheck = [];
-    shortCheck.push(windowSec < ShortGuard);
-    const isShort = anyTrue(shortCheck);
+
+    const wm = _getWindowMeta(ctrl); // dur, wt, windowSec, nearEndPct, cur, ...
+    const partsW = [];
+    partsW.push(isNumber(wm?.windowSec) === true);
+    partsW.push(wm.windowSec > 0);
+    const wOk = allTrue(partsW);
+    if (wOk !== true) return;
+
+    // Short window
+    const isShort = anyTrue([wm.windowSec < ShortGuard]);
     if (isShort === true) return;
-    const canCur = allTrue([isFunction(p?.getCurrentTime) === true]);
-    const cur = canCur === true ? p.getCurrentTime() : 0;
+
+    // Past near-end (WT)
     const nearEndPct = isNumber(ctrl?.seekDefaults?.nearEndPct) === true ? ctrl.seekDefaults.nearEndPct : 0.05;
+    const WT_end = wm.windowSec * (1 - nearEndPct);
+    const pastNearEnd = allTrue([wm.cur > WT_end]);
+    if (pastNearEnd === true) return;
+
+    // Duration-based raw target
     const fromPct = isNumber(ctrl?.seekDefaults?.fromPct) === true ? ctrl.seekDefaults.fromPct : 0.2;
     const toPct = isNumber(ctrl?.seekDefaults?.toPct) === true ? ctrl.seekDefaults.toPct : 0.6;
-    const nearEndSec = windowSec * (1 - nearEndPct);
-    const pastNearEnd = allTrue([cur > nearEndSec]);
-    if (pastNearEnd === true) return;
-    const from = Math.floor(windowSec * fromPct);
-    const to = Math.floor(windowSec * toPct);
-    const target = rndInt(from, to);
+    const fromDur = Math.floor(dur * fromPct);
+    const toDur = Math.floor(dur * toPct);
+    let targetRaw = rndInt(fromDur, toDur);
+
+    // Clamp όρια
+    const padVideo = Math.max(3, Math.floor(dur * 0.05));
+    const videoEndSafe = Math.max(0, dur - padVideo);
+    const finalAllowed = Math.min(videoEndSafe, WT_end);
+    const initTarget = Number(ctrl?.seekMeta?.initTargetSec ?? 0);
+    const startBound = Math.max(wm.cur, initTarget);
+
+    // Last/near-last lock
+    const remainSeeks = Math.max(0, Number(ctrl?.seekDefaults?.maxSeeks) - (ctrl?.seekMeta?.count ?? 0));
+    const minGapSec = Math.max(0, Number(ctrl?.seekDefaults?.minGapSec));
+    const epsilon = 2;
+    const budget = Math.max(0, Math.floor(finalAllowed) - Math.floor(startBound));
+    const nearLast = anyTrue([remainSeeks <= 1, budget <= Math.max(minGapSec + epsilon, 5)]);
+    if (nearLast === true) {
+      targetRaw = Math.max(Math.floor(startBound), Math.floor(finalAllowed - epsilon));
+    }
+
+    const target = clamp(targetRaw, Math.floor(startBound), Math.floor(finalAllowed));
+
+    // Gate: PLAYING ή PAUSED
+    const canNow = _isPlayingOrPaused(p) === true;
+    if (canNow !== true) {
+      const retryMs = rndInt(500, 1200);
+      scheduleSafe(
+        function () {
+          try {
+            _doMidSeekOnce(ctrl);
+          } catch (_) {}
+        },
+        retryMs,
+        resolveGroup(ctrl, 'midseek', 'pc:midseek'),
+        'midseek-retry-not-allowed'
+      );
+      return;
+    }
+
+    // Execute
     safeSeek(ctrl, target);
-    log(`⏩ ${mID} Seek → Executed: Mid (Target=${target}s, WTWindow=${windowSec}s)`);
+    log(`⏩ ${mID} Seek → Executed: Mid (Raw=${targetRaw}s → Target=${target}s, WT_end=${Math.floor(WT_end)}s)`);
+
     const now = Date.now();
     ctrl.seekMeta.lastMs = now;
     ctrl.seekMeta.count = (ctrl.seekMeta.count ?? 0) + 1;
@@ -251,7 +314,12 @@ function _doMidSeekOnce(ctrl) {
  * Προσαρμοστικό timing:
  * - Αν υπάρχει overrideMs → το χρησιμοποιούμε ως delay για το συγκεκριμένο tick.
  * - Αλλιώς → υπολογίζει firstDelayMs από mid-zone/timeLeft, ή κάνει fallback στο intervalMs.
+ * Βελτιώσεις:
+ * - Gate εκτέλεσης σε PLAYING ή PAUSED (όχι BUFFERING) + μικρό retry όταν δεν επιτρέπεται.
+ * - Preview duration-based (ευθυγραμμισμένο με _doMidSeekOnce).
+ * - Budget check πριν το επόμενο schedule (early stop όταν δεν “χωράει”).
  */
+
 export function scheduleMidSeek(ctrl, overrideMs) {
   const mID = getPlayerScope(ctrl?.index);
   const mid = ctrl.plan?.midSeek;
@@ -332,6 +400,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
     log(`⏳ ${mID} Seek → Scheduled: Mid-Seek In ${(delayMs / 1000).toFixed(2)}s`);
   } catch (_) {}
 
+  // --- Timer Handler ---
   ctrl.timers.midSeek = scheduleSafe(
     function () {
       const p = ctrl.player;
@@ -340,53 +409,92 @@ export function scheduleMidSeek(ctrl, overrideMs) {
       if (playerOk === true) {
         dNow = p.getDuration();
       }
-      const canPlayNow = allTrue([dNow > 0, ctrl._isPlaying(p) === true]);
-      log(`▶️ ${mID} Seek → Executed: Mid-Seek (Dur=${Math.floor(dNow)}s, Playing=${canPlayNow})`);
-      if (canPlayNow === true) {
-        // Soft gate + Gap/Max guards
-        const now = Date.now();
-        const softOK = allTrue([now >= (ctrl?.softFreezeUntilMs ?? 0), now - (ctrl?.lastSoftTaskMs ?? 0) >= (ctrl?.softTaskMinGapMs ?? 0)]);
-        let blockByGap = false;
-        const hadLast = allTrue([ctrl.seekMeta.lastMs > 0]);
-        if (hadLast === true) {
-          const diff = now - ctrl.seekMeta.lastMs;
-          const minGapMs = Number(ctrl.seekDefaults.minGapSec) * 1000;
-          blockByGap = allTrue([diff < minGapMs]);
-        }
-        const reachedMax = allTrue([(ctrl.seekMeta.count ?? 0) >= Number(ctrl.seekDefaults.maxSeeks)]);
-        const allowSeek = allTrue([softOK === true, blockByGap === false, reachedMax === false]);
-        try {
-          const leftGapMs = hadLast === true ? Math.max(0, Number(ctrl.seekDefaults.minGapSec) * 1000 - (now - ctrl.seekMeta.lastMs)) : 0;
-          const leftGapS = (leftGapMs / 1000).toFixed(2);
-          let longmsg = '';
-          longmsg = `SoftOK=${softOK}, GapBlock=${blockByGap}, Left=${leftGapS}s, ReachedMax=${reachedMax},`;
-          longmsg = longmsg + ` Count=${ctrl.seekMeta.count ?? 0}/${Number(ctrl.seekDefaults.maxSeeks)}`;
-          log(`ℹ️ ${mID} Seek → Info: Mid-Seek Guards (Allow=${allowSeek}, ` + longmsg);
-        } catch (_) {}
-        if (allowSeek === true) {
-          // Preview log & execute once
-          try {
-            const wm = _getWindowMeta(ctrl);
-            if (wm.short === true) {
-              log(`⚠️ ${mID} Seek → Warning: Mid-Seek — Skip=ShortWindow (Window=${Math.floor(wm.windowSec)}s)`);
-            } else if (wm.pastNearEnd === true) {
-              log(`⚠️ ${mID} Seek → Warning: Mid-Seek — Skip=PastNearEnd (Cur=${Math.floor(wm.cur)}s, Guard=${Math.floor(wm.nearEndSec)}s)`);
-            } else {
-              const fromPct = isNumber(ctrl?.seekDefaults?.fromPct) === true ? ctrl.seekDefaults.fromPct : 0.2;
-              const toPct = isNumber(ctrl?.seekDefaults?.toPct) === true ? ctrl.seekDefaults.toPct : 0.6;
-              const from = Math.floor(wm.windowSec * fromPct);
-              const to = Math.floor(wm.windowSec * toPct);
-              const targetPreview = rndInt(from, to);
-              const execLagMs = rndInt(0, 50);
-              const countdownS = (execLagMs / 1000).toFixed(2);
-              log(`⏳ ${mID} Seek → Scheduled: Mid-Seek In ${countdownS}s (WTWindow=${Math.floor(wm.windowSec)}s) Target=${targetPreview}s`);
-            }
-          } catch (_) {}
-          _doMidSeekOnce(ctrl);
-        }
+
+      // (A) Gate: PLAYING ή PAUSED (όχι μόνο PLAYING) — μικρό retry αν δεν επιτρέπεται
+      const canSeekNow = allTrue([dNow > 0, _isPlayingOrPaused(p) === true]);
+      log(`▶️ ${mID} Seek → Executed: Mid-Seek (Dur=${Math.floor(dNow)}s, Allowed=${canSeekNow})`);
+      if (canSeekNow !== true) {
+        const retryMs = rndInt(500, 1200);
+        scheduleSafe(
+          function () {
+            try {
+              scheduleMidSeek(ctrl, retryMs);
+            } catch (_) {}
+          },
+          retryMs,
+          resolveGroup(ctrl, 'midseek', 'pc:midseek'),
+          'midseek-retry-state'
+        );
+        return;
       }
-      // Adaptive re-schedule
+
+      // Soft gate + Gap/Max guards (όπως πριν)
+      const now = Date.now();
+      const softOK = allTrue([now >= (ctrl?.softFreezeUntilMs ?? 0), now - (ctrl?.lastSoftTaskMs ?? 0) >= (ctrl?.softTaskMinGapMs ?? 0)]);
+      let blockByGap = false;
+      const hadLast = allTrue([ctrl.seekMeta.lastMs > 0]);
+      if (hadLast === true) {
+        const diff = now - ctrl.seekMeta.lastMs;
+        const minGapMs = Number(ctrl.seekDefaults.minGapSec) * 1000;
+        blockByGap = allTrue([diff < minGapMs]);
+      }
+      const reachedMax = allTrue([(ctrl.seekMeta.count ?? 0) >= Number(ctrl.seekDefaults.maxSeeks)]);
+      const allowSeek = allTrue([softOK === true, blockByGap === false, reachedMax === false]);
+
+      try {
+        const leftGapMs = hadLast === true ? Math.max(0, Number(ctrl.seekDefaults.minGapSec) * 1000 - (now - ctrl.seekMeta.lastMs)) : 0;
+        const leftGapS = (leftGapMs / 1000).toFixed(2);
+        let longmsg = '';
+        longmsg = `SoftOK=${softOK}, GapBlock=${blockByGap}, Left=${leftGapS}s, ReachedMax=${reachedMax},`;
+        longmsg = longmsg + ` Count=${ctrl.seekMeta.count ?? 0}/${Number(ctrl.seekDefaults.maxSeeks)}`;
+        log(`ℹ️ ${mID} Seek → Info: Mid-Seek Guards (Allow=${allowSeek}, ` + longmsg);
+      } catch (_) {}
+
+      if (allowSeek === true) {
+        // (B) Preview: duration-based (ευθυγραμμισμένο με _doMidSeekOnce)
+        try {
+          const wm = _getWindowMeta(ctrl);
+          if (wm.short === true) {
+            log(`⚠️ ${mID} Seek → Warning: Mid-Seek — Skip=ShortWindow (Window=${Math.floor(wm.windowSec)}s)`);
+          } else if (wm.pastNearEnd === true) {
+            log(`⚠️ ${mID} Seek → Warning: Mid-Seek — Skip=PastNearEnd (Cur=${Math.floor(wm.cur)}s, Guard=${Math.floor(wm.nearEndSec)}s)`);
+          } else {
+            const fromPct = isNumber(ctrl?.seekDefaults?.fromPct) === true ? ctrl.seekDefaults.fromPct : 0.2;
+            const toPct = isNumber(ctrl?.seekDefaults?.toPct) === true ? ctrl.seekDefaults.toPct : 0.6;
+            const fromDur = Math.floor(dNow * fromPct);
+            const toDur = Math.floor(dNow * toPct);
+            const targetPreview = rndInt(fromDur, toDur);
+            const WT_end_prev = Math.floor(wm.windowSec * (1 - (ctrl.seekDefaults?.nearEndPct ?? 0.05)));
+            const execLagMs = rndInt(0, 50);
+            const countdownS = (execLagMs / 1000).toFixed(2);
+            log(`⏳ ${mID} Seek → Preview: Dur-based=${targetPreview}s; WT_end=${WT_end_prev}s; in ${countdownS}s`);
+          }
+        } catch (_) {}
+
+        // Εκτέλεση μία φορά (duration-based → clamp σε WT/video near-end)
+        _doMidSeekOnce(ctrl);
+      }
+
+      // --- (C) ΠΡΙΝ ξανα-προγραμματίσουμε: Budget check (early stop) ---
       ctrl.timers.midSeek = null;
+
+      const wm2 = _getWindowMeta(ctrl);
+      const WT_end2 = wm2.windowSec * (1 - Number(ctrl.seekDefaults?.nearEndPct ?? 0.05));
+      const padVideo2 = Math.max(3, Math.floor((isNumber(dNow) === true ? dNow : 0) * 0.05));
+      const videoEndSafe2 = Math.max(0, (isNumber(dNow) === true ? dNow : 0) - padVideo2);
+      const finalAllowed2 = Math.min(videoEndSafe2, WT_end2);
+      const initT2 = Number(ctrl?.seekMeta?.initTargetSec ?? 0);
+      const startBound2 = Math.max(wm2.cur, initT2);
+      const budgetSec = Math.max(0, Math.floor(finalAllowed2) - Math.floor(startBound2));
+      const minNeedSec = Math.max(Number(ctrl.seekDefaults.minGapSec), 5);
+
+      const enough = allTrue([budgetSec >= minNeedSec]);
+      if (enough !== true) {
+        log(`ℹ️ ${mID} Seek → Info: Mid-Seek Stop (Reason=insufficient budget; Budget=${budgetSec}s, Need≥${minNeedSec}s)`);
+        return;
+      }
+
+      // Adaptive re-schedule (όπως πριν)
       let nextDelayMs = _computeNextDelayMs(ctrl, intervalMs);
       const hasNext = allTrue([isNumber(nextDelayMs) === true, nextDelayMs > 0]);
       if (hasNext === true) {
