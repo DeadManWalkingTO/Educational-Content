@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v3.5.2';
+const VERSION = 'v3.5.4';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, init-seek, mid-seek scheduling).
  *
@@ -507,11 +507,20 @@ export function scheduleMidSeek(ctrl, overrideMs) {
   // Plan log annotation
   try {
     let longmsg = '';
-    longmsg = ` IntervalMs=${mid.intervalMs} MinGapSec=${mid.minGapSec} MaxSeeks=${mid.maxSeeks}`;
+
+    function _fmtPct(x) {
+      try {
+        return String((Number(x) * 100).toFixed(0) + '%');
+      } catch (_) {
+        return String(x);
+      }
+    }
+
+    longmsg = ` IntervalMs≈${mid.intervalMs / 1000 / 60} min, MinGapSec=${mid.minGapSec} MaxSeeks=${mid.maxSeeks}`;
     longmsg = longmsg + ` FromPct=${mid.fromPct} ToPct=${mid.toPct} NearEndPct=${mid.nearEndPct}`;
     // Παράμετροι στόχου/τυχαιότητας/WT-scaling εάν ορίζονται στο plan
-    if (isNumber(mid?.fromDurPct) === true) longmsg = longmsg + ` FromDurPct=${mid.fromDurPct}`;
-    if (isNumber(mid?.toDurPct) === true) longmsg = longmsg + ` ToDurPct=${mid.toDurPct}`;
+    if (isNumber(mid?.fromDurPct) === true) longmsg += ` FromDurPct=${_fmtPct(mid.fromDurPct)}`;
+    if (isNumber(mid?.toDurPct) === true) longmsg = longmsg + ` ToDurPct=${_fmtPct(mid.toDurPct)}`;
     if (isNumber(mid?.jitterPct) === true) longmsg = longmsg + ` JitterPct=${mid.jitterPct}`;
     if (isNumber(mid?.wtAlphaMin) === true) longmsg = longmsg + ` WTαMin=${mid.wtAlphaMin}`;
     if (isNumber(mid?.wtAlphaMax) === true) longmsg = longmsg + ` WTαMax=${mid.wtAlphaMax}`;
