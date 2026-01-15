@@ -1,5 +1,5 @@
 // --- versionReporter.js ---
-const VERSION = 'v4.6.2';
+const VERSION = 'v4.6.4';
 /*
  * Περιγραφή:
  * Συγκεντρώνει εκδόσεις όλων των modules και του HTML. Ελαφρύς renderer για panel/κείμενο,
@@ -39,6 +39,7 @@ import { getVersion as getVideoPickerVersion } from './videoPicker.js';
 import { getVersion as getWatchdogVersion } from './watchdog.js';
 import { getVersion as getWtBusVersion } from './wtBus.js';
 import { getVersion as getYoutubeReadyVersion } from './youtubeReady.js';
+import { getVersion as getPlayerLifecycleVersion } from './playerLifecycle.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -98,6 +99,7 @@ export function reportAllVersions() {
     AutoRate: getAutoRateVersion(),
     WtBus: getWtBusVersion(),
     Containers: getContainersVersion(),
+    PlayerLifecycle: getPlayerLifecycleVersion(),
     VersionReporter: VERSION,
   };
 
@@ -152,7 +154,7 @@ function buildOrderedEntries(versionsObj) {
     j = j + 1;
   }
 
-  // Αλφαβητική ταξινόμηση των υπολοίπων (χωρίς || / &&)
+  // Αλφαβητική ταξινόμηση των υπολοίπων
   rest.sort(function (a, b) {
     const lt = [];
     lt.push(a.name < b.name);

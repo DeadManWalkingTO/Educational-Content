@@ -1,5 +1,5 @@
 // --- playerLifecycle.js ---
-const VERSION = 'v1.2.4';
+const VERSION = 'v1.4.6';
 /*
  * Περιγραφή:
  * SSOT/DRY για κύκλο ζωής YouTube players.
@@ -158,7 +158,7 @@ export function createActive(ctrl, videoId) {
     playerVars: { enablejsapi: 1, playsinline: 1, origin: getOrigin() },
     events: { onReady: (e) => ctrl.onReady(e), onStateChange: (e) => ctrl.onStateChange(e), onError: (e) => ctrl.onError(e) },
   });
-  log('🧱 ' + mID + ' Active Create → inner=' + innerId + ', id=' + String(videoId));
+  log(`🧱 ${mID} Active Create → inner= ${innerId} , id= ${String(videoId)}`);
   return innerId;
 }
 
@@ -191,7 +191,7 @@ export function prewarm(ctrl, videoId) {
   try {
     ctrl._prewarm = { innerId: pwInner, player: pwPlayer, startedAt: Date.now() };
   } catch (_) {}
-  log('🧊 ' + mID + ' Prewarm Create → inner=' + pwInner + ', id=' + String(videoId));
+  log(`🧊 ${mID} Prewarm Create → inner= ${pwInner} , id= ${String(videoId)}`);
   return pwInner;
 }
 
@@ -217,7 +217,7 @@ export function promotePrewarm(ctrl) {
       ctrl.player = ctrl._prewarm.player;
       ctrl._prewarm = null;
       ok = true;
-      log('🚀 ' + mID + ' Promote → active=' + activeInner);
+      log(`🚀 ${mID} Promote → active= ${activeInner}`);
     }
   } catch (_) {}
   return ok;
@@ -291,14 +291,14 @@ export function recreateWithPrewarm(ctrl, videoId, opts = {}) {
       } catch (_) {}
 
       createActive(ctrl, videoId);
-      log('🔁 ' + mID + ' Fallback Active Create → id=' + String(videoId));
+      log(`🔁 ${mID} Fallback Active Create → id= ${String(videoId)}`);
     },
     waitMs,
     ctrl._group('autonext'),
     'prewarm-check'
   );
 
-  log('🧬 ' + mID + ' Lifecycle.recreateWithPrewarm → target=' + String(videoId) + ', serial=' + String(localSerial));
+  log(`🧬 ${mID} Lifecycle.recreateWithPrewarm → target= ${String(videoId)} , serial= ${String(localSerial)}`);
 }
 
 export function fullCleanController(ctrl) {

@@ -1,5 +1,5 @@
 // --- utils.js ---
-const VERSION = 'v5.4.2';
+const VERSION = 'v5.4.4';
 /*
  * Περιγραφή: Ενιαίο module βοηθητικών συναρτήσεων (λογική, τύποι, χρόνος, μορφοποίηση, JSON, DOM, γεγονότα, logging, scheduler).
  * Αλλαγές: Προσθήκη κοινού helper whenPlayingAndUnmuted(player, ctrl, attemptTask, retryMinMs, retryMaxMs, group, tag)
@@ -356,6 +356,7 @@ const __SUBSYS_DATA = [
   { file: 'lists.js', icon: '📋', tag: 'LS' },
   { file: 'main.js', icon: '🏛️', tag: 'MN' },
   { file: 'playerController.js', icon: '🎮', tag: 'PC' },
+  { file: 'playerLifecycle.js', icon: '♻️', tag: 'PL' },
   { file: 'playerStateEngine.js', icon: '💠', tag: 'PS' },
   { file: 'policies.js', icon: '⚖️', tag: 'PL' },
   { file: 'uiControls.js', icon: '🛠️', tag: 'UI' },
