@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v3.3.3';
+const VERSION = 'v3.4.2';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, init-seek, mid-seek scheduling).
  *
@@ -14,8 +14,8 @@ export function getVersion() {
 /* ========================= Περιγραφή =========================
  *
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, init-seek, mid-seek scheduler),
- * με WT-aware χρονισμό (χρησιμοποιεί τον πραγματικό WT χρόνο που απομένει) και
- * duration-based στόχευση (80–90%) με clamp μόνο στο video end pad.
+ * με WT-aware χρονισμό (wtTimeLeft) και duration-based στόχευση (παραμετροποιήσιμη)
+ * με clamp στο video end pad ΚΑΙ σε WT-tail guard.
  *
  * Refactor:
  * - Προστέθηκε resolveGroup() για ασφαλή group labeling.
@@ -37,6 +37,13 @@ export function getVersion() {
  * - Preview logs εμπλουτισμένα (δείχνουν και το tail-guard όριο).
  * - Διατήρηση WT-based χρονισμού (wtTimeLeft) & budget-stop.
  * - applyInitSeek: μία προσπάθεια στο t+800 ms, χωρίς state gate/guardPlay, και re-schedule των mid-seeks.
+ *
+ * v3.4.0:
+ * - Παραμετροποιήσιμος στόχος διάρκειας μέσω fromDurPct/toDurPct (από plan → ctrl.seekDefaults).
+ * - WT-εξαρτώμενος χρονισμός αποστάσεων mid-seek με συντελεστή α(φ) και bounded jitter.
+ * - WT-tail guard: clamp του στόχου ώστε να απομένει αρκετή ουρά για το WT που μένει.
+ * - Καθαρισμός διπλού log στο re-schedule του handler (κρατάμε μόνο το log μέσα στο scheduleMidSeek).
+ * - Διατήρηση όλων των guardrails: PLAY/PAUSE gate στα mid-seek, safeSeek, WT-based budget-stop.
  */
 
 /* Όνομα αρχείου για logging. */
@@ -54,8 +61,17 @@ const log = makeLogger(FILENAME);
 
 /* ========================= Settings ========================= */
 const ShortGuard = 75; // δευτερόλεπτα
-export const DUR_FROM_DEFAULT = 0.8; // Από 80% της Συνολικής Διάρκειας
-export const DUR_TO_DEFAULT = 0.9; // Έως 90% της Συνολικής Διάρκειας
+
+// Defaults για στόχο στη ΔΙΑΡΚΕΙΑ (παραμετροποιούνται από plan → ctrl.seekDefaults)
+const DUR_FROM_DEFAULT = 0.8;
+const DUR_TO_DEFAULT = 0.9;
+
+// Defaults για jitter & WT-scaling (παραμετροποιούνται από plan → ctrl.seekDefaults)
+const JITTER_DEFAULT = 0.15; // 0.10–0.30
+const WT_A_MIN_DEFAULT = 0.85; // α(φ) ελάχιστο scale
+const WT_A_MAX_DEFAULT = 1.15; // α(φ) μέγιστο scale
+const WT_A_K_DEFAULT = 1.25; // καμπύλωση (1 = γραμμική)
+const GUARD_END_SEC = 5; // αντι-«γλείψιμο» τέλους WT
 
 /* ========================= Helpers (Group Resolve) ========================= */
 function resolveGroup(ctrl, suffix, fallback) {
@@ -127,7 +143,7 @@ function _getWindowMeta(ctrl) {
     const hasWT = allTrue([isNumber(meta.wt) === true, meta.wt > 0]);
     meta.windowSec = hasWT === true ? Math.min(meta.dur, meta.wt) : meta.dur;
 
-    // Near-end % (κρατιέται για συμβατότητα με παλιά logs)
+    // Near-end % (για συμβατότητα)
     const nearPct = isNumber(ctrl?.seekDefaults?.nearEndPct) === true ? ctrl.seekDefaults.nearEndPct : 0.05;
     meta.nearEndPct = nearPct;
     meta.nearEndSec = meta.windowSec * (1 - nearPct);
@@ -172,7 +188,7 @@ function _getWindowMeta(ctrl) {
     const leftWT = Math.max(0, Math.floor(reqWT - played));
     meta.wtTimeLeft = leftWT;
 
-    // Ιστορικό position-based υπολογισμός (κρατιέται μόνο για logs/συμβατότητα)
+    // Ιστορικό position-based (logs μόνο)
     meta.timeLeft = Math.floor(meta.nearEndSec - meta.cur);
     meta.short = anyTrue([meta.windowSec < ShortGuard]);
     meta.pastNearEnd = allTrue([meta.cur > meta.nearEndSec]);
@@ -180,33 +196,74 @@ function _getWindowMeta(ctrl) {
   return meta;
 }
 
-/** Υπολογισμός πρώτου delay (ms) για mid-seek, με βάση τον WT-χρόνο που απομένει. */
+/** Υπολογισμός πρώτου delay (ms) για mid-seek, με βάση τον WT-χρόνο που απομένει + α(φ) + jitter. */
 function _computeFirstDelayMs(ctrl) {
   const wm = _getWindowMeta(ctrl);
-  const viable = allTrue([wm.short === false, isNumber(wm.wtTimeLeft) === true, wm.wtTimeLeft > 0]);
+  const viable = allTrue([wm.short === false, isNumber(wm.wtTimeLeft) === true, wm.wtTimeLeft > 0, isNumber(wm.wt) === true, wm.wt > 0]);
   if (viable !== true) return -1;
 
   const safetySec = 4;
-  let dSec = Math.floor(wm.wtTimeLeft / 2); // περίπου στο μέσο του εναπομείναντος WT χρόνου
-  if (dSec < safetySec) dSec = safetySec;
+  const guardEndSec = GUARD_END_SEC;
+  let jitterPct = isNumber(ctrl?.seekDefaults?.jitterPct) === true ? ctrl.seekDefaults.jitterPct : JITTER_DEFAULT;
+  const aMin = isNumber(ctrl?.seekDefaults?.wtAlphaMin) === true ? ctrl.seekDefaults.wtAlphaMin : WT_A_MIN_DEFAULT;
+  const aMax = isNumber(ctrl?.seekDefaults?.wtAlphaMax) === true ? ctrl.seekDefaults.wtAlphaMax : WT_A_MAX_DEFAULT;
+  const aK = isNumber(ctrl?.seekDefaults?.wtAlphaK) === true ? ctrl.seekDefaults.wtAlphaK : WT_A_K_DEFAULT;
 
-  const maxAllowed = Math.max(0, wm.wtTimeLeft - safetySec);
-  if (dSec > maxAllowed) dSec = Math.max(safetySec, maxAllowed);
+  const phiRaw = wm.wt > 0 ? wm.wtTimeLeft / wm.wt : 0;
+  const phi = Math.max(0, Math.min(1, phiRaw));
+  const alpha = aMin + (aMax - aMin) * Math.pow(phi, aK);
 
-  return dSec * 1000;
+  let base = Math.floor((wm.wtTimeLeft / 2) * alpha);
+  if (base < safetySec) base = safetySec;
+
+  const maxAllowed = Math.max(0, wm.wtTimeLeft - guardEndSec);
+  if (base > maxAllowed) base = Math.max(safetySec, maxAllowed);
+
+  const low = Math.max(safetySec, Math.floor(base * (1 - jitterPct)));
+  const high = Math.min(Math.floor(base * (1 + jitterPct)), Math.max(safetySec, maxAllowed));
+  const nextSec = Math.max(safetySec, rndInt(low, high));
+
+  return nextSec * 1000;
 }
 
-/** Υπολογισμός next delay (ms) (adaptive εντός του WT-χρόνου που απομένει). */
+/** Υπολογισμός next delay (ms) (WT-aware + α(φ) + bounded jitter). */
 function _computeNextDelayMs(ctrl, fallbackMs) {
   let nextMs = isNumber(fallbackMs) === true ? Math.max(0, Math.floor(fallbackMs)) : 0;
   try {
     const wm = _getWindowMeta(ctrl);
     const remainSeeks = Math.max(0, Number(ctrl?.seekDefaults?.maxSeeks) - (ctrl?.seekMeta?.count ?? 0));
-    const viable = allTrue([wm.short === false, isNumber(wm.wtTimeLeft) === true, wm.wtTimeLeft > 0, remainSeeks > 0]);
+    const viable = allTrue([wm.short === false, isNumber(wm.wtTimeLeft) === true, wm.wtTimeLeft > 0, isNumber(wm.wt) === true, wm.wt > 0, remainSeeks > 0]);
     if (viable !== true) return -1;
 
-    const sliceSec = Math.max(Number(ctrl.seekDefaults.minGapSec), Math.floor(wm.wtTimeLeft / (remainSeeks + 1)));
-    nextMs = Math.max(sliceSec * 1000, 1000);
+    const minGapSec = Number(ctrl.seekDefaults.minGapSec);
+    const guardEndSec = GUARD_END_SEC;
+    let jitterPct = isNumber(ctrl?.seekDefaults?.jitterPct) === true ? ctrl.seekDefaults.jitterPct : JITTER_DEFAULT;
+
+    // Προαιρετική μικρή αύξηση jitter στα «τελευταία» ή σε πολύ μεγάλο WT
+    if (remainSeeks <= 2) jitterPct = Math.min(0.3, jitterPct + 0.05);
+    if (wm.wtTimeLeft >= 900) jitterPct = Math.min(0.3, jitterPct + 0.05);
+
+    const aMin = isNumber(ctrl?.seekDefaults?.wtAlphaMin) === true ? ctrl.seekDefaults.wtAlphaMin : WT_A_MIN_DEFAULT;
+    const aMax = isNumber(ctrl?.seekDefaults?.wtAlphaMax) === true ? ctrl.seekDefaults.wtAlphaMax : WT_A_MAX_DEFAULT;
+    const aK = isNumber(ctrl?.seekDefaults?.wtAlphaK) === true ? ctrl.seekDefaults.wtAlphaK : WT_A_K_DEFAULT;
+
+    const phiRaw = wm.wt > 0 ? wm.wtTimeLeft / wm.wt : 0;
+    const phi = Math.max(0, Math.min(1, phiRaw));
+    const alpha = aMin + (aMax - aMin) * Math.pow(phi, aK);
+
+    const baseRaw = Math.max(minGapSec, Math.floor(wm.wtTimeLeft / (remainSeeks + 1)));
+    let base = Math.floor(baseRaw * alpha);
+
+    const maxAllowed = Math.max(minGapSec, wm.wtTimeLeft - guardEndSec);
+    if (base > maxAllowed) base = Math.max(minGapSec, maxAllowed);
+
+    const low = Math.max(minGapSec, Math.floor(base * (1 - jitterPct)));
+    const high = Math.min(Math.floor(base * (1 + jitterPct)), Math.max(minGapSec, maxAllowed));
+    const lo = Math.min(low, high);
+    const hi = Math.max(low, high);
+    const nextSec = Math.max(minGapSec, rndInt(lo, hi));
+
+    nextMs = Math.max(nextSec * 1000, 1000);
   } catch (_) {}
   return nextMs;
 }
@@ -276,7 +333,7 @@ export function applyInitSeek(ctrl, targetSec) {
   scheduleSafe(
     function () {
       try {
-        // Εκτέλεση init-seek (ασφαλές clamp στο τέλος μέσω safeSeek)
+        // Εκτέλεση init-seek
         safeSeek(ctrl, targetSec);
         log(`⏩ ${mID} Seek → Executed: Init Target=${targetSec}s`);
       } catch (_) {}
@@ -330,7 +387,7 @@ function _doMidSeekOnce(ctrl) {
     const isShort = anyTrue([wm.windowSec < ShortGuard]);
     if (isShort === true) return;
 
-    // Χρονικό gate: επιτρέπεται μόνο αν απομένει πραγματικός WT χρόνος
+    // Χρονικό gate: WT πρέπει να απομένει
     const hasTime = allTrue([isNumber(wm.wtTimeLeft) === true, wm.wtTimeLeft > 0]);
     if (hasTime !== true) return;
 
@@ -346,7 +403,7 @@ function _doMidSeekOnce(ctrl) {
     const padVideo = Math.max(3, Math.floor(dur * 0.05)); // video end pad (5% ή ≥3 s)
     const videoEndSafe = Math.max(0, dur - padVideo);
 
-    // WT-tail guard: άφησε ουρά ≥ (wtTimeLeft + guardWT)
+    // WT-tail guard: κράτα ουρά ≥ (wtTimeLeft + guardWT)
     const guardWTdyn = Math.max(10, Math.floor(dur * 0.02)); // 10 s ή 2% του D
     const maxTargetByWT = Math.max(0, dur - Math.max(0, wm.wtTimeLeft + guardWTdyn));
 
@@ -417,7 +474,7 @@ function _doMidSeekOnce(ctrl) {
 /**
  * Προγραμματισμός mid-seeks βάσει policy & runtime metas (με guards).
  * Χρονισμός WT-based:
- * - first/next delays με βάση τον wtTimeLeft (όχι position-based timeLeft).
+ * - first/next delays με βάση τον wtTimeLeft, προσαρμοσμένα με α(φ) και bounded jitter.
  * - budget stop πριν το re-schedule όταν wtTimeLeft < minGapSec.
  * Preview/Exec:
  * - duration-based στόχος με fromDurPct..toDurPct (plan/defaults),
@@ -437,9 +494,13 @@ export function scheduleMidSeek(ctrl, overrideMs) {
     let longmsg = '';
     longmsg = ` IntervalMs=${mid.intervalMs} MinGapSec=${mid.minGapSec} MaxSeeks=${mid.maxSeeks}`;
     longmsg = longmsg + ` FromPct=${mid.fromPct} ToPct=${mid.toPct} NearEndPct=${mid.nearEndPct}`;
-    // Αν υπάρχουν fromDurPct/toDurPct στο plan, τα log-άρουμε πληροφοριακά
+    // ΝΕΑ: fromDurPct/toDurPct/jitter & WT-alpha παραμετροποίηση (αν υπάρχουν στο plan)
     if (isNumber(mid?.fromDurPct) === true) longmsg = longmsg + ` FromDurPct=${mid.fromDurPct}`;
     if (isNumber(mid?.toDurPct) === true) longmsg = longmsg + ` ToDurPct=${mid.toDurPct}`;
+    if (isNumber(mid?.jitterPct) === true) longmsg = longmsg + ` JitterPct=${mid.jitterPct}`;
+    if (isNumber(mid?.wtAlphaMin) === true) longmsg = longmsg + ` WTαMin=${mid.wtAlphaMin}`;
+    if (isNumber(mid?.wtAlphaMax) === true) longmsg = longmsg + ` WTαMax=${mid.wtAlphaMax}`;
+    if (isNumber(mid?.wtAlphaK) === true) longmsg = longmsg + ` WTαK=${mid.wtAlphaK}`;
     log(`ℹ️ ${mID} Seek → Policy: Mid-Seek Plan — Enabled=${mid.enabled}` + longmsg);
   } catch (_) {}
 
@@ -452,15 +513,19 @@ export function scheduleMidSeek(ctrl, overrideMs) {
     }
   } catch {}
 
-  // Defaults από το plan (συμπεριλαμβανομένων των fromDurPct/toDurPct)
+  // Defaults από το plan (συμπεριλαμβανομένων των fromDurPct/toDurPct & jitter & WT-alpha)
   ctrl.seekDefaults = {
     minGapSec: Number(mid.minGapSec),
     maxSeeks: Number(mid.maxSeeks),
     nearEndPct: Number(mid.nearEndPct),
-    fromPct: Number(mid.fromPct), // ιστορικά (WT-window), κρατούνται για logs/συμβατότητα
+    fromPct: Number(mid.fromPct), // ιστορικό (WT-window)
     toPct: Number(mid.toPct),
     fromDurPct: isNumber(mid?.fromDurPct) === true ? Number(mid.fromDurPct) : DUR_FROM_DEFAULT,
     toDurPct: isNumber(mid?.toDurPct) === true ? Number(mid.toDurPct) : DUR_TO_DEFAULT,
+    jitterPct: isNumber(mid?.jitterPct) === true ? Number(mid.jitterPct) : JITTER_DEFAULT,
+    wtAlphaMin: isNumber(mid?.wtAlphaMin) === true ? Number(mid.wtAlphaMin) : WT_A_MIN_DEFAULT,
+    wtAlphaMax: isNumber(mid?.wtAlphaMax) === true ? Number(mid.wtAlphaMax) : WT_A_MAX_DEFAULT,
+    wtAlphaK: isNumber(mid?.wtAlphaK) === true ? Number(mid.wtAlphaK) : WT_A_K_DEFAULT,
   };
   const intervalMs = Number(mid.intervalMs);
 
@@ -604,7 +669,7 @@ export function scheduleMidSeek(ctrl, overrideMs) {
         return;
       }
 
-      // Adaptive re-schedule (WT-aware)
+      // Adaptive re-schedule (WT-aware) — χωρίς διπλό log εδώ
       let nextDelayMs = _computeNextDelayMs(ctrl, intervalMs);
       const hasNext = allTrue([isNumber(nextDelayMs) === true, nextDelayMs > 0]);
       if (hasNext === true) {

@@ -1,5 +1,5 @@
 // --- policies.js ---
-const VERSION = 'v2.2.4';
+const VERSION = 'v2.3.2';
 /*
  * Περιγραφή: Module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
  * Behavior Profiles (SSOT)
@@ -15,6 +15,11 @@ export function getVersion() {
  *
  * Περιγραφή: Module πολιτικών (watch-time, start-seek, pause plan, mid-seek, unmute pacing).
  * Behavior Profiles (SSOT)
+ *
+ * Προσθήκες v2.3.0:
+ * - Mid-Seek plan επεκτάθηκε με fromDurPct/toDurPct για παραμετροποιήσιμο duration-target.
+ * - Προστέθηκαν jitterPct και παράμετροι WT-scaling (wtAlphaMin, wtAlphaMax, wtAlphaK)
+ *   ώστε η χρονική απόσταση των mid-seek να εξαρτάται ρητά και ομαλά από το WT.
  *
  */
 
@@ -32,12 +37,10 @@ import { MIN_WATCH_TIME, START_SEEK_MIN_VALUE_SEC } from './globals.js';
 const log = makeLogger(FILENAME);
 
 /* ========================= Helpers ========================= */
-
 /** Τυχαιότητα για capSec με προσαρμογή ανά profile */
 function _computeCapSec(profileName) {
   const baseMinSec = 10 * 60; // 600
   const baseMaxSec = 20 * 60; // 1200
-
   let cap = rndInt(baseMinSec, baseMaxSec);
   const bias = rndInt(-30, 30);
   cap = cap + bias;
@@ -49,7 +52,7 @@ function _computeCapSec(profileName) {
     name = String(profileName).toLowerCase();
   }
 
-  // Προσαρμογή ανά προφίλ με switch-case
+  // Προσαρμογή ανά προφίλ
   switch (name) {
     case 'focused':
       cap = cap + 60;
@@ -80,7 +83,7 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown', pidex
   const d = Math.floor(Number(durationSec));
   const capSec = _computeCapSec(profileName);
 
-  // Επιλογή εύρους ποσοστού με switch(true)
+  // Επιλογή εύρους ποσοστού
   let minPct = 0.55;
   let maxPct = 0.75;
   switch (true) {
@@ -106,7 +109,7 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown', pidex
       break;
   }
 
-  // Μικρά βίντεο: WT = D+1 (ώστε να μην πιαστεί πριν το ENDED)
+  // Μικρά βίντεο: WT = D+1
   if (allTrue([d < MIN_WATCH_TIME]) === true) {
     const req = d + 1;
     try {
@@ -122,14 +125,8 @@ export function getRequiredWatchTime(durationSec, profileName = 'unknown', pidex
 
   const requiredRaw = Math.floor(d * pct);
   let required = requiredRaw;
-
-  if (allTrue([required > capSec]) === true) {
-    required = capSec;
-  }
-
-  if (allTrue([required < MIN_WATCH_TIME]) === true) {
-    required = MIN_WATCH_TIME;
-  }
+  if (allTrue([required > capSec]) === true) required = capSec;
+  if (allTrue([required < MIN_WATCH_TIME]) === true) required = MIN_WATCH_TIME;
 
   try {
     const pctStr = (pct * 100).toFixed(1);
@@ -145,10 +142,8 @@ export function getPausePlan(durationSec) {
   if (valid !== true) {
     return { count: 0, min: 0, max: 0 };
   }
-
   const d = Math.floor(Number(durationSec));
 
-  // Επιλογή πλάνου παύσεων με switch(true)
   switch (true) {
     case allTrue([d < 60]) === true:
       return { count: rndInt(0, 1), min: 3, max: 15 };
@@ -173,7 +168,6 @@ export function getStartSeek(durationSec, profileName) {
   if (valid !== true) {
     return 0;
   }
-
   const d = Math.floor(Number(durationSec));
 
   // Μέγιστο ποσοστό βάσει διάρκειας
@@ -198,9 +192,7 @@ export function getStartSeek(durationSec, profileName) {
 
   // Προσαρμογές ανά προφίλ
   let name = 'unknown';
-  if (allTrue([isString(profileName) === true]) === true) {
-    name = String(profileName).toLowerCase();
-  }
+  if (allTrue([isString(profileName) === true]) === true) name = String(profileName).toLowerCase();
 
   let maxPct = baseMaxPct;
   switch (name) {
@@ -213,32 +205,23 @@ export function getStartSeek(durationSec, profileName) {
       break;
     }
     default:
-      /* no-op */
-      break;
+      /* no-op */ break;
   }
 
   // Τυχαίο ποσοστό στο [0, maxPct]
   const pct = clamp(randomFloat(0, maxPct), 0, 1);
-
   // Μετατροπή σε δευτερόλεπτα
   let target = Math.floor(d * pct);
 
   // Ασφαλές pad 2 s από το τέλος + μη-αρνητικός στόχος
   const pad = 2;
   const maxTarget = Math.max(0, Math.floor(d - pad));
-  if (allTrue([target > maxTarget]) === true) {
-    target = maxTarget;
-  }
-  if (allTrue([target < 0]) === true) {
-    target = 0;
-  }
+  if (allTrue([target > maxTarget]) === true) target = maxTarget;
+  if (allTrue([target < 0]) === true) target = 0;
 
-  // --- ΝΕΟ: Threshold κανόνας ---
-  // Αν ο στόχος είναι <= START_SEEK_MIN_VALUE_SEC, μηδενίζουμε ώστε να μην εκτελεστεί init-seek.
+  // Threshold κανόνας
   const MIN_START_SEEK_SEC = START_SEEK_MIN_VALUE_SEC;
-  if (allTrue([target <= MIN_START_SEEK_SEC]) === true) {
-    return 0;
-  }
+  if (allTrue([target <= MIN_START_SEEK_SEC]) === true) return 0;
 
   return target;
 }
@@ -255,7 +238,7 @@ function _getMidSeekPlan(durationSec, profileName) {
     return { enabled: false, notes: 'short-video' };
   }
 
-  // Βασικές τιμές, θα προσαρμοστούν παρακάτω
+  // Βασικές τιμές (θα προσαρμοστούν προφιλικά)
   let intervalMs = 0;
   let minGapSec = 120;
   let maxSeeks = 2;
@@ -263,7 +246,7 @@ function _getMidSeekPlan(durationSec, profileName) {
   let toPct = 0.6;
   const nearEndPct = 0.05;
 
-  // Επιλογή intervals με switch(true)
+  // Διαστήματα & πλήθος ανά διάρκεια
   switch (true) {
     case allTrue([d < 600]) === true:
       intervalMs = rndInt(4, 6) * 60000;
@@ -283,17 +266,28 @@ function _getMidSeekPlan(durationSec, profileName) {
       break;
   }
 
-  let n = 'unknown';
-  if (allTrue([isString(profileName) === true]) === true) {
-    n = String(profileName).toLowerCase();
-  }
+  // Παράμετροι στόχου στη ΔΙΑΡΚΕΙΑ (defaults)
+  let fromDurPct = 0.8;
+  let toDurPct = 0.9;
 
-  // Προσαρμογές ανά προφίλ
+  // Παράμετροι randomness & WT-scaling (defaults)
+  let jitterPct = 0.15; // 0.10–0.30
+  let wtAlphaMin = 0.85;
+  let wtAlphaMax = 1.15;
+  let wtAlphaK = 1.25;
+
+  // Προσαρμογές ανά profile
+  let n = 'unknown';
+  if (allTrue([isString(profileName) === true]) === true) n = String(profileName).toLowerCase();
   switch (n) {
     case 'explorer': {
       toPct = clamp(0.62, 0, 1);
       const mg = minGapSec - 10;
       minGapSec = mg > 90 ? mg : 90;
+
+      // Ελαφρώς πιο «τολμηρό» duration range & jitter
+      toDurPct = 0.9; // ίδιο
+      jitterPct = 0.18;
       break;
     }
     case 'focused': {
@@ -301,6 +295,9 @@ function _getMidSeekPlan(durationSec, profileName) {
       minGapSec = minGapSec + 30;
       const m = maxSeeks - 1;
       maxSeeks = m >= 1 ? m : 1;
+
+      // Πιο «σταθερό» μοτίβο (μικρότερο jitter)
+      jitterPct = 0.12;
       break;
     }
     default:
@@ -316,6 +313,14 @@ function _getMidSeekPlan(durationSec, profileName) {
     fromPct,
     toPct,
     nearEndPct,
+    // ΝΕΑ: duration-target params
+    fromDurPct,
+    toDurPct,
+    // ΝΕΑ: randomness & WT-scaling params
+    jitterPct,
+    wtAlphaMin,
+    wtAlphaMax,
+    wtAlphaK,
     notes: n,
   };
 }
@@ -323,13 +328,12 @@ function _getMidSeekPlan(durationSec, profileName) {
 /* ===== Unmute Policy (duration-aware + 70% cap για μικρά) ===== */
 function _getUnmutePlan(durationSec, profileName, baseStartDelaySec) {
   const d = Math.floor(Number(durationSec));
-
   let name = 'unknown';
   if (allTrue([isString(profileName) === true]) === true) {
     name = String(profileName).toLowerCase();
   }
 
-  // Grace window (ms) με switch(true)
+  // Grace window (ms)
   let gMin = 1500;
   let gMax = 3000;
   switch (true) {
@@ -366,18 +370,13 @@ function _getUnmutePlan(durationSec, profileName, baseStartDelaySec) {
       gMax = gMax - 300;
       break;
     default:
-      /* no-op */
-      break;
+      /* no-op */ break;
   }
 
-  if (allTrue([gMin < 600]) === true) {
-    gMin = 600;
-  }
-  if (allTrue([gMax < gMin + 200]) === true) {
-    gMax = gMin + 200;
-  }
+  if (allTrue([gMin < 600]) === true) gMin = 600;
+  if (allTrue([gMax < gMin + 200]) === true) gMax = gMin + 200;
 
-  // Επιπλέον καθυστέρηση (sec) με switch(true)
+  // Extra καθυστέρηση (sec)
   let extraMin = 30;
   let extraMax = 90;
   switch (true) {
@@ -399,7 +398,7 @@ function _getUnmutePlan(durationSec, profileName, baseStartDelaySec) {
       break;
   }
 
-  // 70% cap σε μικρά βίντεο: προσαρμογή βάσει baseStartDelaySec + grace + extra
+  // 70% cap σε μικρά βίντεο
   if (allTrue([d < 120]) === true) {
     const capSec = Math.max(0, Math.floor(d * 0.7));
     let baseSec = 5;
@@ -410,34 +409,20 @@ function _getUnmutePlan(durationSec, profileName, baseStartDelaySec) {
     } else {
       baseSec = 5;
     }
-
     const gMaxSec = Math.floor(gMax / 1000);
     let roomForExtraSec = capSec - baseSec - gMaxSec;
-    if (allTrue([roomForExtraSec < 0]) === true) {
-      roomForExtraSec = 0;
-    }
-
-    if (allTrue([roomForExtraSec < extraMin]) === true) {
-      extraMin = roomForExtraSec;
-    }
-    if (allTrue([roomForExtraSec < extraMax]) === true) {
-      extraMax = roomForExtraSec;
-    }
+    if (allTrue([roomForExtraSec < 0]) === true) roomForExtraSec = 0;
+    if (allTrue([roomForExtraSec < extraMin]) === true) extraMin = roomForExtraSec;
+    if (allTrue([roomForExtraSec < extraMax]) === true) extraMax = roomForExtraSec;
 
     const totalMinSec = baseSec + extraMin + gMaxSec;
     if (allTrue([totalMinSec > capSec]) === true) {
       let newGMaxMs = Math.max(0, (capSec - baseSec - extraMin) * 1000);
-      if (allTrue([newGMaxMs < 600]) === true) {
-        newGMaxMs = 600;
-      }
+      if (allTrue([newGMaxMs < 600]) === true) newGMaxMs = 600;
       gMax = newGMaxMs;
 
       let desiredGMin = gMax - 200;
-      if (allTrue([desiredGMin < 600]) === true) {
-        desiredGMin = 600;
-      }
-
-      // Φέρνουμε το gMin προς το desiredGMin με ασφαλή τρόπο
+      if (allTrue([desiredGMin < 600]) === true) desiredGMin = 600;
       if (allTrue([gMin > desiredGMin]) === true) {
         gMin = desiredGMin;
       } else {
@@ -446,7 +431,7 @@ function _getUnmutePlan(durationSec, profileName, baseStartDelaySec) {
     }
   }
 
-  // Εύρος έντασης (σε %) με προσαρμογές για μικρές διάρκειες
+  // Εύρος έντασης (%)
   let vLo = 10;
   let vHi = 30;
   switch (true) {
@@ -482,10 +467,7 @@ export function getBehaviorPlan(ctx) {
   const prof = allTrue([isString(ctx.profileName) === true]) === true ? String(ctx.profileName).toLowerCase() : 'unknown';
   const pidx = ctx.playerIndex;
 
-  // Επιλογή baseStartDelaySec:
-  // 1) Αν δόθηκε ρητά και είναι έγκυρο, χρησιμοποίησέ το.
-  // 2) Αλλιώς, αν είναι το πρώτο βίντεο → 5..180 s
-  // 3) Αλλιώς → 2..10 s
+  // Επιλογή baseStartDelaySec
   let baseStartDelaySec = 5;
   const hasBase = allTrue([isFiniteNumber(ctx.baseStartDelaySec) === true]);
   if (hasBase === true) {
@@ -539,7 +521,6 @@ const BEHAVIOR_PROFILES = [
   { name: 'Casual', pauseChance: 0.3, qualityChangeChance: 0.3, volumeChangeChance: 0.25, rateChangeChanceShort: 0.12, rateChangeChanceLong: 0.15 },
   { name: 'Focused', pauseChance: 0.2, qualityChangeChance: 0.2, volumeChangeChance: 0.2, rateChangeChanceShort: 0.08, rateChangeChanceLong: 0.1 },
 ];
-
 export function getProfile(name) {
   let n = 'casual';
   try {
@@ -554,10 +535,9 @@ export function getProfile(name) {
   }
   return BEHAVIOR_PROFILES[1]; // Casual (default)
 }
-
 export function createSessionConfig(profileName) {
   const p = getProfile(profileName);
-  // Τυχαίο εύρος έντασης (σε %)
+  // Τυχαίο εύρος έντασης (%)
   let v1 = rndInt(5, 15);
   let v2 = rndInt(20, 40);
   // clamp/swap
@@ -579,7 +559,6 @@ export function createSessionConfig(profileName) {
     rateChangeChanceLong: p.rateChangeChanceLong,
   };
 }
-
 export function logProfile(pidx, profileLike) {
   const mID = getPlayerScope(pidx);
   let name = 'casual';
