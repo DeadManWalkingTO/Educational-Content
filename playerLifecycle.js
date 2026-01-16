@@ -1,5 +1,5 @@
 // --- playerLifecycle.js ---
-const VERSION = 'v1.6.8';
+const VERSION = 'v1.7.2';
 /*
  * Περιγραφή:
  * SSOT/DRY για κύκλο ζωής YouTube players με ισχυροποίηση origin/host.
@@ -471,6 +471,11 @@ export function fullCleanControllerStrict(ctrl) {
   try {
     log(`🧹 ${mID} fullCleanControllerStrict → done`);
   } catch (_) {}
+}
+
+export function hardResetAndCreate(ctrl, videoId) {
+  fullCleanControllerStrict(ctrl); // timers + destroy + purge + reset
+  createActive(ctrl, videoId); // ενεργό instance χωρίς prewarm
 }
 
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */

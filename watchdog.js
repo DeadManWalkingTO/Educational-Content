@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v1.20.2';
+const VERSION = 'v1.21.2';
 /*
  * Περιγραφή: Watchdog για "required watch time" ανά PlayerController.
  * - Ασφαλή groups με resolveGroup().
@@ -223,9 +223,9 @@ function checkController(ctrl) {
         const age = nowMs() - ctrl.readyAt;
         if (allTrue([age >= playerMaxReadyAgeMS]) === true) {
           try {
-            ctrl.guardPlay(ctrl.player);
+            /* ctrl.guardPlay(ctrl.player); */
           } catch (_) {}
-          log(`▶️ ${mID} WD: GuardPlay Retried (READY >10s)`);
+          log(`▶️ ${mID} WD: READY > ${msToSec(playerMaxReadyAgeMS)}s → Skip guardPlay (policy)`);
           return;
         }
       }
@@ -312,7 +312,7 @@ function checkController(ctrl) {
         log(`🛑 ${mID} WD: Buffering >2min → Full Recreate`);
 
         const picked = pickVideoId(); // ή ίδιο video
-        const nextId = isDefined(picked?.id) ? picked.id : ctrl.player?.getVideoData?.().video_id ?? null;
+        const nextId = isDefined(picked?.id) ? picked.id : (ctrl.player?.getVideoData?.().video_id ?? null);
 
         if (isDefined(nextId)) {
           const cooldown = rndInt(800, 1500);
