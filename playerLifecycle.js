@@ -1,5 +1,5 @@
 // --- playerLifecycle.js ---
-const VERSION = 'v1.7.2';
+const VERSION = 'v1.8.0';
 /*
  * Περιγραφή:
  * SSOT/DRY για κύκλο ζωής YouTube players με ισχυροποίηση origin/host.
@@ -43,7 +43,7 @@ const FILENAME = import.meta.url.split('/').pop();
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
-import { isDefined, allTrue, isFunction, scheduleSafe, rndInt, getPlayerScope, makeLogger, secToMs } from './utils.js';
+import { isDefined, allTrue, isFunction, scheduleSafe, rndInt, getPlayerScope, makeLogger, secToMs, cancel } from './utils.js';
 import { buildPlayerVarsWithMeta, resolveEmbedMeta, compareEmbedMeta } from './youtubeEmbedMeta.js';
 import { MIN_WATCH_TIME } from './globals.js';
 
@@ -227,7 +227,7 @@ export function createActive(ctrl, videoId) {
     videoId: videoId,
     host: host,
     playerVars: pv,
-    events: { onReady: (e) => ctrl.onReady(e), onStateChange: (e) => ctrl.onStateChange(e), onError: (e) => ctrl.onError(e) },
+    events: { onReady: (e) => pwOnReady(e), onStateChange: (e) => pwOnStateChange(e), onError: (e) => ctrl.onError(e) },
   });
 
   log(`🧱 ${mID} Active Create → inner=${innerId}, id=${String(videoId)}, origin=${String(pv.origin ?? '(omitted)')}, host=${String(host)}`);
@@ -268,7 +268,7 @@ export function prewarm(ctrl, videoId) {
     videoId: videoId,
     host: host,
     playerVars: pv,
-    events: { onReady: (e) => ctrl.onReady(e), onStateChange: (e) => ctrl.onStateChange(e), onError: (e) => ctrl.onError(e) },
+    events: { onReady: (e) => pwOnReady(e), onStateChange: (e) => pwOnStateChange(e), onError: (e) => ctrl.onError(e) },
   });
 
   try {
@@ -344,52 +344,50 @@ export function recreateWithPrewarm(ctrl, videoId, opts = {}) {
   const maxMs = typeof opts?.waitMaxMs === 'number' ? opts.waitMaxMs : preWarmupWaitMaxMs;
   const waitMs = rndInt(minMs, maxMs);
 
-  scheduleSafe(
-    () => {
-      const sameSerial = allTrue([isDefined(ctrl._recreateSerial) === true, Number(ctrl._recreateSerial) === Number(localSerial)]);
-      if (sameSerial !== true) {
-        return;
-      }
-      let isReady = false;
+  ctrl._pwTimer = scheduleSafe(
+ () => {
+  const sameSerial = allTrue([isDefined(ctrl._recreateSerial) === true, Number(ctrl._recreateSerial) === Number(localSerial)]);
+  if (sameSerial !== true) { return; }
+  let isPwReady = false;
+  try { isPwReady = allTrue([isDefined(ctrl._pwReadyAt) === true, Number(ctrl._pwReadyAt) >= Number(startedAt)]); } catch (_) { isPwReady = false; }
+  if (isPwReady === true) {
+   const okPromote = promotePrewarm(ctrl);
+   if (okPromote === true) {
+    try { if (isDefined(ctrl._pwTimer) === true) { cancel(ctrl._pwTimer); ctrl._pwTimer = null; } } catch (_) {}
+    try { ctrl._promoteDecisionAt = Date.now(); ctrl._promoted = true; } catch (_) {}
+    return;
+   }
+  }
+  try {
+   const jitterMs = rndInt(200, 400);
+   scheduleSafe(() => {
+    try {
+     const hasPw = allTrue([isDefined(ctrl._prewarm) === true]);
+     if (hasPw === true) {
       try {
-        isReady = allTrue([isDefined(ctrl.readyAt) === true, Number(ctrl.readyAt) >= Number(startedAt)]);
-      } catch (_) {
-        isReady = false;
-      }
-      if (isReady === true) {
-        const okPromote = promotePrewarm(ctrl);
-        if (okPromote === true) return;
-      }
-      try {
-        const hasPw = allTrue([isDefined(ctrl._prewarm) === true]);
-        if (hasPw === true) {
-          try {
-            const hadInner = allTrue([isDefined(ctrl._prewarm.innerId) === true]);
-            if (hadInner === true) {
-              const el = document.getElementById(ctrl._prewarm.innerId);
-              const okEl = allTrue([isDefined(el) === true]);
-              if (okEl === true) {
-                el.remove();
-              }
-            }
-          } catch (_) {}
-          try {
-            const canD = allTrue([isDefined(ctrl._prewarm.player) === true, isFunction(ctrl._prewarm.player.destroy) === true]);
-            if (canD === true) ctrl._prewarm.player.destroy();
-          } catch (_) {}
-          try {
-            ctrl._prewarm = null;
-          } catch (_) {}
-        }
+       const hadInner = allTrue([isDefined(ctrl._prewarm.innerId) === true]);
+       if (hadInner === true) {
+        const el = document.getElementById(ctrl._prewarm.innerId);
+        const okEl = allTrue([isDefined(el) === true]);
+        if (okEl === true) { el.remove(); }
+       }
       } catch (_) {}
-
-      createActive(ctrl, videoId);
-      log(`🔁 ${mID} Fallback Active Create → id=${String(videoId)}`);
-    },
-    waitMs,
-    ctrl._group('autonext'),
-    'prewarm-check'
-  );
+      try {
+       const canD = allTrue([isDefined(ctrl._prewarm.player) === true, isFunction(ctrl._prewarm.player.destroy) === true]);
+       if (canD === true) { ctrl._prewarm.player.destroy(); }
+      } catch (_) {}
+      try { ctrl._prewarm = null; } catch (_) {}
+     }
+    } catch (_) {}
+    createActive(ctrl, videoId);
+    log(`\uD83D\uDD01 ${mID} Fallback Active Create → id=${String(videoId)}`);
+   }, jitterMs, ctrl._group('autonext'), 'prewarm-fallback-jitter');
+  } catch (_) {}
+ },
+ waitMs,
+ ctrl._group('autonext'),
+ 'prewarm-check'
+);
 
   log(`🧩 ${mID} Lifecycle.recreateWithPrewarm → target=${String(videoId)}, serial=${String(localSerial)}`);
 }
