@@ -1,5 +1,5 @@
 // --- main.js ---
-const VERSION = 'v4.11.4';
+const VERSION = 'v4.12.2';
 /*
 Περιγραφή: Entry point με εκτεταμένη χρήση utils.js (domReady, safeAddEvent, once, log, retry, scheduleSafe).
 Start gate με user gesture, readiness του YouTube API με exponential backoff+jitter,
@@ -42,7 +42,6 @@ const log = makeLogger(FILENAME);
 const mID = getPlayerScope();
 
 /* --------------- Console filter (defensive) --------------- */
-/* Remove - Start
 (function safeInstallConsoleFilter() {
   try {
     installConsoleFilter();
@@ -51,8 +50,6 @@ const mID = getPlayerScope();
     log(`❌ ${mID} Error → Console Filter — Αποτυχία Εγκατάστασης: ${e}`);
   }
 })();
-
-Remove - End */
 
 /* --------------- Versions report (UI + fallback) --------------- */
 const versions = reportAllVersions();

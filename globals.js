@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v6.15.2';
+const VERSION = 'v6.16.2';
 /*
  * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, stop-all state, UI logging).
  * Σημείωση: Όλη η λογική/SSoT των λιστών έχει μεταφερθεί στο lists.js (pull-only getters).
@@ -37,6 +37,7 @@ const mID = getPlayerScope();
  Σκοπός: μείωση θορύβου, μη-κρίσιμων μηνυμάτων (κυρίως από YouTube API/ads).
  Σημείωση: Το παρόν είναι static config. Η πραγματική ενεργοποίηση γίνεται από άλλο module.
 */
+
 export const consoleFilterConfig = {
   enabled: true,
   tagLevel: 'info',
@@ -47,10 +48,28 @@ export const consoleFilterConfig = {
     /Failed to execute 'postMessage' on 'DOMWindow'.*target origin.*does not match the recipient window's origin/i,
     /Failed to execute 'postMessage'.*does not match/i,
     /postMessage.*origin.*does not match/i,
+
+    // NEW — Edge Tracking Prevention spam (DevTools flood)
+    /Tracking Prevention blocked access to storage/i,
+
+    // NEW — Permissions policy violation: compute-pressure
+    /\[Violation\]\s+Permissions policy violation:\s*compute-?pressure\s+is not allowed in this document/i,
+
+    // (Προαιρετικό, πιο γενικό fallback αν εμφανιστούν άλλες παραπλήσιες παραλλαγές)
+    // /\[Violation\]\s+Permissions policy violation/i,
   ],
-  sources: [/www\-widgetapi\.js/i, /googleads\.g\.doubleclick\.net/i, /pagead\/viewthroughconversion/i],
+  sources: [
+    /www\-widgetapi\.js/i,
+    /googleads\.g\.doubleclick\.net/i,
+    /pagead\/viewthroughconversion/i,
+
+    // NEW — επίμονα sources/αρχεία που συνήθως παράγουν τα παραπάνω:
+    /base\.js/i, // συχνή πηγή των compute-pressure logs
+    /edge|edg/i, // γενικός δείκτης από Edge-related stacks (προαιρετικό, κράτα αν δεις ότι βοηθά)
+  ],
   tag: '[YouTubeAPI][non-critical]',
 };
+
 /* --- Console Filter (external) Early Install - End --- */
 
 /* --- Στατιστικά για την εφαρμογή --- */
