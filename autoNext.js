@@ -1,5 +1,5 @@
 // --- autoNext.js ---
-const VERSION = 'v2.3.2';
+const VERSION = 'v2.4.2';
 /*
  * Περιγραφή: Ενοποιημένη λογική AutoNext για ENDED/ERROR/Watchtime + scheduler.
  *
@@ -17,8 +17,8 @@ export function getVersion() {
  * - Επιλογή επόμενου video μέσω pickVideoId() (SSoT/pull-only από lists.js).
  * - ΠΑΝΤΑ recreatePlayer(newId) αντί για loadVideoById (καθαρό READY lifecycle ανά βίντεο).
  * - Το per-video scheduling γίνεται στη φάση READY (βλ. playerStateEngine.js).
- * - Hard Reset
- * */
+ *
+ */
 
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
@@ -29,7 +29,6 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 import { scheduleSafe, makeLogger, rndInt, randomFloat, isDefined, isNumber, allTrue, anyTrue, isFunction, getPlayerScope } from './utils.js';
 import { AUTO_NEXT_LIMIT_PER_PLAYER, stats } from './globals.js';
 import { pickVideoId } from './videoPicker.js';
-import { hardResetAndCreate } from './playerLifecycle.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -234,8 +233,8 @@ function runAutoNext(ctrl, ctx, label) {
   // CUED-only path: finalize state & recreate player
   try {
     finalizeAutoNext(ctrl, picked);
-    hardResetAndCreate(ctrl, picked.id);
-    log(`ℹ️ ${mID} AutoNext → Hard-Reset Per-Video. Active Create id=${picked.id}`);
+    ctrl.recreatePlayer(picked.id);
+    log(`ℹ️ ${mID} AutoNext → CUED-only: RecreatePlayer. READY will schedule all. (id=${picked.id})`);
   } catch (e) {
     log(`❌ ${mID} Error → LoadNext — Detail= ${e}`);
   }

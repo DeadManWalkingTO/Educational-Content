@@ -1,5 +1,5 @@
 // --- autoSeek.js ---
-const VERSION = 'v3.5.6';
+const VERSION = 'v3.6.2';
 /*
  * Περιγραφή: Εξωτερικό module για seek (safeSeek, init-seek, mid-seek scheduling).
  *
@@ -48,6 +48,7 @@ export function getVersion() {
  * - Δυναμικός WT-tail guard (εξαρτάται από D και WTLeft) για πιο φυσικούς clamp-στόχους.
  * - Preview με PredictedTarget (clamp-αρισμένος) για συνέπεια Preview↔Execute στα logs.
  * - Διατήρηση: WT-based χρονισμός (α(φ) + jitter), απόσταση/στόχος παραμετροποιήσιμα από plan.
+ *
  */
 
 /* Όνομα αρχείου για logging. */
@@ -58,12 +59,16 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { scheduleSafe, makeLogger, rndInt, anyTrue, allTrue, isFunction, isNumber, clamp, getPlayerScope, isDefined } from './utils.js';
-import { stats } from './globals.js';
+import { stats, INIT_SEEK_DELAY_MS } from './globals.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
 
 /* ========================= Settings ========================= */
+// Εσωτερική Καθυστέριση InitSeek
+const initSeekDelayMS = isNumber(INIT_SEEK_DELAY_MS) === true ? INIT_SEEK_DELAY_MS : 1800;
+
+// Δευτερόλεπτα για να θεωρηθεί μικρό βίντεο.
 const ShortGuard = 75; // δευτερόλεπτα
 
 // Defaults για στόχο στη ΔΙΑΡΚΕΙΑ (παραμετροποιούνται από plan → ctrl.seekDefaults)
@@ -332,8 +337,7 @@ export function applyInitSeek(ctrl, targetSec) {
     ctrl.seekMeta.initAppliedMs = Date.now();
   } catch (_) {}
 
-  // 2) Μία και μοναδική εκτέλεση στο t+800 ms (χωρίς state gate, χωρίς guardPlay)
-  const delayMs = 800;
+  // 2) Μία και μοναδική εκτέλεση στο t+initSeekDelayMS ms (χωρίς state gate, χωρίς guardPlay)
   scheduleSafe(
     function () {
       try {
@@ -357,7 +361,7 @@ export function applyInitSeek(ctrl, targetSec) {
         log(`ℹ️ ${mID} Seek → Info: Mid-Seek Re-scheduled After Init`);
       } catch (_) {}
     },
-    delayMs,
+    initSeekDelayMS,
     resolveGroup(ctrl, 'init-seek', 'pc:init-seek'),
     'init-seek-once'
   );

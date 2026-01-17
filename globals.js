@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v6.14.2';
+const VERSION = 'v6.15.2';
 /*
  * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, stop-all state, UI logging).
  * Σημείωση: Όλη η λογική/SSoT των λιστών έχει μεταφερθεί στο lists.js (pull-only getters).
@@ -26,16 +26,6 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { makeLogger, isDefined, cancel, secToMs, msToSec, anyTrue, allTrue, getPlayerScope } from './utils.js';
-
-/* SSoT για host/origin — delegation στο youtubeEmbedMeta.js */
-import {
-  setYouTubeEmbedMode as ssotSetYouTubeEmbedMode,
-  getYouTubeEmbedHost as ssotGetYouTubeEmbedHost,
-  getOriginForEmbed as ssotGetOriginForEmbed,
-  resolveEmbedMeta as ssotResolveEmbedMeta,
-  buildPlayerVarsWithMeta as ssotBuildPlayerVarsWithMeta,
-  compareEmbedMeta as ssotCompareEmbedMeta,
-} from './youtubeEmbedMeta.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -78,15 +68,27 @@ export const stats = {
 };
 
 /* --- Σταθερές εφαρμογής --- */
+// Αριθμός Players
 export const PLAYER_COUNT = 2;
+// Πιθανότητα Λίστας Main
 export const MAIN_PROBABILITY = 0.5;
+// Κόφτης για βίντεο ανά ώρα
 export const AUTO_NEXT_LIMIT_PER_PLAYER = 50;
-export const WATCHDOG_RATE = secToMs(120); //120
+// Ελάχιστος Χρόνος Θέασης
 export const MIN_WATCH_TIME = 60;
+
+// Ρυθμός WatchDog
+export const WATCHDOG_RATE = secToMs(120); //120
+// Επιτρεπτός Χρόνος για BUFFERING
+export const WATCHDOG_BUFFERING_RULE_MS = secToMs(60); // 60
+
+// Ελάχιστος - Μέγιστος Χρόνος Καθυστέρησης για εκκίνηση (Play) PlayerStateEngine
 export const START_PLAY_MIN_DELAY_MS = secToMs(5);
 export const START_PLAY_MAX_DELAY_MS = secToMs(18);
-export const START_SEEK_MIN_VALUE_SEC = msToSec(START_PLAY_MIN_DELAY_MS);
-export const WATCHDOG_BUFFERING_RULE_MS = secToMs(120); // 120
+// Ελάχιστος Χρόνος Seek (Threshold για Policy)
+export const START_SEEK_MIN_VALUE_SEC = 7;
+// Καθυστέριση εσωτερικής εκτέλεσης scedule InitSeek
+export const INIT_SEEK_DELAY_MS = 3000;
 
 /* --- Controllers registry (γεμίζει από main.js) --- */
 export const controllers = [];
