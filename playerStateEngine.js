@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v6.9.2';
+const VERSION = 'v6.9.8';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * CUED-only στρατηγική (READY‑centric)
@@ -198,7 +198,7 @@ function buildPlanForCurrentVideo(ctrl, reason = 'per-video', isFirstVideo = fal
   return { durationNow };
 }
 
-function schedulePerVideoTasks(ctrl, durationNow, reason = 'playing') {
+function schedulePerVideoTasks(ctrl, durationNow, reason = 'playing', StartDelayMS = 0) {
   const softJitterRateMs = rndInt(5000, 10000);
   const softJitterQualityMs = rndInt(5000, 10000);
   const softJitterVolumeMs = rndInt(5000, 10000);
@@ -400,7 +400,7 @@ export function onReadyExternal(ctrl, e) {
     } catch (_) {}
     */
     try {
-      schedulePerVideoTasks(ctrl, durationNow, 'ready');
+      schedulePerVideoTasks(ctrl, durationNow, 'ready', StartDelayMS);
     } catch (_) {}
     log(`✅ ${mID} READY-centric plan → Resets & schedulers started (Dur=${Math.floor(durationNow)}s)`);
 
