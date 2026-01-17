@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v2.2.2';
+const VERSION = 'v2.2.4';
 /*
  * Περιγραφή: Watchdog για "required watch time" ανά PlayerController.
  * - Ασφαλή groups με resolveGroup().
@@ -29,7 +29,7 @@ import { repeat, cancel, makeLogger, allTrue, anyTrue, isDefined, isNumber, isFu
 import { controllers, stats, isStopping, WATCHDOG_BUFFERING_RULE_MS, WATCHDOG_READY_RULE_MS, WATCHDOG_PLAYED_RULE_MS } from './globals.js';
 import { autoNextAfterEnded, autoNextAfterWatchtime } from './autoNext.js';
 import { onWatchtimeReached } from './wtBus.js';
-import { resetAll } from './uiControls.js';
+import { restartAll } from './uiControls.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
@@ -225,7 +225,7 @@ function checkController(ctrl) {
     return;
   }
 
-  // --- [READY-age gate] READY ≥ WATCHDOG_READY_RULE_MS: 1 απόπειρα guardPlay + 20s deadline → ResetAll ---
+  // --- [READY-age gate] READY ≥ WATCHDOG_READY_RULE_MS: 1 απόπειρα guardPlay + 20s deadline → RestartAll ---
   try {
     const parts = [];
     parts.push(isNumber(ctrl?.readyAt) === true);
@@ -270,9 +270,9 @@ function checkController(ctrl) {
         const expired = allTrue([nowMs() >= deadline]) === true;
         if (expired === true) {
           ctrl._wdReadyProbe = null;
-          log(`🧯 ${mID} WD: READY recovery failed within 20s → ResetAll (UI flow)`);
+          log(`🧯 ${mID} WD: READY recovery failed within 20s → RestartAll (UI flow)`);
           // ΑΚΡΙΒΩΣ η ίδια ροή με το κουμπί "Restart All"
-          resetAll();
+          restartAll();
           return;
         }
 
@@ -350,7 +350,7 @@ function checkController(ctrl) {
     }
   }
 
-  // --- [Long-buffering rule] BUFFERING ≥ WATCHDOG_BUFFERING_RULE_MS → ResetAll (UI flow) ---
+  // --- [Long-buffering rule] BUFFERING ≥ WATCHDOG_BUFFERING_RULE_MS → RestartAll (UI flow) ---
   try {
     const p = ctrl?.player;
     const parts2 = [];
@@ -366,14 +366,14 @@ function checkController(ctrl) {
         ]) === true;
 
       if (stalled === true) {
-        log(`🧯 ${mID} WD: Buffering ≥ ${msToSec(WATCHDOG_BUFFERING_RULE_MS)}s → ResetAll (UI flow)`);
-        resetAll();
+        log(`🧯 ${mID} WD: Buffering ≥ ${msToSec(WATCHDOG_BUFFERING_RULE_MS)}s → RestartAll (UI flow)`);
+        restartAll();
         return;
       }
     }
   } catch (_) {}
 
-  // --- [Νέος] Stalled WatchTime: αν Δplayed δεν αλλάζει ≥ WATCHDOG_PLAYED_RULE_MS → ResetAll (UI flow) ---
+  // --- [Νέος] Stalled WatchTime: αν Δplayed δεν αλλάζει ≥ WATCHDOG_PLAYED_RULE_MS → RestartAll (UI flow) ---
   try {
     // Ασφαλής αρχικοποίηση/έλεγχος _wdLastProgress
     let lpInvalid = false;
@@ -404,8 +404,8 @@ function checkController(ctrl) {
       const over = allTrue([elapsedNoChange >= WATCHDOG_PLAYED_RULE_MS]) === true; // π.χ. 180s από globals
       if (over === true) {
         ctrl._wdLastProgress = null;
-        log(`🧯 ${mID} WD: Stalled WatchTime ≥ ${msToSec(WATCHDOG_PLAYED_RULE_MS)}s → ResetAll (UI flow)`);
-        resetAll();
+        log(`🧯 ${mID} WD: Stalled WatchTime ≥ ${msToSec(WATCHDOG_PLAYED_RULE_MS)}s → RestartAll (UI flow)`);
+        restartAll();
         return;
       }
     }
