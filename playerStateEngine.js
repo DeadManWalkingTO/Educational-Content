@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v6.8.2';
+const VERSION = 'v6.9.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * CUED-only στρατηγική (READY‑centric)
@@ -42,7 +42,6 @@ import { scheduleVolumeChanges, scheduleMicroAdjust } from './autoVolume.js';
 const log = makeLogger(FILENAME);
 
 /* ========================= Settings ========================= */
-const StartDelayMS = rndInt(START_PLAY_MIN_DELAY_MS, START_PLAY_MAX_DELAY_MS);
 
 /* ========================= Helpers ========================= */
 function _can(obj, methodName) {
@@ -348,6 +347,7 @@ export function onReadyExternal(ctrl, e) {
 
     // Init-seek ή Play (πολιτική) με καθυστέρηση StartDelayMS
     try {
+      const StartDelayMS = rndInt(START_PLAY_MIN_DELAY_MS, START_PLAY_MAX_DELAY_MS);
       const tRaw = ctrl.plan?.startSeek?.targetSec ?? 0;
       const t = Number(tRaw);
       const partsInit = [];
