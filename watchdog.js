@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v1.21.2';
+const VERSION = 'v1.22.12';
 /*
  * Περιγραφή: Watchdog για "required watch time" ανά PlayerController.
  * - Ασφαλή groups με resolveGroup().
@@ -26,7 +26,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 
 /* ========================= Imports ========================= */
 import { repeat, cancel, makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, nowMs, msToSec, fmtMs, scheduleSafe, getPlayerScope, isSchedulerHalted, secToMs } from './utils.js';
-import { controllers, stats, isStopping, WATCHDOG_BUFFERING_RULE_MS } from './globals.js';
+import { controllers, stats, isStopping, WATCHDOG_BUFFERING_RULE_MS, WATCHDOG_READY_RULE_MS, WATCHDOG_PLAYED_RULE_MS } from './globals.js';
 import { autoNextAfterEnded, autoNextAfterWatchtime } from './autoNext.js';
 import { onWatchtimeReached } from './wtBus.js';
 
@@ -38,7 +38,9 @@ let watchdogTimerId = null;
 const wtSeen = {}; // WTBus cache (index → lastMs)
 const WT_FALLBACK_GRACE_MS = 8000;
 let wtBusDisposer = null;
-const playerMaxReadyAgeMS = secToMs(30);
+const playerMaxReadyAgeMS = WATCHDOG_READY_RULE_MS;
+const playerMaxBufferingAgeMS = WATCHDOG_BUFFERING_RULE_MS;
+const playerMaxPlayedAgeMS = WATCHDOG_PLAYED_RULE_MS;
 
 /* ========================= Helpers ========================= */
 function resolveGroup(ctrl, suffix, fallback) {
@@ -289,7 +291,7 @@ function checkController(ctrl) {
     }
   }
 
-  /* === ΝΕΟΣ ΚΑΝΟΝΑΣ: Buffering > WATCHDOG_BUFFERING_RULE_MS === */
+  /* === ΝΕΟΣ ΚΑΝΟΝΑΣ: Buffering > playerMaxBufferingAgeMS === */
   try {
     const p = ctrl?.player;
     const parts = [];
@@ -303,7 +305,7 @@ function checkController(ctrl) {
 
       const stalled = allTrue([
         state === YT.PlayerState.BUFFERING,
-        elapsed >= WATCHDOG_BUFFERING_RULE_MS, // WATCHDOG_BUFFERING_RULE_MS
+        elapsed >= playerMaxBufferingAgeMS, // playerMaxBufferingAgeMS
         fraction < 0.05,
       ]);
 

@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v6.16.2';
+const VERSION = 'v6.17.2';
 /*
  * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, stop-all state, UI logging).
  * Σημείωση: Όλη η λογική/SSoT των λιστών έχει μεταφερθεί στο lists.js (pull-only getters).
@@ -97,9 +97,13 @@ export const AUTO_NEXT_LIMIT_PER_PLAYER = 50;
 export const MIN_WATCH_TIME = 60;
 
 // Ρυθμός WatchDog
-export const WATCHDOG_RATE = secToMs(120); //120
+export const WATCHDOG_RATE = secToMs(60); //120
+// Επιτρεπτός Χρόνος για READY
+export const WATCHDOG_READY_RULE_MS = secToMs(30); // 30
 // Επιτρεπτός Χρόνος για BUFFERING
 export const WATCHDOG_BUFFERING_RULE_MS = secToMs(60); // 60
+// Επιτρεπτός Χρόνος για PLAYED
+export const WATCHDOG_PLAYED_RULE_MS = secToMs(180); // 180
 
 // Ελάχιστος - Μέγιστος Χρόνος Καθυστέρησης για εκκίνηση (Play) PlayerStateEngine
 export const START_PLAY_MIN_DELAY_MS = secToMs(5);
