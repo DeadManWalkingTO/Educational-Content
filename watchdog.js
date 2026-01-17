@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v2.3.2';
+const VERSION = 'v2.3.4';
 /*
  * Περιγραφή: Watchdog για "required watch time" ανά PlayerController.
  * - Ασφαλή groups με resolveGroup().
@@ -28,7 +28,7 @@ console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAM
 import { repeat, cancel, makeLogger, allTrue, anyTrue, isDefined, isNumber, isFunction, nowMs, msToSec, fmtMs, scheduleSafe, getPlayerScope, isSchedulerHalted, secToMs } from './utils.js';
 import { controllers, stats, isStopping, WATCHDOG_BUFFERING_RULE_MS, WATCHDOG_READY_RULE_MS, WATCHDOG_PLAYED_RULE_MS } from './globals.js';
 import { autoNextAfterEnded, autoNextAfterWatchtime } from './autoNext.js';
-import { onWatchtimeReached } from './wtBus.js';
+import { onWatchtimeReached, emitWatchtimeReached } from './wtBus.js';
 import { restartAll } from './uiControls.js';
 
 /* ========================= Logger ========================= */
@@ -325,6 +325,12 @@ function checkController(ctrl) {
       try {
         if (isFunction(ctrl?.clearTimers) === true) ctrl.clearTimers();
       } catch (_) {}
+
+      // NEW: Publisher-side emit → αυξάνει WTSignals & ενημερώνει listeners
+      try {
+        emitWatchtimeReached(ctrl.index);
+      } catch (_) {}
+
       ctrl.autoNextScheduled = true;
       autoNextAfterWatchtime(ctrl);
       stats.autoNext = isNumber(stats?.autoNext) === true ? stats.autoNext + 1 : 1;
