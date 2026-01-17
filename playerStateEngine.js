@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v6.7.2';
+const VERSION = 'v6.8.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * CUED-only στρατηγική (READY‑centric)
@@ -389,6 +389,7 @@ export function onReadyExternal(ctrl, e) {
         if (isNumber(d) === true) durationNow = d;
       }
     } catch (_) {}
+    /* Δεν χρειάζονται όταν ξεκινάμε από CUED-only
     try {
       resetPlaybackRate(ctrl);
       ctrl._rateAppliedForThisVideo = true;
@@ -397,6 +398,7 @@ export function onReadyExternal(ctrl, e) {
       resetPlaybackQuality(ctrl);
       ctrl._qualityAutoAppliedForThisVideo = true;
     } catch (_) {}
+    */
     try {
       schedulePerVideoTasks(ctrl, durationNow, 'ready');
     } catch (_) {}
@@ -437,7 +439,7 @@ export function onStateChangeExternal(ctrl, e) {
       // (READY έκανε όλα τα resets/schedulers)
       try {
         const pp = ctrl?.player;
-        const quality = isFunction(pp?.getPlaybackQuality) === true ? pp.getPlaybackQuality() ?? '?' : '?';
+        const quality = isFunction(pp?.getPlaybackQuality) === true ? (pp.getPlaybackQuality() ?? '?') : '?';
         let isMutedNow = false;
         try {
           const partsMuted = [];
