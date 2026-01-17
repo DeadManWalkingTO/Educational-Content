@@ -1,5 +1,5 @@
 // --- playerLifecycle.js ---
-const VERSION = 'v1.8.0';
+const VERSION = 'v1.8.18';
 /*
  * Περιγραφή:
  * SSOT/DRY για κύκλο ζωής YouTube players με ισχυροποίηση origin/host.
@@ -195,15 +195,13 @@ function _compareAndRememberEmbedMeta(ctrl, meta, label) {
 }
 
 /* ========================= Lifecycle ========================= */
+
 export function createActive(ctrl, videoId) {
   const mID = getPlayerScope(ctrl.index);
   const containerId = getContainerId(ctrl);
   const innerId = containerId + '__r' + String(Date.now());
-
-  // Diagnostics (κρατάμε τη ροή logging/σύγκρισης)
   const meta = _resolveEmbedMeta(ctrl, 'createActive');
   _compareAndRememberEmbedMeta(ctrl, meta, 'createActive');
-
   try {
     const parent = document.getElementById(containerId);
     const okParent = allTrue([isDefined(parent) === true]);
@@ -217,31 +215,25 @@ export function createActive(ctrl, videoId) {
       ctrl._innerId = innerId;
     }
   } catch (_) {}
-
-  // SSoT: παίρνουμε { pv, host } από youtubeEmbedMeta — origin μπαίνει μόνο αν έγκυρο
   const ssot = buildPlayerVarsWithMeta();
   const pv = ssot.pv;
   const host = ssot.host;
-
   ctrl.player = new YT.Player(innerId, {
     videoId: videoId,
     host: host,
     playerVars: pv,
-    events: { onReady: (e) => pwOnReady(e), onStateChange: (e) => pwOnStateChange(e), onError: (e) => ctrl.onError(e) },
+    events: { onReady: (e) => ctrl.onReady(e), onStateChange: (e) => ctrl.onStateChange(e), onError: (e) => ctrl.onError(e) },
   });
-
   log(`🧱 ${mID} Active Create → inner=${innerId}, id=${String(videoId)}, origin=${String(pv.origin ?? '(omitted)')}, host=${String(host)}`);
   return innerId;
 }
+
 export function prewarm(ctrl, videoId) {
   const mID = getPlayerScope(ctrl.index);
   const containerId = getContainerId(ctrl);
   const pwInner = containerId + '__pw_' + String(Date.now());
-
-  // Diagnostics (κρατάμε τη ροή logging/σύγκρισης)
   const meta = _resolveEmbedMeta(ctrl, 'prewarm');
   _compareAndRememberEmbedMeta(ctrl, meta, 'prewarm');
-
   try {
     const parent = document.getElementById(containerId);
     const okParent = allTrue([isDefined(parent) === true]);
@@ -258,11 +250,90 @@ export function prewarm(ctrl, videoId) {
       parent.appendChild(el);
     }
   } catch (_) {}
-
-  // SSoT: παίρνουμε { pv, host } από youtubeEmbedMeta — origin μπαίνει μόνο αν έγκυρο
   const ssot = buildPlayerVarsWithMeta();
   const pv = ssot.pv;
   const host = ssot.host;
+
+  const pwOnReady = function (e) {
+    try {
+      if (isDefined(ctrl._pwFirstStateAt) !== true) {
+        ctrl._pwFirstStateAt = Date.now();
+      }
+      if (isDefined(ctrl._pwReadyAt) !== true) {
+        ctrl._pwReadyAt = Date.now();
+      }
+      try {
+        const parts = [];
+        parts.push(isDefined(ctrl._prewarm) === true);
+        parts.push(isDefined(ctrl._prewarm?.player) === true);
+        const canPromote = allTrue(parts);
+        if (canPromote === true) {
+          const okNow = promotePrewarm(ctrl);
+          if (okNow === true) {
+            try {
+              if (isDefined(ctrl._pwTimer) === true) {
+                cancel(ctrl._pwTimer);
+                ctrl._pwTimer = null;
+              }
+            } catch (_) {}
+            try {
+              ctrl._promoteDecisionAt = Date.now();
+              ctrl._promoted = true;
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+      if (isFunction(ctrl?.onReady) === true) {
+        ctrl.onReady(e);
+      }
+    } catch (_) {}
+  };
+
+  const pwOnStateChange = function (e) {
+    try {
+      if (isDefined(ctrl._pwFirstStateAt) !== true) {
+        ctrl._pwFirstStateAt = Date.now();
+      }
+      try {
+        const checks = [];
+        checks.push(typeof YT !== 'undefined');
+        checks.push(isDefined(e?.data) === true);
+        if (allTrue(checks) === true) {
+          const st = e.data;
+          const cond = [];
+          cond.push(st === YT?.PlayerState?.BUFFERING);
+          cond.push(isDefined(ctrl._pwReadyAt) !== true);
+          if (allTrue(cond) === true) {
+            ctrl._pwReadyAt = Date.now();
+          }
+        }
+      } catch (_) {}
+      try {
+        const canTry = [];
+        canTry.push(isDefined(ctrl._pwReadyAt) === true);
+        canTry.push(isDefined(ctrl?._prewarm) === true);
+        const okTry = allTrue(canTry);
+        if (okTry === true) {
+          const okNow2 = promotePrewarm(ctrl);
+          if (okNow2 === true) {
+            try {
+              if (isDefined(ctrl._pwTimer) === true) {
+                cancel(ctrl._pwTimer);
+                ctrl._pwTimer = null;
+              }
+            } catch (_) {}
+            try {
+              ctrl._promoteDecisionAt = Date.now();
+              ctrl._promoted = true;
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+      if (isFunction(ctrl?.onStateChange) === true) {
+        ctrl.onStateChange(e);
+      }
+    } catch (_) {}
+  };
 
   const pwPlayer = new YT.Player(pwInner, {
     videoId: videoId,
@@ -270,32 +341,27 @@ export function prewarm(ctrl, videoId) {
     playerVars: pv,
     events: { onReady: (e) => pwOnReady(e), onStateChange: (e) => pwOnStateChange(e), onError: (e) => ctrl.onError(e) },
   });
-
   try {
-    // Κρατάμε το meta που χρησιμοποιήθηκε για tracking/σύγκριση στο promote
     ctrl._prewarm = { innerId: pwInner, player: pwPlayer, startedAt: Date.now(), _embedMeta: { origin: meta.origin, host: meta.host } };
   } catch (_) {}
-
   log(`♨️ ${mID} Prewarm Create → inner=${pwInner}, id=${String(videoId)}, origin=${String(pv.origin ?? '(omitted)')}, host=${String(host)}`);
   return pwInner;
 }
+
 export function promotePrewarm(ctrl) {
   const mID = getPlayerScope(ctrl.index);
   let ok = false;
-
   try {
     const hasPw = allTrue([isDefined(ctrl?._prewarm) === true, isDefined(ctrl._prewarm.innerId) === true, isDefined(ctrl._prewarm.player) === true]);
     if (hasPw !== true) return false;
-
     try {
       const cur = isDefined(ctrl?._embedMetaLast) === true ? ctrl._embedMetaLast : null;
       const pw = ctrl._prewarm?._embedMeta;
-      const metaMismatch = allTrue([isDefined(cur) === true, isDefined(pw) === true, String(cur.origin) !== String(pw.origin) || String(cur.host) !== String(pw.host) ? true : false]);
+      const metaMismatch = allTrue([isDefined(cur) === true, isDefined(pw) === true, String(cur.origin) !== String(pw.origin), String(cur.host) !== String(pw.host) ? true : false]);
       if (metaMismatch === true) {
         log(`⚠️ ${mID} Prewarm meta differs → prewarm(origin=${String(pw.origin)}, host=${String(pw.host)}), last(origin=${String(cur.origin)}, host=${String(cur.host)})`);
       }
     } catch (_) {}
-
     const containerId = getContainerId(ctrl);
     const activeInner = containerId + '__r' + String(Date.now());
     const el = document.getElementById(ctrl._prewarm.innerId);
@@ -315,7 +381,6 @@ export function promotePrewarm(ctrl) {
       log(`🚀 ${mID} Promote → active=${activeInner}`);
     }
   } catch (_) {}
-
   return ok;
 }
 
@@ -345,49 +410,74 @@ export function recreateWithPrewarm(ctrl, videoId, opts = {}) {
   const waitMs = rndInt(minMs, maxMs);
 
   ctrl._pwTimer = scheduleSafe(
- () => {
-  const sameSerial = allTrue([isDefined(ctrl._recreateSerial) === true, Number(ctrl._recreateSerial) === Number(localSerial)]);
-  if (sameSerial !== true) { return; }
-  let isPwReady = false;
-  try { isPwReady = allTrue([isDefined(ctrl._pwReadyAt) === true, Number(ctrl._pwReadyAt) >= Number(startedAt)]); } catch (_) { isPwReady = false; }
-  if (isPwReady === true) {
-   const okPromote = promotePrewarm(ctrl);
-   if (okPromote === true) {
-    try { if (isDefined(ctrl._pwTimer) === true) { cancel(ctrl._pwTimer); ctrl._pwTimer = null; } } catch (_) {}
-    try { ctrl._promoteDecisionAt = Date.now(); ctrl._promoted = true; } catch (_) {}
-    return;
-   }
-  }
-  try {
-   const jitterMs = rndInt(200, 400);
-   scheduleSafe(() => {
-    try {
-     const hasPw = allTrue([isDefined(ctrl._prewarm) === true]);
-     if (hasPw === true) {
+    () => {
+      const sameSerial = allTrue([isDefined(ctrl._recreateSerial) === true, Number(ctrl._recreateSerial) === Number(localSerial)]);
+      if (sameSerial !== true) {
+        return;
+      }
+      let isPwReady = false;
       try {
-       const hadInner = allTrue([isDefined(ctrl._prewarm.innerId) === true]);
-       if (hadInner === true) {
-        const el = document.getElementById(ctrl._prewarm.innerId);
-        const okEl = allTrue([isDefined(el) === true]);
-        if (okEl === true) { el.remove(); }
-       }
-      } catch (_) {}
+        isPwReady = allTrue([isDefined(ctrl._pwReadyAt) === true, Number(ctrl._pwReadyAt) >= Number(startedAt)]);
+      } catch (_) {
+        isPwReady = false;
+      }
+      if (isPwReady === true) {
+        const okPromote = promotePrewarm(ctrl);
+        if (okPromote === true) {
+          try {
+            if (isDefined(ctrl._pwTimer) === true) {
+              cancel(ctrl._pwTimer);
+              ctrl._pwTimer = null;
+            }
+          } catch (_) {}
+          try {
+            ctrl._promoteDecisionAt = Date.now();
+            ctrl._promoted = true;
+          } catch (_) {}
+          return;
+        }
+      }
       try {
-       const canD = allTrue([isDefined(ctrl._prewarm.player) === true, isFunction(ctrl._prewarm.player.destroy) === true]);
-       if (canD === true) { ctrl._prewarm.player.destroy(); }
+        const jitterMs = rndInt(200, 400);
+        scheduleSafe(
+          () => {
+            try {
+              const hasPw = allTrue([isDefined(ctrl._prewarm) === true]);
+              if (hasPw === true) {
+                try {
+                  const hadInner = allTrue([isDefined(ctrl._prewarm.innerId) === true]);
+                  if (hadInner === true) {
+                    const el = document.getElementById(ctrl._prewarm.innerId);
+                    const okEl = allTrue([isDefined(el) === true]);
+                    if (okEl === true) {
+                      el.remove();
+                    }
+                  }
+                } catch (_) {}
+                try {
+                  const canD = allTrue([isDefined(ctrl._prewarm.player) === true, isFunction(ctrl._prewarm.player.destroy) === true]);
+                  if (canD === true) {
+                    ctrl._prewarm.player.destroy();
+                  }
+                } catch (_) {}
+                try {
+                  ctrl._prewarm = null;
+                } catch (_) {}
+              }
+            } catch (_) {}
+            createActive(ctrl, videoId);
+            log(`\uD83D\uDD01 ${mID} Fallback Active Create → id=${String(videoId)}`);
+          },
+          jitterMs,
+          ctrl._group('autonext'),
+          'prewarm-fallback-jitter'
+        );
       } catch (_) {}
-      try { ctrl._prewarm = null; } catch (_) {}
-     }
-    } catch (_) {}
-    createActive(ctrl, videoId);
-    log(`\uD83D\uDD01 ${mID} Fallback Active Create → id=${String(videoId)}`);
-   }, jitterMs, ctrl._group('autonext'), 'prewarm-fallback-jitter');
-  } catch (_) {}
- },
- waitMs,
- ctrl._group('autonext'),
- 'prewarm-check'
-);
+    },
+    waitMs,
+    ctrl._group('autonext'),
+    'prewarm-check'
+  );
 
   log(`🧩 ${mID} Lifecycle.recreateWithPrewarm → target=${String(videoId)}, serial=${String(localSerial)}`);
 }
