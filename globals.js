@@ -1,5 +1,5 @@
 // --- globals.js ---
-const VERSION = 'v6.17.2';
+const VERSION = 'v6.17.4';
 /*
  * Κεντρικός state & utilities για όλη την εφαρμογή (stats, controllers, stop-all state, UI logging).
  * Σημείωση: Όλη η λογική/SSoT των λιστών έχει μεταφερθεί στο lists.js (pull-only getters).
@@ -101,7 +101,7 @@ export const WATCHDOG_RATE = secToMs(60); //120
 // Επιτρεπτός Χρόνος για READY
 export const WATCHDOG_READY_RULE_MS = secToMs(30); // 30
 // Επιτρεπτός Χρόνος για BUFFERING
-export const WATCHDOG_BUFFERING_RULE_MS = secToMs(60); // 60
+export const WATCHDOG_BUFFERING_RULE_MS = secToMs(80); // 80
 // Επιτρεπτός Χρόνος για PLAYED
 export const WATCHDOG_PLAYED_RULE_MS = secToMs(180); // 180
 

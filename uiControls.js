@@ -1,5 +1,5 @@
 // --- uiControls.js ---
-const VERSION = 'v6.2.2';
+const VERSION = 'v6.3.2';
 /*
  * Κεντρικό χειριστήριο UI (Stop/Restart All, Theme, Copy/Clear Logs, Reload List).
  * Refactor: Το reloadList() καλεί μόνο lists.reloadAndApply() (pull-only, χωρίς events/meta).
@@ -223,7 +223,7 @@ function ifHumanModeFinish() {
 }
 
 /* ========================= Restart All ========================= */
-function restartAll() {
+export function restartAll() {
   const mID = getPlayerScope();
   const MinDelayMS = 5000;
   const MaxDelayMS = 10000;
@@ -242,8 +242,8 @@ function restartAll() {
   document.addEventListener(
     'humanmode:init:completed',
     () => {
-      const mID2 = getPlayerScope();
-      log(`👤 ${mID2} HumanMode initialization → Prepare New`);
+      const mID = getPlayerScope();
+      log(`👤 ${mID} HumanMode initialization → Prepare New`);
       ifHumanModeFinish();
     },
     { once: true }
