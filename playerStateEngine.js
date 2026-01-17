@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v6.9.8';
+const VERSION = 'v6.10.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * CUED-only στρατηγική (READY‑centric)
@@ -500,6 +500,9 @@ export function onStateChangeExternal(ctrl, e) {
               if (ctrl.freezeSoftTasks !== true) {
                 ctrl.freezeSoftTasks = true;
                 log(`🧊 ${mID} Soft-Freeze Enabled (≤${guardSec}s To Threshold)`);
+                try {
+                  stats.softBackpressureHits = isNumber(stats?.softBackpressureHits) === true ? stats.softBackpressureHits + 1 : 1;
+                } catch (_) {}
               }
             }
           }

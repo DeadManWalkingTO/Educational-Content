@@ -1,5 +1,5 @@
 // --- watchdog.js ---
-const VERSION = 'v2.2.4';
+const VERSION = 'v2.3.2';
 /*
  * Περιγραφή: Watchdog για "required watch time" ανά PlayerController.
  * - Ασφαλή groups με resolveGroup().
@@ -304,6 +304,9 @@ function checkController(ctrl) {
         if (ctrl?.freezeSoftTasks !== true) {
           ctrl.freezeSoftTasks = true;
           log(`🧊 ${mID} Soft-Freeze Enabled (≤${guardSec}s to threshold)`);
+          try {
+            stats.softBackpressureHits = isNumber(stats?.softBackpressureHits) === true ? stats.softBackpressureHits + 1 : 1;
+          } catch (_) {}
         }
       }
     }
