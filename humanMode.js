@@ -1,5 +1,5 @@
 // --- humanMode.js ---
-const VERSION = 'v8.2.2';
+const VERSION = 'v8.3.2';
 /*
  * Περιγραφή: Human Mode για προσομοίωση ανθρώπινης συμπεριφοράς playback.
  * Refactor: Δεν εφαρμόζουμε/μεταφέρουμε λίστες από εδώ. Το SSoT είναι στο lists.js.
@@ -40,6 +40,8 @@ const log = makeLogger(FILENAME);
  * Σημείωση: Τα main/alt lists ΔΕΝ εφαρμόζονται εδώ. Το pickVideoId() τραβά SSoT (lists.js) on-demand.
  * Υπογραφή παραμένει συμβατή (παράμετροι αγνοούνται για backward-compat από main.js).
  */
+
+// humanMode.js
 export async function initPlayersSequentially(_mainListIgnored, _altListIgnored) {
   const mID0 = getPlayerScope();
   setHumanModeInitFinish(false);
@@ -54,32 +56,32 @@ export async function initPlayersSequentially(_mainListIgnored, _altListIgnored)
     log(`❌ ${mID0} HumanMode → hasUserGesture Check Error ${err}`);
   }
 
-  // Διαθεσιμότητα: Δεν ελέγχουμε λίστες εδώ (pull-only). Το pickVideoId() χειρίζεται empty cases.
+  // Διαθεσιμότητα: ΔΕΝ εναποθέτουμε λίστες εδώ (pull-only). Το pickVideoId χειρίζεται empty cases.
   let i = 0;
   while (i < PLAYER_COUNT) {
     const safePlayerLabel = `Player ${i + 1}`;
     const mID = getPlayerScope(safePlayerLabel);
 
-    // --- 🔒 Early StopAll Gate ---
+    // --- 🔒 Early StopAll Gate
     if (isStopping === true) {
       log(`👤 ${mID} HumanMode → Παράκαμψη Init (Stop All)`);
       break;
     }
 
-    // === Τυχαίο profile & session config (SSOT: policies.js) ===
+    // === Επιλογή profile & session config (SSOT: policies.js) ===
     const profileNames = ['Explorer', 'Casual', 'Focused'];
     const pIdx = rndInt(0, profileNames.length - 1);
     const pickedProfileName = profileNames[pIdx];
     const config = createSessionConfig(pickedProfileName);
 
-    // Καθυστέρηση εκκίνησης ανά player (πιο ανθρώπινο)
+    // Καθορισμός αν είναι ο πρώτος player (μηδενικό delay)
     const isFirstPlayerParts = [];
     isFirstPlayerParts.push(i === 0);
     const isFirstPlayer = allTrue(isFirstPlayerParts);
     const playbackDelay = isFirstPlayer === true ? 0 : rndInt(45, 180) * 1000;
     const shownSec = Math.round(playbackDelay / 1000);
 
-    // Προ-warm (αμυντικά - εδώ μόνο logging/placeholder, όχι DOM/Player)
+    // --- Προ-ανακοίνωση & mini pre-warm (μόνο logging)
     if (isStopping !== true) {
       log(`⏳ ${mID} HumanMode Scheduled → Start After ${shownSec}s`);
       scheduleSafe(
@@ -98,21 +100,25 @@ export async function initPlayersSequentially(_mainListIgnored, _altListIgnored)
       );
     }
 
-    // Μικρό jitter πριν το init για ρεαλισμό
+    // Μικρό jitter πριν τη ροή init (ρεαλισμός)
     await sleep(rndInt(600, 900));
     if (isStopping === true) {
       log(`👤 ${mID} HumanMode → Παράκαμψη Init (Stop All)`);
       break;
     }
 
-    // Αναμονή μέχρι την ώρα εκκίνησης του συγκεκριμένου player
+    // --- Υπολογισμός scheduledStartAtMs (για διάγνωση/WD-bridge)
+    // Σημείωση: ο controller δεν υπάρχει ακόμη. Καταγράφουμε το αναμενόμενο "παράθυρο" εκκίνησης.
+    const scheduledStartAtMs = Date.now() + playbackDelay;
+
+    // Αναμονή μέχρι την ώρα έναρξης αυτού του player
     await sleep(playbackDelay);
     if (isStopping === true) {
       log(`👤 ${mID} HumanMode → Παράκαμψη Init (Stop All)`);
       break;
     }
 
-    // Επιλογή βίντεο: pull-only μέσω pickVideoId()
+    // Pull-only επιλογή βίντεο
     const pick = pickVideoId();
     const partsPick = [];
     partsPick.push(isDefined(pick?.id) === true);
@@ -129,6 +135,7 @@ export async function initPlayersSequentially(_mainListIgnored, _altListIgnored)
     const partsHasCtrl = [];
     partsHasCtrl.push(isDefined(controller) === true);
     const hasCtrl = allTrue(partsHasCtrl);
+
     if (hasCtrl !== true) {
       controller = new PlayerController(i, /* main/alt ignored */ [], [], config);
       controllers.push(controller);
@@ -136,6 +143,12 @@ export async function initPlayersSequentially(_mainListIgnored, _altListIgnored)
       controller.config = config;
       controller.profileName = config.profileName;
     }
+
+    // [HM‑SCHED] Bridge προς WD: δώσε στο controller το προγραμματισμένο window (αν και πιθανώς έχει ήδη λήξει)
+    try {
+      controller.scheduledStartAtMs = scheduledStartAtMs;
+      // (Στο onReadyExternal θα καθαριστεί αν now >= scheduledStartAtMs)
+    } catch (_) {}
 
     // Logging profile (SSOT: policies.js)
     logProfile(controller.index, { name: pickedProfileName });
@@ -146,14 +159,13 @@ export async function initPlayersSequentially(_mainListIgnored, _altListIgnored)
     // Init
     controller.init(videoId);
 
-    // Logging baseline παύσεων από policy (αν είναι διαθέσιμο μετά το init)
+    // Baseline logging από policy (αν είναι διαθέσιμο μετά το init)
     let baselinePauses = '-';
     try {
       const partsBase = [];
       partsBase.push(isDefined(controller?.plan?.pauses?.count) === true);
       if (allTrue(partsBase) === true) baselinePauses = controller.plan.pauses.count;
     } catch (_) {}
-
     const session = {
       pauseChance: config.pauseChance,
       qualityChangeChance: config.qualityChangeChance,

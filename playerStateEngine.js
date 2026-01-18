@@ -1,5 +1,5 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v6.10.2';
+const VERSION = 'v6.11.2';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
  * CUED-only στρατηγική (READY‑centric)
@@ -274,6 +274,7 @@ function schedulePerVideoTasks(ctrl, durationNow, reason = 'playing', StartDelay
 }
 
 /* ========================= External API (wired από PlayerController) ========================= */
+
 export function onReadyExternal(ctrl, e) {
   const mID = getPlayerScope(ctrl.index);
   if (gateStopOrHalt(ctrl, 'READY') === true) {
@@ -299,7 +300,7 @@ export function onReadyExternal(ctrl, e) {
       }
     } catch (_) {}
 
-    // Μικρή διάρκεια: defer AutoNext μέχρι ENDED
+    // Μικρή διάρκεια → defer AutoNext μέχρι ENDED
     try {
       const partsSmall = [];
       partsSmall.push(isNumber(durationNowPreview) === true);
@@ -310,7 +311,47 @@ export function onReadyExternal(ctrl, e) {
       log(`ℹ️ ${mID} Ready → Duration=${Math.floor(durationNowPreview)}s (deferAutoNextUntilEnded=${ctrl.deferAutoNextUntilEnded})`);
     } catch (_) {}
 
-    // Πρώτο βίντεο flag
+    // [WD‑READY] Βάση stall‑timer τη στιγμή του READY
+    // Θέτουμε σημαία READY και μηδενίζουμε/ανανεώνουμε τον μετρητή στασιμότητας
+    try {
+      ctrl.hasEnteredReady = true; // WD gate: από εδώ και πέρα έχει νόημα να μετράμε stall
+
+      // Αν υπάρχει προγραμματισμένο HumanMode delay που έχει παρέλθει, καθάρισέ το (diagnostic hygiene)
+      try {
+        const hasSched = allTrue([isNumber(ctrl?.scheduledStartAtMs) === true]);
+        if (hasSched === true) {
+          const now = Date.now();
+          if (now >= Number(ctrl.scheduledStartAtMs)) {
+            ctrl.scheduledStartAtMs = undefined;
+          }
+        }
+      } catch (_) {}
+
+      // Reset _wdLastProgress: lastPlayedSec & lastChangeMs
+      const needInit = allTrue([isDefined(ctrl?._wdLastProgress) === true]) !== true || typeof ctrl._wdLastProgress !== 'object' || ctrl._wdLastProgress === null;
+
+      if (needInit === true) {
+        ctrl._wdLastProgress = { lastPlayedSec: 0, lastChangeMs: Date.now() };
+      } else {
+        let playedNow = 0;
+        try {
+          const canGet = allTrue([isFunction(ctrl?.getPlayedSec) === true]);
+          if (canGet === true) {
+            const v = ctrl.getPlayedSec();
+            if (isNumber(v) === true) playedNow = v;
+          }
+        } catch (_) {}
+        ctrl._wdLastProgress.lastPlayedSec = isNumber(playedNow) === true ? Math.max(0, Math.floor(playedNow)) : 0;
+        ctrl._wdLastProgress.lastChangeMs = Date.now();
+      }
+
+      // Προαιρετικό log (ήπιο): WD baseline στο READY
+      try {
+        log(`🕒 ${mID} WD Baseline → READY: stall timer reset (played=${ctrl._wdLastProgress.lastPlayedSec}s)`);
+      } catch (_) {}
+    } catch (_) {}
+
+    // Πρώτο-βίντεο flag
     try {
       if (typeof ctrl._firstVideoHandled !== 'boolean') ctrl._firstVideoHandled = false;
     } catch (_) {}
@@ -322,12 +363,12 @@ export function onReadyExternal(ctrl, e) {
       isFirst = hasFlag === true ? ctrl._firstVideoHandled !== true : true;
     } catch (_) {}
 
-    // Plan στο READY
+    // Plan στο READY (READY‑centric design)
     try {
       buildPlanForCurrentVideo(ctrl, 'ready', isFirst);
     } catch (_) {}
 
-    // Early-Unmute στο READY (αν είναι muted)
+    // Early‑Unmute στο READY (όπως στην υπάρχουσα λογική)
     try {
       log(`🔔 ${mID} Unmute → READY: Apply early (muted=true)`);
       try {
@@ -338,14 +379,14 @@ export function onReadyExternal(ctrl, e) {
       } catch (_) {}
     } catch (_) {}
 
-    // Serial baseline (CUED-only): θεωρούμε ότι READY κάνει όλη την αρχικοποίηση
+    // Serial baseline (CUED‑only): το READY θεωρείται αρχή αρθρωμένης ρύθμισης
     try {
       if (typeof ctrl._videoSerial !== 'number') ctrl._videoSerial = 0;
       ctrl._plannedForSerial = ctrl._videoSerial;
       ctrl.needsPerVideoPlanning = false;
     } catch (_) {}
 
-    // Init-seek ή Play (πολιτική) με καθυστέρηση StartDelayMS
+    // Init‑seek ή Play (με τυχαίο StartDelay)
     try {
       const StartDelayMS = rndInt(START_PLAY_MIN_DELAY_MS, START_PLAY_MAX_DELAY_MS);
       const tRaw = ctrl.plan?.startSeek?.targetSec ?? 0;
@@ -381,7 +422,7 @@ export function onReadyExternal(ctrl, e) {
       }
     } catch (_) {}
 
-    // READY‑centric scheduling (CUED-only): resets + schedulers
+    // READY‑centric scheduling (rate/quality/volume/pause/mid‑seek κ.λπ.)
     let durationNow = 0;
     try {
       if (_can(p, 'getDuration') === true) {
@@ -389,21 +430,15 @@ export function onReadyExternal(ctrl, e) {
         if (isNumber(d) === true) durationNow = d;
       }
     } catch (_) {}
-    /* Δεν χρειάζονται όταν ξεκινάμε από CUED-only
+
+    /* Δεν αγγίζουμε τα commented resets (CUED‑only) */
+
     try {
-      resetPlaybackRate(ctrl);
-      ctrl._rateAppliedForThisVideo = true;
-    } catch (_) {}
-    try {
-      resetPlaybackQuality(ctrl);
-      ctrl._qualityAutoAppliedForThisVideo = true;
-    } catch (_) {}
-    */
-    try {
+      // Προωθούμε το StartDelayMS στο scheduling ώστε οι ήπιες εργασίες να ξεκινήσουν μετά το αρχικό window
       schedulePerVideoTasks(ctrl, durationNow, 'ready', StartDelayMS);
     } catch (_) {}
-    log(`✅ ${mID} READY-centric plan → Resets & schedulers started (Dur=${Math.floor(durationNow)}s)`);
 
+    log(`✅ ${mID} READY‑centric plan → Resets & schedulers started (Dur=${Math.floor(durationNow)}s)`);
     ctrl._firstVideoHandled = true;
   } catch (_) {}
 }
