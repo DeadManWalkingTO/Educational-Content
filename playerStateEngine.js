@@ -1,8 +1,8 @@
 // --- playerStateEngine.js ---
-const VERSION = 'v6.11.2';
+const VERSION = 'v6.12.4';
 /*
  * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
- * CUED-only στρατηγική (READY‑centric)
+ *
  *
  */
 
@@ -18,11 +18,19 @@ export function getVersion() {
  * - PLAYING: παραμένει ελαφρύ (monitoring μόνο + WT loop). Καμία re-plan/ init-seek fallback.
  * - Μετάβαση στο επόμενο βίντεο γίνεται πάντα με recreate του YT.Player (μέσω autoNext).
  *
+ * Περιγραφή: State-driven μηχανή για READY/PLAYING/BUFFERING/PAUSED/ENDED/ERROR.
+ * Αλλαγές:
+ * - (Fix) Ορισμός της συνάρτησης calcWTimeEndPause(ctrl) ώστε να μην εμφανίζεται ReferenceError
+ *         και να συσσωρεύεται ορθά το watch-time όταν διακόπτεται η αναπαραγωγή (PAUSED/BUFFERING/ENDED/ERROR).
+ * - (Style) Όλες οι λογικές φρουρές με allTrue([...]) / anyTrue([...]) (καμία χρήση && / ||).
+ * - (E) Παραμένει το duration-probe στο READY.
+ *
  */
 
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
-/* Εγκατάσταση Φόρτωσης Αρχείου */
+
+/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
@@ -36,14 +44,11 @@ import { scheduleQualityChanges, resetPlaybackQuality } from './autoQuality.js';
 import { scheduleRateChanges, resetPlaybackRate } from './autoRate.js';
 import { applyInitSeek, scheduleMidSeek } from './autoSeek.js';
 import { scheduleUnmute, applyUnmute, ensureUnmuteMeta } from './autoUnmute.js';
-import { scheduleVolumeChanges, scheduleMicroAdjust } from './autoVolume.js';
 
 /* ========================= Logger ========================= */
 const log = makeLogger(FILENAME);
 
-/* ========================= Settings ========================= */
-
-/* ========================= Helpers ========================= */
+/* ========================= Helpers (υπάρχουσες) ========================= */
 function _can(obj, methodName) {
   const guardsObj = [];
   guardsObj.push(isDefined(obj) === true);
@@ -55,7 +60,6 @@ function _can(obj, methodName) {
   parts.push(isFunction(fn) === true);
   return allTrue(parts);
 }
-
 function _shouldResetOnce(ctrl, kind) {
   let serial = 0;
   try {
@@ -68,16 +72,21 @@ function _shouldResetOnce(ctrl, kind) {
   let serialField = '';
   let flagField = '';
   try {
-    if (kind === 'rate') {
-      flagApplied = ctrl?._rateAppliedForThisVideo === true;
-      lastSerial = typeof ctrl?._rateResetSerial === 'number' ? ctrl._rateResetSerial : -1;
-      serialField = '_rateResetSerial';
-      flagField = '_rateAppliedForThisVideo';
-    } else {
-      flagApplied = ctrl?._qualityAutoAppliedForThisVideo === true;
-      lastSerial = typeof ctrl?._qualityResetSerial === 'number' ? ctrl._qualityResetSerial : -1;
-      serialField = '_qualityResetSerial';
-      flagField = '_qualityAutoAppliedForThisVideo';
+    switch (true) {
+      case allTrue([kind === 'rate']) === true: {
+        flagApplied = ctrl?._rateAppliedForThisVideo === true;
+        lastSerial = typeof ctrl?._rateResetSerial === 'number' ? ctrl._rateResetSerial : -1;
+        serialField = '_rateResetSerial';
+        flagField = '_rateAppliedForThisVideo';
+        break;
+      }
+      default: {
+        flagApplied = ctrl?._qualityAutoAppliedForThisVideo === true;
+        lastSerial = typeof ctrl?._qualityResetSerial === 'number' ? ctrl._qualityResetSerial : -1;
+        serialField = '_qualityResetSerial';
+        flagField = '_qualityAutoAppliedForThisVideo';
+        break;
+      }
     }
   } catch (_) {}
   const partsApplied = [];
@@ -97,62 +106,161 @@ function _shouldResetOnce(ctrl, kind) {
   return false;
 }
 
+/* ========================= (NEW) calcWTimeEndPause ========================= */
+/**
+ * Συσσωρεύει το watch-time όταν διακόπτεται η ροή (PAUSED/BUFFERING/ENDED/ERROR).
+ * - Αν υπάρχει ενεργό playing window (ctrl.playingStart), προσθέτει το διάστημα στο totalPlayTime
+ *   λαμβάνοντας υπόψη το currentRate και μετά μηδενίζει το playingStart.
+ */
 function calcWTimeEndPause(ctrl) {
-  // (ήταν σε PLAYING αν το playingStart είναι αριθμός ΚΑΙ δεν είναι null)
-  const partsPlaying = [];
-  partsPlaying.push(isNumber(ctrl?.playingStart) === true);
-  partsPlaying.push(isDefined(ctrl?.playingStart) === true);
-  const wasPlaying = allTrue(partsPlaying) === true;
-
-  if (wasPlaying === true) {
-    // Διαφορά χρόνου από την έναρξη του PLAYING
-    const ms = Date.now() - ctrl.playingStart;
-
-    // Επιβεβαίωση/ανάκτηση ρυθμού (rate) χωρίς ternary
-    const partsRate = [];
-    partsRate.push(isNumber(ctrl?.currentRate) === true);
-    const rateOk = allTrue(partsRate) === true;
-    let rate = 1.0;
-    if (rateOk === true) {
-      rate = ctrl.currentRate;
-    }
-
-    // Προσθήκη στον αθροιστικό χρόνο (totalPlayTime) χωρίς ternary
-    const addSec = Math.max(0, Math.floor((ms / 1000) * rate));
-
-    const partsBase = [];
-    partsBase.push(isNumber(ctrl?.totalPlayTime) === true);
-    const baseOk = allTrue(partsBase) === true;
-    let base = 0;
-    if (baseOk === true) {
-      base = ctrl.totalPlayTime;
-    }
-
-    ctrl.totalPlayTime = base + addSec;
-
-    // Καθαρισμός playingStart (πάγια πρακτική στην μετάβαση PAUSED/ENDED)
-    ctrl.playingStart = null;
-
-    // Προαιρετικό: ευθυγράμμιση cache για UI/logs
-    ctrl.videoTotalPlayTime = ctrl.totalPlayTime;
-  }
-}
-
-function gateStopOrHalt(ctrl, label) {
-  const stopPolicy = allTrue([isStopping === true]) === true;
-  const halted = allTrue([isSchedulerHalted() === true]) === true;
-  if (anyTrue([stopPolicy === true, halted === true]) === true) {
-    try {
-      if (isFunction(ctrl?.clearTimers) === true) ctrl.clearTimers();
-    } catch (_) {}
+  try {
     const mID = getPlayerScope(ctrl.index);
-    log(`🛑 ${mID} ${label} → Gated (Stop/Halt)`);
-    return true;
-  }
-  return false;
+
+    // Έλεγχοι ύπαρξης παραμέτρων
+    const parts = [];
+    parts.push(isDefined(ctrl) === true);
+    parts.push(typeof ctrl === 'object');
+    parts.push(ctrl !== null);
+    const okCtrl = allTrue(parts);
+    if (okCtrl !== true) return;
+
+    // Αν δεν έχει ξεκινήσει "παράθυρο" playing, δεν υπάρχει τί να συσσωρεύσουμε.
+    const hasWindow = allTrue([isNumber(ctrl?.playingStart) === true]);
+    if (hasWindow !== true) return;
+
+    // Υπολογισμός δελτα χρόνου
+    const now = Date.now();
+    const elapsedMs = now - ctrl.playingStart;
+    const partsElapsed = [];
+    partsElapsed.push(isNumber(elapsedMs) === true);
+    partsElapsed.push(elapsedMs > 0);
+    if (allTrue(partsElapsed) !== true) {
+      // Ακόμη κι αν δεν περάσει ο έλεγχος, "κλείνουμε" το window για να μην διπλομετρηθεί.
+      try {
+        ctrl.playingStart = null;
+      } catch (_) {}
+      return;
+    }
+
+    // Συντελεστής ταχύτητας (rate)
+    let rate = 1;
+    try {
+      const pr = isNumber(ctrl?.currentRate) === true ? ctrl.currentRate : 1;
+      rate = pr;
+    } catch (_) {
+      rate = 1;
+    }
+
+    // Συσσώρευση sec
+    const addSec = (elapsedMs / 1000) * rate;
+    let base = 0;
+    try {
+      base = isNumber(ctrl?.totalPlayTime) === true ? ctrl.totalPlayTime : 0;
+    } catch (_) {
+      base = 0;
+    }
+    const total = base + addSec;
+
+    // Ενημέρωση με ασφάλεια
+    try {
+      ctrl.totalPlayTime = total;
+    } catch (_) {}
+    try {
+      ctrl.videoTotalPlayTime = isNumber(ctrl?.videoTotalPlayTime) === true ? ctrl.videoTotalPlayTime + addSec : addSec;
+    } catch (_) {}
+    try {
+      ctrl.playingStart = null;
+    } catch (_) {}
+
+    // Log (προαιρετικό, ελαφρύ)
+    log(`⏸️ ${mID} Accumulate WT → +${Math.round(addSec)}s (rate=${String(rate)}), total=${Math.round(total)}s`);
+  } catch (_) {}
 }
 
-/* ========================= Plan & Scheduling ========================= */
+/* ========================= (E) READY helpers ========================= */
+function _finalizeReady(ctrl, p, durationNow, reason, isFirst) {
+  const mID = getPlayerScope(ctrl.index);
+
+  // Plan στο READY (READY-centric design)
+  try {
+    buildPlanForCurrentVideo(ctrl, reason, isFirst);
+  } catch (_) {}
+
+  // Early-Unmute στο READY (όπως στην υφιστάμενη λογική)
+  try {
+    log(`🔔 ${mID} Unmute → READY: Apply early (muted=true)`);
+    try {
+      applyUnmute(p, ctrl.plan, ctrl);
+      ctrl.pendingUnmute = false;
+      ctrl.unmuteScheduled = false;
+      ctrl.unmuteMeta.lastMs = Date.now();
+    } catch (_) {}
+  } catch (_) {}
+
+  // Serial baseline (CUED-only)
+  try {
+    if (typeof ctrl._videoSerial !== 'number') ctrl._videoSerial = 0;
+    ctrl._plannedForSerial = ctrl._videoSerial;
+    ctrl.needsPerVideoPlanning = false;
+  } catch (_) {}
+
+  // Init-seek ή Play
+  try {
+    const StartDelayMS = rndInt(START_PLAY_MIN_DELAY_MS, START_PLAY_MAX_DELAY_MS);
+    const tRaw = ctrl?.plan?.startSeek?.targetSec ?? 0;
+    const t = Number(tRaw);
+    const partsInit = [];
+    partsInit.push(isNumber(t) === true);
+    partsInit.push(t > 0);
+    log(`🔶 ${mID} Init → Entered READY Start block (StartDelay=${msToSec(StartDelayMS).toFixed(1)}s, Target=${t}s)`);
+    switch (allTrue(partsInit)) {
+      case true: {
+        log(`🔶 ${mID} Seek → Scheduled: Init after ${msToSec(StartDelayMS).toFixed(1)}s (Target=${t}s)`);
+        scheduleSafe(
+          function () {
+            try {
+              applyInitSeek(ctrl, t);
+            } catch (_) {}
+          },
+          StartDelayMS,
+          ctrl._group('init-seek'),
+          'init-seek-delayed'
+        );
+        break;
+      }
+      default: {
+        log(`🔶 ${mID} Init → Scheduled: Play after ${msToSec(StartDelayMS).toFixed(1)}s (Target=${t}s)`);
+        scheduleSafe(
+          function () {
+            try {
+              ctrl.guardPlay(ctrl.player);
+            } catch (_) {}
+          },
+          StartDelayMS,
+          ctrl._group('init-seek'),
+          'init-seek-delayed-play-fallback'
+        );
+        break;
+      }
+    }
+  } catch (_) {}
+
+  // READY-centric scheduling (rate/quality/volume/pause/mid-seek κ.λπ.)
+  let durationNowLocal = 0;
+  try {
+    if (_can(p, 'getDuration') === true) {
+      const d = p.getDuration();
+      if (isNumber(d) === true) durationNowLocal = d;
+    }
+  } catch (_) {}
+  try {
+    schedulePerVideoTasks(ctrl, durationNowLocal, 'ready', 0);
+  } catch (_) {}
+
+  log(`✅ ${mID} READY-centric plan → Resets & schedulers started (Dur=${Math.floor(durationNowLocal)}s)`);
+}
+
+/* ========================= Plan & Scheduling (υπάρχοντα) ========================= */
 function buildPlanForCurrentVideo(ctrl, reason = 'per-video', isFirstVideo = false) {
   const mID = getPlayerScope(ctrl.index);
   if (gateStopOrHalt(ctrl, 'PLAN') === true) {
@@ -187,7 +295,8 @@ function buildPlanForCurrentVideo(ctrl, reason = 'per-video', isFirstVideo = fal
     let isMutedNow = false;
     if (allTrue([canIsMuted === true]) === true) {
       const m = pp.isMuted();
-      if (allTrue([typeof m === 'boolean']) === true) {
+      const isBool = typeof m === 'boolean';
+      if (allTrue([isBool === true]) === true) {
         isMutedNow = m === true;
       }
     }
@@ -197,7 +306,6 @@ function buildPlanForCurrentVideo(ctrl, reason = 'per-video', isFirstVideo = fal
   } catch (_) {}
   return { durationNow };
 }
-
 function schedulePerVideoTasks(ctrl, durationNow, reason = 'playing', StartDelayMS = 0) {
   const softJitterRateMs = rndInt(5000, 10000);
   const softJitterQualityMs = rndInt(5000, 10000);
@@ -264,17 +372,24 @@ function schedulePerVideoTasks(ctrl, durationNow, reason = 'playing', StartDelay
   try {
     restartPauseGuard(ctrl);
   } catch (_) {}
+}
 
-  /* Εκτελείται από applyInitSeek
-  // Mid-Seek (κύκλος βάσει plan/window)
-  try {
-    scheduleMidSeek(ctrl);
-  } catch (_) {}
-   */
+/* ========================= Gate helpers ========================= */
+function gateStopOrHalt(ctrl, label) {
+  const stopPolicy = allTrue([isStopping === true]) === true;
+  const halted = allTrue([isSchedulerHalted() === true]) === true;
+  if (anyTrue([stopPolicy === true, halted === true]) === true) {
+    try {
+      if (isFunction(ctrl?.clearTimers) === true) ctrl.clearTimers();
+    } catch (_) {}
+    const mID = getPlayerScope(ctrl.index);
+    log(`🛑 ${mID} ${label} → Gated (Stop/Halt)`);
+    return true;
+  }
+  return false;
 }
 
 /* ========================= External API (wired από PlayerController) ========================= */
-
 export function onReadyExternal(ctrl, e) {
   const mID = getPlayerScope(ctrl.index);
   if (gateStopOrHalt(ctrl, 'READY') === true) {
@@ -300,7 +415,7 @@ export function onReadyExternal(ctrl, e) {
       }
     } catch (_) {}
 
-    // Μικρή διάρκεια → defer AutoNext μέχρι ENDED
+    // Μικρή διάρκεια → deferAutoNextUntilEnded
     try {
       const partsSmall = [];
       partsSmall.push(isNumber(durationNowPreview) === true);
@@ -311,12 +426,9 @@ export function onReadyExternal(ctrl, e) {
       log(`ℹ️ ${mID} Ready → Duration=${Math.floor(durationNowPreview)}s (deferAutoNextUntilEnded=${ctrl.deferAutoNextUntilEnded})`);
     } catch (_) {}
 
-    // [WD‑READY] Βάση stall‑timer τη στιγμή του READY
-    // Θέτουμε σημαία READY και μηδενίζουμε/ανανεώνουμε τον μετρητή στασιμότητας
+    // WD baseline (ασφαλής αρχικοποίηση)
     try {
-      ctrl.hasEnteredReady = true; // WD gate: από εδώ και πέρα έχει νόημα να μετράμε stall
-
-      // Αν υπάρχει προγραμματισμένο HumanMode delay που έχει παρέλθει, καθάρισέ το (diagnostic hygiene)
+      ctrl.hasEnteredReady = true;
       try {
         const hasSched = allTrue([isNumber(ctrl?.scheduledStartAtMs) === true]);
         if (hasSched === true) {
@@ -326,17 +438,23 @@ export function onReadyExternal(ctrl, e) {
           }
         }
       } catch (_) {}
-
-      // Reset _wdLastProgress: lastPlayedSec & lastChangeMs
-      const needInit = allTrue([isDefined(ctrl?._wdLastProgress) === true]) !== true || typeof ctrl._wdLastProgress !== 'object' || ctrl._wdLastProgress === null;
-
+      // determine needInit (χωρίς ||)
+      let needInit = true;
+      try {
+        const defOk = allTrue([isDefined(ctrl?._wdLastProgress) === true]);
+        const isObj = allTrue([typeof ctrl?._wdLastProgress === 'object']) === true;
+        const isNull = allTrue([ctrl?._wdLastProgress === null]) === true;
+        needInit = anyTrue([defOk !== true, isObj !== true, isNull === true]) === true;
+      } catch (_) {
+        needInit = true;
+      }
       if (needInit === true) {
         ctrl._wdLastProgress = { lastPlayedSec: 0, lastChangeMs: Date.now() };
       } else {
         let playedNow = 0;
         try {
           const canGet = allTrue([isFunction(ctrl?.getPlayedSec) === true]);
-          if (canGet === true) {
+          if (allTrue([canGet === true]) === true) {
             const v = ctrl.getPlayedSec();
             if (isNumber(v) === true) playedNow = v;
           }
@@ -344,14 +462,10 @@ export function onReadyExternal(ctrl, e) {
         ctrl._wdLastProgress.lastPlayedSec = isNumber(playedNow) === true ? Math.max(0, Math.floor(playedNow)) : 0;
         ctrl._wdLastProgress.lastChangeMs = Date.now();
       }
-
-      // Προαιρετικό log (ήπιο): WD baseline στο READY
-      try {
-        log(`🕒 ${mID} WD Baseline → READY: stall timer reset (played=${ctrl._wdLastProgress.lastPlayedSec}s)`);
-      } catch (_) {}
+      log(`🕒 ${mID} WD Baseline → READY: stall timer reset (played=${ctrl._wdLastProgress.lastPlayedSec}s)`);
     } catch (_) {}
 
-    // Πρώτο-βίντεο flag
+    // Πρώτο βίντεο flag
     try {
       if (typeof ctrl._firstVideoHandled !== 'boolean') ctrl._firstVideoHandled = false;
     } catch (_) {}
@@ -363,83 +477,43 @@ export function onReadyExternal(ctrl, e) {
       isFirst = hasFlag === true ? ctrl._firstVideoHandled !== true : true;
     } catch (_) {}
 
-    // Plan στο READY (READY‑centric design)
-    try {
-      buildPlanForCurrentVideo(ctrl, 'ready', isFirst);
-    } catch (_) {}
-
-    // Early‑Unmute στο READY (όπως στην υπάρχουσα λογική)
-    try {
-      log(`🔔 ${mID} Unmute → READY: Apply early (muted=true)`);
-      try {
-        applyUnmute(p, ctrl.plan, ctrl); // άμεσο unmute + setVolume + verify
-        ctrl.pendingUnmute = false;
-        ctrl.unmuteScheduled = false;
-        ctrl.unmuteMeta.lastMs = Date.now();
-      } catch (_) {}
-    } catch (_) {}
-
-    // Serial baseline (CUED‑only): το READY θεωρείται αρχή αρθρωμένης ρύθμισης
-    try {
-      if (typeof ctrl._videoSerial !== 'number') ctrl._videoSerial = 0;
-      ctrl._plannedForSerial = ctrl._videoSerial;
-      ctrl.needsPerVideoPlanning = false;
-    } catch (_) {}
-
-    // Init‑seek ή Play (με τυχαίο StartDelay)
-    try {
-      const StartDelayMS = rndInt(START_PLAY_MIN_DELAY_MS, START_PLAY_MAX_DELAY_MS);
-      const tRaw = ctrl.plan?.startSeek?.targetSec ?? 0;
-      const t = Number(tRaw);
-      const partsInit = [];
-      partsInit.push(isNumber(t) === true);
-      partsInit.push(t > 0);
-      log(`🔶 ${mID} Init → Entered READY Start block (StartDelay=${msToSec(StartDelayMS).toFixed(1)}s, Target=${t}s)`);
-      if (allTrue(partsInit) === true) {
-        log(`🔶 ${mID} Seek → Scheduled: Init after ${msToSec(StartDelayMS).toFixed(1)}s (Target=${t}s)`);
+    // (E) Duration Probe: Αν duration==0, αναβάλλουμε plan/schedule λίγο
+    const needProbe = allTrue([isNumber(durationNowPreview) === true, durationNowPreview === 0]) === true;
+    switch (needProbe) {
+      case true: {
+        log(`🔎 ${mID} READY: Duration=0 → schedule duration-probe`);
         scheduleSafe(
           function () {
             try {
-              applyInitSeek(ctrl, t);
+              const pp = ctrl?.player;
+              let d2 = 0;
+              if (_can(pp, 'getDuration') === true) {
+                const dd = pp.getDuration();
+                if (isNumber(dd) === true) d2 = dd;
+              }
+              const okDur = allTrue([isNumber(d2) === true, d2 > 0]) === true;
+              switch (okDur) {
+                case true:
+                  _finalizeReady(ctrl, pp, d2, 'ready-probe', isFirst);
+                  break;
+                default:
+                  _finalizeReady(ctrl, pp, 0, 'ready-probe-fallback', isFirst);
+                  break;
+              }
+              ctrl._firstVideoHandled = true;
             } catch (_) {}
           },
-          StartDelayMS,
-          ctrl._group('init-seek'),
-          'init-seek-delayed'
+          1200,
+          ctrl._group('plan'),
+          'ready-duration-probe'
         );
-      } else {
-        log(`🔶 ${mID} Init → Scheduled: Play after ${msToSec(StartDelayMS).toFixed(1)}s (Target=${t}s)`);
-        scheduleSafe(
-          function () {
-            try {
-              ctrl.guardPlay(ctrl.player);
-            } catch (_) {}
-          },
-          StartDelayMS,
-          ctrl._group('init-seek'),
-          'init-seek-delayed-play-fallback'
-        );
+        return; // δεν συνεχίζουμε την κανονική READY ροή τώρα
       }
-    } catch (_) {}
-
-    // READY‑centric scheduling (rate/quality/volume/pause/mid‑seek κ.λπ.)
-    let durationNow = 0;
-    try {
-      if (_can(p, 'getDuration') === true) {
-        const d = p.getDuration();
-        if (isNumber(d) === true) durationNow = d;
-      }
-    } catch (_) {}
-
-    /* Δεν αγγίζουμε τα commented resets (CUED‑only) */
-
-    try {
-      // Προωθούμε το StartDelayMS στο scheduling ώστε οι ήπιες εργασίες να ξεκινήσουν μετά το αρχικό window
-      schedulePerVideoTasks(ctrl, durationNow, 'ready', StartDelayMS);
-    } catch (_) {}
-
-    log(`✅ ${mID} READY‑centric plan → Resets & schedulers started (Dur=${Math.floor(durationNow)}s)`);
-    ctrl._firstVideoHandled = true;
+      default:
+        _finalizeReady(ctrl, p, durationNowPreview, 'ready', isFirst);
+        ctrl._firstVideoHandled = true;
+        break;
+    }
   } catch (_) {}
 }
 
@@ -453,15 +527,12 @@ export function onStateChangeExternal(ctrl, e) {
     parts.push(typeof YT !== 'undefined');
     const ok = allTrue(parts);
     if (ok !== true) return;
-
     const state = p.getPlayerState();
 
-    /* --- Δίνουμε τον χρόνο που μπήκε σε Ready --- */
     try {
       ctrl.readyAt = Date.now();
     } catch (_) {}
 
-    /* ---------------------------- PLAYING ---------------------------- */
     if (state === YT.PlayerState.PLAYING) {
       if (gateStopOrHalt(ctrl, 'PLAYING') === true) {
         return;
@@ -469,9 +540,6 @@ export function onStateChangeExternal(ctrl, e) {
       if (ctrl.playingStart === null) {
         ctrl.playingStart = Date.now();
       }
-
-      // CUED-only: καμία re‑plan/scheduling στο PLAYING
-      // (READY έκανε όλα τα resets/schedulers)
       try {
         const pp = ctrl?.player;
         const quality = isFunction(pp?.getPlaybackQuality) === true ? (pp.getPlaybackQuality() ?? '?') : '?';
@@ -508,7 +576,6 @@ export function onStateChangeExternal(ctrl, e) {
         log(`🟢 ${mID} → PLAYING (Rate=x${String(ctrl.currentRate ?? 1.0)}, Quality=?, Vol=?, Played=?s, Required=?s)`);
       }
 
-      // WT loop
       const checkWT = () => {
         try {
           const base = isNumber(ctrl.totalPlayTime) === true ? ctrl.totalPlayTime : 0;
@@ -523,7 +590,6 @@ export function onStateChangeExternal(ctrl, e) {
           const played = Math.floor(base + extra);
           const required = isNumber(ctrl.videoRequiredWatchTime) === true ? ctrl.videoRequiredWatchTime : 15;
 
-          // Near-threshold soft-freeze
           const nearParts = [];
           nearParts.push(isNumber(required) === true);
           nearParts.push(isNumber(played) === true);
@@ -541,7 +607,6 @@ export function onStateChangeExternal(ctrl, e) {
               }
             }
           }
-
           const metParts = [];
           metParts.push(played >= required);
           const met = allTrue(metParts);
@@ -566,16 +631,17 @@ export function onStateChangeExternal(ctrl, e) {
         } catch (_) {}
       };
       scheduleSafe(checkWT, rndInt(800, 1500), ctrl._group('wt'), 'wt-check');
-
-      // Μόνο monitoring log στο CUED-only
       log(`🟢 ${mID} PLAYING → READY - Centric Mode (Monitoring Only)`);
     }
 
-    /* ---------------------------- ENDED ---------------------------- */
     if (state === YT.PlayerState.ENDED) {
       if (gateStopOrHalt(ctrl, 'ENDED') === true) {
         return;
       }
+      // Συσσωρεύουμε ό,τι παίζει να έχει μείνει "ανοικτό"
+      try {
+        calcWTimeEndPause(ctrl);
+      } catch (_) {}
       log(`🔵 ${mID} → ENDED`);
       if (ctrl.deferAutoNextUntilEnded === true) {
         try {
@@ -590,19 +656,29 @@ export function onStateChangeExternal(ctrl, e) {
         } catch (_) {}
         autoNextAfterWatchtime(ctrl);
       }
-      calcWTimeEndPause(ctrl);
+      // (παλαιός φύλακας χρόνου παύσης)
+      try {
+        calcWTimeEndPause(ctrl);
+      } catch (_) {}
     }
 
-    /* ---------------------------- PAUSED ---------------------------- */
     if (state === YT.PlayerState.PAUSED) {
       if (gateStopOrHalt(ctrl, 'PAUSED') === true) {
         try {
           if (isFunction(groupCancel) === true) groupCancel(ctrl._group('pause-guard'));
         } catch (_) {}
+        try {
+          calcWTimeEndPause(ctrl);
+        } catch (_) {}
         return;
       }
       log(`🟡 ${mID} → PAUSED`);
       ctrl.lastPausedStart = Date.now();
+      // Συγκράτηση watch-time ως τώρα
+      try {
+        calcWTimeEndPause(ctrl);
+      } catch (_) {}
+      // Guard για user-pause
       try {
         const parts2 = [];
         parts2.push(typeof ctrl?.expectedPauseMs === 'number');
@@ -621,41 +697,48 @@ export function onStateChangeExternal(ctrl, e) {
           );
         }
       } catch (_) {}
-      calcWTimeEndPause(ctrl);
     }
 
-    /* ---------------------------- BUFFERING ---------------------------- */
     if (state === YT.PlayerState.BUFFERING) {
       if (gateStopOrHalt(ctrl, 'BUFFERING') === true) {
-        ctrl.lastBufferingStart = Date.now();
+        try {
+          ctrl.lastBufferingStart = Date.now();
+        } catch (_) {}
+        try {
+          calcWTimeEndPause(ctrl);
+        } catch (_) {}
         return;
       }
       log(`🟣 ${mID} → BUFFERING`);
-      ctrl.lastBufferingStart = Date.now();
-      // Κλείσιμο τρέχοντος PLAYING παραθύρου στη μετάβαση σε BUFFERING
+      try {
+        ctrl.lastBufferingStart = Date.now();
+      } catch (_) {}
       try {
         calcWTimeEndPause(ctrl);
       } catch (_) {}
     }
 
-    /* ---------------------------- UNSTARTED ---------------------------- */
     if (state === YT.PlayerState.UNSTARTED) {
       if (gateStopOrHalt(ctrl, 'UNSTARTED') === true) {
-        ctrl.lastBufferingStart = Date.now();
+        try {
+          ctrl.lastBufferingStart = Date.now();
+        } catch (_) {}
         return;
       }
       log(`⚪ ${mID} → UNSTARTED`);
     }
 
-    /* ---------------------------- CUED ---------------------------- */
     if (state === YT.PlayerState.CUED) {
       if (gateStopOrHalt(ctrl, 'CUED') === true) {
-        ctrl.lastBufferingStart = Date.now();
+        try {
+          ctrl.lastBufferingStart = Date.now();
+        } catch (_) {}
         return;
       }
       log(`⚫ ${mID} → CUED`);
     }
   } catch (err) {
+    const mID = getPlayerScope(ctrl.index);
     log(`❌ ${mID} Error → onStateChangeExternal — Detail= ${err}`);
   }
 }
@@ -666,6 +749,10 @@ export function onErrorExternal(ctrl, e) {
     log(`❌ ${mID} → ERROR`);
     return;
   }
+  // Σε σφάλμα, συσσώρευση ό,τι έχει μείνει
+  try {
+    calcWTimeEndPause(ctrl);
+  } catch (_) {}
   try {
     log(`❌ ${mID} Error → State: OnError — Detail= ${String(e)}`);
     autoNextAfterError(ctrl);
@@ -674,7 +761,7 @@ export function onErrorExternal(ctrl, e) {
   }
 }
 
-/* Ολοκλήρωση Φόρτωσης Αρχείου */
+/* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
 // --- End Of File ---

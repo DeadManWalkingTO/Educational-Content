@@ -1,11 +1,12 @@
 // --- watchdog.js ---
-const VERSION = 'v2.5.2';
+const VERSION = 'v2.6.2';
 /*
  * Περιγραφή: Watchdog για "required watch time" ανά PlayerController.
- * - Ασφαλή groups με resolveGroup().
- * - Stop/Halt gates (isStopping / isSchedulerHalted).
+ *
+ *
  */
 
+// --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
@@ -16,12 +17,17 @@ export function getVersion() {
  * Refactor (no AND/OR operators):
  * - Ασφαλή groups με resolveGroup().
  * - Stop/Halt gates (isStopping / isSchedulerHalted).
+ * Refactor/Adjust:
+ * - (C) Effective thresholds: Buffering/Played κανόνες με μεγαλύτερα όρια
+ *       (min Buffering=120s, min Stalled WT=300s) χωρίς αλλαγή στο globals.js.
+ * - Διατήρηση gates Stop/Halt & WTBus-awareness.
+ *
  */
 
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
 
-/* Εγκατάσταση Φόρτωσης Αρχείου */
+/* Ενημέρωση για Εκκίνηση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] 🚀 Φόρτωση: ${FILENAME} ${VERSION} → Ξεκίνησε`);
 
 /* ========================= Imports ========================= */
@@ -40,7 +46,14 @@ const wtSeen = {}; // WTBus cache (index → lastMs)
 const WT_FALLBACK_GRACE_MS = 8000;
 let wtBusDisposer = null;
 
-/* ========================= Helpers ========================= */
+/* ========================= Effective Thresholds (NEW) ========================= */
+// (C) Χωρίς να αλλάξουμε globals.js, εφαρμόζουμε "effective" ελάχιστα όρια.
+const WD_BUFFER_MIN_MS = secToMs(120); // 120s
+const WD_PLAYED_MIN_MS = secToMs(300); // 300s
+const WD_BUFFER_RULE_MS = Math.max(WATCHDOG_BUFFERING_RULE_MS, WD_BUFFER_MIN_MS);
+const WD_PLAYED_RULE_MS = Math.max(WATCHDOG_PLAYED_RULE_MS, WD_PLAYED_MIN_MS);
+
+/* ========================= Βοηθητικές (υπάρχουσες) ========================= */
 function resolveGroup(ctrl, suffix, fallback) {
   try {
     const ok = [];
@@ -125,6 +138,7 @@ function canFireAutoNext(ctrl, required, played) {
   tParts.push(isNumber(required) === true);
   tParts.push(played >= required);
   const thresholdOk = allTrue(tParts) === true;
+
   const gates = [];
   gates.push(playingOk === true);
   gates.push(recentSeek !== true);
@@ -175,13 +189,6 @@ function skipByWtBus(ctrl) {
 }
 
 /* ========================= Core ========================= */
-
-// Διορθωμένη υλοποίηση της checkController(ctrl)
-// Σημειώσεις:
-// - Το READY‑age gate μεταφέρθηκε ΜΕΤΑ τον υπολογισμό του played.
-// - Προστέθηκαν έλεγχοι "παίζει τώρα;" και "υπάρχει πρόοδος;"
-// - Το READY‑age gate τρέχει μόνο πριν από το πρώτο PLAYING (hasEverPlayed !== true).
-
 function checkController(ctrl) {
   /* ===== Global Stop/Halt gates ===== */
   const halted = allTrue([isSchedulerHalted() === true]) === true;
@@ -190,33 +197,29 @@ function checkController(ctrl) {
 
   const mID = getPlayerScope(ctrl?.index);
 
-  /* ===== WD-READY baseline gates (τρέχουμε WT/stalled μόνο μετά το READY) ===== */
+  /* ===== WD-READY baseline gates ===== */
   try {
     const hasReadyFlag = allTrue([typeof ctrl?.hasEnteredReady === 'boolean']) === true;
     const enteredReady = hasReadyFlag === true ? ctrl.hasEnteredReady === true : false;
-
     const hasBaseline = allTrue([isDefined(ctrl?._wdLastProgress) === true, typeof ctrl?._wdLastProgress === 'object', ctrl?._wdLastProgress !== null]) === true;
-
     if (anyTrue([enteredReady !== true, hasBaseline !== true]) === true) {
-      // log(`⏭️ ${mID} WD: Skip WT checks (pre-READY/baseline-missing)`);
       return;
     }
   } catch (_) {}
 
-  /* ===== (Προαιρετικό) HumanMode scheduled-start window (μην μετράς μέσα στο νόμιμο delay) ===== */
+  /* ===== HumanMode scheduled window ===== */
   try {
     const hasSched = allTrue([isNumber(ctrl?.scheduledStartAtMs) === true]) === true;
     if (hasSched === true) {
       const now = nowMs();
       const future = Number(ctrl.scheduledStartAtMs) > now;
       if (allTrue([future === true]) === true) {
-        // log(`⏭️ ${mID} WD: Skip WT (scheduled start T-${Math.ceil((ctrl.scheduledStartAtMs - now)/1000)}s)`);
         return;
       }
     }
   } catch (_) {}
 
-  /* ===== Required Watch-Time (από plan ή getRequiredWatchSec) ===== */
+  /* ===== Required Watch-Time ===== */
   let required = 0;
   try {
     let hasPlan = false;
@@ -226,7 +229,6 @@ function checkController(ctrl) {
     p1.push(isNumber(ctrl?.plan?.watch?.requiredWatchTimeSec) === true);
     const basePlanOk = allTrue(p1);
     if (basePlanOk === true) hasPlan = true;
-
     if (isFunction(ctrl?.getRequiredWatchSec) === true) {
       required = ctrl.getRequiredWatchSec();
       hasPlan = true;
@@ -234,12 +236,12 @@ function checkController(ctrl) {
       if (hasPlan === true) {
         required = ctrl.plan.watch.requiredWatchTimeSec;
       } else {
-        return; // Δεν έχουμε ακόμα πληροφορία για WT
+        return;
       }
     }
   } catch (_) {}
 
-  /* ===== Played (από getPlayedSec ή fallback compute) ===== */
+  /* ===== Played ===== */
   let played = 0;
   try {
     if (isFunction(ctrl?.getPlayedSec) === true) {
@@ -251,23 +253,16 @@ function checkController(ctrl) {
 
   log(`⏱️ ${mID} Progress → Played=${played}s / Required=${required}s`);
 
-  /* ===== Small-video defer: AutoNext μόνο σε ENDED ===== */
+  /* ===== Small-video defer ===== */
   const deferSmall = ctrl?.deferAutoNextUntilEnded === true;
   if (deferSmall === true) {
     log(`⏭️ ${mID} WD: Small-Video Mode → Skip AutoNext (WT/fallback) Until ENDED`);
     return;
   }
 
-  /* ============================================================================
-     FIX READY-AGE: το gate πρέπει να τρέχει μόνο ΠΡΙΝ το πρώτο PLAYING, και ΜΟΝΟ
-     αν δεν παίζει τώρα και δεν υπάρχει πρόοδος. Αν δούμε PLAYING ή πρόοδο → skip.
-     Τοποθετείται ΜΕΤΑ τον υπολογισμό του 'played' ώστε να μπορούμε να ελέγξουμε πρόοδο.
-     ============================================================================ */
+  /* ===== READY-age probe (όπως πριν, αμετάβλητο) ===== */
   try {
-    // Παίζει τώρα;
     const isPlayingNow = allTrue([isFunction(ctrl?._isPlaying) === true, ctrl._isPlaying(ctrl.player) === true]);
-
-    // Αν παίζει τώρα, σημείωσε ότι "έχει-ξαναπαίξει" και καθάρισε οποιοδήποτε probe
     if (isPlayingNow === true) {
       try {
         ctrl.hasEverPlayed = true;
@@ -276,31 +271,18 @@ function checkController(ctrl) {
         if (typeof ctrl._wdReadyProbe !== 'undefined') ctrl._wdReadyProbe = null;
       } catch (_) {}
     }
-
-    // Μπορούμε να τρέξουμε READY-age μόνο όσο ΔΕΝ έχουμε δει ποτέ PLAYING
-    const canCheckReadyAge = allTrue([
-      isNumber(ctrl?.readyAt) === true,
-      (ctrl?.hasEverPlayed === true) !== true, // δηλ. δεν έχει ξαναπαίξει
-    ]);
-
+    const canCheckReadyAge = allTrue([isNumber(ctrl?.readyAt) === true, (ctrl?.hasEverPlayed === true) !== true]);
     if (canCheckReadyAge === true) {
-      // Πρόοδος έναντι του τελευταίου baseline του WD;
       const lastSec = isNumber(ctrl?._wdLastProgress?.lastPlayedSec) ? ctrl._wdLastProgress.lastPlayedSec : -1;
       const progressedNow = allTrue([isNumber(played) === true, played > lastSec]) === true;
-
-      // Αν παίζει ή προοδεύει, δεν έχει νόημα READY-age → καθάρισε probe & βγες
       if (anyTrue([isPlayingNow === true, progressedNow === true]) === true) {
         try {
           ctrl._wdReadyProbe = null;
         } catch (_) {}
-        // log(`⏭️ ${mID} WD READY-age → skip (playing/progressed)`);
       } else {
-        // Πέρασε το όριο ηλικίας READY;
         const age = nowMs() - ctrl.readyAt;
-        const over = allTrue([age >= WATCHDOG_READY_RULE_MS]) === true; // π.χ. 30s
-
+        const over = allTrue([age >= WATCHDOG_READY_RULE_MS]) === true;
         if (over === true) {
-          // Όπλισε/δοκίμασε μόνο μία φορά: guardPlay + deadline 20s
           if (typeof ctrl._wdReadyProbe !== 'object' || ctrl._wdReadyProbe === null) {
             ctrl._wdReadyProbe = { tried: false, deadlineMs: 0 };
           }
@@ -311,10 +293,8 @@ function checkController(ctrl) {
             ctrl._wdReadyProbe.tried = true;
             ctrl._wdReadyProbe.deadlineMs = nowMs() + secToMs(20);
             log(`▶️ ${mID} WD: READY ≥ ${msToSec(WATCHDOG_READY_RULE_MS)}s → guardPlay once (deadline 20s)`);
-            return; // Δώσε χρόνο ανάκαμψης
+            return;
           }
-
-          // Αν έληξε η προθεσμία, κάνε έναν τελευταίο έλεγχο state/progress πριν το RestartAll
           const deadline = isNumber(ctrl._wdReadyProbe?.deadlineMs) === true ? ctrl._wdReadyProbe.deadlineMs : 0;
           const expired = allTrue([nowMs() >= deadline]) === true;
           if (expired === true) {
@@ -322,8 +302,6 @@ function checkController(ctrl) {
             const progressedLate = allTrue([isNumber(played) === true, played > lastSec]) === true;
             if (anyTrue([stillPlaying === true, progressedLate === true]) === true) {
               ctrl._wdReadyProbe = null;
-              // log(`⏭️ ${mID} WD READY-age → recovery satisfied (late)`);
-              // Μην κάνεις restart, υπήρξε δραστηριότητα
             } else {
               ctrl._wdReadyProbe = null;
               log(`🧠 ${mID} WD: READY recovery failed within 20s → RestartAll (UI flow)`);
@@ -331,25 +309,22 @@ function checkController(ctrl) {
               return;
             }
           } else {
-            // Περιμένουμε να λήξει το window
             return;
           }
         } else {
-          // Δεν πέρασε ακόμη το READY threshold → καθάρισε παλιό probe
           try {
             if (typeof ctrl._wdReadyProbe !== 'undefined') ctrl._wdReadyProbe = null;
           } catch (_) {}
         }
       }
     } else {
-      // Έχει παίξει ήδη, ή δεν έχουμε δεδομένα → καθάρισμα probe
       try {
         if (typeof ctrl._wdReadyProbe !== 'undefined') ctrl._wdReadyProbe = null;
       } catch (_) {}
     }
   } catch (_) {}
 
-  /* ===== Near‑threshold soft‑freeze (≤5s από το WT) ===== */
+  /* ===== Near-threshold soft-freeze ===== */
   try {
     const nearParts = [];
     nearParts.push(isNumber(played) === true);
@@ -413,7 +388,7 @@ function checkController(ctrl) {
     }
   }
 
-  /* ===== [Long-buffering] BUFFERING ≥ WATCHDOG_BUFFERING_RULE_MS → RestartAll ===== */
+  /* ===== [Long-buffering] Buffering ≥ EFFECTIVE threshold → RestartAll ===== */
   try {
     const p = ctrl?.player;
     const parts2 = [];
@@ -422,20 +397,16 @@ function checkController(ctrl) {
       const state = p.getPlayerState();
       const lastBufStart = isNumber(ctrl?.lastBufferingStart) === true ? ctrl.lastBufferingStart : 0;
       const elapsed = nowMs() - lastBufStart;
-      const stalled =
-        allTrue([
-          state === YT.PlayerState.BUFFERING,
-          elapsed >= WATCHDOG_BUFFERING_RULE_MS, // π.χ. 80s
-        ]) === true;
+      const stalled = allTrue([state === YT.PlayerState.BUFFERING, elapsed >= WD_BUFFER_RULE_MS]) === true;
       if (stalled === true) {
-        log(`🧠 ${mID} WD: Buffering ≥ ${msToSec(WATCHDOG_BUFFERING_RULE_MS)}s → RestartAll (UI flow)`);
+        log(`🧠 ${mID} WD: Buffering ≥ ${msToSec(WD_BUFFER_RULE_MS)}s → RestartAll (UI flow)`);
         restartAll();
         return;
       }
     }
   } catch (_) {}
 
-  /* ===== [Stalled WatchTime] Αν δεν αλλάζει το played ≥ WATCHDOG_PLAYED_RULE_MS → RestartAll ===== */
+  /* ===== [Stalled WatchTime] no progress ≥ EFFECTIVE threshold → RestartAll ===== */
   try {
     let lpInvalid = false;
     try {
@@ -452,7 +423,6 @@ function checkController(ctrl) {
     if (lpInvalid === true) {
       ctrl._wdLastProgress = { lastPlayedSec: -1, lastChangeMs: nowMs() };
     }
-
     const progressed = allTrue([isNumber(played) === true, played > ctrl._wdLastProgress.lastPlayedSec]) === true;
     if (progressed === true) {
       ctrl._wdLastProgress.lastPlayedSec = played;
@@ -460,10 +430,10 @@ function checkController(ctrl) {
     } else {
       const lastMs = isNumber(ctrl._wdLastProgress?.lastChangeMs) === true ? ctrl._wdLastProgress.lastChangeMs : 0;
       const elapsedNoChange = nowMs() - lastMs;
-      const over = allTrue([elapsedNoChange >= WATCHDOG_PLAYED_RULE_MS]) === true; // π.χ. 180s
+      const over = allTrue([elapsedNoChange >= WD_PLAYED_RULE_MS]) === true;
       if (over === true) {
         ctrl._wdLastProgress = null;
-        log(`🧠 ${mID} WD: Stalled WatchTime ≥ ${msToSec(WATCHDOG_PLAYED_RULE_MS)}s → RestartAll (UI flow)`);
+        log(`🧠 ${mID} WD: Stalled WatchTime ≥ ${msToSec(WD_PLAYED_RULE_MS)}s → RestartAll (UI flow)`);
         restartAll();
         return;
       }
@@ -471,10 +441,11 @@ function checkController(ctrl) {
   } catch (_) {}
 }
 
-// ========================= Public API =========================
+/* ========================= Public API ========================= */
 export function startWatchdog(intervalMs = 10000) {
   const mID = getPlayerScope();
-  // WTBus subscribe
+
+  // WTBus subscribe (όπως πριν)
   try {
     if (isFunction(wtBusDisposer) === true) {
       wtBusDisposer();
@@ -491,18 +462,21 @@ export function startWatchdog(intervalMs = 10000) {
       } catch (_) {}
     });
   } catch (_) {}
-  // Καθαρισμός προηγούμενου επαναλαμβανόμενου timer
+
+  // Ακύρωση υπάρχοντος timer, αν τρέχει
   try {
     if (isNumber(watchdogTimerId) === true) {
       cancel(watchdogTimerId);
       watchdogTimerId = null;
     }
   } catch (_) {}
+
   const handler = function () {
     try {
       const halted = allTrue([isSchedulerHalted() === true]) === true;
       const stopped = allTrue([isStopping === true]) === true;
       if (anyTrue([halted === true, stopped === true]) === true) return;
+
       for (const ctrl of controllers) {
         const grp = resolveGroup(ctrl, 'watchdog', 'wd:per-controller');
         scheduleSafe(

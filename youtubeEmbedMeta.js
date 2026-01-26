@@ -1,15 +1,16 @@
 // --- youtubeEmbedMeta.js ---
-const VERSION = 'v1.0.8';
+const VERSION = 'v1.1.0';
 /*
  * Περιγραφή:
  * SSoT / pull-only / DRY για YouTube embed meta (host + origin).
- *
+ * (D) Προεπιλογή host: 'nocookie' (feature-flag), για μειωμένα third-party storage θέματα.
  */
 
 // --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
+
 /* ========================= Περιγραφή =========================
  *
  * Περιγραφή:
@@ -19,6 +20,8 @@ export function getVersion() {
  * - Session cache ώστε να μην επανυπολογίζεται αχρείαστα.
  * - Μονοσειριακά logs με makeLogger (log(`… ${mID} …`)).
  *
+ * (D) Προεπιλογή host: 'nocookie' (feature-flag), για μειωμένα third-party storage θέματα.
+ *
  * Εξαγόμενα:
  * - getVersion()
  * - setYouTubeEmbedMode(mode) // 'standard' | 'nocookie'
@@ -27,6 +30,7 @@ export function getVersion() {
  * - resolveEmbedMeta()        // { origin, host, okOrigin }
  * - buildPlayerVarsWithMeta() // { pv, host } με pv.origin ΜΟΝΟ αν okOrigin
  * - compareEmbedMeta(prev, next, tag?) // προαιρετικό diagnostics
+ *
  */
 
 /* Όνομα αρχείου για logging. */
@@ -43,7 +47,8 @@ const log = makeLogger(FILENAME);
 const mID = getPlayerScope();
 
 /* ========================= Feature Flag ========================= */
-export let YT_EMBED_MODE = 'standard';
+// (D) Αλλάζουμε την προεπιλογή σε 'nocookie'
+export let YT_EMBED_MODE = 'nocookie';
 
 /**
  * Επιτρέπει δυναμική αλλαγή λειτουργίας host (π.χ. A/B ή per-env).
@@ -55,21 +60,16 @@ export function setYouTubeEmbedMode(mode) {
     return;
   }
   const m = String(mode).toLowerCase().trim();
-
   const isStd = allTrue([m === 'standard']);
   const isNoCookie = allTrue([m === 'nocookie']);
-
-  // allowed = isStd OR isNoCookie → anyTrue
   const allowed = anyTrue([isStd === true, isNoCookie === true]);
   if (allowed !== true) {
     return;
   }
-  // Χωρίς αλλαγή κατάστασης αν ήδη ίδιο
   const same = allTrue([YT_EMBED_MODE === m]);
   if (same === true) {
     return;
   }
-
   YT_EMBED_MODE = m;
   try {
     log(`🌐 ${mID} Host Mode → ${YT_EMBED_MODE}`);
@@ -79,11 +79,10 @@ export function setYouTubeEmbedMode(mode) {
 /* ========================= Host/Origin Core ========================= */
 /**
  * Host επιλογής YouTube embed, βάσει YT_EMBED_MODE.
- * - 'standard' → https://www.youtube.com
- * - 'nocookie' → https://www.youtube-nocookie.com
+ * - 'standard'  → https://www.youtube.com
+ * - 'nocookie'  → https://www.youtube-nocookie.com
  */
 export function getYouTubeEmbedHost() {
-  // Ανάγνωση/κανονικοποίηση mode με helpers
   let mode = 'standard';
   try {
     const parts = [];
@@ -95,23 +94,21 @@ export function getYouTubeEmbedHost() {
     }
   } catch (_) {}
 
-  const isStandard = allTrue([mode === 'standard']);
-  if (isStandard === true) {
-    return 'https://www.youtube.com';
+  // Χρήση switch/case όπως ζητήθηκε
+  switch (true) {
+    case allTrue([mode === 'standard']) === true:
+      return 'https://www.youtube.com';
+    case allTrue([mode === 'nocookie']) === true:
+      return 'https://www.youtube-nocookie.com';
+    default:
+      // Fallback σε standard
+      return 'https://www.youtube.com';
   }
-
-  const isNoCookie = allTrue([mode === 'nocookie']);
-  if (isNoCookie === true) {
-    return 'https://www.youtube-nocookie.com';
-  }
-
-  // Fallback σε standard (ποτέ dev hosts εδώ)
-  return 'https://www.youtube.com';
 }
 
 /**
  * Σκληρυμένο origin για embed:
- * - Επιστρέφει HTTPS origin της τρέχουσας σελίδας ή '' (χωρίς dev fallback).
+ * - Επιστρέφει HTTPS origin της τρέχουσας σελίδας ή '' (dev fallback).
  */
 export function getOriginForEmbed() {
   let out = '';
@@ -136,10 +133,8 @@ export function getOriginForEmbed() {
       }
     }
   } catch (_) {
-    // no-op → θα πέσουμε στο empty + warning
+    // no-op → θα επιστρέψουμε empty + warning
   }
-
-  // Έλεγχοι εγκυρότητας με helpers
   const okNonEmpty = allTrue([isString(out) === true, out.length > 0]);
   let isHttps = false;
   try {
@@ -147,7 +142,6 @@ export function getOriginForEmbed() {
   } catch (_) {
     isHttps = false;
   }
-
   const valid = allTrue([okNonEmpty === true, isHttps === true]);
   if (valid !== true) {
     try {
@@ -161,9 +155,9 @@ export function getOriginForEmbed() {
 /* ========================= SSoT (pull-only) API ========================= */
 const USE_EMBED_CACHE = true;
 let _EMBED_CACHE = null;
+
 /**
- * Επιστρέφει ενιαία meta για embed:
- * { origin, host, okOrigin } όπου okOrigin σημαίνει HTTPS και μη κενό.
+ * Επιστρέφει ενιαία meta για embed: { origin, host, okOrigin }
  */
 export function resolveEmbedMeta() {
   if (USE_EMBED_CACHE === true) {
@@ -172,11 +166,9 @@ export function resolveEmbedMeta() {
       return _EMBED_CACHE;
     }
   }
-
-  const origin = getOriginForEmbed(); // '' αν δεν είναι αποδεκτό
+  const origin = getOriginForEmbed();
   const host = getYouTubeEmbedHost();
 
-  // okOrigin με helpers (χωρίς ||/&&)
   let okOrigin = false;
   try {
     const checks = [];
@@ -188,13 +180,11 @@ export function resolveEmbedMeta() {
   } catch (_) {
     okOrigin = false;
   }
-
   const meta = { origin, host, okOrigin };
   try {
     const status = okOrigin === true ? 'ok' : 'omit-origin';
     log(`🔎 ${mID} EmbedMeta → origin=${String(origin)}, host=${String(host)} (${status})`);
   } catch (_) {}
-
   if (USE_EMBED_CACHE === true) {
     _EMBED_CACHE = meta;
   }
@@ -202,7 +192,7 @@ export function resolveEmbedMeta() {
 }
 
 /**
- * Επιστρέφει { pv, host } έτοιμα για YT.Player:
+ * Επιστρέφει { pv, host } έτοιμα για YT.Player.
  * - ΠΟΤΕ δεν βάζει pv.origin αν δεν είναι okOrigin (HTTPS-only).
  */
 export function buildPlayerVarsWithMeta() {
@@ -215,23 +205,19 @@ export function buildPlayerVarsWithMeta() {
 }
 
 /**
- * Δίνει προειδοποίηση αν αλλάξει το meta (προαιρετικό diagnostics).
+ * Δίνει προειδοποίηση αν αλλάξει το meta (diagnostics).
  */
 export function compareEmbedMeta(prev, next, tag = '') {
   try {
-    // Έλεγχος ύπαρξης/τύπου αντικειμένων με helpers
     const havePrev = allTrue([isDefined(prev) === true, typeof prev === 'object']);
     const haveNext = allTrue([isDefined(next) === true, typeof next === 'object']);
     const can = allTrue([havePrev === true, haveNext === true]);
     if (can !== true) {
       return false;
     }
-
-    // Διαφορά σε origin/host (χωρίς || → anyTrue)
     const diffOrigin = allTrue([String(prev.origin) !== String(next.origin)]);
     const diffHost = allTrue([String(prev.host) !== String(next.host)]);
     const changed = anyTrue([diffOrigin === true, diffHost === true]);
-
     if (changed === true) {
       const hasTag = allTrue([isString(tag) === true, tag.length > 0]);
       const suffix = hasTag === true ? ` [${tag}]` : '';
@@ -242,6 +228,7 @@ export function compareEmbedMeta(prev, next, tag = '') {
     return false;
   }
 }
+
 /* Ενημέρωση για Ολοκλήρωση Φόρτωσης Αρχείου */
 console.log(`[${new Date().toLocaleTimeString()}] ✅ Φόρτωση: ${FILENAME} ${VERSION} → Ολοκληρώθηκε`);
 
