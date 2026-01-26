@@ -1,28 +1,13 @@
 // --- watchdog.js ---
-const VERSION = 'v2.6.2';
+const VERSION = 'v2.7.2';
 /*
  * Περιγραφή: Watchdog για "required watch time" ανά PlayerController.
- *
- *
+ * Προσθήκη:
+ * - (F) Cool-down για restartAll(): αποφυγή back-to-back επανεκκινήσεων (< 90s).
  */
-
-// --- Export Version ---
 export function getVersion() {
   return VERSION;
 }
-
-/* ========================= Περιγραφή =========================
- *
- * Περιγραφή: Watchdog για "required watch time" ανά PlayerController.
- * Refactor (no AND/OR operators):
- * - Ασφαλή groups με resolveGroup().
- * - Stop/Halt gates (isStopping / isSchedulerHalted).
- * Refactor/Adjust:
- * - (C) Effective thresholds: Buffering/Played κανόνες με μεγαλύτερα όρια
- *       (min Buffering=120s, min Stalled WT=300s) χωρίς αλλαγή στο globals.js.
- * - Διατήρηση gates Stop/Halt & WTBus-awareness.
- *
- */
 
 /* Όνομα αρχείου για logging. */
 const FILENAME = import.meta.url.split('/').pop();
@@ -42,18 +27,37 @@ const log = makeLogger(FILENAME);
 
 /* ========================= State ========================= */
 let watchdogTimerId = null;
-const wtSeen = {}; // WTBus cache (index → lastMs)
+const wtSeen = {};
 const WT_FALLBACK_GRACE_MS = 8000;
 let wtBusDisposer = null;
 
-/* ========================= Effective Thresholds (NEW) ========================= */
-// (C) Χωρίς να αλλάξουμε globals.js, εφαρμόζουμε "effective" ελάχιστα όρια.
-const WD_BUFFER_MIN_MS = secToMs(120); // 120s
-const WD_PLAYED_MIN_MS = secToMs(300); // 300s
+/* ========================= Effective Thresholds ========================= */
+const WD_BUFFER_MIN_MS = secToMs(120); // ≥120s
+const WD_PLAYED_MIN_MS = secToMs(300); // ≥300s
 const WD_BUFFER_RULE_MS = Math.max(WATCHDOG_BUFFERING_RULE_MS, WD_BUFFER_MIN_MS);
 const WD_PLAYED_RULE_MS = Math.max(WATCHDOG_PLAYED_RULE_MS, WD_PLAYED_MIN_MS);
 
-/* ========================= Βοηθητικές (υπάρχουσες) ========================= */
+/* ========================= (F) Cool-down RestartAll ========================= */
+const WD_RESTART_COOLDOWN_MS = secToMs(90); // 90s
+let _lastRestartMs = 0;
+function safeRestartAll(reasonTag) {
+  const now = nowMs();
+  const diff = now - _lastRestartMs;
+  const canRestart = allTrue([diff >= WD_RESTART_COOLDOWN_MS]) === true;
+  const mID = getPlayerScope();
+  switch (canRestart) {
+    case true:
+      _lastRestartMs = now;
+      log(`🔁 ${mID} WD: RestartAll (reason=${String(reasonTag)}; cooldown=${msToSec(WD_RESTART_COOLDOWN_MS)}s)`);
+      restartAll();
+      break;
+    default:
+      log(`⏳ ${mID} WD: RestartAll blocked by cooldown (${Math.round(msToSec(WD_RESTART_COOLDOWN_MS - diff))}s left)`);
+      break;
+  }
+}
+
+/* ========================= Helpers (unchanged) ========================= */
 function resolveGroup(ctrl, suffix, fallback) {
   try {
     const ok = [];
@@ -100,7 +104,6 @@ function canFireAutoNext(ctrl, required, played) {
       playingOk = ctrl._isPlaying(ctrl.player) === true;
     }
   } catch (_) {}
-  // recentSeek gate
   let recentSeek = false;
   try {
     const parts = [];
@@ -111,7 +114,6 @@ function canFireAutoNext(ctrl, required, played) {
       recentSeek = allTrue([diff < ctrl.cooldowns.seekMs]) === true;
     }
   } catch (_) {}
-  // recentPause gate
   let recentPause = false;
   try {
     const parts = [];
@@ -122,7 +124,6 @@ function canFireAutoNext(ctrl, required, played) {
       recentPause = allTrue([diff < ctrl.cooldowns.pauseMs]) === true;
     }
   } catch (_) {}
-  // continuity gate
   let continuityOk = false;
   try {
     const parts = [];
@@ -133,7 +134,6 @@ function canFireAutoNext(ctrl, required, played) {
       continuityOk = allTrue([elapsed >= ctrl.continuity.minPlaySec]) === true;
     }
   } catch (_) {}
-  // threshold gate
   const tParts = [];
   tParts.push(isNumber(required) === true);
   tParts.push(played >= required);
@@ -190,14 +190,12 @@ function skipByWtBus(ctrl) {
 
 /* ========================= Core ========================= */
 function checkController(ctrl) {
-  /* ===== Global Stop/Halt gates ===== */
   const halted = allTrue([isSchedulerHalted() === true]) === true;
   const stopped = allTrue([isStopping === true]) === true;
   if (anyTrue([halted === true, stopped === true]) === true) return;
 
   const mID = getPlayerScope(ctrl?.index);
 
-  /* ===== WD-READY baseline gates ===== */
   try {
     const hasReadyFlag = allTrue([typeof ctrl?.hasEnteredReady === 'boolean']) === true;
     const enteredReady = hasReadyFlag === true ? ctrl.hasEnteredReady === true : false;
@@ -207,7 +205,6 @@ function checkController(ctrl) {
     }
   } catch (_) {}
 
-  /* ===== HumanMode scheduled window ===== */
   try {
     const hasSched = allTrue([isNumber(ctrl?.scheduledStartAtMs) === true]) === true;
     if (hasSched === true) {
@@ -219,7 +216,6 @@ function checkController(ctrl) {
     }
   } catch (_) {}
 
-  /* ===== Required Watch-Time ===== */
   let required = 0;
   try {
     let hasPlan = false;
@@ -241,7 +237,6 @@ function checkController(ctrl) {
     }
   } catch (_) {}
 
-  /* ===== Played ===== */
   let played = 0;
   try {
     if (isFunction(ctrl?.getPlayedSec) === true) {
@@ -253,14 +248,13 @@ function checkController(ctrl) {
 
   log(`⏱️ ${mID} Progress → Played=${played}s / Required=${required}s`);
 
-  /* ===== Small-video defer ===== */
   const deferSmall = ctrl?.deferAutoNextUntilEnded === true;
   if (deferSmall === true) {
     log(`⏭️ ${mID} WD: Small-Video Mode → Skip AutoNext (WT/fallback) Until ENDED`);
     return;
   }
 
-  /* ===== READY-age probe (όπως πριν, αμετάβλητο) ===== */
+  /* READY-age probe … (όπως πριν, δεν αλλάζουμε) */
   try {
     const isPlayingNow = allTrue([isFunction(ctrl?._isPlaying) === true, ctrl._isPlaying(ctrl.player) === true]);
     if (isPlayingNow === true) {
@@ -305,7 +299,7 @@ function checkController(ctrl) {
             } else {
               ctrl._wdReadyProbe = null;
               log(`🧠 ${mID} WD: READY recovery failed within 20s → RestartAll (UI flow)`);
-              restartAll();
+              safeRestartAll('ready-probe'); // (F) αντί για άμεσο restartAll()
               return;
             }
           } else {
@@ -324,7 +318,7 @@ function checkController(ctrl) {
     }
   } catch (_) {}
 
-  /* ===== Near-threshold soft-freeze ===== */
+  /* Soft-freeze κοντά στο threshold (όπως πριν) */
   try {
     const nearParts = [];
     nearParts.push(isNumber(played) === true);
@@ -344,7 +338,7 @@ function checkController(ctrl) {
     }
   } catch (_) {}
 
-  /* ===== [Primary] WT trigger (WTBus-aware) ===== */
+  /* [Primary] WT trigger */
   if (ctrl?.watchtimeFired !== true) {
     const canWT = canFireOnWatchtime(ctrl, required, played);
     if (canWT === true) {
@@ -368,7 +362,7 @@ function checkController(ctrl) {
     }
   }
 
-  /* ===== [Fallback] ENDED pacing trigger ===== */
+  /* [Fallback] ENDED pacing trigger */
   const canFire = canFireAutoNext(ctrl, required, played);
   if (canFire === true) {
     if (ctrl?.watchtimeFired !== true) {
@@ -388,7 +382,7 @@ function checkController(ctrl) {
     }
   }
 
-  /* ===== [Long-buffering] Buffering ≥ EFFECTIVE threshold → RestartAll ===== */
+  /* [Long-buffering] BUFFERING ≥ EFFECTIVE threshold → safeRestartAll */
   try {
     const p = ctrl?.player;
     const parts2 = [];
@@ -400,13 +394,13 @@ function checkController(ctrl) {
       const stalled = allTrue([state === YT.PlayerState.BUFFERING, elapsed >= WD_BUFFER_RULE_MS]) === true;
       if (stalled === true) {
         log(`🧠 ${mID} WD: Buffering ≥ ${msToSec(WD_BUFFER_RULE_MS)}s → RestartAll (UI flow)`);
-        restartAll();
+        safeRestartAll('long-buffering'); // (F) αντί για άμεσο restartAll()
         return;
       }
     }
   } catch (_) {}
 
-  /* ===== [Stalled WatchTime] no progress ≥ EFFECTIVE threshold → RestartAll ===== */
+  /* [Stalled] no progress ≥ EFFECTIVE threshold → safeRestartAll */
   try {
     let lpInvalid = false;
     try {
@@ -434,7 +428,7 @@ function checkController(ctrl) {
       if (over === true) {
         ctrl._wdLastProgress = null;
         log(`🧠 ${mID} WD: Stalled WatchTime ≥ ${msToSec(WD_PLAYED_RULE_MS)}s → RestartAll (UI flow)`);
-        restartAll();
+        safeRestartAll('stalled-watchtime'); // (F)
         return;
       }
     }
@@ -444,8 +438,6 @@ function checkController(ctrl) {
 /* ========================= Public API ========================= */
 export function startWatchdog(intervalMs = 10000) {
   const mID = getPlayerScope();
-
-  // WTBus subscribe (όπως πριν)
   try {
     if (isFunction(wtBusDisposer) === true) {
       wtBusDisposer();
@@ -463,7 +455,6 @@ export function startWatchdog(intervalMs = 10000) {
     });
   } catch (_) {}
 
-  // Ακύρωση υπάρχοντος timer, αν τρέχει
   try {
     if (isNumber(watchdogTimerId) === true) {
       cancel(watchdogTimerId);
@@ -476,7 +467,6 @@ export function startWatchdog(intervalMs = 10000) {
       const halted = allTrue([isSchedulerHalted() === true]) === true;
       const stopped = allTrue([isStopping === true]) === true;
       if (anyTrue([halted === true, stopped === true]) === true) return;
-
       for (const ctrl of controllers) {
         const grp = resolveGroup(ctrl, 'watchdog', 'wd:per-controller');
         scheduleSafe(
